@@ -127,6 +127,7 @@
         }
       ],
       "./plugins/with-media-projection-notification",
+      "./plugins/with-short-cxx-dir",
       [
         "expo-build-properties",
         {

@@ -129,32 +129,44 @@ fi
 KEYSTORE_ABS="$(to_native "$KEYSTORE_ABS")"
 
 # --- 2. path length (Windows MAX_PATH) --------------------------------------
-# The NDK/CMake side of react-native-reanimated generates object-file paths ~195
-# characters long RELATIVE to the repo root. Windows still caps a path at 260
-# characters for the APIs ninja and CMake use, so once the repo root passes ~32
-# characters the build dies with the useless
+# CMake writes object files whose NAME embeds the absolute source path, under the
+# module's `.cxx` directory:
+#   apps/mobile/android/app/.cxx/RelWithDebInfo/<hash>/arm64-v8a/
+#     rngesturehandler_codegen_autolinked_build/CMakeFiles/
+#     react_codegen_rngesturehandler_codegen.dir/
+#     C_/<repo path>/node_modules/react-native-gesture-handler/shared/shadowNodes/
+#     react/renderer/components/rngesturehandler_codegen/
+#     RNGestureHandlerDetectorShadowNode.cpp.o
+# The APIs ninja and CMake use still cap at 260 characters, so the repo path is
+# effectively counted twice and the build dies ten minutes in with
+#     ninja: error: Stat(...): Filename longer than 260 characters
 #     ninja: error: manifest 'build.ninja' still dirty after 100 tries
-# after ten minutes of work — CMake keeps re-globbing because it cannot stat the
-# files it just wrote. Measured 2026-07-27: from an 11-char repo root the longest
-# path is 206 chars (fine); from an agent worktree under .claude/worktrees/<id>
-# it is 248 and climbing past the limit with ninja's own .rsp/.d temporaries.
 #
-# So: build from the MAIN checkout, never from a git worktree.
+# 2026-07-31, measured the hard way: from `C:	eamcord` (11 chars) this builds;
+# after the move to `C:\projects\demli` (17 chars) the SAME commit fails. Six
+# characters decided it. Two things that do NOT fix it, both tried:
+#   * a length threshold — it passed `C:/projects/demli`, which does not build;
+#   * a directory junction — AGP canonicalises the short path back to the real
+#     one before CMake ever sees it, so ninja still gets the long path.
 #
-# The threshold is empirical, not theoretical: an 11-char root builds, the
-# 53-char worktree root does not. 32 leaves room for C:/projects/demli while
-# staying far below the known-bad length.
-MAX_ROOT_LEN=32
+# What works is moving the staging directory itself off the deep path:
+# `buildStagingDirectory` is the one knob AGP exposes, and a 5-character
+# destination removes ~46 characters from every object file. It is applied by
+# apps/mobile/plugins/with-short-cxx-dir.js, which only fires when DEMLI_CXX_DIR
+# is set — so Linux/EAS builds are untouched.
 REPO_ROOT_NATIVE="$(to_native "$REPO_ROOT")"
-ROOT_LEN=${#REPO_ROOT_NATIVE}
-if [[ "$ROOT_LEN" -gt "$MAX_ROOT_LEN" ]]; then
-  fail "the repo path is $ROOT_LEN characters:
-    $REPO_ROOT_NATIVE
-  The Android NDK build appends ~195 more and Windows caps paths at 260, so this
-  build WILL fail ten minutes in with the unhelpful
-    ninja: error: manifest 'build.ninja' still dirty after 100 tries
-  Run it from the main checkout ($MAX_ROOT_LEN chars or fewer) rather than a git
-  worktree — merge the branch first, then build."
+if command -v cygpath >/dev/null 2>&1; then
+  # Windows only. Short by design; override if C:/dx is taken on this machine.
+  export DEMLI_CXX_DIR="${DEMLI_CXX_DIR:-C:/dx}"
+  DEMLI_CXX_DIR_UNIX="$(cygpath -u "$DEMLI_CXX_DIR")"
+  mkdir -p "$DEMLI_CXX_DIR_UNIX" ||
+    fail "could not create the native build staging dir $DEMLI_CXX_DIR (Windows MAX_PATH workaround).
+  Set DEMLI_CXX_DIR to a short writable path and run again."
+  # A stale staging dir from a DIFFERENT checkout would silently link the wrong
+  # objects into this APK, and the .cxx layout carries no marker of its origin.
+  # It is a cache: throw it away rather than trust it.
+  rm -rf "${DEMLI_CXX_DIR_UNIX:?}"/* 2>/dev/null || true
+  echo "== native build staging: $DEMLI_CXX_DIR (Windows MAX_PATH; repo root is $REPO_ROOT_NATIVE) =="
 fi
 
 # --- 3. toolchain -----------------------------------------------------------
