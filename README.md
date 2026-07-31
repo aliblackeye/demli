@@ -1,5 +1,8 @@
 # Demli
 
+[![CI](https://github.com/aliblackeye/demli/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/aliblackeye/demli/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
 A private, realtime communication app for friend groups — text channels, voice rooms, screen sharing, cameras, and DM calls. Three clients: a Windows Electron desktop app (installer via `pnpm package:win`, silent auto-update), an Android Expo/React Native app (EAS OTA + in-app APK self-updater), and a web SPA sharing the desktop renderer. Backed by a self-hosted VPS (Fastify API + WS gateway + LiveKit SFU + Postgres/Redis).
 
 Built for one group of friends rather than for scale: invite-only servers, no public directory, no ads, no recommendation feed. The bar it is held to is audio and video that stay stable through a bad connection, and desktop and mobile that do the same things — parity is tracked per feature, not claimed.
