@@ -160,3 +160,5 @@ jobs:
       # web and landing SPAs. No installer is produced; see the header.
       - name: Build
         run: pnpm build
+
+# (registered on the rebuilt repository)
