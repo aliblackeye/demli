@@ -1,0 +1,2 @@
+ALTER TABLE "messages" ADD COLUMN "nonce" text;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "messages_author_nonce_unique" ON "messages" USING btree ("author_id","nonce") WHERE "messages"."nonce" IS NOT NULL;

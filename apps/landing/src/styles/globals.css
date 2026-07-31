@@ -1,0 +1,1398 @@
+/*
+ * Demli landing page styles.
+ *
+ * ── Tokens ─────────────────────────────────────────────────────────────────
+ * The palette, radii, motion ramp and font stacks are IMPORTED from the
+ * single-source token file (packages/app-ui/src/tokens.css) — this page invents
+ * no colours of its own, so a re-skin of the product reaches the landing page
+ * for free. The page-local `--l-*` block below holds page GEOMETRY only, and
+ * every value in it is derived from a token rather than typed in fresh.
+ *
+ * ── Fonts ──────────────────────────────────────────────────────────────────
+ * The woff2 subsets are the repo's own self-hosted files under apps/desktop —
+ * referenced, not copied, so the landing typography can never drift from the
+ * app's. Google Fonts is not used: the page ships a strict CSP with
+ * `font-src 'self'` and must make zero external requests.
+ *
+ * latin AND latin-ext are both declared: Turkish ş/ğ/İ/Ş/Ğ live in latin-ext,
+ * and this page is half Turkish. unicode-range keeps the browser from fetching
+ * a subset it does not need. The values are copied verbatim from the desktop
+ * renderer's globals.css (originally Google Fonts' CSS2 output).
+ *
+ * ── No framework ───────────────────────────────────────────────────────────
+ * Plain CSS, no Tailwind. This is one page; a utility pipeline would be more
+ * config than content and would drag a build dependency into a static marketing
+ * page for no benefit.
+ *
+ * ── Shape rule (applied everywhere, no exceptions) ──────────────────────────
+ * Containers are soft (2x the token radius), interactive controls are tighter
+ * (radius-xl), and the only true pill on the page is the language toggle. Inner
+ * elements are never rounder than the box holding them.
+ */
+
+@import "../../../../packages/app-ui/src/tokens.css";
+
+/* Instrument Sans — body (400/500/600). 500 carries the lead paragraphs and the
+   platform names: two weights alone force every hierarchy step to be a size
+   change, which is what makes a page read as flat. */
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-Latin-400.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-LatinExt-400.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-Latin-500.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-LatinExt-500.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-Latin-600.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/InstrumentSans-LatinExt-600.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Space Grotesk — display/headings (500/600/700) */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-Latin-500.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-LatinExt-500.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-Latin-600.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-LatinExt-600.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-Latin-700.woff2")
+    format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../../desktop/src/renderer/src/assets/fonts/SpaceGrotesk-LatinExt-700.woff2")
+    format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ── Page-local geometry ──────────────────────────────────────────────────── */
+
+:root {
+  /* Containers vs controls. Both hang off --tc-radius so the product's single
+     roundness knob still moves this page. */
+  --l-radius-card: calc(var(--tc-radius) * 2); /* 20px — cells, download rows  */
+  --l-radius-control: var(--tc-radius-xl); /* 12px — buttons, chips        */
+
+  --l-shell: 72rem;
+  --l-gutter: clamp(1.25rem, 5vw, 2.5rem);
+  /* Airy, but not so airy that a three-beat page reads as three islands with
+     nothing between them. The hero pays its own bottom padding on top of this. */
+  --l-section-pad: clamp(3rem, 5.5vw, 4.5rem);
+
+  /* Card fills. Cream at very low alpha, matching the token hairlines, so the
+     surfaces stay in the same warm family as everything else. */
+  --l-fill: rgba(248, 238, 212, 0.028);
+  --l-fill-hover: rgba(248, 238, 212, 0.055);
+
+  /* Hero mark size. ONE value drives both the logo and the halo around it, so
+     the ring can never end up as a big empty circle with a small icon lost in
+     the middle of it (which is exactly what a fixed-width halo did on a 390px
+     screen). The floor is 11rem, not something smaller: on the narrowest phone
+     this logo still has to read as the point of the page. */
+  --l-mark: clamp(11rem, 40vw, 17rem);
+
+  /* ── Motion ramp (page-local, derived from the token ramp) ────────────────
+     The token `--tc-motion-duration-arrival` is 500ms, which is the right
+     number for a chat row settling into a list the user is already watching. It
+     is the WRONG number for a marketing page: an entry the visitor did not ask
+     for reads as the page being slow, and 500ms of it on every block reads as
+     the page fighting them. 320ms with a decelerating curve is the band where
+     motion registers as intent rather than as latency.
+
+     `--l-stagger` is deliberately small. A cascade wants to say "these belong
+     together and there is an order"; at 150ms+ it starts saying "wait your
+     turn" instead, and three cells at 150ms means the last one lands almost
+     half a second after the first. */
+  --l-enter: 320ms;
+  --l-enter-ease: var(--tc-motion-ease-arrival);
+  --l-stagger: 60ms;
+  /* Travel of an entering block. Short on purpose: a long slide is a slide, a
+     short one is just the thing arriving. */
+  --l-enter-lift: 1rem;
+  /* Hover/state changes reuse the token ramp verbatim — 120ms for a press and
+     180ms for a surface changing state are already the app's numbers. */
+  --l-hover: var(--tc-motion-duration-fast);
+}
+
+/* ── Reset / base ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* The header is sticky, so an in-page jump has to stop below it instead of
+     parking the section title underneath the nav. */
+  scroll-padding-top: 6rem;
+}
+
+body {
+  margin: 0;
+  background-color: var(--tc-app);
+  color: var(--tc-fg);
+  font-family: var(--tc-font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * The warm Demli ramp, painted once and pinned to the viewport so a short page
+ * and a tall one look identical instead of the gradient stretching to fit.
+ *
+ * Anchored at 74% rather than dead centre: the hero's brand mark sits in the
+ * right column, and putting the page's light source above it gives the whole
+ * page ONE consistent direction of light instead of a symmetrical glow behind a
+ * centred stack (which is the shape every generated landing page has).
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 55% at 74% -8%, rgba(255, 140, 26, 0.14) 0%, rgba(255, 140, 26, 0) 100%),
+    radial-gradient(130% 95% at 62% 0%, #2a0f07 0%, #180806 44%, #0c0304 100%);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+::selection {
+  background: var(--tc-selection);
+  color: var(--tc-fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--tc-accent);
+  outline-offset: 3px;
+  border-radius: var(--tc-radius-sm);
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  /* dvh where supported: 100vh on mobile Safari/Chrome includes the collapsing
+     URL bar, which leaves a scrollable dead strip under the footer. */
+  min-height: 100dvh;
+}
+
+/*
+ * Out-of-flow marker at the very top of the document. The header watches it to
+ * learn it is no longer at the top of the page — see useScrollSentinel.
+ *
+ * 0.75rem, deliberately tiny. A tall sentinel felt safer ("only flip after a
+ * real scroll") and was wrong: the header is ~68px, so a 72px sentinel meant the
+ * hero's buttons were already sliding under a still-transparent bar by the time
+ * the state flipped. Screenshotting mid-transition is what caught it. Firing
+ * after 12px leaves the whole fade to finish long before anything reaches the
+ * header, and 12px is past any trackpad twitch anyway.
+ */
+.scroll-sentinel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 0.75rem;
+  pointer-events: none;
+}
+
+.shell {
+  width: 100%;
+  max-width: var(--l-shell);
+  margin: 0 auto;
+  padding-inline: var(--l-gutter);
+}
+
+.page__main {
+  flex: 1 1 auto;
+}
+
+/* Off-screen until focused. First tab stop on the page. */
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 20;
+  transform: translateY(-160%);
+  padding: 0.625rem 1rem;
+  border-radius: var(--l-radius-control);
+  background: var(--tc-accent);
+  color: var(--tc-on-accent);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: transform var(--tc-motion-duration-fast) var(--tc-motion-ease-standard);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+/*
+ * Sticky and blurred rather than scrolled-away: "Open Demli" is the page's one
+ * primary action and should never require scrolling back up. The translucent
+ * fill is dark enough that the cream text keeps its contrast over both the hero
+ * bloom and the plain page ramp underneath.
+ *
+ * ── Default state is the SAFE state ─────────────────────────────────────────
+ * This rule ships the header already opaque enough to read over anything. The
+ * transparent-at-the-top treatment below is added only under `.js-motion`, i.e.
+ * only when JS is running to take it away again. Written the other way round —
+ * transparent by default, solid once JS says so — a failed bundle would leave
+ * cream text floating over scrolling content forever.
+ */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(18, 8, 6, 0.72);
+  border-bottom: 1px solid var(--tc-stroke);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  /* 180ms, not the 240ms panel duration: this one races the scroll. The longer
+     curve left a readable window in which sharp hero copy sat behind a bar that
+     had not finished becoming opaque. */
+  transition:
+    background-color var(--l-hover) var(--tc-motion-ease-standard),
+    border-bottom-color var(--l-hover) var(--tc-motion-ease-standard);
+}
+
+/*
+ * At the top of the page the header has nothing to separate itself from: the
+ * hero starts immediately below it and a bar drawn over the hero's own bloom is
+ * a line the design does not need. Once real content is passing underneath, the
+ * surface appears. Only colour changes here — the bar's height is untouched, so
+ * nothing reflows and the sticky element never fights the scroll.
+ *
+ * The blur deliberately stays ON in this state. Turning it off saved a
+ * compositor layer over a hero that has nothing behind the header anyway, and
+ * cost the one moment that matters: mid-transition, with real content arriving
+ * underneath, an unblurred transparent bar shows sharp text straight through
+ * itself.
+ */
+.js-motion:not([data-scrolled]) .site-header {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
+/* Scrolled: denser than the resting default, so the bar reads as having settled
+   onto the page rather than merely reappearing. */
+.js-motion[data-scrolled] .site-header {
+  background: rgba(12, 4, 3, 0.86);
+  border-bottom-color: var(--tc-stroke-strong);
+}
+
+/* The one geometric part of the condense, done with a transform so it costs a
+   composite and not a layout pass: the mark tightens by 10% once the header is
+   a floating bar instead of the top of the page. Animating the bar's padding
+   would read the same and reflow the sticky element on every frame of the
+   transition, which is the trade this page does not make. */
+.js-motion[data-scrolled] .site-header .brand__mark {
+  transform: scale(0.9);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* 40px mark + 2 x 14px = 68px, under the 80px a nav may take. */
+  padding-block: 0.875rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.brand__mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--tc-radius-xl);
+  flex: none;
+  transition: transform var(--tc-motion-duration-standard) var(--tc-motion-ease-standard);
+}
+
+.brand__name {
+  font-family: var(--tc-font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border: 1px solid transparent;
+  border-radius: var(--l-radius-control);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+  cursor: pointer;
+  /* Labels are 2-3 words in both languages; they must never wrap to a second
+     line, which is what turns a CTA into a broken box. */
+  white-space: nowrap;
+  transition:
+    background-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    border-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    transform var(--tc-motion-duration-instant) var(--tc-motion-ease-standard);
+}
+
+/* Accent is a LIGHT orange, so its label is the dark on-accent token, never
+   white — see the --tc-on-accent note in tokens.css. 8.4:1 against the fill. */
+.btn--accent {
+  background: var(--tc-accent);
+  color: var(--tc-on-accent);
+  box-shadow: 0 6px 20px -8px rgba(255, 140, 26, 0.55);
+}
+
+.btn--accent:hover {
+  background: var(--tc-accent-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--tc-stroke-strong);
+  color: var(--tc-fg);
+}
+
+.btn--ghost:hover {
+  background: var(--l-fill-hover);
+  border-color: var(--tc-stroke-strong);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Physical press. */
+.btn:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.btn--sm {
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.875rem;
+}
+
+.btn--lg {
+  padding: 0.8125rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* ── Language picker ──────────────────────────────────────────────────────── */
+
+/* The one true pill on the page: a segmented toggle reads as a switch, and a
+   switch is a pill everywhere else the user has ever seen one. */
+.lang {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1875rem;
+  gap: 0.125rem;
+  border: 1px solid var(--tc-stroke);
+  border-radius: 999px;
+  background: var(--l-fill);
+}
+
+.lang__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--tc-fg-muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--tc-text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard);
+}
+
+.lang__btn:hover {
+  color: var(--tc-fg);
+}
+
+.lang__btn[aria-pressed="true"] {
+  background: var(--tc-accent-surface);
+  color: var(--tc-accent);
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  /* Top padding stays under 6rem so the copy starts near the top of the
+     viewport instead of floating down the middle of it. */
+  padding-block: clamp(2.25rem, 5vw, 3.75rem) clamp(2rem, 4vw, 3rem);
+}
+
+.hero__inner {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 3rem);
+  align-items: center;
+}
+
+/* Asymmetric split from 56rem up: the copy gets the larger share and the mark
+   the smaller one, which is the opposite of a 50/50 and reads as composed
+   rather than defaulted. Below that it is one column, mark first. */
+@media (min-width: 56rem) {
+  .hero__inner {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+  }
+}
+
+.hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.hero__title {
+  margin: 0;
+  max-width: 15ch;
+  font-family: var(--tc-font-display);
+  font-weight: 700;
+  font-size: clamp(2.375rem, 6.2vw, 4rem);
+  /* 1.08 rather than 1: Turkish "ğ" and the "y" in "buluşma yeri" have real
+     descenders and a tighter leading clips them at display sizes. */
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.hero__lead {
+  margin: 0;
+  max-width: 42ch;
+  color: var(--tc-fg-muted);
+  font-weight: 500;
+  font-size: clamp(1.0625rem, 1.6vw, 1.1875rem);
+  text-wrap: pretty;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* The brand mark as the hero's visual anchor. It is the largest thing on the
+   page by design — the founder has twice flagged the logo as too small, and the
+   fix is a real 512px asset shown big, not a stretched 256px one. */
+.hero__visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  aspect-ratio: 1;
+  /* Sized off the mark, not off the column: the halo is always 30% wider than
+     the logo, at every viewport. */
+  width: min(100%, calc(var(--l-mark) * 1.3));
+}
+
+/*
+ * A layer that exists only to own a transform. `.hero__visual` spends its own
+ * transform on the entry animation, and an element cannot run two transform
+ * animations at once, so the scroll parallax lives one level down. Everything
+ * inside positions against this box exactly as it used to against the visual.
+ */
+.hero__orbit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.hero__mark {
+  position: relative;
+  z-index: 1;
+  width: var(--l-mark);
+  height: auto;
+  /* 0.225 of the width — the same corner ratio the icon generator renders into
+     the artwork, so the CSS rounding sits exactly on the painted plate's edge
+     instead of shaving a sliver off it. */
+  border-radius: calc(var(--l-mark) * 0.225);
+  filter: drop-shadow(0 24px 48px rgba(8, 3, 1, 0.65));
+}
+
+/* Two faint rings, not a decorative grid: the mark is a voice app's icon and
+   concentric rings read as sound leaving it. Kept at hairline alpha so they are
+   depth, not pattern. These two never move — they are the composition. */
+.hero__ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid var(--tc-stroke);
+  pointer-events: none;
+}
+
+.hero__ring--inner {
+  inset: 14%;
+  box-shadow: 0 0 90px 30px rgba(255, 140, 26, 0.1) inset;
+}
+
+.hero__ring--outer {
+  inset: 0;
+  border-color: rgba(248, 238, 212, 0.05);
+}
+
+/*
+ * The page's ONE continuous loop: two rings leaving the mark, half a cycle
+ * apart, in the accent rather than the cream so they read as signal and not as
+ * another hairline. This is a voice product, so the single thing allowed to
+ * move on its own is sound coming out of its icon.
+ *
+ * 5.2s is slow on purpose. A ping every second is a notification badge; a ping
+ * every five is a room that is alive. Only `transform` and `opacity` animate,
+ * and the whole thing is paused while the hero is off screen (see the
+ * `is-live` gate at the end of this file), so scrolling down stops it dead.
+ */
+.hero__pulse {
+  position: absolute;
+  /* Anchored to the OUTER ring's box, not the inner one. The mark is opaque and
+     sits above these on z-index 1, so a pulse that starts inside the logo's
+     footprint spends its whole life hidden behind it and only ever shows four
+     stubs at the cardinal points. The scale band below is chosen so the ring is
+     born level with the mark's edge (0.78) and dies just past the outer ring
+     (1.06) — the entire animation happens in the halo, where it can be seen. */
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 140, 26, 0.5);
+  /* Static bloom. It is never animated; it simply fades with the element's own
+     opacity, which costs nothing extra. */
+  box-shadow: 0 0 28px rgba(255, 140, 26, 0.14);
+  opacity: 0;
+  pointer-events: none;
+  animation: hero-pulse 5.2s var(--tc-motion-ease-arrival) infinite;
+}
+
+.hero__pulse--b {
+  animation-delay: 2.6s;
+}
+
+/*
+ * The scale band is the whole design of this loop. It STARTS at 0.8, level with
+ * the mark's own edge, because the mark is opaque and above these on z-index 1 —
+ * anything smaller spends its life hidden behind the logo. It ENDS at 1.26,
+ * outside the halo rings entirely, because the gap between the mark and the
+ * outer ring is only ~40px and a ring that dies inside it never reads as
+ * travelling. Overflowing the visual's box is intentional and safe: the ring is
+ * a translucent hairline at that point, the box is centred inside its grid
+ * column, and the page has been checked for horizontal overflow at 1440, 1024,
+ * 768 and 390.
+ */
+@keyframes hero-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  14% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.26);
+  }
+}
+
+/*
+ * Scroll parallax, as a scroll-driven animation rather than a scroll handler:
+ * the mark drifts up faster than the copy beside it as the hero leaves, which
+ * gives the fold a sense of depth for zero JS and zero frames of main-thread
+ * work. The range starts at `cover 40%` so the drift is at rest on load and
+ * only begins once the visitor actually moves.
+ *
+ * Chromium-only today. That is the correct place for it: no polyfill, no
+ * library, and every other engine simply gets the static hero it has now.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .hero__orbit {
+      animation: hero-drift linear both;
+      animation-timeline: view();
+      animation-range: cover 40% cover 100%;
+    }
+  }
+}
+
+@keyframes hero-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -2rem, 0);
+  }
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+
+.section {
+  padding-block: var(--l-section-pad);
+}
+
+/*
+ * A soft band, not a hairline rule. Every section separated by an identical 1px
+ * border is what makes a page read as a stack of boxes; a gradient that fades in
+ * and out has no edge to notice and still tells the eye a new block started.
+ * Same colour family, same theme — only a step of lightness.
+ */
+.section--band {
+  position: relative;
+}
+
+.section--band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(248, 238, 212, 0) 0%,
+    rgba(248, 238, 212, 0.026) 18%,
+    rgba(248, 238, 212, 0.026) 82%,
+    rgba(248, 238, 212, 0) 100%
+  );
+}
+
+.section__title {
+  margin: 0 0 0.75rem;
+  font-family: var(--tc-font-display);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 3.4vw, 2.375rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.section__lead {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--tc-fg-muted);
+  font-size: 1.0625rem;
+  text-wrap: pretty;
+}
+
+/* ── Features (1 + 2 bento) ───────────────────────────────────────────────── */
+
+.bento {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Voice takes the tall cell because voice is the product's first priority.
+   Exactly three cells for three claims — the grid is never padded with a blank
+   tile. */
+@media (min-width: 56rem) {
+  .bento {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 1.125rem;
+  }
+
+  .bento__cell--lead {
+    grid-row: span 2;
+  }
+}
+
+.bento__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: clamp(1.375rem, 2.6vw, 2rem);
+  border: 1px solid var(--tc-stroke);
+  border-radius: var(--l-radius-card);
+  background: var(--l-fill);
+  transition:
+    transform var(--l-hover) var(--tc-motion-ease-standard),
+    border-color var(--l-hover) var(--tc-motion-ease-standard);
+}
+
+/* A cell is not a link, so the hover is not a promise of a click — it is the
+   page acknowledging the pointer. 3px and a brighter edge is the whole move;
+   anything larger turns a reading surface into a toy. */
+.bento__cell:hover {
+  transform: translateY(-3px);
+  border-color: var(--tc-stroke-strong);
+}
+
+/* The lead cell earns a warm wash plus a fine diagonal weave. Flat fills on
+   every tile is what makes a feature grid look unfinished. */
+.bento__cell--lead {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--tc-stroke-strong);
+  background:
+    linear-gradient(158deg, rgba(255, 140, 26, 0.11) 0%, rgba(255, 140, 26, 0.02) 46%, transparent 72%),
+    var(--tc-surface);
+}
+
+.bento__cell--lead::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(248, 238, 212, 0.022) 0 1px,
+    transparent 1px 9px
+  );
+}
+
+/* The second cell gets a quieter corner glow so the column beside the lead is
+   not two identical flat boxes. */
+.bento__cell--share {
+  background:
+    radial-gradient(120% 100% at 100% 0%, rgba(248, 238, 212, 0.045) 0%, transparent 62%),
+    var(--l-fill);
+}
+
+.bento__title {
+  margin: 0;
+  font-family: var(--tc-font-display);
+  font-weight: 600;
+  font-size: 1.1875rem;
+  letter-spacing: -0.015em;
+}
+
+.bento__title--lead {
+  /* Guarantees a gap under the level strip even on mobile, where the cell is
+     short and `margin-bottom: auto` has no free space to hand out. */
+  margin-top: clamp(1.25rem, 3vw, 1.75rem);
+  font-size: clamp(1.375rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.025em;
+}
+
+.bento__body {
+  margin: 0;
+  color: var(--tc-fg-muted);
+  font-size: 0.9688rem;
+  text-wrap: pretty;
+}
+
+.bento__note {
+  margin: 0.25rem 0 0;
+  color: var(--tc-fg-faint);
+  font-size: 0.875rem;
+}
+
+/* Audio level strip. `margin-bottom: auto` pushes the copy to the bottom of the
+   tall cell, so the lead tile has an intentional top-and-bottom composition
+   instead of text floating in the middle of dead space.
+   NO padding on this box: the bars are `height: 100%` of it, and padding would
+   eat the content box and flatten them into dashes. The breathing room below
+   comes from the title's own margin. */
+.wave {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4375rem;
+  height: 4.25rem;
+  margin-bottom: auto;
+}
+
+.wave__bar {
+  width: 0.3125rem;
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: bottom;
+  transform: scaleY(var(--h));
+  background: linear-gradient(to top, rgba(255, 140, 26, 0.35), var(--tc-accent));
+  /*
+   * Three things stop this reading as a row of metronomes, and it needs all
+   * three: a per-bar PERIOD (`--d`, five unrelated values round-robin) so the
+   * strip never re-synchronises, a negative index-scaled DELAY so every bar
+   * starts mid-cycle instead of all of them starting at the floor, and a
+   * keyframe with an uneven middle so the fall is not just the rise reversed.
+   *
+   * Only `transform` animates, so the whole strip lives on the compositor and
+   * the main thread never sees it.
+   */
+  animation: wave var(--d, 1300ms) var(--tc-motion-ease-standard) calc(var(--i) * -137ms) infinite;
+}
+
+@keyframes wave {
+  0% {
+    transform: scaleY(calc(var(--h) * 0.3));
+  }
+  36% {
+    transform: scaleY(var(--h));
+  }
+  62% {
+    transform: scaleY(calc(var(--h) * 0.52));
+  }
+  81% {
+    transform: scaleY(calc(var(--h) * 0.86));
+  }
+  100% {
+    transform: scaleY(calc(var(--h) * 0.3));
+  }
+}
+
+/* ── Downloads ────────────────────────────────────────────────────────────── */
+
+.download {
+  display: grid;
+  gap: clamp(2rem, 4vw, 2.5rem);
+}
+
+/* Intro column beside the actions — a third layout family, so no two sections
+   on this page share a shape. */
+@media (min-width: 56rem) {
+  .download {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: clamp(2.5rem, 6vw, 4.5rem);
+    align-items: start;
+  }
+}
+
+.download__soon {
+  margin: 1.25rem 0 0;
+  max-width: 34ch;
+  color: var(--tc-fg-faint);
+  font-size: 0.9375rem;
+}
+
+.download__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* The whole row is the anchor. Name and note on the left, the action chip
+   pinned right, so the two rows' chips line up as one vertical edge. */
+.plat {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid var(--tc-stroke);
+  border-radius: var(--l-radius-card);
+  background: var(--l-fill);
+  transition:
+    background-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    border-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard),
+    transform var(--tc-motion-duration-instant) var(--tc-motion-ease-standard);
+}
+
+/* An accent edge that wipes down the left side of the row under the pointer.
+   `scaleY` on a 2px strip, so it is a transform and nothing else — no width, no
+   layout, no shadow. It also fires on :focus-visible, because a keyboard user
+   deserves the same read of "this row is the one you are on". */
+.plat::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  background: var(--tc-accent);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform var(--tc-motion-duration-standard) var(--tc-motion-ease-standard);
+}
+
+.plat:hover::before,
+.plat:focus-visible::before {
+  transform: scaleY(1);
+}
+
+.plat:hover {
+  background: var(--l-fill-hover);
+  border-color: var(--tc-stroke-strong);
+  transform: translateY(-1px);
+}
+
+.plat:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.plat__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+
+.plat__name {
+  font-family: var(--tc-font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+
+.plat__note {
+  color: var(--tc-fg-muted);
+  font-size: 0.875rem;
+}
+
+.plat__action {
+  flex: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--l-radius-control);
+  background: var(--tc-accent);
+  color: var(--tc-on-accent);
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  transition: background-color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard);
+}
+
+/*
+ * A chevron that leans forward when the row is under the pointer — the smallest
+ * possible "this goes somewhere" without shipping an icon library to a page
+ * that has no other icons.
+ *
+ * U+203A rather than an arrow: the self-hosted Instrument Sans subsets cover
+ * U+2000-206F, and U+2192 is NOT in the declared unicode-range, so a real arrow
+ * would silently fall back to a system font and sit at the wrong weight next to
+ * the label it is attached to.
+ */
+.plat__action::after {
+  content: "\203A";
+  display: inline-block;
+  margin-inline-start: 0.4375rem;
+  opacity: 0.6;
+  transform: translateX(-2px);
+  transition:
+    transform var(--l-hover) var(--tc-motion-ease-standard),
+    opacity var(--l-hover) var(--tc-motion-ease-standard);
+}
+
+.plat:hover .plat__action {
+  background: var(--tc-accent-hover);
+}
+
+.plat:hover .plat__action::after,
+.plat:focus-visible .plat__action::after {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.download__browser {
+  margin-top: 0.25rem;
+  color: var(--tc-fg-muted);
+  font-size: 0.9375rem;
+}
+
+.text-link {
+  color: var(--tc-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+.text-link:hover {
+  color: var(--tc-accent-hover);
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+
+.site-footer {
+  border-top: 1px solid var(--tc-stroke);
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-block: clamp(2.25rem, 5vw, 3.25rem);
+}
+
+.site-footer__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.brand__name--sm {
+  font-size: 1.0625rem;
+}
+
+.site-footer__brand .brand__mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--tc-radius-md);
+}
+
+.site-footer__note {
+  margin: 0;
+  max-width: 38ch;
+  color: var(--tc-fg-muted);
+  font-size: 0.875rem;
+}
+
+.site-footer__end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+@media (min-width: 40rem) {
+  .site-footer__end {
+    align-items: flex-end;
+  }
+}
+
+.site-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.site-footer__link {
+  color: var(--tc-fg-muted);
+  transition: color var(--tc-motion-duration-instant) var(--tc-motion-ease-standard);
+}
+
+.site-footer__link:hover {
+  color: var(--tc-fg);
+}
+
+.site-footer__rights {
+  margin: 0;
+  color: var(--tc-fg-faint);
+  font-size: 0.875rem;
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────────── */
+
+/*
+ * The page's motion budget, spent deliberately:
+ *
+ *   1. Hero arrival        headline, lead, buttons and the mark, 320ms, 60ms
+ *                          apart. Runs once, on load, unconditionally.
+ *   2. Scroll reveals      the bento cells and the two download columns, each
+ *                          the FIRST time it reaches the fold and never again.
+ *   3. One live loop       sonar rings in the hero, level bars in the voice
+ *                          tile — different sections, both gated to their own
+ *                          viewport, so exactly one of them can be running.
+ *   4. Hover / press       cards, rows, buttons, the chevron.
+ *   5. Header condense     colour only, on a sentinel crossing.
+ *   6. Hero parallax       a scroll-driven animation where the engine has one.
+ *
+ * That is a page that feels awake. It is deliberately NOT a page where every
+ * element has its own entrance: CLAUDE.md §8 still applies, and "not plain" was
+ * never the same request as "more effects".
+ */
+
+/* ── 1. Hero arrival ──────────────────────────────────────────────────────── */
+
+/*
+ * Unconditional, not observer-driven: the hero is above the fold by definition,
+ * so gating it on IntersectionObserver would only add a way for it to fail.
+ * 320ms rather than the token's 500ms arrival — see the --l-enter note up top.
+ */
+.hero__copy > *,
+.hero__visual {
+  animation: rise var(--l-enter) var(--l-enter-ease) both;
+}
+
+.hero__copy > *:nth-child(2) {
+  animation-delay: var(--l-stagger);
+}
+
+.hero__copy > *:nth-child(3) {
+  animation-delay: calc(var(--l-stagger) * 2);
+}
+
+/* The mark comes in with the lead rather than last: it is the largest thing on
+   the page and holding it back until third makes the composition assemble
+   backwards. */
+.hero__visual {
+  animation-delay: calc(var(--l-stagger) * 0.5);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--l-enter-lift));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 2. Scroll reveals ────────────────────────────────────────────────────── */
+
+/*
+ * `opacity: 0` is reachable ONLY under `.js-motion`, which only exists when JS
+ * ran and IntersectionObserver is supported. Without either, these selectors
+ * never match and every block paints in its final state — no observer to wait
+ * on, no way to end up with an invisible page.
+ *
+ * The class lands on the CONTAINER and the children stagger off `:nth-child`,
+ * so a three-cell grid costs one observer instead of three.
+ */
+.js-motion .reveal-group > * {
+  opacity: 0;
+  transform: translateY(var(--l-enter-lift));
+  transition:
+    opacity var(--l-enter) var(--l-enter-ease),
+    transform var(--l-enter) var(--l-enter-ease);
+}
+
+.js-motion .reveal-group > *:nth-child(2) {
+  transition-delay: var(--l-stagger);
+}
+
+.js-motion .reveal-group > *:nth-child(3) {
+  transition-delay: calc(var(--l-stagger) * 2);
+}
+
+/* Fourth and beyond share the third slot's delay. A cascade that keeps growing
+   makes the last item arrive after the visitor has already read it. */
+.js-motion .reveal-group > *:nth-child(n + 4) {
+  transition-delay: calc(var(--l-stagger) * 3);
+}
+
+/* `is-in` is added once and the observer disconnects itself, so scrolling back
+   up and down again cannot replay any of this. */
+.js-motion .reveal-group.is-in > * {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── 3. Live loops, gated to their own section ────────────────────────────── */
+
+/*
+ * Declared unconditionally above (so a JS-less page still gets its motion), then
+ * PAUSED here and released only while the owning block is on screen. A page
+ * scrolled past the hero, or a tab left in the background, animates nothing.
+ */
+.js-motion .hero__pulse,
+.js-motion .wave__bar {
+  animation-play-state: paused;
+}
+
+.js-motion .hero__visual.is-live .hero__pulse,
+.js-motion .wave.is-live .wave__bar {
+  animation-play-state: running;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
+
+/*
+ * Everything above collapses, and the reveals are forced to their FINISHED
+ * state rather than left at `opacity: 0` waiting for a transition that will
+ * never run. Getting this wrong is how a "respects reduced motion" page ends up
+ * blank for the people who asked for less motion.
+ *
+ * This is a plain media query rather than anything JS decides, so a visitor who
+ * flips the OS setting while the page is open is covered without a reload.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .hero__copy > *,
+  .hero__visual,
+  .hero__orbit,
+  .hero__pulse,
+  .wave__bar {
+    animation: none !important;
+  }
+
+  .js-motion .reveal-group > *,
+  .js-motion .reveal-group.is-in > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .btn:hover,
+  .btn:active,
+  .plat:hover,
+  .plat:active,
+  .bento__cell:hover,
+  .js-motion[data-scrolled] .site-header .brand__mark {
+    transform: none;
+  }
+
+  /* The chevron stops leaning and just sits there. Left at its resting offset it
+     would still jump 4px on every hover, which is the motion this visitor asked
+     not to see. The accent edge on `.plat::before` is left alone: it is a wipe
+     with a 0.01ms duration under this query, i.e. a plain state change. */
+  .plat__action::after,
+  .plat:hover .plat__action::after,
+  .plat:focus-visible .plat__action::after {
+    transform: none;
+    opacity: 0.8;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Blur is expensive on low-power devices and reads as haze to anyone who has
+   asked for less transparency; fall back to an opaque header bar. */
+@media (prefers-reduced-transparency: reduce) {
+  .site-header {
+    background: var(--tc-sidebar);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

@@ -1,0 +1,34 @@
+# OTA güncelleme yayını — master'a her push'ta OTOMATİK çalışır.
+#
+# preview kanalına bir EAS Update yayınlar. Telefondaki APK (preview profilinden
+# üretilmiş) açılışta / öne geldiğinde bunu görür ve kendini günceller
+# (src/updates/UpdateGate.tsx). Sen Expo panelinE hiç uğramadan, sadece git push
+# ile yeni sürümü herkesin telefonuna göndermiş olursun.
+#
+# KRİTİK varsayılan: app.config.js artık `critical`'ı varsayılan olarak true
+# basıyor (ürün kararı: "herkes hep en güncelde olsun"). Yani buradan çıkan her
+# otomatik yayın ZORUNLU'dur — kullanıcı açılışta tam-ekran bloklanıp güncellenir.
+# Tek seferlik opsiyonel (banner) yayın istersen: DEMLI_CRITICAL_UPDATE=0 ile
+# yayınla (bkz. app.config.js).
+#
+# ÖNEMLİ: Bu yalnızca JS/görsel değişikliklerini taşır. Native bir şey
+# değiştiysen (yeni native paket, izin, app.json native ayarı) önce app.json'da
+# `version`'ı bump edip build-android.yml ile yeni APK çıkar — yoksa eski APK'ya
+# uyumsuz JS gidip çökebilir. Aynı `version` içinde JS'i serbestçe OTA gönder.
+#
+# Kanal eşleşmesi: preview profili channel=preview (eas.json) ve runtime
+# version=appVersion ("0.0.1") olduğu için update ile APK birebir eşleşir.
+
+name: Publish OTA update
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish_update:
+    name: Publish OTA update (preview)
+    type: update
+    params:
+      branch: preview

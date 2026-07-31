@@ -1,0 +1,75 @@
+/**
+ * Persisted per-user playback volumes (kişi-başı ses seviyesi) — keyed by userId.
+ * The mobile mirror of the desktop renderer's stores/participant-volume-store.ts.
+ *
+ * This store is PURE PERSISTENCE. The voice engine (@demli/media) is the runtime
+ * source of truth for volumes (CLAUDE.md §11): the voice store seeds the engine from
+ * this store's `volumes` and every change is written back here (write-through) so a
+ * level survives a relaunch and re-applies the moment that user is next in voice.
+ *
+ * The DATA SHAPE ({@link ParticipantVolumeMap}), the clamp range, the normalizer,
+ * and the storage KEY all come from @demli/media, so this exactly mirrors the
+ * desktop store — only the persistence I/O differs (localStorage on desktop,
+ * `expo-secure-store` here, the SAME store the app uses for the locale, session
+ * token, sound + media settings). Reusing SecureStore adds NO native module, so
+ * OTA delivery to the installed APK stays intact.
+ *
+ * NOTE — async rehydration: unlike desktop's synchronous localStorage, SecureStore
+ * is async, so on a cold start `volumes` is empty until hydration finishes. The
+ * voice store therefore re-seeds the engine on `persist.onFinishHydration` (see
+ * stores/voice-store.ts) instead of relying on a synchronous read at construction.
+ */
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { secureStorage } from "../lib/secure-storage";
+import {
+  clampParticipantVolume,
+  isDefaultParticipantVolume,
+  normalizeParticipantVolumes,
+  PARTICIPANT_VOLUME_STORAGE_KEY,
+  type ParticipantVolumeMap,
+} from "@demli/media";
+
+interface ParticipantVolumeState {
+  /** userId → 0..2; only NON-default (≠ 100%) levels are kept. */
+  volumes: ParticipantVolumeMap;
+  /** Write-through a new level (clamped; a 100% level prunes the entry). */
+  setVolume: (userId: string, volume: number) => void;
+}
+
+export const useParticipantVolumes = create<ParticipantVolumeState>()(
+  persist(
+    (set) => ({
+      volumes: {},
+      setVolume: (userId, volume) =>
+        set((s) => {
+          const clamped = clampParticipantVolume(volume);
+          const next = { ...s.volumes };
+          if (isDefaultParticipantVolume(clamped)) delete next[userId];
+          else next[userId] = clamped;
+          return { volumes: next };
+        }),
+    }),
+    {
+      name: PARTICIPANT_VOLUME_STORAGE_KEY,
+      storage: createJSONStorage(() => secureStorage),
+      partialize: (s) => ({ volumes: s.volumes }),
+      // Never trust storage blindly — normalize an untrusted/legacy blob through
+      // the media package's guard (clamps, drops junk + redundant 100% entries).
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<ParticipantVolumeState>;
+        return { ...current, volumes: normalizeParticipantVolumes(p.volumes) };
+      },
+    },
+  ),
+);
+
+/**
+ * Snapshot of the persisted volumes for SEEDING the engine. On RN the persist store
+ * rehydrates ASYNC, so at construction this is usually empty — the voice store
+ * re-seeds on `persist.onFinishHydration`. Kept for contract parity with desktop
+ * (where localStorage rehydrates synchronously and this is the whole seed).
+ */
+export function loadPersistedParticipantVolumes(): ParticipantVolumeMap {
+  return useParticipantVolumes.getState().volumes;
+}

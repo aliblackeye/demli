@@ -1,0 +1,278 @@
+{
+  "$comment": [
+    "THE brand-asset contract. scripts/gen-icons.mjs RENDERS from it and",
+    "scripts/check-brand-icons.mjs VERIFIES the committed files against it, so a",
+    "safe-area number exists in exactly one place and cannot drift between the",
+    "generator and the test.",
+    "",
+    "History: the 1024px master used to carry ~11.7% transparent padding per edge.",
+    "gen-icons treated that framing as authoritative (appIcon coverage 1, no crop),",
+    "so EVERY derivative inherited it and the mark rendered ~23% small on every",
+    "surface -- which was then patched twice at the call site with CSS scaling.",
+    "Padding now dies at the source (the master is cropped to its ink and",
+    "gen-icons re-normalises on every run) and this manifest is what stops it",
+    "coming back."
+  ],
+
+  "master": {
+    "path": "assets/brand/logo.png",
+    "original": "assets/brand/logo-original.png",
+    "comment": "Cropped to its ink bbox and centred on the smallest square that holds it. Coverage is measured on the dominant axis, so 1.0 means literally zero padding; the mark's own 784x799 aspect ratio accounts for the remaining horizontal slack.",
+    "coverage": 1.0
+  },
+
+  "safeArea": {
+    "$comment": "Fraction of the target canvas the mark is allowed to span. One entry per class of surface -- never a literal in the generator.",
+    "appIcon": {
+      "value": 1.0,
+      "why": "Launcher tiles, installer icons and favicons. The master IS the finished icon (rounded plate included), so it goes edge to edge."
+    },
+    "adaptiveForeground": {
+      "value": 0.6667,
+      "why": "Android adaptive icons: 72dp guaranteed-visible circle inside a 108dp canvas (72/108). The launcher mask crops everything outside it. Shared with PWA 'purpose: maskable', which has the same contract."
+    },
+    "notification": {
+      "value": 0.8333,
+      "why": "Android status-bar glyph: Material system-icon live area is 20dp of a 24dp canvas (20/24)."
+    },
+    "tray": {
+      "value": 0.96,
+      "why": "Windows system tray. The tray art is already plate-less and trimmed, so it fills its canvas bar a hairline of breathing room."
+    }
+  },
+
+  "defaults": {
+    "tolerance": 0.03,
+    "comment": "Checker allows +/-3% of canvas width, with a floor of 2px/size so a one-pixel antialias fringe cannot fail a 16px icon.",
+    "fit": "contain",
+    "alpha": "keep",
+    "alphaDropComment": "alpha 'drop' means the OS/spec requires an opaque icon. The generator composites those over the SQUARE brand gradient plate, so the pixels outside the artwork's corner radius continue its own gradient instead of becoming a black notch. Ink coverage is not asserted on them (a fully painted canvas has none to measure); the checker asserts size + absence of an alpha channel instead."
+  },
+
+  "targets": [
+    {
+      "path": "apps/mobile/assets/icon.png",
+      "size": 1024,
+      "safeArea": "appIcon",
+      "fit": "cover",
+      "alpha": "drop",
+      "why": "iOS/Android legacy launcher icon. Must be opaque; the rounded corners are cropped off because the OS applies its own mask."
+    },
+    {
+      "path": "apps/mobile/assets/adaptive-icon.png",
+      "size": 1024,
+      "safeArea": "adaptiveForeground",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "Android adaptive foreground layer, drawn over adaptive-icon-background.png."
+    },
+    {
+      "path": "apps/mobile/assets/adaptive-icon-background.png",
+      "size": 1024,
+      "render": "plate",
+      "alpha": "drop",
+      "why": "Adaptive background layer: flat brand plate, no mark."
+    },
+    {
+      "path": "apps/mobile/assets/splash-icon.png",
+      "size": 1024,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "expo-splash-screen mark. app.json sets imageWidth, so the asset itself must be all mark and no padding."
+    },
+    {
+      "path": "apps/mobile/assets/notification-icon.png",
+      "size": 256,
+      "safeArea": "notification",
+      "render": "mono",
+      "alpha": "keep",
+      "why": "Android status-bar icon: alpha-only silhouette, tinted by the system. Derived from the dedicated notification-mark source, not the colour tile."
+    },
+    {
+      "path": "apps/mobile/assets/brand-mark.png",
+      "size": 512,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "In-app BrandMark source (src/components/BrandMark.tsx): sign-in, Messages panel, rail Home tile, You footer. Transparent, full-ink — the plate's own rounded corners do the rounding, mirroring the desktop demli-logo.svg wrapper. 512px covers the largest step (lg 96dp) at 3x density."
+    },
+
+    {
+      "path": "apps/desktop/build/icon.png",
+      "size": 512,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "electron-builder app + installer icon."
+    },
+    {
+      "path": "apps/desktop/build/tray-icon.png",
+      "size": 32,
+      "safeArea": "tray",
+      "render": "tray",
+      "alpha": "keep",
+      "why": "Windows system tray, 32px (100-150% DPI)."
+    },
+    {
+      "path": "apps/desktop/build/tray-icon-16.png",
+      "size": 16,
+      "safeArea": "tray",
+      "render": "tray",
+      "alpha": "keep",
+      "why": "Windows system tray, 16px (100% DPI)."
+    },
+    {
+      "path": "apps/desktop/build/tray-icon-unread.png",
+      "size": 32,
+      "render": "trayUnread",
+      "alpha": "keep",
+      "why": "Tray icon with the unread dot composited into the top-right corner; the dot deliberately overflows the mark's safe area, so coverage is not asserted."
+    },
+    {
+      "path": "apps/desktop/build/tray-icon-unread-16.png",
+      "size": 16,
+      "render": "trayUnread",
+      "alpha": "keep",
+      "why": "16px unread tray icon."
+    },
+    {
+      "path": "apps/desktop/build/taskbar-unread-badge.png",
+      "size": 32,
+      "render": "badge",
+      "alpha": "keep",
+      "why": "Standalone red dot for the Windows taskbar overlay icon. Not brand art."
+    },
+
+    {
+      "path": "apps/web/public/icon-192.png",
+      "size": 192,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "PWA manifest icon, purpose 'any'."
+    },
+    {
+      "path": "apps/web/public/icon-512.png",
+      "size": 512,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "PWA manifest icon, purpose 'any'."
+    },
+    {
+      "path": "apps/web/public/maskable-icon-192.png",
+      "size": 192,
+      "safeArea": "adaptiveForeground",
+      "fit": "contain",
+      "alpha": "drop",
+      "why": "PWA manifest icon, purpose 'maskable'. Opaque (the spec forbids transparency) with the mark inside the adaptive safe area."
+    },
+    {
+      "path": "apps/web/public/maskable-icon-512.png",
+      "size": 512,
+      "safeArea": "adaptiveForeground",
+      "fit": "contain",
+      "alpha": "drop",
+      "why": "PWA manifest icon, purpose 'maskable'."
+    },
+    {
+      "path": "apps/web/public/apple-touch-icon.png",
+      "size": 180,
+      "safeArea": "appIcon",
+      "fit": "cover",
+      "alpha": "drop",
+      "why": "iOS home screen. iOS ignores alpha and applies its own rounded mask, so this is the opaque full-bleed tile. Safari 12 does not read the web manifest, so this link is what makes the founder's iPhone 6 install work."
+    },
+    { "path": "apps/web/public/favicon-16x16.png", "size": 16, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-24x24.png", "size": 24, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-32x32.png", "size": 32, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-48x48.png", "size": 48, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-64x64.png", "size": 64, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-96x96.png", "size": 96, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    {
+      "path": "apps/web/public/favicon-128x128.png",
+      "size": 128,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "Also the mark in the inline pre-bundle boot skeleton in apps/web/index.html."
+    },
+    { "path": "apps/web/public/favicon-180x180.png", "size": 180, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-192x192.png", "size": 192, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-256x256.png", "size": 256, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+    { "path": "apps/web/public/favicon-512x512.png", "size": 512, "safeArea": "appIcon", "fit": "contain", "alpha": "keep" },
+
+    {
+      "path": "apps/landing/public/apple-touch-icon.png",
+      "size": 180,
+      "safeArea": "appIcon",
+      "fit": "cover",
+      "alpha": "drop",
+      "why": "Landing page iOS home-screen icon."
+    },
+    {
+      "path": "apps/landing/public/favicon-32x32.png",
+      "size": 32,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep"
+    },
+    {
+      "path": "apps/landing/src/assets/demli-mark-256.png",
+      "size": 256,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "Bundled mark for the landing header (imported by Vite, not served from public/). Header display size is 40 CSS px, so 256 covers even a 3x display."
+    },
+    {
+      "path": "apps/landing/public/og-mark-512.png",
+      "size": 512,
+      "safeArea": "appIcon",
+      "fit": "cover",
+      "alpha": "drop",
+      "why": "og:image / twitter:image for getdemli.com. Served from public/ so the URL is stable and unhashed (a crawler needs a permanent link), and opaque because several link-preview renderers composite transparent PNGs onto white."
+    },
+    {
+      "path": "apps/landing/src/assets/demli-mark-512.png",
+      "size": 512,
+      "safeArea": "appIcon",
+      "fit": "contain",
+      "alpha": "keep",
+      "why": "Landing HERO mark. The hero renders the logo at up to ~272 CSS px, so a 2x display needs 544 device px and the 256 file would visibly soften. Rendered rather than CSS-upscaled: the founder has twice called the landing logo too small, and the fix has to be a real asset, not a stretched one."
+    }
+  ],
+
+  "icons": [
+    {
+      "path": "apps/desktop/build/icon.ico",
+      "sizes": [256, 128, 64, 48, 32, 24, 16],
+      "why": "Windows executable + installer icon."
+    },
+    { "path": "apps/web/public/favicon.ico", "sizes": [48, 32, 16], "why": "Browser tab; Safari 12 prefers .ico over PNG icon links." },
+    { "path": "apps/landing/public/favicon.ico", "sizes": [48, 32, 16], "why": "Landing page browser tab." }
+  ],
+
+  "wrappers": [
+    {
+      "path": "apps/desktop/src/renderer/src/assets/demli-logo.svg",
+      "size": 256,
+      "maxBytes": 40960,
+      "why": "Imported by the renderer (AuthScreen, BootSplash, GroupRail) as an <img> URL. Kept as .svg so no component import has to change; the payload is a cropped, recompressed PNG. maxBytes guards the 113 KB base64 bloat this file used to carry."
+    },
+    {
+      "path": "apps/web/public/favicon.svg",
+      "size": 128,
+      "maxBytes": 20480,
+      "why": "rel=icon type=image/svg+xml. Browsers render SVG favicons in a restricted mode that blocks EXTERNAL references, so the raster has to be inlined as a data URI -- but at tab resolution, not at 256px like the copy this replaced."
+    }
+  ],
+
+  "generated": [
+    {
+      "path": "apps/desktop/src/main/tray-icon.ts",
+      "why": "Tray, unread tray, taskbar badge and window icon embedded as base64. electron-builder only packs out/ + package.json, so a file under build/ would not exist at runtime."
+    }
+  ]
+}

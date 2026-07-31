@@ -1,0 +1,33 @@
+# Android APK build'i — `apk-*` TAG push'unda ya da ELLE tetiklenir.
+#
+# Bunu sadece şu iki durumda çalıştır:
+#   1) İlk kurulum (telefonuna ilk kez APK atacaksan)
+#   2) NATIVE bir şey değiştiğinde (yeni expo-*/livekit paketi, yeni izin,
+#      app.json'da native ayar). Native değişiklik OTA ile gitmez, yeni APK ister.
+#
+# Sıradan JS/görsel değişikliklerinde buna GEREK YOK — onları publish-update.yml
+# otomatik OTA olarak gönderir ve uygulama kendini günceller.
+#
+# Çalıştırma — üç yol, hepsi build'i EAS BULUTUNDA koşturur (yerel ağ gerekmez):
+#   a) TAG push (önerilen, saf git):   git tag apk-1 && git push origin apk-1
+#   b) Expo paneli:                    expo.dev → (app.json `slug`) → Workflows → Run
+#   c) CLI (Expo ağı gereken ortamda): cd apps/mobile && eas workflow:run build-android.yml
+#
+# NEDEN sadece `apk-*` tag'i? master'ın her push'unda build almak build kotasını
+# boşa harcar. Tag ise "şimdi APK istiyorum" demenin bilinçli, seyrek jestidir;
+# JS değişiklikleri zaten publish-update.yml ile OTA gider.
+
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - apk-*
+
+jobs:
+  build_android:
+    name: Build Android APK (preview)
+    type: build
+    params:
+      platform: android
+      profile: preview

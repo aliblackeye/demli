@@ -1,0 +1,298 @@
+# Demli production stack — single VPS. (ADR 0003: hybrid deploy.)
+#
+# The database is Supabase (managed Postgres). There is intentionally NO
+# postgres service here: every service that needs the DB reads DATABASE_URL
+# (the Supabase connection string) from .env.prod. See
+# docs/architecture/deploy.md for DNS, firewall, and the operator runbook.
+#
+# Run via scripts/deploy.sh, which passes `--env-file .env.prod` (required for
+# ${...} interpolation below) and renders deploy/livekit.runtime.yaml first.
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+
+name: demli-prod
+
+# IMAGE TAGS ARE ENVIRONMENT-SCOPED, NEVER `:latest`.
+#
+# These images are built ON the VPS, so their tags are just local mutable names.
+# With `:latest`, the first day a SECOND stack (staging) is ever built on this
+# box it silently overwrites the exact tag production restarts from — and the
+# next `docker compose up`, container restart or host reboot puts staging code
+# in front of real users, with nothing in any log to explain it. `:prod` makes
+# the tag state which environment owns it. A staging stack overrides IMAGE_TAG
+# (e.g. `IMAGE_TAG=staging`) alongside its own compose `name:`, and the two can
+# never collide. Default here so no .env.prod edit is needed on the VPS;
+# scripts/deploy.sh exports the same value it builds with. (Spelled out on each
+# service rather than a YAML anchor — an alias replaces a whole value, it cannot
+# be interpolated into the middle of `demli/api:…`.)
+#
+# `migrate` and `api` MUST keep the same tag: `docker compose build` skips the
+# profile-gated `migrate` service, so `run --rm migrate` relies on finding the
+# image the `api` service just built.
+
+# Bounded container logs. Docker's default json-file driver is UNLIMITED — on a
+# small VPS chatty services (LiveKit, Caddy) can fill the disk over weeks, after
+# which everything on the box starts failing ("the server keeps dying").
+# 10 MB × 3 files per service caps the whole stack at a predictable size.
+x-logging: &bounded-logs
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # --- one-shot: apply Drizzle migrations to Supabase, then exit --------------
+  # Behind the "tools" profile so a plain `up` never starts it; deploy.sh runs
+  # it explicitly with `run --rm migrate` before bringing the stack up. Uses the
+  # same DATABASE_URL as the app (Supabase direct/session connection — see
+  # .env.prod.example on why the transaction pooler must not be used).
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: demli/api:${IMAGE_TAG:-prod}
+    env_file:
+      - .env.prod
+    environment:
+      # See the api service below: pinned in git, not left to .env.prod.
+      APP_ENV: production
+    working_dir: /app/packages/db
+    command: ["/app/node_modules/.bin/tsx", "src/migrate.ts"]
+    restart: "no"
+
+  # --- HTTP API (Fastify) -----------------------------------------------------
+  api:
+    <<: *bounded-logs
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: demli/api:${IMAGE_TAG:-prod}
+    env_file:
+      - .env.prod
+    environment:
+      # PINNED IN GIT, not left to .env.prod (security-review M6).
+      #
+      # apps/api/src/env.ts fails fast on dev/placeholder secrets — but ONLY
+      # when APP_ENV === "production". Every other value, including the schema
+      # default "development", turns that entire guard off silently.
+      #
+      # Until now the value came exclusively from .env.prod, which means the
+      # guard depended on a file that is not in the repo and on scripts/deploy.sh
+      # being the thing that started the stack. It is not the only thing that
+      # can: a hand-run `docker compose -f docker-compose.prod.yml up -d` (during
+      # an incident, or by someone self-hosting from the now-public repo) skips
+      # deploy.sh's APP_ENV assertion entirely. If .env.prod is missing a value,
+      # the API boots in "development" against the LIVE database, with the
+      # devkey/devsecret LiveKit credentials that .env.example publishes to the
+      # world — and anyone can then mint a media token for any room.
+      #
+      # Pinning it here makes the guard a property of the production compose
+      # file itself. This overrides env_file (compose precedence: `environment`
+      # beats `env_file`), which is exactly what is wanted — there is no
+      # legitimate reason for the production stack to run as anything else.
+      APP_ENV: production
+      # Per-service overrides (each service needs a distinct port; both must
+      # bind 0.0.0.0 so Caddy can reach them across the compose network).
+      PORT: "4000"
+      HOST: "0.0.0.0"
+      # Credentialed Redis URL assembled from REDIS_PASSWORD (security-review M6)
+      # — single source of truth, overrides any REDIS_URL in the env file.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      # EAS Build webhook (task #39) writes the refreshed APK here; the mount
+      # below maps it onto the host download tree Caddy serves read-only.
+      # EAS_WEBHOOK_SECRET itself comes from .env.prod (env_file above).
+      APK_OUTPUT_DIR: "/data/dl-mobile"
+      # Newest shipped native runtimeVersion advertised by GET /mobile/version so
+      # sideloaded APKs on an OLDER runtime prompt the in-app self-update. Kept in
+      # git (overrides any value in .env.prod) so a native APK release is a single
+      # commit + deploy — no manual VPS .env edit. Bump this in lockstep with
+      # app.json `runtimeVersion` on every NATIVE (new APK) release.
+      #
+      # ORDER MATTERS: publish the new APK FIRST (scripts/publish-mobile-apk.sh),
+      # THEN deploy. Deploying first advertises a runtime whose APK is not on the
+      # server yet, so every install is prompted to download the OLD file and is
+      # re-prompted on the next launch, forever.
+      MOBILE_LATEST_RUNTIME: "2.0.0"
+      # Public APK link served with that advertisement. Pinned here for the same
+      # reason as the runtime above — a value stranded in .env.prod on the VPS
+      # would silently go stale. This overrides .env.prod.
+      MOBILE_APK_URL: "https://api.${DOMAIN}/dl/mobile/demli.apk"
+      # Client-identity gate. Armed ONLY by the exact value "on"; anything else —
+      # including the empty default below — leaves every request passing exactly
+      # as it does today.
+      #
+      # NOT PINNED IN GIT, deliberately, unlike MOBILE_LATEST_RUNTIME above. This
+      # is the one switch that can lock every real user out of a live product, so
+      # it must not be something a commit can flip: the value is interpolated from
+      # .env.prod on the VPS, which means arming it is a deliberate operator
+      # action and disarming it is a one-line edit plus a redeploy — a rollback
+      # that works even in the state where nobody can reach the server.
+      #
+      # Arm it on BOTH api and realtime in the same deploy (see the realtime
+      # service below) — the HTTP door and the socket must close together.
+      CLIENT_GATE: "${CLIENT_GATE:-}"
+    volumes:
+      # RW mount of the mobile download dir so POST /hooks/eas-build can replace
+      # demli.apk (Caddy serves the same host tree read-only at /dl/mobile/).
+      # The api container runs as non-root (USER node, uid 1000): the host dir
+      # /srv/demli-dl/mobile MUST be writable by uid 1000 — the operator runs
+      #   sudo install -d -o 1000 -g 1000 /srv/demli-dl/mobile
+      # once before deploy (see docs / handoff report).
+      - /srv/demli-dl/mobile:/data/dl-mobile
+    expose:
+      - "4000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # --- realtime WebSocket gateway ---------------------------------------------
+  realtime:
+    <<: *bounded-logs
+    build:
+      context: .
+      dockerfile: apps/realtime/Dockerfile
+    image: demli/realtime:${IMAGE_TAG:-prod}
+    env_file:
+      - .env.prod
+    environment:
+      # Same reasoning as the api service above — apps/realtime/src/env.ts has
+      # the identical `APP_ENV !== "production" -> guard disabled` shape, and the
+      # WS gateway holds the same JWT/Redis secrets. Both must be pinned or the
+      # socket stays open on dev defaults while the HTTP API is locked down.
+      APP_ENV: production
+      PORT: "4001"
+      HOST: "0.0.0.0"
+      # Credentialed Redis URL assembled from REDIS_PASSWORD (security-review M6).
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      # Client-identity gate — the WS half of the api switch above; same value,
+      # same .env.prod source, same "on"-only semantics. Both services read it so
+      # a refused client cannot keep reading chat over the socket while the HTTP
+      # API turns it away.
+      CLIENT_GATE: "${CLIENT_GATE:-}"
+    expose:
+      - "4001"
+    restart: unless-stopped
+    healthcheck:
+      # Bare `ws` server has no HTTP health route — a TCP connect proves it is
+      # accepting connections.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s=require('net').connect(4001,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # --- Redis ------------------------------------------------------------------
+  # Backs realtime presence + the api↔realtime mutation fan-out bus (consumed at
+  # runtime by apps/api and apps/realtime via REDIS_URL). Internal-only (no host
+  # port published), but password-protected with `requirepass` so a compromised
+  # neighbor/container cannot inject forged mutation or presence events
+  # (security-review M6). REDIS_PASSWORD comes from .env.prod; the same value is
+  # woven into the credentialed REDIS_URL the app services use (below).
+  redis:
+    <<: *bounded-logs
+    image: redis:7-alpine
+    command:
+      ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # --- LiveKit SFU (voice/screen) + built-in TURN -----------------------------
+  # Production keys are injected via LIVEKIT_KEYS (no secret in the mounted
+  # config file). Media uses a single UDP mux port (7882) + TCP fallback (7881);
+  # TURN/UDP on 3478. Signaling (7880) is internal-only — reached through Caddy
+  # at wss://livekit.${DOMAIN}. rtc.use_external_ip lets LiveKit advertise the
+  # VPS public IP in ICE candidates from behind Docker's bridge.
+  livekit:
+    <<: *bounded-logs
+    image: livekit/livekit-server:v1.9
+    command: ["--config", "/etc/livekit/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - ./deploy/livekit.runtime.yaml:/etc/livekit/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp" # ICE / TCP media fallback (UDP-blocked networks)
+      - "7882:7882/udp" # single-port UDP media mux
+      - "3478:3478/udp" # TURN / STUN over UDP
+    restart: unless-stopped
+
+  # --- Caddy reverse proxy: automatic HTTPS/WSS -------------------------------
+  # Terminates TLS on 443 for the three vhosts and proxies to internal services.
+  # WebSocket upgrades (ws.* and livekit.*) are handled transparently by Caddy.
+  caddy:
+    <<: *bounded-logs
+    image: caddy:2-alpine
+    depends_on:
+      - api
+      - realtime
+      - livekit
+    environment:
+      # The ONE public domain. Every vhost in the Caddyfile is spelled
+      # {$DOMAIN}; there is no second brand placeholder any more (2026-07-27 —
+      # with both resolving to the same value Caddy would see each site defined
+      # twice and refuse to load the config).
+      DOMAIN: "${DOMAIN}"
+      ACME_EMAIL: "${ACME_EMAIL}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SINGLE-FILE bind mount: it binds the file's INODE, not the path. Editing
+      # the Caddyfile's CONTENT therefore changes nothing compose can see (it
+      # only recreates on a changed service DEFINITION), and `git reset --hard`
+      # on the VPS checkout replaces the file — new inode — which this mount
+      # never follows. Result: the container keeps serving the config it parsed
+      # at startup, and even `caddy reload` re-reads the same stale inode and
+      # reports success (production incident, 2026-07-27).
+      # scripts/deploy.sh closes this: it compares the in-container file with
+      # the repo's, force-recreates caddy when they differ, and then proves via
+      # the admin API that every vhost is live. Keep this a FILE mount — the
+      # comparison is only a valid staleness oracle because of the inode
+      # behaviour above; a directory mount would silently disarm it.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      # Static release feed (desktop latest.yml + installer, mobile APK). Files
+      # live on the host so deploys/uploads don't touch the container.
+      - /srv/demli-dl:/srv/dl:ro
+      # Web client SPA (apps/web build) served at app.${DOMAIN}. Uploaded by
+      # scripts/publish-web.sh; the operator creates the host dir once before the
+      # first deploy (writable by the deploy uid):
+      #   sudo install -d -o 1000 -g 1000 /srv/demli-app
+      - /srv/demli-app:/srv/app:ro
+      # Landing site (apps/landing build) served at the ${DOMAIN} apex.
+      # Uploaded by scripts/publish-landing.sh; Docker creates the host dir on
+      # first start if it is missing, so an empty landing only means 404s on the
+      # apex — it never blocks the stack.
+      - /srv/demli-landing:/srv/landing:ro
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:

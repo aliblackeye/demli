@@ -1,0 +1,133 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+build/
+release/
+*.tsbuildinfo
+
+# ...but the desktop installer's electron-builder buildResources dir (icons,
+# installer assets, README) is committed, even though `build/` is ignored above.
+!apps/desktop/build/
+!apps/desktop/build/**
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Production infra: rendered (non-committed) config + local data dirs
+deploy/livekit.runtime.yaml
+deploy/data/
+caddy-data/
+caddy-config/
+
+# Database dumps. They live in /srv/demli-backups on the VPS and NEVER in the
+# repo — a dump is every user's messages, e-mail addresses and password hashes in
+# one file. These patterns exist for the case where someone runs
+# `scripts/backup-db.sh --dir .` while debugging: a `git add .` must not be able
+# to commit the result, and `scripts/scan-secrets.sh` cannot read gzip.
+backups/
+*.sql.gz
+*.dump
+*.pgdump
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Test coverage
+coverage/
+
+# Local claude state. Agent reports are NOT committed (2026-07-30): one of them
+# was a screenshot with a production password legible in the username field, and
+# no pattern scan can find that — grep cannot read a PNG. They stay on disk and
+# out of git; `scripts/scrub-history.sh` removes the already-committed ones from
+# history before the repo goes public.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/reports/
+
+# Firebase / FCM — client config + Admin service-account key. NEVER commit.
+# Real files live outside the repo (see docs); EAS build injects them as secrets.
+google-services.json
+**/google-services.json
+GoogleService-Info.plist
+*firebase-adminsdk*.json
+*-service-account*.json
+
+# Android signing keystores — NEVER commit. The keystore passwords that go with
+# them live in .env.mobile-signing (already covered by the `.env.*` rule above);
+# scripts/build-mobile-apk.sh reads both. Losing this key means no installed app
+# can ever be updated again, so keep a backup OUTSIDE the repo.
+*.jks
+*.keystore
+
+# Apple / code-signing material (macOS build pipeline, M19). electron-builder
+# reads the cert through CSC_LINK; the .p12 itself must never land in the repo.
+# Added by the open-source pre-flight — none of these were covered before, so a
+# stray `git add .` during the first macOS signing run would have committed one.
+*.p12
+*.pfx
+*.p8
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+
+# Private keys / SSH material. `bash scripts/deploy-remote.sh` authenticates to
+# the VPS; a key or known_hosts copied into the tree must not be committed.
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+known_hosts
+known_hosts.old
+*.ppk
+
+# Geçici çalışma dosyaları (asla commit edilmez)
+tmp/
+
+# npx skills add ile kurulan dış skill'ler (Leonxlnx/taste-skill) — repoya girmez.
+# .agents/ kaynak, .claude/skills/ altındakiler ona symlink. Lisansı bize ait olmayan
+# dış içerik, bir `git add .` ile repoya girmesin (open-source ön-uçuşu bulgusu).
+.agents/
+skills-lock.json
+.claude/skills/brandkit/
+.claude/skills/design-taste-frontend/
+.claude/skills/design-taste-frontend-v1/
+.claude/skills/full-output-enforcement/
+.claude/skills/gpt-taste/
+.claude/skills/high-end-visual-design/
+.claude/skills/image-to-code/
+.claude/skills/imagegen-frontend-mobile/
+.claude/skills/imagegen-frontend-web/
+.claude/skills/industrial-brutalist-ui/
+.claude/skills/minimalist-ui/
+.claude/skills/redesign-existing-projects/
+.claude/skills/stitch-design-taste/
+
+# Founder'ın/ajanların repo köküne bıraktığı doğrulama ekran görüntüleri + marka çıktıları
+/output/
+/*.png
+
+# Playwright MCP snapshot çıktıları + geçici ekran görüntüleri (scratch)
+.playwright-mcp/
+demli-signin-*.png
+*.dc.html
+# Claude Design handoff bundle'ları (founder repo köküne bırakabiliyor) — asla commit edilmez
+*-handoff.zip

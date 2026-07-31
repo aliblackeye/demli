@@ -1,0 +1,41 @@
+{
+  "name": "@demli/web",
+  "version": "0.0.1",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "description": "Demli browser client — the desktop renderer mounted unchanged in a browser (window.demli shim), modern-browser target",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "@demli/app-ui": "workspace:*",
+    "@demli/client-core": "workspace:*",
+    "@demli/config": "workspace:*",
+    "@demli/i18n": "workspace:*",
+    "@demli/media": "workspace:*",
+    "@demli/protocol": "workspace:*",
+    "@demli/types": "workspace:*",
+    "@demli/ui": "workspace:*",
+    "intersection-observer": "^0.12.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "resize-observer-polyfill": "^1.5.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "framer-motion": "^11.11.17",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "title": "Demli - voice, screen share and chat for your friend group",
+    "description": "Demli is a private voice, screen-share and chat app for small friend groups. Windows and Android apps, plus a browser client."
+  },
+  "nav": {
+    "language": "Language",
+    "skip": "Skip to content"
+  },
+  "cta": {
+    "openApp": "Open Demli",
+    "download": "Get the app"
+  },
+  "hero": {
+    "title": "A calm place for your friend group.",
+    "lead": "Voice channels, screen sharing, video calls and chat. It runs on our own server, and there are no ads."
+  },
+  "features": {
+    "voice": {
+      "title": "Voice first",
+      "body": "Voice channels and one-to-one calls. Rooms recover on their own after a dropped connection, and a third person can join a call without it cutting out.",
+      "note": "Per-person volume, device picking, call history."
+    },
+    "share": {
+      "title": "Screen and camera",
+      "body": "Share a screen or a camera, focus one stream to fill the window, and set the quality yourself."
+    },
+    "chat": {
+      "title": "Chat that keeps up",
+      "body": "Messages, files, search, mentions and an unread line. The same on every device you use."
+    }
+  },
+  "download": {
+    "title": "Get the app",
+    "lead": "Windows and Android have native apps. Everything else runs in the browser.",
+    "soon": "There is no macOS or iPhone app. Demli runs in the browser on both.",
+    "windows": {
+      "name": "Windows",
+      "note": "An installer that keeps itself up to date.",
+      "action": "Download"
+    },
+    "android": {
+      "name": "Android",
+      "note": "APK with a built-in updater. Not on Google Play.",
+      "action": "Download APK"
+    },
+    "browserNote": "On Linux, iOS or anything else, no install is needed:"
+  },
+  "openSource": {
+    "action": "Source on GitHub"
+  },
+  "footer": {
+    "note": "Demli is actively being built. New versions arrive in the app on their own.",
+    "rights": "© {{year}} Demli"
+  }
+}

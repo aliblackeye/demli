@@ -1,0 +1,181 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1783000752822,
+      "tag": "0000_green_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783183730355,
+      "tag": "0001_add_message_nonce",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783217008995,
+      "tag": "0002_add_friend_group_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783218586234,
+      "tag": "0003_channel_meta",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783443494539,
+      "tag": "0004_system_slowmode",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783460525240,
+      "tag": "0005_roles_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783464058201,
+      "tag": "0006_media_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784102957912,
+      "tag": "0007_social_layer",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784130525383,
+      "tag": "0008_message_enrichment",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784146611750,
+      "tag": "0009_device_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784157076582,
+      "tag": "0010_google_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784237842707,
+      "tag": "0011_dm_calls",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784276255955,
+      "tag": "0012_message_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784305008457,
+      "tag": "0013_notification_mutes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784459983805,
+      "tag": "0014_sessions_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1784475611462,
+      "tag": "0015_message_embeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784653754877,
+      "tag": "0016_pins_custom_emojis",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784924651151,
+      "tag": "0017_group_bans",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785062633631,
+      "tag": "0018_account_lifecycle_nsfw_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785600000000,
+      "tag": "0019_m18_structure_blocks_moderation",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785686400000,
+      "tag": "0020_notes_nicknames_timeout_ignores",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785772800000,
+      "tag": "0021_invite_target_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785859200000,
+      "tag": "0022_group_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785945600000,
+      "tag": "0023_dm_calls_live_by_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786032000000,
+      "tag": "0024_media_url_scheme_repair",
+      "breakpoints": true
+    }
+  ]
+}

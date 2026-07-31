@@ -1,0 +1,152 @@
+{
+  "expo": {
+    "name": "Demli",
+    "slug": "demli",
+    "owner": "aliblackeye",
+    "version": "2.0.0",
+    "scheme": "demli",
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#1a0806",
+    "newArchEnabled": true,
+    "runtimeVersion": "2.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/b1833097-351b-49b9-82af-fbf951279fcf",
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    },
+    "android": {
+      "package": "app.demli.mobile",
+      "versionCode": 10,
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "app.getdemli.com",
+              "pathPrefix": "/kat"
+            },
+            {
+              "scheme": "https",
+              "host": "app.getdemli.com",
+              "pathPrefix": "/arkadas"
+            }
+          ]
+        }
+      ],
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CHANGE_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
+        "backgroundColor": "#F55416"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "app.demli.mobile",
+      "supportsTablet": true,
+      "associatedDomains": [
+        "applinks:app.getdemli.com"
+      ],
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Demli uses your microphone so you can talk in voice channels.",
+        "NSCameraUsageDescription": "Demli uses the camera for video in voice channels.",
+        "UIBackgroundModes": [
+          "audio",
+          "voip"
+        ]
+      },
+      "bitcode": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#1a0806"
+        }
+      ],
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-video",
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Demli uses your photo library so you can share photos and videos in chat."
+        }
+      ],
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "enableScreenShareService": true
+          }
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      [
+        "expo-pip",
+        {}
+      ],
+      "./plugins/with-livekit-setup",
+      "./plugins/with-foreground-service",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#F55416"
+        }
+      ],
+      "./plugins/with-media-projection-notification",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b1833097-351b-49b9-82af-fbf951279fcf"
+      }
+    }
+  }
+}

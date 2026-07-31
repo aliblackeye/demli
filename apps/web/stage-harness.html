@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Demli — video stage harness (dev only)</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0c0304;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      DEV-ONLY page. Vite's production build has index.html as its single entry,
+      so this file and src/harness/* never reach a bundle. See
+      src/harness/stage-harness.tsx for what it is for.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/harness/stage-harness.tsx"></script>
+  </body>
+</html>

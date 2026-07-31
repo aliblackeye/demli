@@ -1,0 +1,30 @@
+-- 0023 "which call is this USER in right now?" — two partial indexes for the
+-- call-plane state resync (`GET /dm-calls/active`, call-UX plan K2.2).
+--
+-- STRICTLY ADDITIVE: two indexes. No column is added, dropped or retyped, no
+-- data is rewritten, and every existing query plan stays valid — applying this to
+-- production changes nothing about what the rows MEAN, only how fast one lookup
+-- finds them.
+--
+-- Why two: the resync predicate is `caller_id = $1 OR callee_id = $1`, and a
+-- single btree cannot serve an OR across two columns. Postgres bitmap-ors these.
+--
+-- Why PARTIAL: `dm_calls` is also the permanent call log, so it only grows, while
+-- the number of LIVE (`ringing`|`active`) rows at any instant is a handful (at
+-- most one per DM, by `dm_calls_one_live_per_dm`). Indexing only the live subset
+-- keeps both indexes near-empty — negligible write cost — while turning the
+-- resync read, which runs on every WebSocket (re)connect, into an index lookup
+-- instead of a sequential scan over the whole history.
+--
+-- The predicate uses the status LITERALS, which is safe for the same reason
+-- `dm_calls_one_live_per_dm` can (migration 0011): `status` is plain `text`, not
+-- a pg enum, so there is no "unsafe use of new value" hazard inside the
+-- single-transaction migrator.
+--
+-- Not CONCURRENTLY: the migrator runs everything in one transaction, where
+-- CREATE INDEX CONCURRENTLY is illegal. A plain CREATE INDEX takes a SHARE lock
+-- that blocks writes to `dm_calls` for the duration — on a table this size
+-- (thousands of rows), single-digit milliseconds, and a call written during that
+-- window simply waits rather than failing.
+CREATE INDEX IF NOT EXISTS "dm_calls_live_caller_id" ON "dm_calls" USING btree ("caller_id") WHERE "dm_calls"."status" in ('ringing', 'active');--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "dm_calls_live_callee_id" ON "dm_calls" USING btree ("callee_id") WHERE "dm_calls"."status" in ('ringing', 'active');

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    /* livekit-client's types reference DOM APIs; this package runs in the renderer. */
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}

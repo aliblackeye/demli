@@ -1,0 +1,299 @@
+import { useMemo } from "react";
+import {
+  Loader2,
+  Phone,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneMissed,
+  PhoneOutgoing,
+  Video,
+} from "lucide-react";
+import {
+  Button,
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  UserAvatar,
+  cn,
+} from "@demli/ui";
+import { EmptyState, RetryNotice } from "@demli/app-ui";
+import type { UserId } from "@demli/types";
+import { isCallLive } from "@demli/client-core";
+import type { RecentCall } from "../lib/api-client";
+import { getCallController, useCallState } from "../lib/call-controller";
+import { localizeError } from "../lib/errors";
+import { useAppTranslation, type AppTFunction } from "../lib/i18n";
+import { formatDuration, formatMessageTimestamp } from "../lib/time";
+import { useRecentCalls } from "../queries/call-queries";
+import { useFriends, useOpenDm } from "../queries/social-queries";
+import { UpdateBadge } from "./UpdateBadge";
+
+/**
+ * Home-surface center pane: the caller's cross-DM call history (Voice-UX #2).
+ *
+ * Read-only list fed by {@link useRecentCalls} (keyset-paged newest-first).
+ * Clicking a row opens that DM; a per-row "call back" button re-initiates the
+ * call with the SAME media, gated exactly like the DM-header buttons — disabled
+ * for a non-friend (a DM survives an unfriend, ADR 0010) or while any call is
+ * already live (the single call slot, §35). The gate is a UX guard only; the
+ * server re-checks friendship + liveness authoritatively.
+ *
+ * A missed INCOMING call is emphasized in the danger color — only the person
+ * who actually missed it sees the red.
+ */
+export function RecentCallsView(): JSX.Element {
+  const { t } = useAppTranslation();
+  const {
+    data,
+    isPending,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useRecentCalls();
+  const { data: friends } = useFriends();
+  const call = useCallState();
+  const openDm = useOpenDm();
+
+  // Lifted once (not per row, §27): the single busy flag + a friend-id set.
+  const busy = isCallLive(call) || call.pending;
+  const friendIds = useMemo(
+    () => new Set((friends ?? []).map((f) => f.user.id)),
+    [friends],
+  );
+  const calls = useMemo(() => data?.pages.flatMap((page) => page.calls) ?? [], [data]);
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col bg-app">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-stroke px-4">
+        <PhoneCall className="size-[18px] shrink-0 text-fg-muted" />
+        <h1 className="shrink-0 text-sm font-semibold text-fg">
+          {t("desktop:recentCalls.title")}
+        </h1>
+        {/* Desktop app-update badge — the top-right corner on every surface. */}
+        <div className="ml-auto flex shrink-0 items-center">
+          <UpdateBadge />
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isPending ? (
+          <RecentCallsSkeleton />
+        ) : error ? (
+          <RetryNotice
+            message={localizeError(error, t)}
+            retryLabel={t("buttons.retry")}
+            onRetry={() => void refetch()}
+          />
+        ) : calls.length === 0 ? (
+          <EmptyState
+            icon={<PhoneCall className="size-6" />}
+            title={t("desktop:recentCalls.emptyTitle")}
+            body={t("desktop:recentCalls.emptyBody")}
+          />
+        ) : (
+          <div className="px-4 pb-4">
+            <ul>
+              {calls.map((entry) => (
+                <RecentCallRow
+                  key={entry.id}
+                  call={entry}
+                  isFriend={friendIds.has(entry.peer.id)}
+                  busy={busy}
+                  onOpenDm={(peerId) => openDm.mutate(peerId)}
+                />
+              ))}
+            </ul>
+            {hasNextPage && (
+              <div className="flex justify-center pt-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isFetchingNextPage}
+                  onClick={() => void fetchNextPage()}
+                >
+                  {isFetchingNextPage ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    t("desktop:recentCalls.loadMore")
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Loading placeholder for the call history — a handful of row-shaped skeletons
+ * (avatar + two text lines + a timestamp) matching {@link RecentCallRow}'s
+ * geometry, so the list settles in place instead of flashing a spinner (founder
+ * rule: skeletons, not spinners, for content).
+ */
+function RecentCallsSkeleton(): JSX.Element {
+  const { t } = useAppTranslation();
+  const rowWidths = ["w-28", "w-36", "w-24", "w-32", "w-40", "w-24"];
+  return (
+    <ul role="status" aria-label={t("desktop:recentCalls.loading")} className="px-4 pb-4">
+      {rowWidths.map((width, index) => (
+        <li
+          key={index}
+          className="flex h-16 items-center gap-3 border-t border-stroke/60 px-2 first:border-t-0"
+        >
+          <Skeleton shape="circle" width={32} />
+          <div className="min-w-0 flex-1">
+            <Skeleton shape="line" height={14} className={width} />
+            <Skeleton shape="line" height={12} className="mt-2 w-20" />
+          </div>
+          <Skeleton shape="line" height={12} className="w-10" />
+        </li>
+      ))}
+      <span className="sr-only">{t("desktop:recentCalls.loading")}</span>
+    </ul>
+  );
+}
+
+/** True when the viewer MISSED an incoming call — the danger-color case. */
+function isMissedIncoming(call: RecentCall): boolean {
+  return call.status === "missed" && call.direction === "incoming";
+}
+
+/** Short localized summary of a call outcome (direction + duration, or status). */
+function callSummary(call: RecentCall, t: AppTFunction): string {
+  const duration = call.durationSeconds !== null ? formatDuration(call.durationSeconds) : null;
+  switch (call.status) {
+    case "ended": {
+      const base =
+        call.direction === "outgoing"
+          ? t("desktop:recentCalls.directionOutgoing")
+          : t("desktop:recentCalls.directionIncoming");
+      return duration ? `${base} · ${duration}` : base;
+    }
+    case "missed":
+      return call.direction === "incoming"
+        ? t("desktop:recentCalls.statusMissed")
+        : t("desktop:recentCalls.statusNoAnswer");
+    case "declined":
+      return t("desktop:recentCalls.statusDeclined");
+    case "canceled":
+      return t("desktop:recentCalls.statusCanceled");
+    case "upgraded":
+      return t("desktop:recentCalls.statusMovedToGroup");
+    case "ringing":
+    case "active":
+      return t("desktop:recentCalls.statusOngoing");
+    default:
+      return "";
+  }
+}
+
+function DirectionIcon({ call }: { call: RecentCall }): JSX.Element {
+  if (isMissedIncoming(call)) return <PhoneMissed className="size-4 shrink-0 text-danger" />;
+  if (call.direction === "outgoing")
+    return <PhoneOutgoing className="size-4 shrink-0 text-fg-faint" />;
+  return <PhoneIncoming className="size-4 shrink-0 text-fg-faint" />;
+}
+
+function RecentCallRow({
+  call,
+  isFriend,
+  busy,
+  onOpenDm,
+}: {
+  call: RecentCall;
+  isFriend: boolean;
+  busy: boolean;
+  onOpenDm: (peerId: UserId) => void;
+}): JSX.Element {
+  const { t } = useAppTranslation();
+  const missed = isMissedIncoming(call);
+  const canCall = isFriend && !busy;
+  const isVideo = call.media === "video";
+
+  const callBack = (): void => {
+    if (!canCall) return;
+    void getCallController()?.startCall({ dmId: call.dmId, media: call.media });
+  };
+
+  const callHint = !isFriend
+    ? t("desktop:recentCalls.notFriends")
+    : busy
+      ? t("desktop:recentCalls.busy")
+      : isVideo
+        ? t("desktop:recentCalls.callBackVideo")
+        : t("desktop:recentCalls.callBack");
+
+  const callButton = (
+    <Button
+      variant="secondary"
+      size="icon"
+      aria-label={isVideo ? t("desktop:recentCalls.callBackVideo") : t("desktop:recentCalls.callBack")}
+      disabled={!canCall}
+      onClick={callBack}
+      className="opacity-0 transition-opacity motion-instant group-hover:opacity-100 focus-visible:opacity-100"
+    >
+      {isVideo ? <Video className="size-4" /> : <Phone className="size-4" />}
+    </Button>
+  );
+
+  return (
+    <li className="group flex h-16 items-center gap-2 border-t border-stroke/60 px-2 first:border-t-0">
+      <button
+        type="button"
+        aria-label={t("desktop:recentCalls.openConversation")}
+        onClick={() => onOpenDm(call.peer.id)}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 rounded-md text-left",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        )}
+      >
+        <UserAvatar
+          name={call.peer.displayName}
+          colorSeed={call.peer.id}
+          src={call.peer.avatarUrl}
+          size="sm"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <DirectionIcon call={call} />
+            <span
+              className={cn(
+                "truncate text-sm font-medium",
+                missed ? "text-danger" : "text-fg",
+              )}
+            >
+              {call.peer.displayName}
+            </span>
+            {isVideo ? (
+              <Video className="size-3.5 shrink-0 text-fg-faint" />
+            ) : (
+              <Phone className="size-3.5 shrink-0 text-fg-faint" />
+            )}
+          </span>
+          <span
+            className={cn(
+              "mt-0.5 block truncate text-xs",
+              missed ? "text-danger/80" : "text-fg-faint",
+            )}
+          >
+            {callSummary(call, t)}
+          </span>
+        </span>
+        <span className="shrink-0 text-xs text-fg-faint">
+          {formatMessageTimestamp(call.createdAt, t)}
+        </span>
+      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {canCall ? callButton : <span className="inline-flex">{callButton}</span>}
+        </TooltipTrigger>
+        <TooltipContent side="left">{callHint}</TooltipContent>
+      </Tooltip>
+    </li>
+  );
+}

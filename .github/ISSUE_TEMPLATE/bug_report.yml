@@ -1,0 +1,59 @@
+name: Bug report
+description: Something is broken — voice, chat, an update, the UI
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Found a security problem?** Do not file it here — use
+        [private reporting](https://github.com/aliblackeye/demli/security/advisories/new)
+        instead. See [SECURITY.md](https://github.com/aliblackeye/demli/blob/dev/SECURITY.md).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+      placeholder: |
+        I joined a voice channel from my phone, then joined the same one from
+        desktop. The phone kept showing me as connected but no audio moved.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Desktop (Windows)
+        - Web
+        - Android
+        - Self-hosted server / API
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings → About, or the commit you built from.
+      placeholder: desktop 0.0.78 / mobile 1.8.0
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Does it happen every time?
+      description: >
+        If you found steps that reproduce it, they are worth more than anything
+        else in this form. "Only once, cannot reproduce" is still worth filing —
+        say so and describe what was going on around it.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: >
+        Optional. Check them before pasting — logs and screenshots have shipped
+        invite codes and, once, a password.
+      render: shell

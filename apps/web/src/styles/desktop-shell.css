@@ -1,0 +1,21 @@
+/*
+ * Web stylesheet = the DESKTOP renderer's own globals.css, unchanged.
+ *
+ * The web build mounts apps/desktop/src/renderer/src/App, so it must be painted
+ * by the exact same Tailwind v4 stylesheet: the single source of the token
+ * @theme, the @utility set (motion-*, shadow-content-edge, shadow-panel-left,
+ * edge-fade-y, content-visibility-*), the scrollbar/motion base layer, and the
+ * two explicit @source scans for packages/ui + packages/app-ui (which resolve
+ * relative to that file, so they stay correct when imported from here).
+ *
+ * Imported rather than copied so the web can never drift from desktop.
+ */
+@import "../../../desktop/src/renderer/src/styles/globals.css";
+
+/*
+ * The desktop electron-vite build auto-detects the renderer's class names
+ * because that CSS entry lives INSIDE the renderer tree. Here the Vite root is
+ * apps/web, so the renderer is outside Tailwind's automatic content detection —
+ * scan it explicitly so every class the renderer uses is generated.
+ */
+@source "../../../desktop/src/renderer/src";

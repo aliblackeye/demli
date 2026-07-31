@@ -1,0 +1,189 @@
+diff --git a/android/src/main/java/com/oney/WebRTCModule/AbstractVideoCaptureController.java b/android/src/main/java/com/oney/WebRTCModule/AbstractVideoCaptureController.java
+index fe1f2b5eb4383a5c26b37b93f6d3305e1e0633f4..1b013f729dfb6ed7aa5f179fef4d333be7e83ddf 100644
+--- a/android/src/main/java/com/oney/WebRTCModule/AbstractVideoCaptureController.java
++++ b/android/src/main/java/com/oney/WebRTCModule/AbstractVideoCaptureController.java
+@@ -75,13 +75,15 @@ public abstract class AbstractVideoCaptureController {
+     }
+ 
+     public void startCapture() {
+-        try {
+-            videoCapturer.startCapture(targetWidth, targetHeight, targetFps);
+-        } catch (RuntimeException e) {
+-            // XXX This can only fail if we initialize the capturer incorrectly,
+-            // which we don't. Thus, ignore any failures here since we trust
+-            // ourselves.
+-        }
++        // NOTE (Demli patch): do NOT swallow capture failures. On Android 14+,
++        // ScreenCapturerAndroid.startCapture() -> MediaProjection.createVirtualDisplay()
++        // can throw if the media-projection foreground service has not yet reached the
++        // foreground (a start-ordering race). Upstream swallowed the exception, which
++        // left a "live" but frame-less screen track that the engine happily published —
++        // the sharer saw "sharing" while viewers got nothing. We now let the
++        // RuntimeException propagate so the caller (createVideoTrack) can tear the
++        // half-created track down and surface a real error instead of a dead track.
++        videoCapturer.startCapture(targetWidth, targetHeight, targetFps);
+     }
+ 
+     public boolean stopCapture() {
+diff --git a/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java b/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+index 7dd0515b39b5a036dbc97eb1a5d6818119e5afbf..73b3654c19d5168be77f896e05a298c3ad13fcf7 100644
+--- a/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
++++ b/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+@@ -79,6 +79,13 @@ class GetUserMediaImpl {
+ 
+                     ThreadUtils.runOnExecutor(() -> {
+                         MediaProjectionService.launch(activity);
++                        // (Demli patch) Wait — on this background executor thread,
++                        // never the main thread — for the media-projection foreground
++                        // service to actually reach the foreground before starting the
++                        // capture. Closes the Android 14+ start-ordering race that made
++                        // createVirtualDisplay() throw intermittently and produce a dead
++                        // (frame-less) screen track.
++                        MediaProjectionService.awaitForeground(2500);
+                         createScreenStream();
+                     });
+                 }
+@@ -248,7 +255,14 @@ class GetUserMediaImpl {
+         TrackPrivate track = tracks.get(trackId);
+         if (track != null && track.videoCaptureController != null) {
+             if (enabled) {
+-                track.videoCaptureController.startCapture();
++                // (Demli patch) startCapture() now propagates failures; keep the
++                // enable/disable toggle non-fatal by swallowing here — this is a
++                // re-enable of an existing track, not track creation.
++                try {
++                    track.videoCaptureController.startCapture();
++                } catch (RuntimeException e) {
++                    Log.e(TAG, "Failed to re-start capture on setEnabled(true)", e);
++                }
+             } else {
+                 track.videoCaptureController.stopCapture();
+             }
+@@ -426,7 +440,29 @@ class GetUserMediaImpl {
+         track.setEnabled(true);
+         tracks.put(id, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
+ 
+-        videoCaptureController.startCapture();
++        // (Demli patch) Starting the capturer can fail — e.g. a screen-share
++        // MediaProjection.createVirtualDisplay() on Android 14+ when the FGS is not yet
++        // foreground. startCapture() now propagates that failure instead of swallowing
++        // it, so we tear the half-built track down and return null. Both callers already
++        // handle a null track: getDisplayMedia() rejects its promise (surfacing a real
++        // "screen share failed" error to the user) and getUserMedia() degrades to
++        // audio-only / AbortError — neither publishes a dead, frame-less track anymore.
++        try {
++            videoCaptureController.startCapture();
++        } catch (RuntimeException e) {
++            Log.e(TAG, "Failed to start video capture; discarding track", e);
++            tracks.remove(id);
++            try {
++                videoCaptureController.dispose();
++            } catch (RuntimeException disposeError) {
++                Log.w(TAG, "Error disposing capture controller after failed start", disposeError);
++            }
++            surfaceTextureHelper.stopListening();
++            surfaceTextureHelper.dispose();
++            videoSource.dispose();
++            track.dispose();
++            return null;
++        }
+ 
+         return track;
+     }
+diff --git a/android/src/main/java/com/oney/WebRTCModule/MediaProjectionService.java b/android/src/main/java/com/oney/WebRTCModule/MediaProjectionService.java
+index 26e188c45c5543a73e1a5cf29c5205e4b5b32a38..b544abd98f332d562a3dbc23a702698d017c1002 100644
+--- a/android/src/main/java/com/oney/WebRTCModule/MediaProjectionService.java
++++ b/android/src/main/java/com/oney/WebRTCModule/MediaProjectionService.java
+@@ -11,6 +11,8 @@ import android.os.IBinder;
+ import android.util.Log;
+ 
+ import java.util.Random;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
+ 
+ /**
+  * This class implements an Android {@link Service}, a foreground one specifically, and it's
+@@ -24,6 +26,14 @@ public class MediaProjectionService extends Service {
+ 
+     static final int NOTIFICATION_ID = new Random().nextInt(99999) + 10000;
+ 
++    /**
++     * (Demli patch) Counted down once the service has actually entered the
++     * foreground (after {@code startForeground}). A caller on a background thread can
++     * {@link #awaitForeground(long)} before touching MediaProjection so the Android
++     * 14+ "the media-projection FGS must be foreground first" ordering is respected.
++     */
++    private static volatile CountDownLatch sForegroundLatch;
++
+     public static void launch(Context context) {
+         if (!WebRTCModuleOptions.getInstance().enableMediaProjectionService) {
+             return;
+@@ -33,6 +43,11 @@ public class MediaProjectionService extends Service {
+         Intent intent = new Intent(context, MediaProjectionService.class);
+         ComponentName componentName;
+ 
++        // (Demli patch) Arm the foreground latch BEFORE asking the OS to start the
++        // service, so awaitForeground() can block until onStartCommand() has called
++        // startForeground().
++        sForegroundLatch = new CountDownLatch(1);
++
+         try {
+             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                 componentName = context.startForegroundService(intent);
+@@ -43,16 +58,41 @@ public class MediaProjectionService extends Service {
+             // Avoid crashing due to ForegroundServiceStartNotAllowedException (API level 31).
+             // See: https://developer.android.com/guide/components/foreground-services#background-start-restrictions
+             Log.w(TAG, "Media projection service not started", e);
++            sForegroundLatch = null;
+             return;
+         }
+ 
+         if (componentName == null) {
+             Log.w(TAG, "Media projection service not started");
++            sForegroundLatch = null;
+         } else {
+             Log.i(TAG, "Media projection service started");
+         }
+     }
+ 
++    /**
++     * (Demli patch) Block the calling (background) thread until the media
++     * projection service has entered the foreground, or until {@code timeoutMs}
++     * elapses. MUST NOT be called on the main thread. Safe to call when the service
++     * is disabled or was never armed (returns immediately).
++     */
++    public static void awaitForeground(long timeoutMs) {
++        if (!WebRTCModuleOptions.getInstance().enableMediaProjectionService) {
++            return;
++        }
++        CountDownLatch latch = sForegroundLatch;
++        if (latch == null) {
++            return;
++        }
++        try {
++            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
++                Log.w(TAG, "Timed out waiting for media projection service to enter foreground");
++            }
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++        }
++    }
++
+     public static void abort(Context context) {
+         if (!WebRTCModuleOptions.getInstance().enableMediaProjectionService) {
+             return;
+@@ -77,6 +117,14 @@ public class MediaProjectionService extends Service {
+             startForeground(NOTIFICATION_ID, notification);
+         }
+ 
++        // (Demli patch) The service is now in the foreground — release any caller
++        // blocked in awaitForeground() so it can safely start the MediaProjection-backed
++        // screen capture (Android 14+ ordering rule).
++        CountDownLatch latch = sForegroundLatch;
++        if (latch != null) {
++            latch.countDown();
++        }
++
+         return START_NOT_STICKY;
+     }
+ }

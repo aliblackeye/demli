@@ -1,0 +1,738 @@
+@import "tailwindcss";
+
+/* packages/ui ships Tailwind classes but lives outside this app's auto-detected
+   sources (workspace package) — scan it explicitly. */
+@source "../../../../../../packages/ui/src";
+
+/* packages/app-ui hosts the SINGLE-SOURCE shell/chat components shared with web
+   (Phase 1). Same reason as above: scan its source so the Tailwind classes those
+   components use (e.g. shadow-content-edge on AppShell) are generated. */
+@source "../../../../../../packages/app-ui/src";
+
+/* ── Self-hosted fonts (SINGLE SOURCE — desktop + web) ──────────────────────
+   "Demli Voice v2" tipografisi: gövde = Instrument Sans, başlıklar = Space
+   Grotesk. Google Fonts KULLANILMAZ — apps/web CSP `font-src 'self' data:` ve
+   desktop CSP `default-src 'self'` fonts.gstatic.com'u bloke eder. Bu yüzden
+   woff2 dosyaları repoda (../assets/fonts/) gömülü ve same-origin servis edilir.
+   Vite url()'leri build'de hash'li asset'e çevirir (>4KB → data: değil, ayrı
+   dosya → desktop `default-src 'self'` ile uyumlu). Web bu dosyayı @import
+   ettiğinden url()'ler globals.css konumuna göre çözülür — tek kaynak.
+
+   latin + latin-ext İKİ ayrı altküme: TR karakterleri ş/ğ/İ/Ş/Ğ (U+011E-015F)
+   latin-ext'te; latin-ext olmadan Türkçe başlıklar ("Şifre", "Değiştir") bozulur.
+   unicode-range değerleri Google Fonts CSS2 API'sinden birebir alındı.
+   font-display:swap → font yüklenene kadar fallback ile anında metin (FOIT yok).
+   woff2 + unicode-range Safari 12 (apps/web hard target) tarafından desteklenir. */
+
+/* Instrument Sans — gövde (400/500/600) */
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-Latin-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-LatinExt-400.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-Latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-LatinExt-500.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-Latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSans-LatinExt-600.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Space Grotesk — başlıklar/display (500/600/700) */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-Latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-LatinExt-500.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-Latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-LatinExt-600.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-Latin-700.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-LatinExt-700.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@theme {
+  /* Gövde tipografisi. "Demli Voice v2" → Instrument Sans (self-host, @font-face
+     yukarıda). Segoe/system fallback font yüklenene kadar (swap) ve latin dışı
+     nadir glifler için. */
+  --font-sans:
+    "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui,
+    -apple-system, sans-serif;
+
+  /* Başlık/display tipografisi → Space Grotesk. `font-display` Tailwind utility'si
+     bu token'dan üretilir (AppShell/ChatView/MemberSidebar başlıkları). Instrument
+     Sans ara-fallback → başlık fontu yüklenene kadar başlıklar da markaya yakın kalır. */
+  --font-display:
+    "Space Grotesk", "Instrument Sans", "Segoe UI Variable Text", "Segoe UI",
+    system-ui, -apple-system, sans-serif;
+
+  /* Responsive breakpoint: at/above this the shell shows the four-column desktop
+     layout; below it (a phone-width web viewport) it switches to the single-column
+     mobile shell with drawers. Deliberately BELOW the Electron BrowserWindow
+     minWidth (940, apps/desktop/src/main/index.ts) so the desktop window — never
+     narrower than 940 — always stays wide, and only a genuinely narrow web
+     viewport gets mobile. The structural switch is done in JS (useIsMobileViewport,
+     MOBILE_MAX_WIDTH = 899) which mirrors this token; the token also enables the
+     `wide:` Tailwind variant for any purely-cosmetic responsive tweak. */
+  --breakpoint-wide: 900px;
+
+  /* Surfaces — darkest (group rail) to lightest (popovers).
+     2026-07-24: "Demli Voice v2" sıcak koyu kırmızı-turuncu rampa (founder
+     tasarımı). Gradient zemin #2A0F07→#180806→#0C0304'ün opak katmanları.
+     Only the VALUES change — her bileşen semantik adı okur, re-skin tek dosyadan
+     tüm app'e iner. Web ile aynı palet (packages/app-ui/src/tokens.css). */
+  --color-rail: #0c0403;      /* en koyu — group rail */
+  --color-sidebar: #140705;   /* mantle */
+  --color-app: #1a0806;       /* base */
+  --color-surface: #241009;
+  --color-raised: #2e130b;    /* popover/menu */
+  --color-overlay: #3a1710;
+  /* Selected rows (channel/DM lists) — sıcak vurgu. */
+  --color-selected: #3a241b;
+  /* Row hover. */
+  --color-hover: #241009;
+
+  /* Hairlines — cream düşük-alfa (tasarım rgba(248,238,212,.07/.16)). */
+  --color-stroke: rgb(248 238 212 / 0.09);
+  --color-stroke-strong: rgb(248 238 212 / 0.16);
+
+  /* Text — cream / muted / faint (tasarım #F8EED4 / #B9A48E / #8A7361). */
+  --color-fg: #f8eed4;
+  --color-fg-muted: #b9a48e;
+  --color-fg-faint: #8a7361;
+
+  /* Brand + semantic — Demli accent turuncusu (tasarım --ac #FF8C1A). NOTE:
+     açık-turuncu → accent ÜZERİNDEKİ metin KOYU (--color-on-accent #120B08,
+     tasarım "ODAKTA" rozeti gibi), asla beyaz. */
+  --color-accent: #ff8c1a;
+  --color-accent-hover: #ffb65c;
+  --color-on-accent: #120b08;
+  --color-accent-surface: rgb(255 140 26 / 0.16);
+  --color-danger: #ff7366;
+  --color-danger-surface: rgb(255 115 102 / 0.16);
+  --color-success: #a6da95;
+  --color-warning: #e8c34a;
+
+  /* Presence — green / yellow / red / warm-overlay. */
+  --color-online: #a6da95;
+  --color-idle: #e8c34a;
+  --color-dnd: #ee5a5a; /* Do Not Disturb — clear red, distinct from coral danger */
+  --color-offline: #6e5d4f;
+
+  /* ── Micro-typography ramp ──────────────────────────────────────────────
+     Everything BELOW Tailwind's text-xs (12px). These three sizes carry the
+     chrome of the app — timestamps, section headings, badges, tiny glyphs —
+     and used to live as ~100 hand-written `text-[11px]` literals.
+
+     Declared in rem on purpose so they scale with the app zoom level, and
+     deliberately WITHOUT a paired `--text-*--line-height`: an arbitrary
+     `text-[11px]` never set a line-height either, so omitting it keeps the
+     conversion a pure rename with zero vertical reflow. */
+  --text-2xs: 0.6875rem;  /* 11px — timestamps / meta / section headings */
+  --text-badge: 0.625rem; /* 10px — badges, pills, counters */
+  --text-3xs: 0.5rem;     /* 8px  — tiny glyphs inside 20px avatars */
+
+  /* ── Radius, derived from ONE source ────────────────────────────────────
+     `--radius` (see :root below) is the single knob for the app's roundness.
+     The steps stay 2px apart, which reproduces today's 6/8/10/12 exactly —
+     this is a refactor, not a restyle. Nested corners follow the usual rule
+     (outer radius − padding), e.g. a rounded-lg menu with p-1 holds
+     rounded-sm items. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+
+  /* ── Named animations (motion primitives live in :root) ─────────────────
+     instant → touch feedback (handled by the base transition below)
+     fast    → state changes, scrims, tooltips
+     standard→ panels, popovers, dialogs, menus
+     arrival → new content settling into place */
+  --animate-fade-in: fade-in var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-pop-in: pop-in var(--motion-duration-standard) var(--motion-ease-standard);
+  --animate-pop-in-fast: pop-in var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-arrival: arrival var(--motion-duration-arrival) var(--motion-ease-arrival);
+
+  /* EXIT counterparts of fade-in / pop-in. Radix keeps an overlay mounted while a
+     CSS animation is running on its `data-[state=closed]` node (its <Presence>
+     awaits `animationend`), so pairing `data-[state=open]:animate-pop-in` with
+     `data-[state=closed]:animate-pop-out` gives every dialog / menu / popover a
+     real EXIT animation — the framer-quality "çıkışta da" close — with zero
+     consumer changes and no risk to Radix's own mount lifecycle. Exit uses the
+     faster step so dismissals never feel draggy. */
+  --animate-fade-out: fade-out var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-pop-out: pop-out var(--motion-duration-fast) var(--motion-ease-standard);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes pop-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+
+  /*
+   * "Arrival": a message/row that did not exist a moment ago resolves into
+   * place instead of blinking in — it lifts the last few pixels, sharpens out
+   * of a 2px blur and fades up. Runs with the DEFAULT fill-mode (none), so the
+   * instant it finishes the element falls back to its plain, un-filtered
+   * styles — no lingering stacking context, no lingering containing block.
+   */
+  @keyframes arrival {
+    from {
+      opacity: 0;
+      transform: translateY(var(--motion-distance-arrival));
+      filter: blur(var(--motion-blur-arrival));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  /* ── Voice stage (Demli Voice v2) ───────────────────────────────────────
+     Two motion primitives for the avatar-tile grid (founder voice-v2 design):
+     a soft accent PULSE RING around a speaking participant's avatar, and a
+     gentle FADE-UP as a tile settles into the grid/stage. Transform + opacity
+     only (GPU-cheap, §27); both are silenced by the global
+     prefers-reduced-motion guard below. */
+  --animate-pulse-ring: pulse-ring 1.6s ease-in-out infinite;
+  --animate-fade-up: fade-up var(--motion-duration-arrival) var(--motion-ease-arrival);
+
+  @keyframes pulse-ring {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(1.04);
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/*
+ * Design-system primitives that are NOT utility namespaces. Kept in a plain
+ * :root (rather than @theme) so they are always emitted and can be referenced
+ * from theme values, custom utilities and inline styles alike.
+ */
+:root {
+  color-scheme: dark;
+
+  /* The one roundness knob — every --radius-* step above derives from it. */
+  --radius: 10px;
+
+  /* Motion scale. Four steps, each with a job; nothing in the app should
+     invent a duration outside this ramp. */
+  --motion-duration-instant: 120ms; /* tactile feedback: hover, press, focus */
+  --motion-duration-fast: 180ms;    /* state change: scrim, tooltip, badge   */
+  --motion-duration-standard: 240ms;/* panel, popover, dialog, menu          */
+  --motion-duration-arrival: 500ms; /* new content settling in               */
+
+  /* Decelerating curves — motion enters quickly and lands softly, never
+     bounces. `arrival` is the flatter tail of the two. */
+  --motion-ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-ease-arrival: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Arrival geometry. */
+  --motion-distance-arrival: 0.75rem;
+  --motion-blur-arrival: 2px;
+
+  /* Soft drop used by lifted, side-anchored surfaces.
+     Redesign-skill "colored, tinted shadows": instead of pure black, the drop
+     carries the app's warm near-black hue so a lifted panel/popover reads as
+     sitting over the Demli surface rather than a generic grey card. Kept dark
+     enough that the depth cue is unchanged in weight, only warmer. */
+  --shadow-lift-color: rgba(8, 3, 1, 0.5);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+body {
+  background-color: var(--color-rail);
+  color: var(--color-fg);
+}
+
+::selection {
+  background-color: rgb(255 140 26 / 0.35);
+}
+
+/* Soft transitions everywhere (founder direktifi): her etkileşimli öğe görsel
+   durum değişimlerinde sessiz bir geri bildirim alır. Bu KATMAN "instant"
+   basamağıdır — imleç bir satırın üzerine geldiğinde beklemek istemezsiniz.
+   Tailwind utility'leri (class) element seçicisini ezdiği için bileşen bazında
+   incelik korunur. `transform` bilerek dışarıda — sürükleme/positioning ile
+   çakışmasın. */
+button,
+a,
+[role="button"],
+[role="menuitem"],
+[role="option"],
+[role="tab"],
+input,
+textarea,
+select,
+summary {
+  transition-property: background-color, color, border-color, opacity, box-shadow, fill, stroke;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+/* Erişilebilirlik: sistemde animasyon azaltma açıksa hepsi kapanır — arrival,
+   pop-in, edge-fade geçişleri dahil. Bu global koruma her yeni motion
+   token'ının da kapısıdır, kaldırmayın. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Vanishing scrollbars: the track is invisible and the thumb only materialises
+ * while the pointer is inside its scroll container, so a resting sidebar reads
+ * as one calm block of colour. 10px wide with a 3px transparent border clipped
+ * to the content box → a 4px fully-rounded pill that never crowds the content.
+ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-color: transparent;
+  background-clip: content-box;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+/* `*:hover` is the scroll container itself — hovering anywhere inside it
+   reveals its own thumb, and only its own. */
+*:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-fg) 14%, transparent);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-fg) 30%, transparent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/*
+ * ── Named motion steps ────────────────────────────────────────────────────
+ * Pair a `transition-*` property utility with one of these instead of an
+ * ad-hoc `duration-75` / `duration-150`. Each sets BOTH the duration and the
+ * shared decelerating curve, so nothing in the app has to remember a number.
+ * (`arrival` is an animation, not a transition — use `animate-arrival`.)
+ */
+
+/** Tactile feedback: hover washes, presses, focus rings. */
+@utility motion-instant {
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+/** State change: a control switching mode, a scrim, a progress bar. */
+@utility motion-fast {
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+/** Panels, popovers, dialogs, anything with real surface area. */
+@utility motion-standard {
+  transition-duration: var(--motion-duration-standard);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+/*
+ * ── Edge / elevation utilities ────────────────────────────────────────────
+ * Tailwind's stock shadows all point down the Y axis, which makes them
+ * invisible on a panel you meet from the side. These two draw on the X axis.
+ */
+
+/** Hairline along the top-left seam of a content area that meets chrome. */
+@utility shadow-content-edge {
+  box-shadow: -1px -1px 0 0 color-mix(in oklab, var(--color-stroke) 45%, transparent);
+}
+
+/**
+ * Right-anchored panel (member roster, search, pins): a crisp hairline on the
+ * inner edge plus a wide, very soft lift so the column reads as sitting ABOVE
+ * the conversation rather than being cut out of it. Replaces `border-l`, so
+ * the 1px lives in the shadow instead of the box model.
+ */
+@utility shadow-panel-left {
+  box-shadow:
+    -1px 0 0 0 color-mix(in oklab, var(--color-stroke) 80%, transparent),
+    -16px 0 32px -12px var(--shadow-lift-color);
+}
+
+/**
+ * Floating card elevation (popovers, dialogs, the profile card): a two-step
+ * drop that carries the app's WARM near-black hue instead of Tailwind's generic
+ * grey/black `shadow-xl`/`shadow-2xl`. Redesign-skill "colored, tinted shadows"
+ * — the surface reads as lifted over the Demli backdrop, not pasted on. Single
+ * source so every elevated surface shares one shadow signature.
+ */
+@utility shadow-elevated {
+  box-shadow:
+    0 2px 8px -2px rgba(6, 2, 1, 0.4),
+    0 12px 32px -8px rgba(6, 2, 1, 0.55);
+}
+
+/**
+ * True-glass edge (redesign-skill "true glassmorphism"): a 1px top highlight +
+ * a faint full inner ring that simulate light refracting off a frosted panel's
+ * rim. Layer over any `backdrop-blur` surface (voice/cam pills, floating chips)
+ * ON TOP of its `border` — it only adds the inner light, never a drop shadow.
+ */
+@utility glass-edge {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+/**
+ * Softens both ends of a scroll area so content dissolves under a sticky
+ * header / above a footer instead of being guillotined by a hard edge.
+ * Masking (rather than a gradient overlay) means it works over any surface
+ * color and costs no extra DOM.
+ */
+@utility edge-fade-y {
+  --edge-fade-size: 0.5rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--edge-fade-size),
+    black calc(100% - var(--edge-fade-size)),
+    transparent 100%
+  );
+}
+
+/*
+ * ── content-visibility ────────────────────────────────────────────────────
+ * Skip layout/paint for rows scrolled out of view in the lists that are NOT
+ * virtualized (member roster, channel list, pin board, search results). The
+ * message list is already windowed by @tanstack/react-virtual and must not use
+ * these (§27).
+ *
+ * `contain-intrinsic-size: auto <len>` means "guess <len> until you have
+ * rendered me once, then remember my real size" — so there is no scroll jump.
+ * Hover / focus-within force the row back to `visible`, because paint
+ * containment would otherwise clip an overflowing hover toolbar.
+ */
+@utility content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+
+  &:hover,
+  &:focus-within {
+    content-visibility: visible;
+  }
+}
+
+/** Row-sized variant — list rows in the 40–60px band. */
+@utility content-visibility-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+
+  &:hover,
+  &:focus-within {
+    content-visibility: visible;
+  }
+}
+
+/** Compact variant — dense 32px rows (channel entries, voice occupants). */
+@utility content-visibility-row-compact {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2rem;
+
+  &:hover,
+  &:focus-within {
+    content-visibility: visible;
+  }
+}
+
+/*
+ * ── Dialog surface: one card, two shapes ──────────────────────────────────
+ * (packages/ui/src/components/dialog.tsx — `.dialog-sheet` / `.dialog-sheet-close`)
+ *
+ * Wide viewports keep the centered card exactly as it was; everything below is
+ * scoped to `--breakpoint-wide` (900px, the same line the shell switches to its
+ * single-column mobile layout at), so the desktop app — whose BrowserWindow can
+ * never be narrower than 940 — never reaches this block.
+ *
+ * On a phone the founder's rule is "small stays small, big becomes the screen".
+ * That is a decision about CONTENT HEIGHT, which no call site knows and CSS
+ * cannot branch on — so instead of tagging 29 call sites with a size prop, the
+ * card is re-anchored to the bottom edge with `height: auto` and a viewport cap.
+ * One rule produces both shapes: a confirm box shrink-wraps into a small sheet,
+ * a settings/invite/source dialog grows until it hits the cap and IS the page.
+ * Adding a dialog later needs no thought — it lands in the right shape by size.
+ *
+ * These rules are deliberately UNLAYERED. Tailwind v4 emits its utilities inside
+ * `@layer utilities`, and unlayered CSS beats every layer regardless of
+ * specificity — which is what lets one class override the base card's
+ * `left-1/2 top-1/2 -translate-* max-h-[85vh] max-w-md` AND the per-call-site
+ * widths (`max-w-sm` … `max-w-2xl`) without `!important` anywhere.
+ */
+@media (max-width: 899px) {
+  .dialog-sheet {
+    /* Undo the centering: grow up from the bottom edge, full-bleed.
+       BOTH `translate` and `transform` have to be cleared. Tailwind v4 compiles
+       `-translate-x-1/2` to the standalone `translate` PROPERTY, not to
+       `transform`, so `transform: none` alone leaves the card shifted half its
+       own width off-screen (it looks like the sheet is missing). */
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    translate: none;
+    transform: none;
+    width: 100%;
+    max-width: none;
+
+    /* The whole rule in three declarations. `auto` shrink-wraps short content;
+       the cap turns tall content into a full-height page.
+       `100vh` LIES on a phone — mobile Safari/Chrome measure it against the
+       viewport with the browser bars collapsed, so a `100vh` sheet is taller
+       than what you can see and its footer sits under the address bar. `100dvh`
+       is the honest number; the `vh` line stays first as the fallback for
+       Safari 12, which apps/web hard-targets and which has no `dvh`.
+       Subtracting the top inset (plus a small strip) keeps the sheet clear of
+       the notch, so the close button below is always reachable. */
+    height: auto;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 1.5rem);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 1.5rem);
+
+    /* A page, not a floating card: square the bottom corners into the edge. */
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-bottom-width: 0;
+
+    /* Home indicator / rounded corners / landscape notch. `box-sizing:border-box`
+       (Tailwind preflight) means this padding is INSIDE the max-height above, so
+       the sheet still cannot exceed the viewport. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* `pop-in`/`pop-out` scale a centered card toward the eye — the wrong gesture
+     for a surface that arrives from the bottom edge. Slide it instead, KEEPING
+     the per-state split: Radix holds the closed node mounted until its animation
+     ends, so replacing both states (not just the element) is what preserves the
+     exit animation and the unmount that follows it. */
+  .dialog-sheet[data-state="open"] {
+    animation: sheet-in var(--motion-duration-standard) var(--motion-ease-standard);
+  }
+
+  .dialog-sheet[data-state="closed"] {
+    animation: sheet-out var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  /* The scrolling region: iOS 12 needs the momentum opt-in, and `contain` stops
+     a flick that reaches the end of the list from chaining into the page behind
+     the sheet. (Radix already locks the body; this covers the inner surface.) */
+  .dialog-sheet .dialog-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Thumb-sized close target. Absolute offsets are measured from the padding
+     BOX, so the safe-area padding above does not move the button — the inset is
+     re-applied here, which is what keeps it clear of a landscape notch. */
+  .dialog-sheet-close {
+    top: 0.5rem;
+    right: calc(0.5rem + env(safe-area-inset-right, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+/* Bottom-sheet arrival + dismissal. Distance is small on purpose (§7: smooth,
+   never a motion demo) and the global prefers-reduced-motion guard above
+   collapses both to 0.01ms. */
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}

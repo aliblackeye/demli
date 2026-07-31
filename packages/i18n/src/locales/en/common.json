@@ -1,0 +1,91 @@
+{
+  "system": {
+    "member_joined": "{{name}} joined the server",
+    "member_left": "{{name}} left the server",
+    "call_ended": "Call ended · {{duration}}",
+    "call_missed": "Missed call",
+    "call_declined": "Call declined",
+    "call_canceled": "Call canceled"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "server": "Something went wrong on our side. Please try again.",
+    "network": "Can't reach the server. Check your connection and try again.",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "inviteExpired": "This invite has expired.",
+    "inviteExhausted": "This invite has no uses left.",
+    "inviteInvalid": "This invite is no longer valid.",
+    "forbidden": "You don't have permission to do that.",
+    "notFound": "We couldn't find what you were looking for.",
+    "userNotFound": "No user with that username. Check the spelling and try again.",
+    "rateLimited": "Too many requests. Please slow down and try again.",
+    "slowmode": "Slow mode is on. Try again in a moment.",
+    "invalidAttachment": "That file can't be attached. Check the type and size and try again.",
+    "attachmentsDisabled": "Attachments are turned off on this server.",
+    "invalidAvatar": "That file isn't a supported image. Use a PNG, JPEG or WebP.",
+    "avatarTooLarge": "That image is too large. Pick one under 2 MB.",
+    "avatarUploadsDisabled": "Photo uploads aren't turned on for this server yet.",
+    "avatarRejected": "That image can't be used as a profile photo.",
+    "blocked": "You can't do that with this user.",
+    "blockedMessage": "You can't message this user.",
+    "blockedFriendRequest": "You can't send this user a friend request.",
+    "blockedCall": "You can't call this user.",
+    "blockedAddMember": "You can't add this user to the group.",
+    "clientUpdateRequired": "This version can no longer reach the server. You need to install the new Demli.",
+    "birthdateLocked": "Your date of birth is already saved and can't be changed."
+  },
+  "buttons": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "retry": "Try again",
+    "close": "Close",
+    "delete": "Delete",
+    "leave": "Leave",
+    "remove": "Remove",
+    "create": "Create",
+    "copy": "Copy",
+    "copied": "Copied",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "back": "Back"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "tr": "Türkçe"
+  },
+  "a11y": {
+    "moreActions": "More actions"
+  },
+  "validation": {
+    "required": "This field is required.",
+    "tooShort": "Use at least {{min}} characters.",
+    "tooLong": "Use at most {{max}} characters.",
+    "numberTooSmall": "Enter {{min}} or more.",
+    "numberTooBig": "Enter {{max}} or less.",
+    "notInteger": "Enter a whole number.",
+    "notANumber": "Enter a number.",
+    "invalidType": "That value isn't in the right format.",
+    "invalidOption": "Pick one of the available options.",
+    "invalidEmail": "Enter a valid email address.",
+    "invalidUrl": "Enter a full link starting with http:// or https://.",
+    "invalidId": "That identifier isn't valid.",
+    "invalidDateTime": "Enter a valid date and time.",
+    "invalidDate": "Enter a real date.",
+    "dateOutOfRange": "Enter a date between {{min}} and today.",
+    "noVisibleCharacter": "Use at least one visible character.",
+    "reservedUsername": "That username is reserved. Please pick another.",
+    "passwordCommon": "That password is too common. Pick something harder to guess.",
+    "passwordIsUsername": "Your password can't be the same as your username.",
+    "invalidInviteCode": "That doesn't look like an invite link or code.",
+    "emptyUpdate": "Nothing to save yet.",
+    "emptyMessage": "Add a message or an attachment.",
+    "invalid": "That value isn't valid.",
+    "pattern": {
+      "username": "Use letters, numbers and underscores only.",
+      "emojiName": "Use lowercase letters, numbers and underscores only.",
+      "hexColor": "Use a colour like #7c3aed."
+    }
+  }
+}

@@ -1,0 +1,283 @@
+import { memo, useCallback, useId, useState } from "react";
+import type { LayoutChangeEvent, ViewStyle } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "../ui/Text";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import { MicOff, VolumeX } from "lucide-react-native";
+import { useAppTranslation } from "@/lib/i18n";
+import { Avatar } from "@/components/Avatar";
+import { avatarTileGradient } from "@/theme/avatar-color";
+import { colors, radius, space } from "@/theme/theme";
+import { CameraTile } from "./CameraTile";
+import { openParticipantVolumeSheet } from "./ParticipantVolumeSheet";
+
+/**
+ * One participant as an EQUAL, screen-filling tile — the
+ * unit the unified voice grid is built from. Camera on OR off, every participant
+ * is the same size; a cameraless participant is a full tile (colored gradient +
+ * big centered avatar + name chip), never a cramped chip in a side strip.
+ *
+ *  - has a live camera track → delegates to the PRESERVED {@link CameraTile}
+ *    (which keeps the media-overhaul contain/no-mirror-crop fix untouched).
+ *  - no track → renders {@link AvatarTile}: a per-user gradient backdrop (color is
+ *    deterministic from `userId`, shared 1:1 with desktop — see theme/avatar-color)
+ *    with the avatar centered and a bottom name chip.
+ *
+ * Memoized on primitive props so an active-speaker tick only re-renders the ONE
+ * tile whose `speaking`/`muted` actually changed (CLAUDE.md §27) — the live track
+ * object is passed by stable reference, never rebuilt here.
+ */
+export interface ParticipantTileData {
+  /** Stable key + roster join key — the participant identity. */
+  identity: string;
+  /** Drives the deterministic cameraless-tile gradient color (shared w/ desktop). */
+  userId: string;
+  name: string;
+  /**
+   * The participant's avatar image, or null when they have none. Resolved by the
+   * surface that builds these tiles, from the SAME identity sources as `name`
+   * (group roster → DM peer → users directory), so a tile that can show a name
+   * can always show the photo.
+   */
+  avatarUrl: string | null;
+  isLocal: boolean;
+  /** Mic is off → show the muted badge. */
+  muted: boolean;
+  speaking: boolean;
+  /** Live camera video track, or null → render the avatar tile. */
+  track: object | null;
+  /**
+   * Listener's personal playback volume for this remote, 0..2 (kişi-başı ses
+   * seviyesi). Absent/1 = default; 0 → the "muted for you" marker on the tile.
+   * Ignored for the local user (you can't attenuate yourself).
+   */
+  volume?: number;
+}
+
+/** The per-user gradient backdrop for a cameraless tile. Memoized on its two
+ *  color stops so a speaking/muted re-render of the tile never re-renders the SVG. */
+const TileGradient = memo(function TileGradient({ from, to }: { from: string; to: string }) {
+  const id = useId();
+  return (
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={from} />
+          <Stop offset="1" stopColor={to} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
+  );
+});
+
+/**
+ * A CAMERALESS participant as a full tile: a deterministic per-user gradient with
+ * the avatar centered and a bottom-center name chip (+ mic-off badge). The avatar
+ * scales to the tile via onLayout so it stays big in a grid cell and compact in a
+ * filmstrip — no fixed size, no giant lonely circle in a black void.
+ */
+function AvatarTile({
+  userId,
+  name,
+  avatarUrl,
+  isLocal,
+  muted,
+  speaking,
+  focused,
+  mutedForYou,
+  onPress,
+  onLongPress,
+  accessibilityLabel,
+  style,
+}: {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  isLocal: boolean;
+  muted: boolean;
+  speaking: boolean;
+  focused?: boolean;
+  /** Volume set to 0 by this listener → show the "muted for you" glyph. */
+  mutedForYou?: boolean;
+  onPress?: () => void;
+  /** Long-press → open the per-user volume sheet (remotes only). */
+  onLongPress?: () => void;
+  accessibilityLabel?: string;
+  style?: ViewStyle;
+}) {
+  const { t } = useAppTranslation();
+  const { from, to } = avatarTileGradient(userId);
+  // Size the avatar to the measured tile so it fills a grid cell yet shrinks in a
+  // filmstrip. clamp(min(w,h) * 0.42) with sane floor/ceiling.
+  const [avatarSize, setAvatarSize] = useState(0);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    const next = Math.round(Math.max(28, Math.min(120, Math.min(width, height) * 0.42)));
+    if (next !== avatarSize) setAvatarSize(next);
+  };
+
+  const label = isLocal ? t("mobile:voice.cameraYou", { name }) : name;
+  const borderColor = speaking ? colors.online : focused ? colors.accent : colors.stroke;
+
+  const frame: ViewStyle = {
+    overflow: "hidden",
+    borderRadius: radius.md,
+    borderCurve: "continuous",
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor,
+    ...style,
+  };
+
+  const body = (
+    <>
+      <TileGradient from={from} to={to} />
+      <View
+        onLayout={onLayout}
+        style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.sm }}
+      >
+        {avatarSize > 0 ? <Avatar name={name} size={avatarSize} uri={avatarUrl} /> : null}
+      </View>
+      {/* Bottom-center name chip — the cameraless tile's only identity marker. */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: space.sm,
+          alignSelf: "center",
+          maxWidth: "88%",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.xs,
+          paddingHorizontal: space.sm,
+          paddingVertical: 3,
+          borderRadius: radius.pill,
+          backgroundColor: "rgba(0,0,0,0.45)",
+        }}
+      >
+        {muted ? <MicOff size={12} color={colors.danger} /> : null}
+        {mutedForYou ? <VolumeX size={12} color={colors.fgMuted} /> : null}
+        <Text
+          numberOfLines={1}
+          style={{ color: "#fff", fontSize: 12, fontWeight: "600", flexShrink: 1 }}
+        >
+          {label}
+        </Text>
+      </View>
+    </>
+  );
+
+  if (onPress || onLongPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={350}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? label}
+        style={({ pressed }) => ({ ...frame, opacity: pressed ? 0.85 : 1 })}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+  return <View style={frame}>{body}</View>;
+}
+
+export const ParticipantTile = memo(function ParticipantTile({
+  identity,
+  userId,
+  track,
+  name,
+  avatarUrl,
+  isLocal,
+  muted,
+  speaking,
+  volume,
+  focused,
+  showName = false,
+  contain = false,
+  onSelect,
+  onPress,
+  accessibilityLabel,
+  style,
+}: {
+  /** Participant identity — the arg `onSelect` is called with. */
+  identity: string;
+  userId: string;
+  /** Live camera track, or null → avatar tile. */
+  track: object | null;
+  name: string;
+  /** Avatar image for the cameraless tile, or null when the user has none. */
+  avatarUrl: string | null;
+  isLocal: boolean;
+  muted: boolean;
+  speaking: boolean;
+  /** Listener's personal playback volume, 0..2 (0 → "muted for you"). Self ignored. */
+  volume?: number;
+  /** Draw the accent ring even when not speaking — marks the focused/stage tile. */
+  focused?: boolean;
+  /** Show the participant name on a CAMERA tile (avatar tiles always show it). */
+  showName?: boolean;
+  /** Camera tile: fit the whole frame (contain) instead of cropping (cover). */
+  contain?: boolean;
+  /**
+   * Tappable → promote to focus / switch focus. Prefer this over `onPress`: passing
+   * a STABLE `onSelect` (+ the stable `identity`) lets the grid keep the same
+   * handler reference across renders, so an active-speaker tick doesn't re-render
+   * every tile (§27). `onPress` is an escape hatch for one-off handlers (e.g. the
+   * stage's exit-focus tap) and wins when both are set.
+   */
+  onSelect?: (identity: string) => void;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+  style?: ViewStyle;
+}) {
+  // Stable per-tile handler: identity + onSelect are both stable, so unchanged
+  // tiles keep the same `handlePress` reference and the memo below holds.
+  const selectHandler = useCallback(() => onSelect?.(identity), [onSelect, identity]);
+  const handlePress = onPress ?? (onSelect ? selectHandler : undefined);
+
+  // Long-press → per-user volume sheet. Self-wired via identity (no prop drilling
+  // through the grid/stage, §27) and NEVER for the local user (can't attenuate
+  // yourself). Stable reference so the memo holds across active-speaker ticks.
+  const longPressHandler = useCallback(() => openParticipantVolumeSheet(identity), [identity]);
+  const handleLongPress = isLocal ? undefined : longPressHandler;
+  const mutedForYou = !isLocal && (volume ?? 1) <= 0;
+
+  if (track) {
+    return (
+      <CameraTile
+        track={track}
+        name={name}
+        isLocal={isLocal}
+        muted={muted}
+        speaking={speaking}
+        focused={focused}
+        mutedForYou={mutedForYou}
+        showName={showName}
+        contain={contain}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        accessibilityLabel={accessibilityLabel}
+        style={style}
+      />
+    );
+  }
+  return (
+    <AvatarTile
+      userId={userId}
+      name={name}
+      avatarUrl={avatarUrl}
+      isLocal={isLocal}
+      muted={muted}
+      speaking={speaking}
+      focused={focused}
+      mutedForYou={mutedForYou}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      accessibilityLabel={accessibilityLabel}
+      style={style}
+    />
+  );
+});

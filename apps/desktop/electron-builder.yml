@@ -1,0 +1,238 @@
+$schema: https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json
+
+# Demli desktop packaging (DevOps/Release — Phase F / M5, macOS added in M19).
+# Produced by `pnpm --filter @demli/desktop package:win` / `package:mac`
+# (both run apps/desktop/scripts/package.mjs), which first runs `electron-vite
+# build` (production, DEMLI_DOMAIN-pinned CSP) and then this.
+#
+# APP IDENTITY. `appId: app.demli.desktop` is load-bearing and must not drift:
+# NSIS keys upgrade detection on the appId-derived GUID, so a changed appId is a
+# BRAND-NEW APPLICATION to Windows — it does not upgrade the existing install, it
+# lands beside it, and the old entry stays in Add/Remove Programs. Three things
+# move together with it:
+#
+#   1. `extraMetadata.name` below — otherwise two identities install into the
+#      SAME folder and the second uninstaller overwrites the first (see there).
+#   2. `publish.channel` — the update feed clients already read.
+#   3. `WINDOWS_APP_USER_MODEL_ID` in src/main/notifications.ts, which must equal
+#      the appId or Windows attributes toasts to "electron.exe".
+#
+# userData is NOT derived from any of this — src/main/user-data-path.ts pins it
+# explicitly. See that file.
+#
+# productName drives the exe/window title, the Start-menu shortcut and the
+# artifact filenames below. It does NOT drive the installed folder for a
+# one-click per-user install (see extraMetadata).
+appId: app.demli.desktop
+productName: Demli
+copyright: Copyright © 2026 Demli
+
+# INSTALL-DIRECTORY SEPARATION — load-bearing, not cosmetic.
+#
+# For `nsis.oneClick: true` + `perMachine: false`, electron-builder does NOT use
+# productName for the install folder: it uses the sanitized package `name`
+# (app-builder-lib `getWindowsInstallationDirName(appInfo, !oneClick || isPerMachine)`
+# → `appInfo.sanitizedName`). The workspace package is `@demli/desktop`, which
+# sanitizes to `@demlidesktop` — and it would be IDENTICAL for the old identity
+# and the new one, because only the appId changed.
+#
+# Two apps in one folder is the worst failure this migration can produce: the new
+# install overwrites the old `Uninstall Demli.exe` in place, the old Add/Remove
+# entry still points at that path, and the day the user tidies up by uninstalling
+# the OLD Demli, Windows runs the NEW app's uninstaller and deletes the app they
+# meant to keep — silently, with their session and settings gone with it.
+#
+# `extraMetadata.name` is merged into the packaged package.json (packager.js:
+# `deepAssign(this.metadata, configuration.extraMetadata)`), which moves
+# `appInfo.name` and therefore the install folder to
+# %LocalAppData%\Programs\demli-desktop. It also moves `app.getName()` and the
+# electron-updater cache dir (`demli-desktop-updater`) — both safe: userData is
+# pinned independently of getName(), and the updater cache is disposable.
+extraMetadata:
+  name: demli-desktop
+
+directories:
+  # Installer assets (icon.ico, optional installer.nsh, etc.). Auto-detected:
+  # drop build/icon.ico (256x256+) here to brand app + installer. See build/README.md.
+  buildResources: build
+  # Gitignored (.gitignore -> release/). Versioned subfolder keeps artifacts tidy.
+  output: release/${version}
+
+# What travels inside the app: a POSITIVE include list — only the electron-vite
+# output. This is load-bearing twice over (task #24, the 347 MB installer):
+#
+#   1. The old negative-only list kept the default `**/*`, so a previous
+#      version's packaging output got packed INTO the next asar (electron-builder
+#      only auto-excludes the CURRENT `release/${version}` dir): the 0.0.2 asar
+#      contained all 463 MB of release/0.0.1. A positive list makes that whole
+#      class of recursion impossible.
+#   2. node_modules is intentionally NOT shipped. main/preload/renderer are all
+#      fully bundled by electron-vite (externalizeDepsPlugin removed — see
+#      electron.vite.config.ts), all runtime packages incl. electron-updater and
+#      zod live inside out/main, and package.json keeps ZERO prod `dependencies`
+#      so electron-builder has no dep tree to collect. If a future main-process
+#      dep cannot be bundled (native module), move it back to `dependencies`,
+#      externalize it in electron.vite.config.ts, and it will ship again.
+#
+# package.json itself is always force-included by electron-builder (it needs
+# `main`/`version` at runtime); listing it here is documentation, not magic.
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+  # Never ship dev env templates (localhost URLs) inside the installer.
+  - "!**/.env*"
+
+# Vendored Windows process-loopback helper binaries (per-process film audio).
+# extraResources copies them UNPACKED, next to the app under
+# `process.resourcesPath` (outside the asar) so they are directly executable —
+# main/process-audio.ts resolves them there in packaged builds. Tiny (~70 KB),
+# Windows-only; harmless to include on other targets. Provenance + license:
+# resources/process-audio/README.md.
+extraResources:
+  - from: resources/process-audio
+    to: process-audio
+    filter:
+      - "**/*"
+
+# Auto-update feed (electron-updater, Milestone 6). The GENERIC provider means a
+# release is just static files served over HTTPS — the installer plus a
+# `latest.yml` manifest (and `.blockmap` for differential downloads). At package
+# time electron-builder bakes this URL into `app-update.yml` inside the app; the
+# main process (main/auto-update.ts) reads it to check for updates.
+#
+#   - `pnpm package:win` derives this URL from DEMLI_UPDATE_URL, else
+#     DEMLI_DOMAIN (https://api.<domain>/dl/desktop/), overriding the default
+#     below via `-c.publish.url=...` — see docs/architecture/desktop-packaging.md.
+#     The feed rides the api subdomain (Caddy serves /dl/* statically) so no
+#     separate `dl` DNS record is required.
+#   - To actually upload the artifacts, run electron-builder with
+#     `--publish always` (needs credentials for the generic target, or use the
+#     manual-upload runbook in the docs).
+#   - ALTERNATIVE provider (documented, not used): swap for GitHub Releases with
+#       publish: { provider: github, owner: <org>, repo: <repo> }
+#     electron-updater then reads releases from GitHub instead of a static host.
+#
+# CHANNEL = `demli`, not `latest` — the update channel this build polls.
+#
+# electron-updater's generic provider names its manifest after the channel:
+# `latest` → latest.yml, `demli` → demli.yml. Both live in the SAME directory, so
+# this needs no new Caddy route, no new vhost and no second upload target.
+#
+# The split exists because the old builds cannot be allowed to see this one. They
+# poll `latest.yml` and install what it names SILENTLY (oneClick NSIS, no
+# prompt) — so publishing a new-identity installer to `latest.yml` would push
+# every old install into the orphaned-uninstaller state described at the top of
+# this file, without anyone clicking anything. Instead `latest.yml` stays frozen
+# at the last old-identity release forever, and new releases only ever move
+# `demli.yml`.
+#
+# The `critical.json` side-car splits with it — main/auto-update.ts derives
+# `demli-critical.json` from this channel, so a forced update aimed at the new
+# builds cannot reach the old ones (and vice versa).
+publish:
+  provider: generic
+  url: https://api.getdemli.com/dl/desktop/
+  channel: demli
+
+# asar packs app + node_modules into one archive (faster load, tidier install).
+asar: true
+
+# No native modules today, so no rebuild step is needed.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  # icon: auto-detected from build/icon.ico when present; falls back to the
+  # default Electron icon (unbranded) otherwise. Do not hardcode a path so a
+  # missing asset never fails the build.
+
+# ---------------------------------------------------------------------------
+# macOS (M19). UNSIGNED by design — see "Code signing" below.
+# ---------------------------------------------------------------------------
+#
+# Built only by `pnpm --filter @demli/desktop package:mac`, which refuses to
+# run anywhere but macOS (dmg + .app bundle need Apple tooling; there is no
+# cross-build from Windows). On a Windows/Linux machine use the CI workflow:
+# .github/workflows/desktop-mac.yml runs the same script on `macos-latest`.
+#
+# Both targets are intentional:
+#   - dmg  — what a human downloads and drags to /Applications.
+#   - zip  — REQUIRED by electron-updater on macOS. Squirrel.Mac updates from a
+#            zip, and `latest-mac.yml` references it. Drop the zip and macOS
+#            auto-update silently stops working.
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  category: public.app-category.social-networking
+  # Menu-bar/dock icon: auto-detected from build/icon.icns when present, else
+  # the default Electron icon. Never hardcode a path, so missing art cannot fail
+  # the build (same rule as the Windows icon).
+  #
+  # CODE SIGNING — currently OFF (`identity: null`), and that is a founder
+  # decision, not an oversight: signing needs a paid Apple Developer membership
+  # ($99/year). Unsigned builds are free and work, but Gatekeeper shows
+  # "Demli can't be opened because it is from an unidentified developer" on
+  # first launch (users right-click -> Open once).
+  #
+  # TO ENABLE SIGNING, one switch, no edits to this file:
+  #   DEMLI_MAC_IDENTITY="Developer ID Application: NAME (TEAMID)" \
+  #     CSC_LINK=/path/cert.p12 CSC_KEY_PASSWORD=... \
+  #     DEMLI_DOMAIN=... pnpm --filter @demli/desktop package:mac
+  # scripts/package.mjs then passes `-c.mac.identity=...`, overriding the null
+  # below. Add APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID and it
+  # also flips `notarize` + `hardenedRuntime` on (both required together).
+  identity: null
+  notarize: false
+  hardenedRuntime: false
+  # macOS asks for mic/camera/screen-recording by name; without these the
+  # prompts are blank and the OS may deny outright. Voice is the product
+  # (CLAUDE.md §6) — these are not optional.
+  extendInfo:
+    NSMicrophoneUsageDescription: Demli needs your microphone for voice channels and calls.
+    NSCameraUsageDescription: Demli needs your camera for video calls.
+  # Distinct from the Windows artifactName so both platforms can live in the
+  # same release/<version>/ folder and the same feed directory.
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Classic "drag to Applications" window.
+  contents:
+    - x: 130
+      y: 220
+      type: file
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+nsis:
+  # One-click SILENT installer: no Setup wizard, per-user
+  # install to %LocalAppData%, no admin prompt. Auto-updates then install
+  # silently and relaunch via quitAndInstall(true, true) in main/auto-update.ts —
+  # the founder's ask: an update must NEVER pop a Setup wizard.
+  # NOTE: allowToChangeInstallationDirectory + allowElevation are assisted-installer
+  # options and are invalid under oneClick, so they are intentionally removed.
+  oneClick: true
+  perMachine: false # per-user install (no admin prompt), matches a consumer app
+  runAfterFinish: true # relaunch app right after the first install
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Demli
+  artifactName: ${productName}-Setup-${version}.${ext}
+  # With the `publish` block above, the NSIS target also emits `latest.yml` +
+  # `<installer>.blockmap` for electron-updater (differential downloads). See
+  # docs/architecture/desktop-packaging.md → "Auto-update".
+
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}

@@ -1,0 +1,91 @@
+{
+  "system": {
+    "member_joined": "{{name}} sunucuya katıldı",
+    "member_left": "{{name}} sunucudan ayrıldı",
+    "call_ended": "Görüşme bitti · {{duration}}",
+    "call_missed": "Cevapsız arama",
+    "call_declined": "Arama reddedildi",
+    "call_canceled": "Arama iptal edildi"
+  },
+  "errors": {
+    "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "server": "Tarafımızda bir sorun oluştu. Lütfen tekrar deneyin.",
+    "network": "Sunucuya ulaşılamıyor. Bağlantınızı kontrol edip tekrar deneyin.",
+    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
+    "inviteExpired": "Bu davetin süresi dolmuş.",
+    "inviteExhausted": "Bu davetin kullanım hakkı kalmadı.",
+    "inviteInvalid": "Bu davet artık geçerli değil.",
+    "forbidden": "Bunu yapma yetkiniz yok.",
+    "notFound": "Aradığınız şey bulunamadı.",
+    "userNotFound": "Kullanıcı bulunamadı. Yazımı kontrol edip tekrar deneyin.",
+    "rateLimited": "Çok fazla istek. Lütfen biraz yavaşlayıp tekrar deneyin.",
+    "slowmode": "Yavaş mod açık. Birazdan tekrar deneyin.",
+    "invalidAttachment": "Bu dosya eklenemiyor. Türünü ve boyutunu kontrol edip tekrar deneyin.",
+    "attachmentsDisabled": "Bu sunucuda dosya ekleme kapalı.",
+    "invalidAvatar": "Bu dosya desteklenen bir görsel değil. PNG, JPEG veya WebP kullan.",
+    "avatarTooLarge": "Bu görsel çok büyük. 2 MB'ın altında bir tane seç.",
+    "avatarUploadsDisabled": "Fotoğraf yükleme bu sunucuda henüz açık değil.",
+    "avatarRejected": "Bu görsel profil fotoğrafı olarak kullanılamıyor.",
+    "blocked": "Bu kullanıcıyla bunu yapamazsın.",
+    "blockedMessage": "Bu kullanıcıyla mesajlaşamazsın.",
+    "blockedFriendRequest": "Bu kullanıcıya arkadaşlık isteği gönderemezsin.",
+    "blockedCall": "Bu kullanıcıyı arayamazsın.",
+    "blockedAddMember": "Bu kullanıcıyı gruba ekleyemezsin.",
+    "clientUpdateRequired": "Bu sürüm artık sunucuya bağlanamıyor. Yeni Demli'yi kurman gerekiyor.",
+    "birthdateLocked": "Doğum tarihin zaten kayıtlı ve değiştirilemiyor."
+  },
+  "buttons": {
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "save": "Kaydet",
+    "retry": "Tekrar dene",
+    "close": "Kapat",
+    "delete": "Sil",
+    "leave": "Ayrıl",
+    "remove": "Kaldır",
+    "create": "Oluştur",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "signIn": "Giriş yap",
+    "signOut": "Çıkış yap",
+    "back": "Geri"
+  },
+  "language": {
+    "label": "Dil",
+    "en": "English",
+    "tr": "Türkçe"
+  },
+  "a11y": {
+    "moreActions": "Diğer eylemler"
+  },
+  "validation": {
+    "required": "Bu alan zorunlu.",
+    "tooShort": "En az {{min}} karakter girin.",
+    "tooLong": "En fazla {{max}} karakter girin.",
+    "numberTooSmall": "En az {{min}} olmalı.",
+    "numberTooBig": "En fazla {{max}} olmalı.",
+    "notInteger": "Tam sayı girin.",
+    "notANumber": "Sayı girin.",
+    "invalidType": "Bu değer beklenen biçimde değil.",
+    "invalidOption": "Listedeki seçeneklerden birini seçin.",
+    "invalidEmail": "Geçerli bir e-posta adresi girin.",
+    "invalidUrl": "http:// veya https:// ile başlayan tam bir bağlantı girin.",
+    "invalidId": "Bu kimlik geçerli değil.",
+    "invalidDateTime": "Geçerli bir tarih ve saat girin.",
+    "invalidDate": "Gerçek bir tarih girin.",
+    "dateOutOfRange": "{{min}} ile bugün arasında bir tarih girin.",
+    "noVisibleCharacter": "En az bir görünür karakter kullanın.",
+    "reservedUsername": "Bu kullanıcı adı ayrılmış. Lütfen başka bir tane seçin.",
+    "passwordCommon": "Bu parola çok yaygın. Tahmin edilmesi daha zor bir tane seçin.",
+    "passwordIsUsername": "Parolanız kullanıcı adınızla aynı olamaz.",
+    "invalidInviteCode": "Bu bir davet bağlantısı ya da kodu gibi görünmüyor.",
+    "emptyUpdate": "Kaydedilecek bir değişiklik yok.",
+    "emptyMessage": "Bir mesaj yazın ya da dosya ekleyin.",
+    "invalid": "Bu değer geçerli değil.",
+    "pattern": {
+      "username": "Yalnızca harf, rakam ve alt çizgi kullanın.",
+      "emojiName": "Yalnızca küçük harf, rakam ve alt çizgi kullanın.",
+      "hexColor": "#7c3aed gibi bir renk kodu girin."
+    }
+  }
+}

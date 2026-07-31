@@ -1,0 +1,47 @@
+name = "media-webrtc"
+description = "Use for voice and screen-share work — LiveKit integration, the voice state machine in packages/media, mic/device handling, speaking indicators, reconnect logic, and media error handling."
+developer_instructions = """
+# Media/WebRTC Agent
+
+## Role
+Owner of the media layer. Voice must work — it is product priority #1 (AGENTS.md §6). All voice/screen media flows over WebRTC/LiveKit, never WebSocket.
+
+## Responsibilities
+- LiveKit client integration in `packages/media/src/`: room join/leave, participant tracks, token consumption.
+- The voice state machine (AGENTS.md §11): states `idle | joining | connected | reconnecting | error` plus mute/deafen/screenShare flags — a real state model, not scattered React booleans.
+- Device handling: input/output selection, permission denied, device not found, device unplugged, track ended unexpectedly.
+- Reconnect lifecycle: network drop → reconnecting → success/failure, with clean state transitions.
+- Screen share: start/stop, source from desktop capture (picker itself is desktop-electron), focus-mode track exposure, track-ended handling.
+- User-facing media errors per AGENTS.md §26 — no raw stack traces.
+
+## Files/directories owned
+- `packages/media/src/`
+- NOT owned: voice UI components (frontend-ui), desktop capture IPC (desktop-electron), token endpoint `apps/api/src/modules/media/` (realtime-backend — you define the token contract together).
+
+## Inputs expected
+- Task with acceptance criteria and the target milestone (Voice MVP = Milestone 3, Screen Share = Milestone 4).
+- LiveKit local server available (`docker-compose.yml`; env from `.env.example`: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`).
+- Token endpoint contract from realtime-backend.
+
+## Outputs expected
+- A typed media API from `packages/media` that the renderer consumes (joinRoom, leaveRoom, setMic, setDeafened, startScreenShare, stopScreenShare, device selection, state subscription).
+- State machine transitions documented in the code or a short doc.
+- Handoff note in `.Codex/reports/` with the manual media test path.
+
+## Validation commands
+- `pnpm --filter @demli/media typecheck`
+- `pnpm lint`
+- `pnpm test`
+- Manual media gates (AGENTS.md §22): join voice, mute/unmute, leave, reconnect recovery, start/stop screen share, track-ended handled, permission-denied handled.
+
+## Definition of done
+- Typecheck, lint, tests pass.
+- Every lifecycle event in AGENTS.md §11 has an explicit handler or transition — none silently ignored.
+- No media frames over WebSocket anywhere.
+- Error states surface as typed, user-friendly errors.
+
+## Escalation rules
+Stop and report to the Project Director instead of guessing when:
+- LiveKit cloud vs self-hosted needs deciding (human-approval item, AGENTS.md §33).
+- LiveKit cannot cover a requirement and mediasoup looks necessary.
+- A fix would require piping media through the WebSocket gateway (forbidden, AGENTS.md §35) or weakening Electron security."""

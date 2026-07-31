@@ -1,0 +1,14 @@
+The Demli name, wordmark, logo and app icons are NOT licensed under the AGPL.
+
+Copyright (C) 2026 Ali Karagöz. All rights reserved.
+
+The AGPL-3.0 licence in the repository root covers the source code. Section 7(e)
+of that licence expressly permits an additional term declining to grant rights
+under trademark law, and this file is that term. The files in this directory are
+present because the applications need them to build — not as permission to use
+them elsewhere.
+
+You may fork this project and ship it. Do it under your own name and your own
+mark. See TRADEMARK.md in the repository root for what is fine without asking
+(most things) and what needs a conversation (shipping a modified build that still
+calls itself Demli).

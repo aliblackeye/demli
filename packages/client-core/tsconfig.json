@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // DOM lib supplies the types for the isomorphic runtime globals this
+    // package uses — fetch/Response/Headers, WebSocket, URLSearchParams,
+    // console, crypto. All exist in the browser, the Electron renderer, AND
+    // React Native, so typing them via DOM is safe. This package never uses
+    // DOM-only globals (window/document/localStorage) — those stay per-app.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}

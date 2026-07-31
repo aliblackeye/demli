@@ -1,0 +1,54 @@
+# LiveKit production config — single node. This file is a TEMPLATE: scripts/
+# deploy.sh renders ${TURN_DOMAIN} into deploy/livekit.runtime.yaml (which is
+# gitignored) before the container starts. Nothing secret lives here — the API
+# key/secret are injected at runtime via the LIVEKIT_KEYS environment variable
+# (see docker-compose.prod.yml).
+
+# Internal signaling port. Not published to the host; reached only through Caddy
+# at wss://livekit.<DOMAIN>.
+port: 7880
+
+logging:
+  level: info
+
+# Active-speaker detection (task #54). The SFU computes who is talking from the
+# received audio and broadcasts the set on an interval — this drives REMOTE
+# participants' speaking rings (the LOCAL user's own ring is computed on-device
+# in @demli/media, so it does not wait on this at all).
+#
+# LiveKit defaults (update_interval 500ms × smooth_intervals 4) give a ~2s
+# smoothing window before a change is broadcast — that was the visible lag. We
+# halve both: updates twice as often, half the smoothing, so a remote ring
+# reacts in ~0.25-0.5s. Sensitivity (active_level / min_percentile) is left at
+# the defaults so we do not increase false positives. Cost is a few more
+# speaker-update messages — negligible for a small friend-group deployment.
+audio:
+  active_level: 30 # default — min level (0-127, 0=loudest) to count as active
+  min_percentile: 40 # default — % of window above active_level to count as active
+  update_interval: 250 # was 500 (default): notify clients twice as often
+  smooth_intervals: 2 # was 4 (default): halve the smoothing window
+
+rtc:
+  # ICE-over-TCP fallback for clients on networks that block UDP.
+  tcp_port: 7881
+  # Single UDP port carrying ALL media (mux). Simple to NAT/firewall for a
+  # small deployment; published as 7882/udp by the livekit service.
+  udp_port: 7882
+  # Detect the VPS public IP (via STUN) and advertise it in ICE candidates.
+  # Required when running behind Docker's bridge network.
+  use_external_ip: true
+
+# Built-in TURN relay. UDP/3478 covers most restrictive NATs, including most
+# mobile-carrier networks. TURN auth is derived from the LiveKit access token,
+# so no separate TURN username/password is needed.
+#
+# TURN-over-TLS (5349, or 443 for DPI/UDP-blocked networks) needs a certificate
+# and would clash with Caddy on :443/tcp — see docs/architecture/deploy.md,
+# "Hostile networks (TURN over TLS / 443)", for the coturn escalation.
+turn:
+  enabled: true
+  domain: ${TURN_DOMAIN}
+  udp_port: 3478
+
+# No `redis:` block: a single LiveKit node does not need Redis. Add one only
+# when scaling to multiple LiveKit nodes (multi-region / HA).

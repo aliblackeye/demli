@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LiveKit subscription probe (dev only)</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0c0304;
+        color: #f8eed4;
+        font: 13px/1.5 ui-monospace, monospace;
+        padding: 16px;
+      }
+      #log {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- DEV-ONLY. Not an entry of the production build (index.html is). Needs a
+         local SFU: `docker compose up -d livekit`. See src/harness/livekit-probe.ts. -->
+    <h1>K3 subscription probe</h1>
+    <div id="stage"></div>
+    <pre id="log"></pre>
+    <script type="module" src="/src/harness/livekit-probe.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover for the notch; NO user-scalable=no, so a small
+         control can still be pinch-zoomed.
+
+         interactive-widget=resizes-content: the app root is `height:100%;
+         overflow:hidden`, so by default an Android on-screen keyboard slides
+         OVER it — a dialog's own input, and the composer, end up underneath the
+         keyboard with no way to scroll them back. `resizes-content` shrinks the
+         layout viewport instead, so 100%/100dvh follow the keyboard and the
+         focused field stays visible. Chrome 108+; every other engine ignores
+         the token. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#F55416" />
+    <!-- PWA / "add to home screen". iOS Safari ignores the web manifest for
+         home-screen icons, so the apple-touch-icon link + apple-mobile-web-app-*
+         metas are what make an iOS install work; the manifest covers
+         Android/modern browsers. status-bar-style=black keeps content BELOW the
+         status bar (the web UI has no safe-area-inset padding yet). -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="application-name" content="Demli" />
+    <meta name="apple-mobile-web-app-title" content="Demli" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <title>Demli</title>
+    <!--
+      PRE-BUNDLE SKELETON (see #boot-skeleton in <body>).
+      index.html is served no-cache and the JS bundle is not, so on a phone the
+      first paint can land well before the app does. Without this the user stares
+      at white. Everything here is INLINE (strict CSP: no external host, and the
+      one image is a same-origin /favicon-*.png the preload scanner starts
+      immediately) and the geometry mirrors components/BootSplash.tsx exactly —
+      same gradient, same 112px mark, same 24px gap, same 18rem/70vw track — so
+      when React's splash takes over there is no jump. BootSplash removes this
+      node once its own mark has painted.
+    -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0c0304;
+      }
+      #boot-skeleton {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: radial-gradient(120% 90% at 50% 0%, #2a0f07 0%, #180806 46%, #0c0304 100%);
+      }
+      #boot-skeleton img {
+        width: 112px;
+        height: 112px;
+        filter: drop-shadow(0 10px 28px rgba(8, 3, 1, 0.6));
+      }
+      #boot-skeleton .bs-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        width: min(18rem, 70vw);
+      }
+      #boot-skeleton .bs-track {
+        width: 100%;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(248, 238, 212, 0.16);
+      }
+      /* Reserves the status line's box so the group sits at the SAME vertical
+         centre as BootSplash's (which renders copy there). */
+      #boot-skeleton .bs-meta {
+        min-height: 36px;
+      }
+      @media (min-width: 900px) {
+        #boot-skeleton img {
+          width: 128px;
+          height: 128px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-skeleton" aria-hidden="true">
+      <img src="/favicon-128x128.png" width="128" height="128" alt="" />
+      <div class="bs-col">
+        <div class="bs-track"></div>
+        <div class="bs-meta"></div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <!-- Single modern ES-module entry. The build target is `esnext`: there is no
+         legacy/nomodule chunk and no polyfill pass (see apps/web/README.md). -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

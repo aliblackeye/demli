@@ -1,0 +1,34 @@
+diff --git a/android/src/main/java/com/supersami/foregroundservice/ForegroundService.java b/android/src/main/java/com/supersami/foregroundservice/ForegroundService.java
+index 9d7751da31d1eed07398e7f094f54e323247dd10..a00a256bf607a345ac01876c89376c8fefb6848e 100644
+--- a/android/src/main/java/com/supersami/foregroundservice/ForegroundService.java
++++ b/android/src/main/java/com/supersami/foregroundservice/ForegroundService.java
+@@ -110,6 +110,29 @@ public class ForegroundService extends Service {
+     }
+ 
+     private int getServiceTypeForAndroid10(String customServiceType) {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++            // NOTE (Demli patch): Android's manifest syntax lets one service
++            // declare SEVERAL foreground-service types ("microphone|camera"), and a
++            // video call needs both — the types do not cross-grant background
++            // capture, so a microphone-only service still lets Android freeze the
++            // camera the moment the app stops being visible.
++            //
++            // Upstream matched the WHOLE string against the switch below, so a
++            // combined value missed every case and silently fell through to
++            // `default: return 1` — FOREGROUND_SERVICE_TYPE_LOCATION, a permission
++            // we do not hold. startForeground would then throw and the call lost its
++            // background lifeline entirely, which is worse than the bug we set out
++            // to fix. Split on "|" and OR the bits, exactly like the manifest does.
++            int combined = 0;
++            for (String part : customServiceType.split("\\|")) {
++                combined |= getSingleServiceTypeForAndroid10(part.trim());
++            }
++            return combined;
++        }
++        return 0; // This won't be used for Android < 10
++    }
++
++    private int getSingleServiceTypeForAndroid10(String customServiceType) {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+             switch (customServiceType) {
+                 case "camera":

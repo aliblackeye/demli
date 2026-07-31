@@ -1,0 +1,37 @@
+# Line endings for the deploy/infrastructure files.
+#
+# WHY THIS EXISTS (found 2026-07-31, during the deploy security hardening)
+# ----------------------------------------------------------------------
+# `scripts/deploy.sh` was committed with CRLF line endings. Nobody noticed on
+# Windows, where Git Bash tolerates the stray carriage returns. On the VPS —
+# Linux, `core.autocrlf` unset — it is fatal, and quietly so:
+#
+#   scripts/deploy.sh: line 27: $'\r': command not found
+#   scripts/deploy.sh: line 28: set: pipefail: invalid option name
+#
+# That second line is the dangerous one. `set -euo pipefail` FAILS, so the whole
+# script then runs with errexit and pipefail OFF — every guard in it becomes
+# advisory. And `scripts/deploy-remote.sh` `git reset --hard`s the checkout on
+# every deploy, so a CRLF commit reaches production the moment it is pushed.
+#
+# The fix in the file is only half of it: a Windows editor that rewrites the
+# file (or a tool defaulting to CRLF) puts it straight back, and the diff looks
+# empty in most review tools. So the rule is declared here, where git enforces
+# it at commit time.
+#
+# DELIBERATELY NARROW. A repo-wide `* text=auto` would renormalise ~76 files
+# across apps/ and packages/ in one commit — a real change, hidden inside an
+# infrastructure fix, touching code other people are working on. Widen this only
+# as a separate, intentional commit.
+
+*.sh            text eol=lf
+scripts/**      text=auto eol=lf
+/Caddyfile      text eol=lf
+/docker-compose.yml       text eol=lf
+/docker-compose.prod.yml  text eol=lf
+deploy/**       text eol=lf
+
+# Binary-ish things under scripts/ that must never be touched.
+*.png binary
+*.ico binary
+*.icns binary

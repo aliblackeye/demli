@@ -1,0 +1,75 @@
+{
+  "name": "demli",
+  "version": "0.0.1",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Premium, private, realtime desktop communication app for friend groups",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.11.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @demli/api --filter @demli/realtime dev",
+    "dev:desktop": "pnpm --filter @demli/desktop dev",
+    "dev:api": "pnpm --filter @demli/api dev",
+    "dev:realtime": "pnpm --filter @demli/realtime dev",
+    "db:up": "docker compose up -d postgres redis",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @demli/db generate",
+    "db:migrate": "pnpm --filter @demli/db migrate",
+    "db:seed": "pnpm --filter @demli/db seed",
+    "lint": "eslint . && node scripts/check-caddyfile.mjs && node scripts/check-brand-icons.mjs && node scripts/check-env-examples.mjs && node scripts/check-deploy-scripts.mjs",
+    "lint:caddy": "node scripts/check-caddyfile.mjs",
+    "lint:deploy": "node scripts/check-deploy-scripts.mjs",
+    "test:deploy": "bash scripts/test-remote-ssh.sh && bash scripts/test-deploy-migration.sh",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "test:brand": "node scripts/check-brand-icons.mjs",
+    "smoke:m3": "node scripts/smoke-m3.mjs",
+    "build": "pnpm -r run build",
+    "package:win": "pnpm --filter @demli/desktop package:win",
+    "package:mac": "pnpm --filter @demli/desktop package:mac",
+    "package:android": "bash scripts/build-mobile-apk.sh",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "gen:sounds": "node scripts/gen-sounds.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.12.0",
+    "eslint": "^9.12.0",
+    "png-to-ico": "^3.0.2",
+    "prettier": "^3.3.3",
+    "sharp": "^0.35.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.8.1"
+  },
+  "pnpm": {
+    "//overrides": [
+      "Transitive security patches. Every entry here is a package we do NOT depend on",
+      "directly — the fix has to be forced from the root because the direct dependent",
+      "(fastify, expo, tailwind) has not released a version that asks for it yet.",
+      "Each override is a CARET range inside the major the tree already resolved, not the",
+      "advisory's bare `>=`: `>=3.1.4` for fast-uri silently installed 4.1.2, and `>=11.1.1`",
+      "for uuid installed 14.0.1 — an override is not the place to discover a major bump.",
+      "uuid is the one exception: no 7.x fix exists, so 11.x is the smallest patched major.",
+      "Each entry can be deleted the day the parent catches up. Re-check with `pnpm audit --prod`.",
+      "brace-expansion is scoped to @5 on purpose: only 5.0.7 is reachable from a production",
+      "dependency, and forcing the 1.x/2.x copies (dev tooling, minimatch@3) up two majors",
+      "would be a breaking change bought for nothing.",
+      "Deliberately absent: drizzle-orm (<0.45.2, SQL injection). That is 0.36 -> 0.45,",
+      "a real migration across packages/db, not an override — tracked separately."
+    ],
+    "overrides": {
+      "find-my-way@9": "^9.7.0",
+      "fast-uri@3": "^3.1.4",
+      "postcss@8": "^8.5.18",
+      "brace-expansion@5": "^5.0.8",
+      "uuid@7": "^11.1.1"
+    },
+    "patchedDependencies": {
+      "@livekit/react-native-webrtc@144.1.1": "patches/@livekit__react-native-webrtc@144.1.1.patch",
+      "@supersami/rn-foreground-service@2.2.5": "patches/@supersami__rn-foreground-service@2.2.5.patch"
+    }
+  }
+}

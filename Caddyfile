@@ -1,0 +1,250 @@
+# Demli production reverse proxy. Automatic HTTPS via Let's Encrypt.
+# DOMAIN and ACME_EMAIL come from the container environment (docker-compose
+# passes them from .env.prod). Caddy substitutes {$VAR} at load time.
+#
+# Media (RTP/TURN) does NOT flow through Caddy — only signaling/HTTP/WSS does.
+#
+# ONE DOMAIN, ONE VHOST PER HOST (2026-07-27). The old karagozali.com records
+# were deleted at the registrar, so the product lives entirely on getdemli.com
+# and every host below is spelled {$DOMAIN}. There is no BRAND_DOMAIN twin any
+# more: with both names resolving to the same value Caddy would see the SAME
+# site address defined twice and refuse to load the config. If a second public
+# domain is ever needed, add it as an explicit extra address on the SAME site
+# block (`api.{$DOMAIN}, api.example.org { … }`), never as a duplicate block.
+#
+# Every host defined here has a DNS A record. Do not add a vhost for a name
+# that does not resolve: Caddy will retry its certificate forever and bury the
+# real errors in ACME noise.
+#
+#   apex     landing site + /download/* aliases
+#   www      301 -> apex
+#   app      web client (SPA + PWA) + the mobile deep-link contract
+#   api      REST/auth/media tokens + the static /dl/ release feed
+#   ws       realtime gateway (WebSocket)
+#   livekit  SFU signaling (HTTP + WSS)
+#   turn     NOT here on purpose — UDP/3478 straight off the host, never proxied
+{
+	email {$ACME_EMAIL}
+	# Serve HTTP/1.1 + HTTP/2 only. Disabling HTTP/3 keeps :443/udp free (Caddy
+	# would otherwise bind it for QUIC), leaving room to add TURN-over-UDP/443
+	# later without a port clash. Remove this block to re-enable HTTP/3.
+	servers {
+		protocols h1 h2
+	}
+}
+
+# ============================================================================
+# Backend
+# ============================================================================
+
+# HTTP API (Fastify): REST, auth, media-token issuance.
+#
+# /dl/* additionally serves the static release feed (desktop latest.yml +
+# installer, mobile APK) from the host bind mount — this rides the api
+# subdomain so updates work WITHOUT a separate `dl` DNS record. Directory
+# browsing stays off; only exact file paths are served.
+api.{$DOMAIN} {
+	handle_path /dl/* {
+		root * /srv/dl
+		file_server
+	}
+	handle {
+		reverse_proxy api:4000
+	}
+}
+
+# Realtime gateway: chat/presence/typing/voice-signaling WebSocket.
+# Caddy upgrades the connection to WebSocket automatically.
+ws.{$DOMAIN} {
+	reverse_proxy realtime:4001
+}
+
+# LiveKit signaling (HTTP + WSS). The SFU's media ports are published directly
+# by the livekit service and are NOT proxied here.
+livekit.{$DOMAIN} {
+	reverse_proxy livekit:7880
+}
+
+# ============================================================================
+# Public web
+# ============================================================================
+
+# Landing / marketing site (apps/landing build, uploaded by
+# scripts/publish-landing.sh into the host dir /srv/demli-landing, mounted
+# read-only at /srv/landing).
+#
+# Plain static — deliberately NOT an SPA: there is no index.html fallback, so an
+# unknown path 404s instead of silently rendering the home page.
+#
+# CSP is STRICTER than the web app's below: the landing talks to nothing — no
+# API, no WebSocket, no Supabase — so nothing outside 'self' is reachable.
+# NOTE for apps/landing: inline <script> is NOT allowed (script-src has no
+# 'unsafe-inline'); keep JS in emitted files. Inline styles ARE allowed because
+# bundlers and critical-CSS inlining commonly need them.
+{$DOMAIN} {
+	root * /srv/landing
+	encode zstd gzip
+
+	header {
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; manifest-src 'self'"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Same caching split as the web app: content-hashed /assets/* forever,
+	# everything else revalidates so a new deploy is picked up immediately.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@nonassets not path /assets/*
+	header @nonassets Cache-Control "no-cache"
+
+	# --- version-independent download links ---------------------------------
+	# The landing page and the in-app "get the other platform" modal link at
+	# these paths, so a release must never break them. Each target is a stable
+	# alias inside the release feed, re-pointed at the newest build by
+	# scripts/publish-desktop.sh (and refreshed on every server deploy by
+	# scripts/deploy.sh). electron-updater is unaffected — it resolves the
+	# VERSIONED filenames out of latest.yml / latest-mac.yml.
+	handle /download/windows {
+		redir https://api.{$DOMAIN}/dl/desktop/Demli-Setup.exe 302
+	}
+
+	# Android: a fixed name, so the browser saves the file as `demli.apk`. This is
+	# the very same URL the in-app native self-updater fetches (MOBILE_APK_URL in
+	# apps/api/src/env.ts), kept fresh by the EAS build webhook and
+	# scripts/publish-mobile-apk.sh. Those four places share ONE filename and are
+	# held together by the `apk-alias` rule in scripts/check-caddyfile.mjs.
+	# (The old `{$BRAND_DOMAIN}` placeholder died with the second domain — see the
+	# header of this file; this was the last straggler.)
+	handle /download/android {
+		redir https://api.{$DOMAIN}/dl/mobile/demli.apk 302
+	}
+
+	# macOS: the build pipeline exists (.github/workflows/desktop-mac.yml) and
+	# this alias is maintained by the same publish/deploy scripts as Windows.
+	# Until the first macOS release is published the alias is absent and this
+	# 302 lands on a 404 — so the LANDING PAGE MUST NOT SHOW A macOS DOWNLOAD
+	# BUTTON until that first publish (CLAUDE.md §35: never link an artifact
+	# that does not exist). Once published, nothing here needs to change.
+	handle /download/macos {
+		redir https://api.{$DOMAIN}/dl/desktop/Demli-macos.dmg 302
+	}
+
+	# iOS: no artifact and no App Store listing (needs a paid Apple Developer
+	# membership — founder decision). Answer honestly rather than redirecting
+	# at something that cannot exist. See docs/architecture/deploy.md → "iOS".
+	handle /download/ios {
+		respond "Demli is not on the App Store yet." 404
+	}
+
+	handle {
+		file_server
+	}
+}
+
+# www → apex, permanently. Keeps one canonical origin for SEO and for the CORS
+# allowlist.
+www.{$DOMAIN} {
+	header Strict-Transport-Security "max-age=31536000"
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# Web client (apps/web) — the browser SPA + PWA. Static files are served from
+# the host bind mount /srv/demli-app (uploaded by scripts/publish-web.sh);
+# unknown paths fall back to index.html so client-side routing works (SPA).
+#
+# This host ALSO carries the mobile deep-link contract (see the handle blocks
+# below), because it is the only public host that both resolves today and is
+# semantically "the app".
+#
+# CSP is a RESPONSE HEADER here (the desktop app used a <meta> CSP; a served
+# host can do better with a real header). script-src needs 'unsafe-inline'
+# because @vitejs/plugin-legacy injects UNHASHED inline bootstrap scripts (the
+# module-support probe, the legacy-chunk loader, the Safari nomodule fix, and
+# the inline `System.import(...)` entry) — without it the iOS 12 / Safari 12
+# path never boots, which is the web app's entire reason to exist. style-src
+# needs 'unsafe-inline' for injected inline styles. img/media/connect-src allow
+# https://*.supabase.co because attachments + avatars are fetched/uploaded
+# DIRECTLY client<->Supabase Storage (ADR 0008, signed URLs — not proxied by the
+# API). Tighten *.supabase.co to the exact https://<project-ref>.supabase.co if
+# desired (see docs/architecture/deploy.md).
+#
+# frame-src allows exactly ONE host, the YouTube nocookie embed domain, for
+# Watch Party (M20, ADR 0016). It MUST stay in lock-step with the desktop CSP in
+# apps/desktop/electron.vite.config.ts (`demli-csp`) — the web app IS the
+# desktop renderer mounted in a browser, so a directive present in one and absent
+# in the other means the same code silently works on one surface and not the
+# other. scripts/check-caddyfile.mjs enforces both the presence and the exact
+# single-host value. script-src/connect-src are untouched by that feature: the
+# embed is driven over postMessage, never by loading YouTube's iframe_api.
+#
+# img-src additionally allows https://i.ytimg.com, and ONLY for the watch-party
+# video picker's cover images (M20 wave 3). Our own server builds those URLs from
+# a validated 11-character video id, so the host can serve nothing but a YouTube
+# thumbnail, and an image origin grants no script, fetch or framing rights. Same
+# lock-step rule as frame-src — check-caddyfile.mjs enforces it.
+app.{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://i.ytimg.com; media-src 'self' blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://api.{$DOMAIN} wss://ws.{$DOMAIN} https://livekit.{$DOMAIN} wss://livekit.{$DOMAIN} https://*.supabase.co; frame-src https://www.youtube-nocookie.com; manifest-src 'self'; worker-src 'self' blob:"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Caching: Vite emits content-hashed, immutable files under /assets/*, so they
+	# can cache forever. Everything else (index.html + the SPA fallback, manifest,
+	# icons) MUST revalidate so a new deploy's fresh asset hashes are picked up
+	# immediately instead of a stale index.html pointing at deleted chunks.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@nonassets not path /assets/*
+	header @nonassets Cache-Control "no-cache"
+
+	# .webmanifest is not in Caddy's default MIME table — set it explicitly so
+	# iOS/Android accept the manifest.
+	@manifest path /manifest.webmanifest
+	header @manifest Content-Type "application/manifest+json"
+
+	# Android App Links verification. Exact path, JSON content-type, no redirect
+	# — Google's verifier rejects anything else. The file lives in the release
+	# bind mount (/srv/dl/link/assetlinks.json) and lists the app's
+	# `package_name` + signing-cert SHA-256, so it is host-independent: moving
+	# the deep-link host does not require regenerating it.
+	#
+	# This MUST be a `handle` (not a bare matcher): the SPA fallback below would
+	# otherwise rewrite the request to /index.html before it is ever reached,
+	# because `try_files` is ordered ahead of everything that could serve it.
+	handle /.well-known/assetlinks.json {
+		root * /srv/dl/link
+		header Content-Type application/json
+		file_server
+	}
+
+	# iOS Universal Links verification. Nothing is published there yet (no Apple
+	# Developer account), so this 404s until an
+	# /srv/dl/link/apple-app-site-association file is uploaded — at which point
+	# it starts working with no config change.
+	handle /.well-known/apple-app-site-association {
+		root * /srv/dl/link
+		header Content-Type application/json
+		file_server
+	}
+
+	# The web app itself. Invite/friend deep links (/kat/<code>,
+	# /arkadas/<code>) ride this SPA fallback: on a device with the app
+	# installed + verified Android/iOS intercept those URLs before the browser
+	# sees them, and everyone else lands in the web app, which can handle the
+	# code in-browser. Keep the host in sync with
+	# apps/mobile/src/lib/deep-links.ts and the intentFilters /
+	# associatedDomains in apps/mobile/app.json.
+	handle {
+		root * /srv/app
+		try_files {path} /index.html
+		file_server
+	}
+}

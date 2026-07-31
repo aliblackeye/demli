@@ -1,0 +1,76 @@
+# LOCAL DEVELOPMENT ONLY. Production runs on Supabase (managed Postgres) and
+# gets its database name from DATABASE_URL in the gitignored .env.prod — nothing
+# here touches it. See docker-compose.prod.yml.
+name: demli
+
+# EVERY PORT BELOW IS BOUND TO 127.0.0.1 ON PURPOSE (security-review M7).
+#
+# `- "5432:5432"` is shorthand for `0.0.0.0:5432:5432` — Docker publishes it on
+# EVERY interface and, because it does that with an iptables DNAT rule inserted
+# ahead of the INPUT chain, a host firewall (ufw/firewalld) does NOT block it.
+# What was exposed here: Postgres with postgres/postgres, Redis with NO
+# AUTHENTICATION AT ALL, and a LiveKit whose devkey/devsecret are printed in
+# .env.example — i.e. in a public repo, this file is a complete set of working
+# credentials for anything it can reach.
+#
+# This file also sits in the PRODUCTION checkout (/opt/demli), next to
+# docker-compose.prod.yml. A single `docker compose up -d` run there without
+# `-f docker-compose.prod.yml` — the easy typo, or a habit from a dev machine —
+# starts THIS stack and puts all three on the public internet of a box with real
+# users. The 127.0.0.1 prefix makes that mistake merely useless instead of
+# catastrophic; it costs local dev nothing, since dev connects over loopback.
+#
+# If you genuinely need to reach a dev service from another machine — a real
+# Android handset on the LAN talking to a local LiveKit is the honest use case —
+# open it DELIBERATELY and temporarily, for that session only:
+#   DEV_BIND_ADDR=0.0.0.0 docker compose up -d
+# (The Android emulator does NOT need this: 10.0.2.2 already reaches the host's
+# loopback.) The variable exists so widening the exposure is an explicit act
+# instead of the default, and so it never leaks into the file a production box
+# has checked out.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: demli
+    ports:
+      - "${DEV_BIND_ADDR:-127.0.0.1}:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${DEV_BIND_ADDR:-127.0.0.1}:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # LiveKit SFU for voice/screen share (Milestone 3). Dev mode with explicit
+  # keys so they match .env.example (LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
+  livekit:
+    image: livekit/livekit-server:v1.9
+    command: --dev --bind 0.0.0.0
+    environment:
+      LIVEKIT_KEYS: "devkey: devsecret"
+    ports:
+      - "${DEV_BIND_ADDR:-127.0.0.1}:7880:7880" # ws / http
+      - "${DEV_BIND_ADDR:-127.0.0.1}:7881:7881" # rtc over tcp
+      - "${DEV_BIND_ADDR:-127.0.0.1}:7882:7882/udp" # rtc over udp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7880/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

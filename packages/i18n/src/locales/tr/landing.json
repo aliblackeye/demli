@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "title": "Demli - arkadaş grubun için ses, ekran paylaşımı ve sohbet",
+    "description": "Demli, küçük arkadaş grupları için özel bir ses, ekran paylaşımı ve sohbet uygulaması. Windows ve Android uygulamaları, ayrıca tarayıcı sürümü."
+  },
+  "nav": {
+    "language": "Dil",
+    "skip": "İçeriğe geç"
+  },
+  "cta": {
+    "openApp": "Demli'yi aç",
+    "download": "Uygulamayı indir"
+  },
+  "hero": {
+    "title": "Arkadaş grubunun sakin buluşma yeri.",
+    "lead": "Sesli kanallar, ekran paylaşımı, görüntülü arama ve sohbet. Kendi sunucumuzda çalışır, reklam yoktur."
+  },
+  "features": {
+    "voice": {
+      "title": "Önce ses",
+      "body": "Sesli kanallar ve birebir aramalar. Bağlantı koptuğunda oda kendini toparlar, aramaya üçüncü kişi katıldığında konuşma kesilmeden gruba dönüşür.",
+      "note": "Kişi başı ses seviyesi, cihaz seçimi, arama geçmişi."
+    },
+    "share": {
+      "title": "Ekran ve kamera",
+      "body": "Ekranını ya da kameranı paylaş, bir yayını tam pencereye al, kaliteyi kendin ayarla."
+    },
+    "chat": {
+      "title": "Ayak uyduran sohbet",
+      "body": "Mesajlar, dosyalar, arama, bahsetmeler ve okunmadı çizgisi. Kullandığın her cihazda aynı."
+    }
+  },
+  "download": {
+    "title": "Uygulamayı indir",
+    "lead": "Windows ve Android'in kendi uygulaması var. Geri kalan her şey tarayıcıdan çalışır.",
+    "soon": "macOS ve iPhone için uygulama yok. Demli ikisinde de tarayıcıdan çalışır.",
+    "windows": {
+      "name": "Windows",
+      "note": "Kendini güncelleyen kurulum dosyası.",
+      "action": "İndir"
+    },
+    "android": {
+      "name": "Android",
+      "note": "Kendini uygulama içinden güncelleyen APK. Google Play'de değil.",
+      "action": "APK indir"
+    },
+    "browserNote": "Linux, iOS ya da başka bir cihazdaysan kurulum gerekmez:"
+  },
+  "openSource": {
+    "action": "Kaynak kodu GitHub'da"
+  },
+  "footer": {
+    "note": "Demli aktif geliştiriliyor. Yeni sürümler uygulamaya kendiliğinden gelir.",
+    "rights": "© {{year}} Demli"
+  }
+}

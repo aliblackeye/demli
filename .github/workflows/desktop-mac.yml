@@ -1,0 +1,119 @@
+name: Desktop macOS build
+
+# macOS binaries can only be produced on macOS, and the team's dev machine is
+# Windows. This workflow is the macOS build pipeline: it runs the SAME
+# `apps/desktop/scripts/package.mjs` on a `macos-latest` runner and uploads the
+# artifacts. Manual by default — this is a release action, not a per-push cost.
+#
+# NOT YET EXECUTED: this file was authored on a Windows machine and has never
+# been run. Treat the first run as the verification step (see
+# docs/architecture/desktop-packaging.md -> "macOS").
+#
+# TRIGGERING IT: `bash scripts/build-desktop-mac.sh` dispatches this workflow,
+# waits for it, and unpacks the artifacts into apps/desktop/release/<version>/
+# ready for `bash scripts/publish-desktop.sh --mac`. The GitHub UI path is
+# Actions -> "Desktop macOS build" -> Run workflow.
+#
+# workflow_dispatch is only offered for workflows that exist on the repository's
+# DEFAULT branch. If this file lives only on `dev`, either merge it to the
+# default branch or make `dev` the default — otherwise dispatch answers 404.
+#
+# Cost: GitHub Actions minutes are free on public repositories (macOS runners
+# are billed at 10x on private repos). The repo is going public — until then,
+# check the account's minute budget before running this.
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "DEMLI_DOMAIN (pins the production CSP + API/WS URLs)"
+        required: true
+        default: getdemli.com
+  push:
+    tags:
+      - "desktop-v*"
+
+# Least privilege: this job only reads the repo and uploads build artifacts.
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Package (macos-latest, unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    env:
+      # workflow_dispatch supplies the domain; a tag push falls back to the
+      # production domain so a release tag builds something usable.
+      DEMLI_DOMAIN: ${{ github.event.inputs.domain || 'getdemli.com' }}
+      # REQUIRED for working image actions. Attachments are served from Supabase,
+      # not from api.<domain>, so without this the build pins an allow-list that
+      # does not contain the storage host and the fail-closed policy in
+      # main/image-actions-policy.ts disables "save image" / "copy image"
+      # entirely (the menu entries are not rendered). It is a repository
+      # VARIABLE, not a secret — a public storage origin, and the same value the
+      # Windows build reads from .env.deploy. Set it at
+      # Settings -> Secrets and variables -> Actions -> Variables ->
+      # DEMLI_STORAGE_ORIGIN = https://<project-ref>.supabase.co
+      DEMLI_STORAGE_ORIGIN: ${{ vars.DEMLI_STORAGE_ORIGIN }}
+      # Optional. Empty (the default) means Sentry is fully disabled in the
+      # produced app — no init, no network. Add a repository secret named
+      # SENTRY_DSN to turn it on. See docs/architecture/crash-reporting.md.
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      # Deliberately NOT set: DEMLI_MAC_IDENTITY / CSC_LINK /
+      # CSC_KEY_PASSWORD / APPLE_ID. Signing + notarization need a paid Apple
+      # Developer membership ($99/year) — a founder decision. Without them the
+      # build is unsigned and Gatekeeper warns on first open. To enable, add the
+      # secrets and set the env vars here; scripts/package.mjs picks them up
+      # with no other change.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.11.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck desktop
+        run: pnpm --filter @demli/desktop typecheck
+
+      - name: Unit tests (desktop)
+        run: pnpm --filter @demli/desktop test
+
+      - name: Package macOS (dmg + zip, x64 + arm64)
+        run: pnpm --filter @demli/desktop package:mac
+
+      - name: Collect artifact list
+        run: ls -lh apps/desktop/release/*/
+
+      # dmg = human download, zip + latest-mac.yml = the electron-updater feed.
+      # Upload them together: publishing a manifest without its zip breaks
+      # auto-update for everyone who checks in between.
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: demli-desktop-macos
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            apps/desktop/release/*/*.dmg
+            apps/desktop/release/*/*.zip
+            apps/desktop/release/*/*.blockmap
+            apps/desktop/release/*/latest-mac.yml

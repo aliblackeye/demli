@@ -1,0 +1,162 @@
+name: CI
+
+# The repository's one automated gate. It runs the same four commands a
+# maintainer runs locally — typecheck, lint, test, build — against real Postgres
+# and real Redis service containers, on every push to `dev`/`master` and every PR
+# aimed at them. Work in this repo lands on `dev` directly, so a PR-only trigger
+# would mean the gate almost never ran.
+#
+# WHAT THIS GATE DOES NOT LOOK AT — read this before trusting a green tick:
+#
+#   * Packaging. No Electron installer, no `package:win`/`package:mac`, no
+#     Android APK, no EAS build. `desktop-mac.yml` is the macOS packaging
+#     pipeline and is manual on purpose; the Windows installer is only ever
+#     produced on the maintainer's machine.
+#   * Windows and macOS runtime. This job is Linux only. Anything that depends on
+#     a Windows path, a native module, or Electron's main process at runtime is
+#     unverified here. (The flip side is real: the FIRST run of this workflow is
+#     where Linux-only breakage — case-sensitive imports, CRLF in a shell script
+#     — finally becomes visible. That is the gate doing its job, not a defect.)
+#   * Mobile on a device. No emulator, no LiveKit, no microphone, no camera. The
+#     emulator check before a mobile media publish (CLAUDE.md §32) is still a
+#     human step and this workflow does not replace it.
+#   * The deploy. `scripts/deploy.sh` runs on the VPS against the live stack; its
+#     behaviour there is proven by the deploy's own verification block, not here.
+#   * Anything you can only see. Visual UI quality, audio quality, call feel.
+#
+# So: green here means "the code compiles, the rules pass, and the integration
+# suites really ran against a real database". It does not mean "shippable".
+#
+# The `DEMLI_TEST_REQUIRE_DB` flag below is load-bearing. Every integration suite
+# in this repo skips itself when its database is unreachable, which is correct on
+# a laptop and a lie in CI: without the flag, a Postgres service container that
+# failed to start would leave ~90 suites skipped and this job GREEN. The flag
+# turns that skip into a hard failure. See packages/db/src/testing.ts.
+#
+# That flag was verified the only way a gate can be: by breaking it. Pointing
+# DATABASE_URL at a dead port with the flag set turns this job red at collection
+# time instead of green-with-90-skips. Re-run that experiment if you ever touch
+# the service definitions below.
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: read the code, nothing else. No package publishing, no
+# release creation, no writing back to the repository.
+permissions:
+  contents: read
+
+env:
+  # Pinned in one place so the two jobs cannot drift apart.
+  PNPM_VERSION: 9.11.0
+  NODE_VERSION: 22
+
+jobs:
+  checks:
+    name: typecheck · lint · test (with Postgres + Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # Same images as docker-compose.yml, so a green CI run and a green local
+      # run are testing against the same engines. Bump them together.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: demli
+        ports:
+          - 5432:5432
+        # Without a health check the migrate step races the server's first-boot
+        # initdb and fails intermittently — and, before the skip-proofing flag
+        # existed, would have failed *silently* by skipping every suite.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/demli
+      REDIS_URL: redis://localhost:6379
+      # Refuse to skip an integration suite. See the header note.
+      DEMLI_TEST_REQUIRE_DB: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # --frozen-lockfile: a lockfile that does not match package.json is itself
+      # a failure worth reporting, not something to silently resolve here.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Not just eslint: the root `lint` script also runs the Caddyfile, brand
+      # icon, env-example and deploy-script consistency checks.
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Bundles only — electron-vite for the desktop renderer/main, vite for the
+      # web and landing SPAs. No installer is produced; see the header.
+      - name: Build
+        run: pnpm build

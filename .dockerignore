@@ -1,0 +1,34 @@
+# Keep the build context small. NOTE: every workspace package.json must remain
+# in the context so `pnpm install --frozen-lockfile` sees a workspace that
+# matches pnpm-lock.yaml — so we exclude build output and secrets only, never
+# source or manifests.
+
+# Dependencies & build output (reinstalled/rebuilt inside the image)
+**/node_modules
+**/dist
+**/out
+**/build
+**/release
+**/.turbo
+**/*.tsbuildinfo
+
+# VCS / CI / editor / agent state
+.git
+.github
+.gitignore
+.claude
+.vscode
+.idea
+
+# Docs (not needed to build the services)
+docs
+
+# Secrets & rendered infra config — must never enter an image layer
+**/.env
+**/.env.*
+!**/.env.example
+deploy/livekit.runtime.yaml
+
+# Misc
+*.log
+coverage
