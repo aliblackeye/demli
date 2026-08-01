@@ -116,4 +116,10 @@ jobs:
             apps/desktop/release/*/*.dmg
             apps/desktop/release/*/*.zip
             apps/desktop/release/*/*.blockmap
-            apps/desktop/release/*/latest-mac.yml
+            # `*-mac.yml`, not `latest-mac.yml`: electron-builder names the
+            # manifest after the CHANNEL (electron-builder.yml says `demli`), so
+            # the hardcoded name matched nothing and the manifest was silently
+            # left out of every artifact — `if-no-files-found: error` never fired
+            # because the dmg/zip lines above still matched. Found 2026-08-01 on
+            # this workflow's first real run.
+            apps/desktop/release/*/*-mac.yml
