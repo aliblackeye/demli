@@ -1,0 +1,197 @@
+"use client";
+
+import Image from "next/image";
+import { MaskIcon } from "../atoms/MaskIcon";
+import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
+
+const COL_1: ReviewCardData[] = [
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Emily Rodriguez",
+    date: "Apr 13, 2026",
+    title: "Incredibly Useful",
+    body: "I was skeptical about AI health apps but this one is different.",
+  },
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Jessica Wang",
+    date: "Jan 13, 2026",
+    title: "Highly Recommend",
+    body: "Got my medication delivered same day. The AI suggested exactly what my doctor ended up prescribing.",
+  },
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Kevin Patterson",
+    date: "Aug 7, 2025",
+    title: "Feels Personal",
+    body: "It doesn't feel like talking to a bot. The AI asks the right questions and the doctor it matched me with was perfect.",
+  },
+  {
+    store: "google-play",
+    href: "https://play.google.com/store/games?hl=en",
+    name: "Tyler Brooks",
+    date: "May 2, 2025",
+    title: "Simple and Smart",
+    body: "Takes 30 seconds to find a verified doctor nearby. The ratings and reviews helped me pick someone I actually trusted.",
+  },
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Daniel Harris",
+    date: "May 13, 2024",
+    title: "Best Health App",
+    body: "Switched from two other apps. The UI is clean and fast.",
+  },
+];
+
+const COL_2: ReviewCardData[] = [
+  {
+    store: "google-play",
+    href: "https://play.google.com/store/games?hl=en",
+    name: "Olivia Bennett",
+    date: "Feb 13, 2026",
+    title: "Genuinely Impressed",
+    body: "The onboarding alone shows how much thought went into this. It actually remembered my medical background every single time.",
+  },
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Layla Morrison",
+    date: "Nov 12, 2025",
+    title: "Data That Means Something",
+    body: "Most health apps just collect numbers. This one tells you what they mean. My weekly snapshot caught a sleep pattern that explained months of low energy.",
+  },
+  {
+    store: "google-play",
+    href: "https://play.google.com/store/games?hl=en",
+    name: "Marcus Thompson",
+    date: "May 13, 2025",
+    title: "So Convenient",
+    body: "Described my symptoms at midnight, got an answer in seconds. Had a doctor booked for 8am. No more urgent care visits.",
+  },
+  {
+    store: "apple",
+    href: "https://www.apple.com/eg/app-store/",
+    name: "Aisha Patel",
+    date: "Mar 1, 2025",
+    title: "Finally Keeps Up",
+    body: "Managing Type 2 diabetes means tracking a dozen things daily. Medra connects the dots — glucose patterns, appointments, and medications actually talk to each other.",
+  },
+];
+
+const AVATARS = ["/images/avatar-1.jpg", "/images/avatar-2.jpg", "/images/avatar-3.jpg", "/images/avatar-4.jpg", "/images/avatar-5.jpg"];
+
+/**
+ * [Section] Reviews — ölçülen: BG şeridi 467 (Features ile aynı reçete),
+ * Container pt 120 / gap 80; Title: rozet (defne kanatları + avatar yığını
+ * + 5 yıldız + "Trusted by 50K+ users") + 48px iki tonlu başlık;
+ * Content 1357 yüksek, 2 kolon 406px gap 12, kolon içi gap 12,
+ * kolon başı 83px ofset, taşan kısım kırpılır.
+ */
+export function Reviews() {
+  return (
+    <section id="reviews" className="relative flex flex-col items-center overflow-clip">
+      {/* BG şeridi */}
+      <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-1/2 w-[1575px] -translate-x-1/2 rounded-full"
+          style={{
+            background:
+              "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+            filter: "blur(8px)",
+          }}
+        />
+        <div className="rotate-180">
+          <video
+            src="/videos/light-rays.webm"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="h-[467px] w-[1120px] object-cover"
+          />
+        </div>
+        <div
+          aria-hidden
+          className="absolute inset-0 z-[1] opacity-70 mix-blend-screen"
+          style={{
+            WebkitMaskImage:
+              "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
+            maskImage:
+              "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
+          }}
+        >
+          <div
+            className="h-full w-full"
+            style={{
+              backgroundImage: "url(/images/noise.png)",
+              backgroundRepeat: "repeat",
+              backgroundSize: "128px",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* İçerik */}
+      <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
+        <div className="flex flex-col items-center gap-8">
+          {/* Rozet */}
+          <div className="flex items-center gap-6">
+            <MaskIcon name="laurel-left" size={38} color="#737373" className="h-[38px] w-[28px]" />
+            <div className="flex items-center gap-3 rounded-[100px]">
+              {/* Ölçülen: avatar 32px, bindirme adımı 22px, halka 6px zemin renkli */}
+              <div className="flex h-[44px] items-center">
+                {AVATARS.map((src, i) => (
+                  <div
+                    key={src}
+                    className={
+                      "box-content h-8 w-8 overflow-hidden rounded-full border-[6px] border-[#000] " +
+                      (i > 0 ? "-ml-[22px]" : "")
+                    }
+                  >
+                    <Image src={src} alt="" width={32} height={32} className="h-8 w-8 object-cover" />
+                  </div>
+                ))}
+              </div>
+              {/* Ölçülen: kolon 76px — metin iki satıra sarar, toplam 50px */}
+              <div className="flex w-[76px] flex-col items-start gap-1">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <MaskIcon key={i} name="star" size={12} color="#eab30a" />
+                  ))}
+                </div>
+                <p className="text-[14px] font-medium leading-[16.8px] tracking-[-0.28px] text-text-secondary">
+                  Trusted by 50K+ users
+                </p>
+              </div>
+            </div>
+            <MaskIcon name="laurel-right" size={38} color="#737373" className="h-[38px] w-[28px]" />
+          </div>
+          <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
+            <span className="text-white">Hear what other users</span>
+            <br />
+            <span className="text-text-dim">have to say</span>
+          </h2>
+        </div>
+
+        {/* Kolonlar */}
+        <div className="flex h-[1357px] items-start justify-center gap-3 overflow-hidden">
+          <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
+            {COL_1.map((c) => (
+              <ReviewCard key={c.name} data={c} />
+            ))}
+          </div>
+          <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
+            {COL_2.map((c) => (
+              <ReviewCard key={c.name} data={c} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
