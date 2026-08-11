@@ -22,6 +22,40 @@ html {
   background: var(--color-base);
 }
 
+/* Referans shimmer animasyonu: background-position 200% → -100%, 3s linear infinite */
+@keyframes shimmer-slide {
+  0% {
+    background-position: 200%;
+  }
+  100% {
+    background-position: -100%;
+  }
+}
+
+.shimmer-overlay {
+  animation: shimmer-slide 3s linear infinite;
+}
+
+/* H1 preset (referans 103otow): 56px mobil, 92px 810–1439, 112px ≥1440;
+   %110 satır, -0.2px izleme, 600 ağırlık, ortalı. */
+.hero-title {
+  font-size: 56px;
+  line-height: 110%;
+  letter-spacing: -0.2px;
+}
+
+@media (min-width: 810px) {
+  .hero-title {
+    font-size: 92px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .hero-title {
+    font-size: 112px;
+  }
+}
+
 body {
   font-family: "Inter", sans-serif;
   /* Referans gövde varsayılanları: 18px / %140, balance, cv setleri */
