@@ -1,5 +1,8 @@
 "use client";
 
+import { CardReveal } from "../atoms/CardReveal";
+import { FadeIn } from "../atoms/FadeIn";
+import { RevealText } from "../atoms/RevealText";
 import { PricingCard, type PricingCardData } from "../molecules/PricingCard";
 import { SectionTagline } from "../molecules/SectionTagline";
 
@@ -85,16 +88,20 @@ export function Pricing() {
 
       <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
         <div className="flex flex-col items-center gap-8">
-          <SectionTagline label="Pricing" />
+          <FadeIn>
+            <SectionTagline label="Pricing" />
+          </FadeIn>
           <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
-            <span className="text-white">Choose the perfect plan</span>
+            <RevealText text="Choose the perfect plan" mode="word" className="text-white" />
             <br />
-            <span className="text-text-dim">for your needs</span>
+            <RevealText text="for your needs" mode="word" className="text-text-dim" />
           </h2>
         </div>
         <div className="flex items-start gap-4">
-          {PLANS.map((p) => (
-            <PricingCard key={p.plan} data={p} />
+          {PLANS.map((p, i) => (
+            <CardReveal key={p.plan} y={200} delay={i * 0.15}>
+              <PricingCard data={p} />
+            </CardReveal>
           ))}
         </div>
       </div>

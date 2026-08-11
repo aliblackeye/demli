@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import { CtaButton } from "../atoms/CtaButton";
+import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
+import { RevealText } from "../atoms/RevealText";
 import { TrustBadge } from "../molecules/TrustBadge";
 
 /**
@@ -60,15 +62,12 @@ export function SiteFooter() {
 
       {/* CTA içeriği */}
       <div className="relative flex w-[580px] flex-col items-center gap-10 pt-[120px]">
-        <TrustBadge />
+        <FadeIn>
+          <TrustBadge />
+        </FadeIn>
         <p className="text-center font-display text-[40px] font-normal leading-[48px] tracking-[-0.8px] text-text-primary">
-          Designed to heal,
-          <br />
-          understand everything{" "}
-          <span className="text-text-dim">
-            <br />
-            and ship with confidence.
-          </span>
+          <RevealText text="Designed to heal, understand everything " mode="char" />
+          <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
         <div className="flex flex-col items-center gap-8">
           <div className="flex items-center justify-center gap-x-5 gap-y-4">

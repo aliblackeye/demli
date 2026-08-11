@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Appear, APPEAR } from "../atoms/Appear";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
+import { RevealText } from "../atoms/RevealText";
 import { ShimmerText } from "../atoms/ShimmerText";
 
 /**
@@ -129,12 +130,15 @@ export function Hero() {
                 className="h-[120px] w-[120px] rounded-none object-cover"
               />
             </div>
-            {/* Referansta scroll ile açılan metin (başlangıç opacity 0) —
-                reveal efekti animasyon fazında birebir eklenecek. */}
+            {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
               <p className="text-center font-display text-[40px] font-normal leading-[48px] tracking-[-0.8px] text-text-primary">
-                Designed to heal, understand everything{" "}
-                <span className="text-text-dim">and ship with confidence.</span>
+                <RevealText text="Designed to heal, understand everything " mode="char" />
+                <RevealText
+                  text="and ship with confidence."
+                  mode="char"
+                  className="text-text-dim"
+                />
               </p>
             </div>
             <div className="flex flex-col items-center gap-8">

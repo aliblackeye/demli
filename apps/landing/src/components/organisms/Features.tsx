@@ -1,5 +1,8 @@
 "use client";
 
+import { CardReveal } from "../atoms/CardReveal";
+import { FadeIn } from "../atoms/FadeIn";
+import { RevealText } from "../atoms/RevealText";
 import { FeatureCard, type FeatureCardData } from "../molecules/FeatureCard";
 import { SectionTagline } from "../molecules/SectionTagline";
 
@@ -97,16 +100,20 @@ export function Features() {
       {/* İçerik */}
       <div className="relative flex w-full max-w-[1185px] flex-col items-center gap-20 px-0 pt-[120px]">
         <div className="flex flex-col items-center gap-8">
-          <SectionTagline label="Features" />
+          <FadeIn>
+            <SectionTagline label="Features" />
+          </FadeIn>
           <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
-            <span className="text-white">Designed for People</span>
+            <RevealText text="Designed for People" mode="word" className="text-white" />
             <br />
-            <span className="text-text-dim">Powered by AI</span>
+            <RevealText text="Powered by AI" mode="word" className="text-text-dim" />
           </h2>
         </div>
         <div className="flex flex-col items-center gap-6 pb-[120px]">
           {CARDS.map((card) => (
-            <FeatureCard key={card.tag} data={card} />
+            <CardReveal key={card.tag}>
+              <FeatureCard data={card} />
+            </CardReveal>
           ))}
         </div>
       </div>

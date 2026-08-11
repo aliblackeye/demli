@@ -1,3 +1,4 @@
+import { LenisProvider } from "../atoms/LenisProvider";
 import { SiteNav } from "../organisms/SiteNav";
 import { Hero } from "../organisms/Hero";
 import { Features } from "../organisms/Features";
@@ -13,6 +14,7 @@ import { ProgressiveBlur } from "../atoms/ProgressiveBlur";
  */
 export function HomeTemplate() {
   return (
+    <LenisProvider>
     <div className="relative bg-base">
       <SiteNav />
       <main className="relative">
@@ -26,5 +28,6 @@ export function HomeTemplate() {
       <ProgressiveBlur position="top" height={120} />
       <ProgressiveBlur position="bottom" height={180} />
     </div>
+    </LenisProvider>
   );
 }

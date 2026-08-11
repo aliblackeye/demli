@@ -1,5 +1,8 @@
 "use client";
 
+import { CardReveal } from "../atoms/CardReveal";
+import { FadeIn } from "../atoms/FadeIn";
+import { RevealText } from "../atoms/RevealText";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
 import { TrustBadge } from "../molecules/TrustBadge";
 
@@ -136,24 +139,30 @@ export function Reviews() {
       {/* İçerik */}
       <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
         <div className="flex flex-col items-center gap-8">
-          <TrustBadge />
+          <FadeIn>
+            <TrustBadge />
+          </FadeIn>
           <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
-            <span className="text-white">Hear what other users</span>
+            <RevealText text="Hear what other users" mode="word" className="text-white" />
             <br />
-            <span className="text-text-dim">have to say</span>
+            <RevealText text="have to say" mode="word" className="text-text-dim" />
           </h2>
         </div>
 
         {/* Kolonlar */}
         <div className="flex h-[1357px] items-start justify-center gap-3 overflow-hidden">
           <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
-            {COL_1.map((c) => (
-              <ReviewCard key={c.name} data={c} />
+            {COL_1.map((c, i) => (
+              <CardReveal key={c.name} y={40} delay={i * 0.08}>
+                <ReviewCard data={c} />
+              </CardReveal>
             ))}
           </div>
           <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
-            {COL_2.map((c) => (
-              <ReviewCard key={c.name} data={c} />
+            {COL_2.map((c, i) => (
+              <CardReveal key={c.name} y={40} delay={i * 0.08 + 0.04}>
+                <ReviewCard data={c} />
+              </CardReveal>
             ))}
           </div>
         </div>

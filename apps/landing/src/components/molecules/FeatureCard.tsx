@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
+import { RevealText } from "../atoms/RevealText";
 import { ShimmerText } from "../atoms/ShimmerText";
 
 export type FeatureCardData = {
@@ -44,15 +46,25 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
       {/* İçerik */}
       <div className="relative z-[1] flex w-full flex-col items-start gap-8 px-16 pt-16">
         <div className="flex w-[528px] flex-col items-start gap-4">
-          <ShimmerText
-            text={data.tag}
-            color="#eab30a"
-            className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+          <FadeIn>
+            <ShimmerText
+              text={data.tag}
+              color="#eab30a"
+              className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+            />
+          </FadeIn>
+          <RevealText
+            text={data.title}
+            mode="word"
+            as="h3"
+            className="font-display text-[52px] font-normal leading-[57.2px] text-white"
           />
-          <h3 className="font-display text-[52px] font-normal leading-[57.2px] text-white">
-            {data.title}
-          </h3>
-          <p className="text-[18px] leading-[25.2px] text-text-dim">{data.description}</p>
+          <RevealText
+            text={data.description}
+            mode="char"
+            as="p"
+            className="text-[18px] leading-[25.2px] text-text-dim"
+          />
         </div>
         <ul className="flex w-[602px] flex-col gap-3">
           {data.bullets.map((b) => (
