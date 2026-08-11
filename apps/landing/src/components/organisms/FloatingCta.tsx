@@ -5,11 +5,12 @@ import { motion } from "framer-motion";
 import { CtaButton } from "../atoms/CtaButton";
 
 /**
- * Features Section Floating CTA — ölçülen davranış: fixed bottom (z10),
- * Features bölümü görünürken y 120→0 + opacity 0→1; bölümden çıkınca
- * geri iner. İçerik: beyaz "Download App" butonu (191×57).
- * Referans eğrisi: 2500 → op .92/y 10 (giriş ortası), 4500 → tam açık,
- * 5500 → op .08/y 110 (çıkış ortası).
+ * Features Section Floating CTA — authored (audit2):
+ * fixed bottom 0, left %50 translate(-50%), z10, radius 16,
+ * genişlik 1120 (dt) / 810 (tb) / 390 (mobil), padding 12 12 56,
+ * bg radial-gradient(50% 100% at 50% 100%, rgba(0,0,0,0.85), saydam),
+ * overflow hidden. İçinde beyaz Download App butonu.
+ * Davranış (ölçüldü): Features görünürken y 120→0 + op 0→1 spring.
  */
 export function FloatingCta() {
   const [visible, setVisible] = useState(false);
@@ -21,7 +22,6 @@ export function FloatingCta() {
       (entries) => {
         for (const e of entries) setVisible(e.isIntersecting);
       },
-      // Bölüm viewport'un ortasına yakınken tetiklenmesi için pay
       { rootMargin: "-40% 0px -20% 0px" }
     );
     io.observe(features);
@@ -29,15 +29,20 @@ export function FloatingCta() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-end justify-center pb-[43px]">
-      <motion.div
-        className="pointer-events-auto"
-        initial={{ opacity: 0, y: 120 }}
-        animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 120 }}
-        transition={{ type: "spring", duration: 0.6, bounce: 0.2 }}
-      >
+    <motion.div
+      className="pointer-events-none fixed bottom-0 left-1/2 z-10 flex w-[390px] -translate-x-1/2 flex-col items-center justify-center gap-2 overflow-hidden rounded-[16px] px-3 pb-14 pt-3 tb:w-[810px] tb:flex-row dt:w-[1120px]"
+      style={{
+        background:
+          "radial-gradient(50% 100% at 50% 100%, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%)",
+        x: "-50%",
+      }}
+      initial={{ opacity: 0, y: 120 }}
+      animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 120 }}
+      transition={{ type: "spring", duration: 0.6, bounce: 0.2 }}
+    >
+      <div className="pointer-events-auto">
         <CtaButton href="#download" label="Download App" variant="primary" />
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 }

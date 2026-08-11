@@ -44,7 +44,10 @@ const PLANS: PricingCardData[] = [
  */
 export function Pricing() {
   return (
-    <section id="pricing" className="relative flex flex-col items-center overflow-clip">
+    <section
+      id="pricing"
+      className="relative flex flex-col items-center overflow-clip px-6 py-20 tb:px-10 tb:py-[120px] dt:px-0 dt:py-[160px]"
+    >
       <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
           aria-hidden
@@ -86,7 +89,7 @@ export function Pricing() {
         </div>
       </div>
 
-      <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
+      <div className="relative flex w-full flex-col items-center gap-20">
         <div className="flex flex-col items-center gap-8">
           <FadeIn>
             <SectionTagline label="Pricing" />

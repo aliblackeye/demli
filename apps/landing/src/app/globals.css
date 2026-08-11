@@ -36,6 +36,20 @@ html {
   animation: shimmer-slide 3s linear infinite;
 }
 
+/* Hero BG vinyet maskı — authored: radial 50%/50% (mobil 75%/50%),
+   merkez saydam → kenar #00000052. */
+.hero-bg-mask {
+  -webkit-mask-image: radial-gradient(75% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%);
+  mask-image: radial-gradient(75% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%);
+}
+
+@media (min-width: 810px) {
+  .hero-bg-mask {
+    -webkit-mask-image: radial-gradient(50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%);
+    mask-image: radial-gradient(50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%);
+  }
+}
+
 /* H1 preset (referans 103otow): 56px mobil, 92px 810–1439, 112px ≥1440;
    %110 satır, -0.2px izleme, 600 ağırlık, ortalı. */
 .hero-title {

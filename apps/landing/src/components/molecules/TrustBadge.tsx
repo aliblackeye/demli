@@ -20,13 +20,14 @@ export function TrustBadge() {
     <div className="flex items-center gap-6">
       <MaskIcon name="laurel-left" size={38} color="#737373" className="h-[38px] w-[28px]" />
       <div className="flex items-center gap-3 rounded-[100px]">
-        <div className="flex h-[44px] items-center">
+        {/* authored Stacked Avatars: 1px sarmalayıcılar + gap 22 → merkez
+            adımı 23px; görsel 32px, px-16 kenar payı. */}
+        <div className="flex h-[44px] items-center px-4">
           {AVATARS.map((src, i) => (
             <div
               key={src}
               className={
-                "box-content h-8 w-8 overflow-hidden rounded-full border-[6px] border-[#000] " +
-                (i > 0 ? "-ml-[22px]" : "")
+                "h-8 w-8 overflow-hidden rounded-full " + (i > 0 ? "-ml-[9px]" : "")
               }
             >
               <Image src={src} alt="" width={32} height={32} className="h-8 w-8 object-cover" />

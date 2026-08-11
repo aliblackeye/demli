@@ -18,23 +18,22 @@ export function Hero() {
   return (
     <header
       id="hero"
-      className="relative flex flex-col items-center overflow-clip px-6 pb-20 pt-[120px] tb:px-0 tb:pb-[120px] tb:pt-[160px]"
+      className="relative flex flex-col items-center overflow-clip px-6 pb-20 pt-[120px] tb:px-0 tb:pb-[120px] tb:pt-[160px] dt:pb-[160px]"
     >
-      {/* BG: ışık huzmeleri + noise. Ölçülen: BG'de kenar vinyet maskı
-          (radial 50%/50%, merkez saydam → kenar 0.32); noise sarmalayıcısı
-          mask radial 65%/50% (0.88 @ %25 → 0) + mix-blend screen; karo 128px. */}
-      <div
-        className="absolute inset-x-0 top-0 flex h-[600px] flex-col items-center justify-center overflow-clip"
-        style={{
-          WebkitMaskImage:
-            "radial-gradient(50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%)",
-          maskImage:
-            "radial-gradient(50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.32) 100%)",
-        }}
-      >
+      {/* BG — authored: BG maskı radial 50%/50% (mobil 75%/50%) saydam →
+          #00000052; Light Rays Wrapper'ın KENDİ maskı radial 50% 150% at
+          50% 0, #000 %82.24 → saydam; noise sarmalayıcı mask radial 65%/50%
+          #000000e0 %25 → saydam + mix-blend screen; karo 128px. */}
+      <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[600px] flex-col items-center justify-center overflow-clip">
         <Appear
           spec={APPEAR.heroLightRays}
           className="absolute left-1/2 top-0 h-[500px] w-[1200px] -translate-x-1/2"
+          style={{
+            WebkitMaskImage:
+              "radial-gradient(50% 150% at 50% 0, rgb(0, 0, 0) 82.2354%, rgba(0, 0, 0, 0) 100%)",
+            maskImage:
+              "radial-gradient(50% 150% at 50% 0, rgb(0, 0, 0) 82.2354%, rgba(0, 0, 0, 0) 100%)",
+          }}
         >
           <Appear spec={APPEAR.heroVideo} className="h-full w-full">
             {/* Referansta video sarmalayıcısı matrix(-1,0,0,-1,0,0) — 180° çevrik */}
@@ -73,11 +72,11 @@ export function Hero() {
 
       {/* İçerik */}
       <div className="relative flex w-full flex-col items-center gap-[52px]">
-        {/* Başlık bloğu */}
-        <div className="flex flex-col items-center gap-8">
+        {/* Başlık bloğu — authored: max-w 880 (dt) / 604 (tb), gap 32 (mobil 24) */}
+        <div className="flex w-full max-w-[604px] flex-col items-center gap-6 tb:gap-8 dt:max-w-[880px]">
           <Appear spec={APPEAR.tagline}>
             <div
-              className="flex items-center gap-2 rounded-[50px] bg-[rgba(0,0,0,0.24)] py-[6px] pl-[6px] pr-[18px]"
+              className="flex items-center gap-2 rounded-[50px] bg-[rgba(0,0,0,0.24)] py-[6px] pl-[6px] pr-[18px] backdrop-blur-[8px]"
               style={{ boxShadow: "rgba(38, 49, 64, 0.32) 0px -1px 0px 0px inset" }}
             >
               <div className="flex items-center gap-[10px] rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-1">
@@ -101,32 +100,40 @@ export function Hero() {
               </div>
             </div>
           </Appear>
-          <Appear spec={APPEAR.title}>
-            <h1 className="hero-title mx-auto max-w-[604px] text-center font-display font-semibold text-white min-[1440px]:max-w-[882px]">
+          <Appear spec={APPEAR.title} className="w-full">
+            <h1 className="hero-title w-full text-center font-display font-semibold text-white">
               Clarity Looks Like This
             </h1>
           </Appear>
         </div>
 
-        {/* Alt blok: telefon + CTA */}
+        {/* Alt blok: telefon + CTA — authored Visual: aspect .766667,
+            max-w 344 (mobil) / 564 (tb) / 644 (dt); Mockup Wrapper maskı
+            linear-gradient(#000 12%, saydam 100%) — kırpma değil solma. */}
         <div className="flex w-full flex-col items-center">
-          <div className="relative flex flex-col items-center">
-            <Appear spec={APPEAR.mockup}>
-              <div className="h-[560px] w-[327px] overflow-hidden tb:h-[736px] tb:w-[564px]">
-                <Image
-                  src="/images/hero-phone.webp"
-                  alt="Appzen app"
-                  width={564}
-                  height={965}
-                  priority
-                  className="h-auto w-full object-contain tb:h-[965px] tb:w-[564px]"
-                />
-              </div>
+          <div className="relative flex aspect-[0.766667] w-full max-w-[344px] flex-col items-center tb:max-w-[564px] dt:max-w-[644px]">
+            <Appear
+              spec={APPEAR.mockup}
+              className="w-full"
+              style={{
+                WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
+                maskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
+              }}
+            >
+              <Image
+                src="/images/hero-phone.webp"
+                alt="Appzen app"
+                width={644}
+                height={1102}
+                priority
+                className="h-auto w-full object-contain"
+              />
             </Appear>
           </div>
 
           {/* CTA içeriği */}
-          <div id="download" className="flex w-full max-w-[327px] flex-col items-center gap-10 tb:max-w-none tb:!w-[580px]">
+          {/* authored CTA Content: max-w 580, gap 64 (dt) / 40 (tb) / 32 (mobil) */}
+          <div id="download" className="flex w-full max-w-[580px] flex-col items-center gap-8 tb:gap-10 dt:gap-16">
             <div className="flex flex-col items-center">
               <Image
                 src="/images/app-icon.png"
@@ -149,7 +156,8 @@ export function Hero() {
             </div>
             <div className="flex flex-col items-center gap-8">
               <Appear spec={APPEAR.buttons}>
-                <div className="flex items-center justify-center gap-x-5 gap-y-4">
+                {/* authored Buttons: flex-wrap gap 20/16; mobil kolon gap 12 */}
+                <div className="flex flex-col items-center justify-center gap-3 tb:flex-row tb:flex-wrap tb:gap-x-4 tb:gap-y-5">
                   <CtaButton href="#download" label="Download App" variant="primary" />
                   <CtaButton
                     href="#demo"

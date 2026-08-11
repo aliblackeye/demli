@@ -93,7 +93,10 @@ const COL_2: ReviewCardData[] = [
  */
 export function Reviews() {
   return (
-    <section id="reviews" className="relative flex flex-col items-center overflow-clip">
+    <section
+      id="reviews"
+      className="relative flex flex-col items-center overflow-clip px-6 py-20 tb:px-10 tb:py-[120px] dt:px-0 dt:py-[160px]"
+    >
       {/* BG şeridi */}
       <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
@@ -137,7 +140,7 @@ export function Reviews() {
       </div>
 
       {/* İçerik */}
-      <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
+      <div className="relative flex w-full flex-col items-center gap-20">
         <div className="flex flex-col items-center gap-8">
           <FadeIn>
             <TrustBadge />

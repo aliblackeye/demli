@@ -26,11 +26,11 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
       }
     >
       {icon}
-      <div className="relative flex h-[25px] flex-col items-start overflow-hidden">
+      <div className="relative flex h-[22px] flex-col items-start overflow-hidden tb:h-[25px]">
         <div className="flex flex-col transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
           <strong
             className={
-              "whitespace-nowrap text-[18px] font-medium leading-[25.2px] " +
+              "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >
@@ -43,7 +43,7 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
         >
           <strong
             className={
-              "whitespace-nowrap text-[18px] font-medium leading-[25.2px] " +
+              "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >

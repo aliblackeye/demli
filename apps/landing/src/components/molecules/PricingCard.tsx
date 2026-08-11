@@ -24,9 +24,18 @@ export type PricingCardData = {
  */
 export function PricingCard({ data }: { data: PricingCardData }) {
   return (
-    <div className="flex w-full max-w-[327px] flex-col gap-4 rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 tb:w-[404px] tb:max-w-none">
+    // authored: gap 16, padding 16 16 24, radius 32, bg #171717b8
+    <div className="flex w-full max-w-[327px] flex-col gap-4 rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none">
       <div className="relative overflow-hidden rounded-[24px] bg-surface">
-        <figure className="pointer-events-none absolute inset-0">
+        <figure
+          className="pointer-events-none absolute inset-0"
+          style={{
+            WebkitMaskImage:
+              "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0, 0, 0, 0.8) 50.637%, rgba(0, 0, 0, 0) 100%)",
+            maskImage:
+              "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0, 0, 0, 0.8) 50.637%, rgba(0, 0, 0, 0) 100%)",
+          }}
+        >
           <Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="372px" />
         </figure>
         {data.featured && (
@@ -82,7 +91,8 @@ export function PricingCard({ data }: { data: PricingCardData }) {
           </div>
         </div>
       </div>
-      <ul className="flex flex-col gap-[10px] px-3 pb-5 pt-3">
+      {/* authored Bottom Content: padding 12, Features ul gap 10 */}
+      <ul className="flex flex-col gap-[10px] p-3">
         {data.features.map((f, i) => (
           <li key={f + i} className="flex h-6 items-center gap-[10px]">
             <MaskIcon name="check-circle" size={24} color="#737373" />

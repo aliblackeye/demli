@@ -8,16 +8,18 @@ import { RevealText } from "../atoms/RevealText";
 import { TrustBadge } from "../molecules/TrustBadge";
 
 /**
- * [Section] Footer — ölçülen: BG şeridi 467 (ortak reçete, yeşil daire
- * daha geniş: inset 0 -398px), CTA Content 580 pt 120 gap 40:
- * TrustBadge + 3 satırlık 40px açıklama + butonlar + mağaza satırı.
- * Footer ikon 380px (üst yarısı görünür, 190 kırpma + yeşil parıltı).
- * Footer Card 1185×419: bg rgba(13,13,13,0.72) radius 32, video zemin,
- * logo satırı + mail hapı + sosyal linkler + telif satırı.
+ * [Section] Footer — authored (audit2):
+ * footer: column gap 64 (mobil 40), padding 160 0 0 (dt) / 120 0 0 (tb) /
+ * 80 0 0 (mobil). Çocuklar: [BG şeridi(abs), CTA Content, Footer App Icon
+ * Wrapper, Footer Card Wrapper].
+ * Icon Wrapper yüksekliği 210/190/120; Footer Icon 420/380/240 (alt kırpık).
+ * Card Wrapper pad 0 40 40 (mobil 0 24 24). Footer Card: bg #0d0d0db8,
+ * radius 40 (dt) / 32, pad 80 80 40 (mobil 64 24 24), gap 64.
+ * Sosyal linkler: ul p-1 gap 16 (mobil 4), radius 16.
  */
 export function SiteFooter() {
   return (
-    <footer className="relative flex flex-col items-center overflow-clip">
+    <footer className="relative flex flex-col items-center gap-10 overflow-clip pt-20 tb:gap-16 tb:pt-[120px] dt:pt-[160px]">
       {/* BG şeridi */}
       <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
@@ -60,8 +62,8 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* CTA içeriği */}
-      <div className="relative flex w-full max-w-[327px] flex-col items-center gap-10 pt-[120px] tb:max-w-none tb:!w-[580px]">
+      {/* CTA içeriği — authored CTA Content: max-w 580, gap 64/40/32 */}
+      <div className="relative flex w-full max-w-[580px] flex-col items-center gap-8 px-6 tb:gap-10 tb:px-0 dt:gap-16">
         <FadeIn>
           <TrustBadge />
         </FadeIn>
@@ -70,7 +72,7 @@ export function SiteFooter() {
           <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
         <div className="flex flex-col items-center gap-8">
-          <div className="flex items-center justify-center gap-x-5 gap-y-4">
+          <div className="flex flex-col items-center justify-center gap-3 tb:flex-row tb:flex-wrap tb:gap-x-4 tb:gap-y-5">
             <CtaButton href="#download" label="Download App" variant="primary" />
             <CtaButton
               href="#demo"
@@ -104,8 +106,8 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* Büyük footer ikonu — 380px, alt yarısı kırpılır, yeşil parıltı */}
-      <div className="relative mt-16 flex h-[190px] w-[380px] flex-col items-center overflow-visible">
+      {/* Büyük footer ikonu — authored: sarmalayıcı 120/190/210, ikon 240/380/420 */}
+      <div className="relative flex h-[120px] w-[240px] flex-col items-center tb:h-[190px] tb:w-[380px] dt:h-[210px] dt:w-[420px]">
         <div
           aria-hidden
           className="absolute left-1/2 top-0 h-[400px] w-[872px] -translate-x-1/2 rounded-full opacity-40"
@@ -118,15 +120,15 @@ export function SiteFooter() {
         <Image
           src="/images/footer-icon.png"
           alt=""
-          width={380}
-          height={380}
-          className="h-[380px] w-[380px] object-contain"
+          width={420}
+          height={420}
+          className="h-[240px] w-[240px] object-contain tb:h-[380px] tb:w-[380px] dt:h-[420px] dt:w-[420px]"
         />
       </div>
 
-      {/* Footer Card */}
-      <div className="relative z-[1] mt-16 flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
-        <div className="relative w-full max-w-[1185px] overflow-hidden rounded-[32px] bg-[rgba(13,13,13,0.72)]">
+      {/* Footer Card — authored: wrapper pad 0 40 40 (mobil 0 24 24) */}
+      <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
+        <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden opacity-40">
             <video
               src="/videos/footer-bg.webm"
@@ -137,9 +139,11 @@ export function SiteFooter() {
               className="h-full w-full object-cover"
             />
           </div>
-          <div className="relative z-[1] flex flex-col items-center gap-12 px-6 pb-8 pt-14 tb:gap-16 tb:px-10 tb:pb-10 tb:pt-20">
-            <div className="flex flex-col items-center gap-6">
-              <a href="#hero" className="flex items-center gap-[10px]">
+          {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
+              referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}
+          <div className="relative z-[1] flex w-full flex-col items-center px-6 pb-6 pt-16 tb:px-20 tb:pb-10 tb:pt-20">
+            <div className="flex flex-col items-center">
+              <a href="#hero" className="flex h-11 items-center gap-[10px]">
                 <Image
                   src="/images/app-icon.png"
                   alt=""
@@ -152,45 +156,52 @@ export function SiteFooter() {
                 </span>
               </a>
             </div>
-            <div className="flex flex-col items-center gap-6">
+            <div className="mt-[50px] flex flex-col items-center">
               <a
                 href="mailto:support@appzen.com"
                 className="group flex items-center gap-3 rounded-[18px] bg-surface-2 px-8 py-4"
               >
                 <MaskIcon name="mail" size={24} color="#a3a3a3" />
                 <div className="relative flex h-[21px] flex-col items-start overflow-hidden">
-                  <strong className="text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
+                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
                     support@appzen.com
                   </strong>
                   <strong
                     aria-hidden
-                    className="absolute top-[29px] text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]"
+                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]"
                   >
                     support@appzen.com
                   </strong>
                 </div>
               </a>
-              <div className="flex items-center gap-8">
-                <a
-                  href="https://x.com/ahmedwalidlab"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
-                >
-                  X(Twitter)
-                </a>
-                <MaskIcon name="dot" size={4} color="#737373" />
-                <a
-                  href="https://www.linkedin.com/in/ahmed-walid-designer/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
-                >
-                  Linkedin
-                </a>
-              </div>
+              {/* authored Social CTA Wrapper: radius 16, gap 16 (mobil 4) */}
+              <ul className="mt-9 flex items-center gap-1 rounded-[16px] tb:gap-4">
+                <li>
+                  <a
+                    href="https://x.com/ahmedwalidlab"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
+                  >
+                    X(Twitter)
+                  </a>
+                </li>
+                <li className="flex items-center px-3">
+                  <MaskIcon name="dot" size={4} color="#737373" />
+                </li>
+                <li>
+                  <a
+                    href="https://www.linkedin.com/in/ahmed-walid-designer/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
+                  >
+                    Linkedin
+                  </a>
+                </li>
+              </ul>
             </div>
-            <p className="text-center text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+            <p className="mt-[68px] text-center text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
               Copyright © 2026 Appzen. All rights reserved.
             </p>
           </div>

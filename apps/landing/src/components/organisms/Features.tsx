@@ -46,13 +46,16 @@ const CARDS: FeatureCardData[] = [
 ];
 
 /**
- * [Section] Features — ölçülen: BG 467px (video + noise 0.72 + yeşil daire),
- * Container pad 120 üst / gap 80, başlık bloğu (Tagline + iki satırlı 48px
- * heading), kartlar kolon gap 24.
+ * [Section] Features — authored: section padding 160 0 (dt) / 120 40 (tb) /
+ * 80 24 (mobil); Container gap 80; kartlar gap 24 (mobil 16).
+ * BG şeridi 467px (video + noise 0.72 + yeşil daire).
  */
 export function Features() {
   return (
-    <section id="features" className="relative flex flex-col items-center overflow-clip">
+    <section
+      id="features"
+      className="relative flex flex-col items-center overflow-clip px-6 py-20 tb:px-10 tb:py-[120px] dt:px-0 dt:py-[160px]"
+    >
       {/* BG şeridi */}
       <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
@@ -98,7 +101,7 @@ export function Features() {
       </div>
 
       {/* İçerik */}
-      <div className="relative flex w-full max-w-[1185px] flex-col items-center gap-20 px-0 pt-[120px]">
+      <div className="relative flex w-full flex-col items-center gap-20">
         <div className="flex flex-col items-center gap-8">
           <FadeIn>
             <SectionTagline label="Features" />
@@ -109,10 +112,11 @@ export function Features() {
             <RevealText text="Powered by AI" mode="word" className="text-text-dim" />
           </h2>
         </div>
-        <div className="flex flex-col items-center gap-6 pb-[120px]">
-          {CARDS.map((card) => (
+        {/* authored Features Cards: gap 24 (mobil 16) */}
+        <div className="flex w-full flex-col items-center gap-4 tb:gap-6">
+          {CARDS.map((card, i) => (
             <CardReveal key={card.tag}>
-              <FeatureCard data={card} />
+              <FeatureCard data={{ ...card, featured: i === 1 }} />
             </CardReveal>
           ))}
         </div>
