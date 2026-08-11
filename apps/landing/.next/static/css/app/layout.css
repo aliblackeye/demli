@@ -538,6 +538,12 @@ video {
 .pointer-events-none {
   pointer-events: none;
 }
+.pointer-events-auto {
+  pointer-events: auto;
+}
+.visible {
+  visibility: visible;
+}
 .fixed {
   position: fixed;
 }
@@ -587,6 +593,9 @@ video {
 }
 .right-\[-398px\] {
   right: -398px;
+}
+.bottom-0 {
+  bottom: 0px;
 }
 .z-10 {
   z-index: 10;
@@ -1089,6 +1098,9 @@ video {
 .pt-20 {
   padding-top: 5rem;
 }
+.pb-\[43px\] {
+  padding-bottom: 43px;
+}
 .text-center {
   text-align: center;
 }
@@ -1218,6 +1230,10 @@ video {
 }
 .backdrop-blur-\[10px\] {
   --tw-backdrop-blur: blur(10px);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+}
+.backdrop-blur {
+  --tw-backdrop-blur: blur(8px);
   backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
 .transition {

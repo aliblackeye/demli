@@ -4,6 +4,8 @@ import { Features } from "../organisms/Features";
 import { Reviews } from "../organisms/Reviews";
 import { Pricing } from "../organisms/Pricing";
 import { SiteFooter } from "../organisms/SiteFooter";
+import { FloatingCta } from "../organisms/FloatingCta";
+import { ProgressiveBlur } from "../atoms/ProgressiveBlur";
 
 /**
  * Ana sayfa şablonu — bölümler referans sırasıyla eklenir:
@@ -20,6 +22,9 @@ export function HomeTemplate() {
         <Pricing />
       </main>
       <SiteFooter />
+      <FloatingCta />
+      <ProgressiveBlur position="top" height={120} />
+      <ProgressiveBlur position="bottom" height={180} />
     </div>
   );
 }
