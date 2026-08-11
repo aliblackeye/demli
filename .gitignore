@@ -131,3 +131,7 @@ demli-signin-*.png
 *.dc.html
 # Claude Design handoff bundle'ları (founder repo köküne bırakabiliyor) — asla commit edilmez
 *-handoff.zip
+
+# Next.js build çıktısı (landing)
+apps/landing/.next/
+apps/landing/out/
