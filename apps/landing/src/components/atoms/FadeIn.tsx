@@ -1,27 +1,33 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, type Transition } from "framer-motion";
 import type { ReactNode } from "react";
 
 /**
- * Görünürken bir kez opacity 0→1 (referansta Tag/Tagline/rozetler böyle).
+ * Görünürken bir kez oynayan giriş (authored __framer__enter/animate).
+ * Varsayılan: y20 + spring {bounce .2, delay .4, duration .7} — bölüm
+ * tagline'larının authored konfigürasyonu (threshold .5).
  */
 export function FadeIn({
   children,
-  delay = 0,
   className,
+  y = 20,
+  amount = 0.5,
+  transition = { type: "spring", bounce: 0.2, delay: 0.4, duration: 0.7 },
 }: {
   children: ReactNode;
-  delay?: number;
   className?: string;
+  y?: number;
+  amount?: number;
+  transition?: Transition;
 }) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, amount: 0.1 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount }}
+      transition={transition}
     >
       {children}
     </motion.div>

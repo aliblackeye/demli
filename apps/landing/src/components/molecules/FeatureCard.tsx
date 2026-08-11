@@ -84,19 +84,23 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           (data.featured ? "dt:pl-0 dt:pr-16" : "dt:pl-16 dt:pr-0")
         }
       >
-        <div className="flex w-full flex-col items-start gap-4 dt:w-[528px]">
-          <FadeIn>
-            <ShimmerText
-              text={data.tag}
-              color="#eab30a"
-              className="text-[16px] font-medium leading-[19.2px] text-text-dim"
-            />
-          </FadeIn>
+        {/* authored: Details bloğu y20 spring {bounce 0, delay .7, dur .6} */}
+        <FadeIn
+          className="flex w-full flex-col items-start gap-4 dt:w-[528px]"
+          amount={0.1}
+          transition={{ type: "spring", bounce: 0, delay: 0.7, duration: 0.6 }}
+        >
+          <ShimmerText
+            text={data.tag}
+            color="#eab30a"
+            className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+          />
+          {/* authored h3 preset (1qsvjdb): 52px (tb+) / 40px (mobil), lh 1.1em */}
           <RevealText
             text={data.title}
             mode="word"
             as="h3"
-            className="font-display text-[36px] font-normal leading-[39.6px] text-white tb:text-[52px] tb:leading-[57.2px]"
+            className="font-display text-[40px] font-normal leading-[44px] text-white tb:text-[52px] tb:leading-[57.2px]"
           />
           <RevealText
             text={data.description}
@@ -104,9 +108,14 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
             as="p"
             className="text-[16px] leading-[22.4px] text-text-dim tb:text-[18px] tb:leading-[25.2px]"
           />
-        </div>
-        {/* authored Benefits: gap 12 (mobil 8) */}
-        <ul className="flex w-full flex-col gap-2 tb:gap-3 dt:w-[528px]">
+        </FadeIn>
+        {/* authored Benefits: gap 12 (mobil 8); y20 spring {bounce 0, delay .8, dur .6} */}
+        <FadeIn
+          amount={0.1}
+          transition={{ type: "spring", bounce: 0, delay: 0.8, duration: 0.6 }}
+          className="w-full dt:w-[528px]"
+        >
+        <ul className="flex w-full flex-col gap-2 tb:gap-3">
           {data.bullets.map((b) => (
             <li key={b} className="flex h-6 items-center gap-3">
               <MaskIcon name="check-circle" size={20} color="#22c55e" />
@@ -114,6 +123,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
             </li>
           ))}
         </ul>
+        </FadeIn>
       </div>
 
       {/* Telefon görseli — authored: alt solma maskı linear-gradient(0deg,

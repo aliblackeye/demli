@@ -4,17 +4,13 @@ import { useEffect } from "react";
 import Lenis from "lenis";
 
 /**
- * Founder kararı (2026-08-11): Lenis kurulu ama NÖTR — referans native
- * scroll kullandığı için smoothing kapalı tutulur; sadece anchor scroll
- * gibi ihtiyaçlar için altyapı hazır durur.
+ * authored (script_main): referans sitenin kendisi Lenis 1.1.2 çalıştırıyor —
+ * `new Lenis({ duration: (prop||10)/10 })` → duration 1, smoothWheel açık,
+ * varsayılan easing. Klonda aynı ayar.
  */
 export function LenisProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const lenis = new Lenis({
-      // Nötr ayar: yumuşatma devre dışı — native davranışla birebir.
-      smoothWheel: false,
-      syncTouch: false,
-    });
+    const lenis = new Lenis({ duration: 1 });
     let raf: number;
     const loop = (time: number) => {
       lenis.raf(time);

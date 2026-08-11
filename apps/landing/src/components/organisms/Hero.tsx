@@ -71,7 +71,7 @@ export function Hero() {
       </div>
 
       {/* İçerik */}
-      <div className="relative flex w-full flex-col items-center gap-[52px]">
+      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-[52px]">
         {/* Başlık bloğu — authored: max-w 880 (dt) / 604 (tb), gap 32 (mobil 24) */}
         <div className="flex w-full max-w-[604px] flex-col items-center gap-6 tb:gap-8 dt:max-w-[880px]">
           <Appear spec={APPEAR.tagline}>
@@ -145,7 +145,8 @@ export function Hero() {
             </div>
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
-              <p className="text-center font-display text-[28px] font-normal leading-[34px] tracking-[-0.56px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
+              {/* authored whhy8i: 32 (mobil) / 40 (tb) / 44 (dt), lh %120, ls -.02em */}
+              <p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
                 <RevealText text="Designed to heal, understand everything " mode="char" />
                 <RevealText
                   text="and ship with confidence."

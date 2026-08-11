@@ -2,7 +2,6 @@
 
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
-import { RevealText } from "../atoms/RevealText";
 import { FeatureCard, type FeatureCardData } from "../molecules/FeatureCard";
 import { SectionTagline } from "../molecules/SectionTagline";
 
@@ -106,16 +105,24 @@ export function Features() {
           <FadeIn>
             <SectionTagline label="Features" />
           </FadeIn>
-          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
-            <RevealText text="Designed for People" mode="word" className="text-white" />
-            <br />
-            <RevealText text="Powered by AI" mode="word" className="text-text-dim" />
-          </h2>
+          {/* authored: başlık BLOK olarak açılır — spring {bounce .3, dur 3}, threshold .5 */}
+          <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
+            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+              <span className="text-white">Designed for People</span>
+              <br />
+              <span className="text-text-dim">Powered by AI</span>
+            </h2>
+          </FadeIn>
         </div>
-        {/* authored Features Cards: gap 24 (mobil 16) */}
+        {/* authored Features Cards: gap 24 (mobil 16); kart girişi
+            y64 + spring {bounce 0, delay .45, duration .6} */}
         <div className="flex w-full flex-col items-center gap-4 tb:gap-6">
           {CARDS.map((card, i) => (
-            <CardReveal key={card.tag}>
+            <CardReveal
+              key={card.tag}
+              y={64}
+              transition={{ type: "spring", bounce: 0, delay: 0.45, duration: 0.6 }}
+            >
               <FeatureCard data={{ ...card, featured: i === 1 }} />
             </CardReveal>
           ))}

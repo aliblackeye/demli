@@ -2,9 +2,21 @@
 
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
-import { RevealText } from "../atoms/RevealText";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
 import { TrustBadge } from "../molecules/TrustBadge";
+
+/* Ölçülen kolon-dolum sırası (dt): 1-3 kol1, 4-6 kol2, 7-9 kol3 */
+const ITEMS_ORDER = [
+  "Emily Rodriguez",
+  "Layla Morrison",
+  "Tyler Brooks",
+  "Olivia Bennett",
+  "Kevin Patterson",
+  "Aisha Patel",
+  "Jessica Wang",
+  "Marcus Thompson",
+  "Daniel Harris",
+];
 
 const COL_1: ReviewCardData[] = [
   {
@@ -84,6 +96,10 @@ const COL_2: ReviewCardData[] = [
   },
 ];
 
+const ITEMS: ReviewCardData[] = ITEMS_ORDER.map(
+  (n) => [...COL_1, ...COL_2].find((c) => c.name === n)!
+);
+
 /**
  * [Section] Reviews — ölçülen: BG şeridi 467 (Features ile aynı reçete),
  * Container pt 120 / gap 80; Title: rozet (defne kanatları + avatar yığını
@@ -145,26 +161,36 @@ export function Reviews() {
           <FadeIn>
             <TrustBadge />
           </FadeIn>
-          {/* authored: mobil varyantta metin farklı ("Here from other users have to say") */}
-          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
-            <span className="tb:hidden">
-              <RevealText text="Here from other users " mode="word" className="text-white" />
-              <RevealText text="have to say" mode="word" className="text-text-dim" />
-            </span>
-            <span className="hidden tb:inline">
-              <RevealText text="Hear what other users" mode="word" className="text-white" />
-              <br />
-              <RevealText text="have to say" mode="word" className="text-text-dim" />
-            </span>
-          </h2>
+          {/* authored: BLOK açılım spring {bounce .3, dur 3}, threshold .5;
+              mobil varyantta metin farklı ("Here from other users have to say") */}
+          <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
+            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+              <span className="tb:hidden">
+                <span className="text-white">Here from other users </span>
+                <span className="text-text-dim">have to say</span>
+              </span>
+              <span className="hidden tb:inline">
+                <span className="text-white">Hear what other users</span>
+                <br />
+                <span className="text-text-dim">have to say</span>
+              </span>
+            </h2>
+          </FadeIn>
         </div>
 
         {/* authored: column-masonry grid, trackCount 3 (dt) / 2 (tb) / 1 (mobil),
             rowGap 12; TÜM grid onInView y250→0 spring (damping60/stiffness500). */}
         <CardReveal y={250} className="w-full">
-          <div className="mx-auto h-[1357px] w-full max-w-[327px] columns-1 gap-3 overflow-hidden tb:max-w-[824px] tb:columns-2 dt:max-w-[1242px] dt:columns-3">
-            {[...COL_1, ...COL_2].map((c) => (
-              <div key={c.name} className="mb-3 break-inside-avoid">
+          {/* Ölçülen dt dağılım sırası: kolonlar dikey dolar —
+              [Emily, Layla, Tyler | Olivia, Kevin, Aisha | Jessica, Marcus, Daniel];
+              dt kart 365px (grid 1119), tb 406 (grid 824, 1357 kırpma), mobil tek kolon. */}
+          {/* Mobil (ölçüldü): yalnız ilk 6 kart, grid 1728px */}
+          <div className="mx-auto h-[1728px] w-full max-w-[327px] columns-1 gap-3 overflow-hidden tb:h-[1357px] tb:max-w-[824px] tb:columns-2 dt:h-auto dt:max-w-[1119px] dt:columns-3">
+            {ITEMS.map((c, i) => (
+              <div
+                key={c.name}
+                className={"mb-3 break-inside-avoid" + (i >= 6 ? " hidden tb:block" : "")}
+              >
                 <ReviewCard data={c} />
               </div>
             ))}

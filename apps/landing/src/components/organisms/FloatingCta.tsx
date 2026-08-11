@@ -38,7 +38,7 @@ export function FloatingCta() {
       }}
       initial={{ opacity: 0, y: 120 }}
       animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 120 }}
-      transition={{ type: "spring", duration: 0.6, bounce: 0.2 }}
+      transition={{ type: "spring", duration: 2, bounce: 0.2 }}
     >
       <div className="pointer-events-auto">
         <CtaButton href="#download" label="Download App" variant="primary" />

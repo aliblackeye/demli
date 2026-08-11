@@ -67,7 +67,7 @@ export function SiteFooter() {
         <FadeIn>
           <TrustBadge />
         </FadeIn>
-        <p className="text-center font-display text-[28px] font-normal leading-[34px] tracking-[-0.56px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
+        <p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
           <RevealText text="Designed to heal, understand everything " mode="char" />
           <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>

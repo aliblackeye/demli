@@ -2,7 +2,6 @@
 
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
-import { RevealText } from "../atoms/RevealText";
 import { PricingCard, type PricingCardData } from "../molecules/PricingCard";
 import { SectionTagline } from "../molecules/SectionTagline";
 
@@ -94,11 +93,13 @@ export function Pricing() {
           <FadeIn>
             <SectionTagline label="Pricing" />
           </FadeIn>
-          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
-            <RevealText text="Choose the perfect plan" mode="word" className="text-white" />
-            <br />
-            <RevealText text="for your needs" mode="word" className="text-text-dim" />
-          </h2>
+          <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
+            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+              <span className="text-white">Choose the perfect plan</span>
+              <br />
+              <span className="text-text-dim">for your needs</span>
+            </h2>
+          </FadeIn>
         </div>
         {/* authored transformTargets: kart1 y200→0, kart2 y400→0 (delay yok) */}
         <div className="flex flex-col items-center gap-4 px-6 tb:flex-row tb:items-start tb:px-0">
