@@ -91,13 +91,13 @@ export function Pricing() {
           <FadeIn>
             <SectionTagline label="Pricing" />
           </FadeIn>
-          <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
+          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
             <RevealText text="Choose the perfect plan" mode="word" className="text-white" />
             <br />
             <RevealText text="for your needs" mode="word" className="text-text-dim" />
           </h2>
         </div>
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col items-center gap-4 px-6 tb:flex-row tb:items-start tb:px-0">
           {PLANS.map((p, i) => (
             <CardReveal key={p.plan} y={200} delay={i * 0.15}>
               <PricingCard data={p} />

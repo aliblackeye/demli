@@ -103,7 +103,7 @@ export function Features() {
           <FadeIn>
             <SectionTagline label="Features" />
           </FadeIn>
-          <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
+          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
             <RevealText text="Designed for People" mode="word" className="text-white" />
             <br />
             <RevealText text="Powered by AI" mode="word" className="text-text-dim" />

@@ -16,7 +16,10 @@ import { ShimmerText } from "../atoms/ShimmerText";
  */
 export function Hero() {
   return (
-    <header id="hero" className="relative flex flex-col items-center overflow-clip pb-[120px] pt-[160px]">
+    <header
+      id="hero"
+      className="relative flex flex-col items-center overflow-clip px-6 pb-20 pt-[120px] tb:px-0 tb:pb-[120px] tb:pt-[160px]"
+    >
       {/* BG: ışık huzmeleri + noise. Ölçülen: BG'de kenar vinyet maskı
           (radial 50%/50%, merkez saydam → kenar 0.32); noise sarmalayıcısı
           mask radial 65%/50% (0.88 @ %25 → 0) + mix-blend screen; karo 128px. */}
@@ -84,11 +87,14 @@ export function Hero() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <ShimmerText
-                  text="Rating"
-                  color="#eab30a"
-                  className="text-[16px] font-medium leading-[19.2px] text-[#e5e5e5]"
-                />
+                {/* Referans mobilde (≤809) "Rating" shimmer'ını gizliyor */}
+                <span className="hidden tb:inline-block">
+                  <ShimmerText
+                    text="Rating"
+                    color="#eab30a"
+                    className="text-[16px] font-medium leading-[19.2px] text-[#e5e5e5]"
+                  />
+                </span>
                 <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
                   Based on 700+ reviews
                 </p>
@@ -106,21 +112,21 @@ export function Hero() {
         <div className="flex w-full flex-col items-center">
           <div className="relative flex flex-col items-center">
             <Appear spec={APPEAR.mockup}>
-              <div className="h-[736px] w-[564px] overflow-hidden">
+              <div className="h-[560px] w-[327px] overflow-hidden tb:h-[736px] tb:w-[564px]">
                 <Image
                   src="/images/hero-phone.webp"
                   alt="Appzen app"
                   width={564}
                   height={965}
                   priority
-                  className="h-[965px] w-[564px] object-contain"
+                  className="h-auto w-full object-contain tb:h-[965px] tb:w-[564px]"
                 />
               </div>
             </Appear>
           </div>
 
           {/* CTA içeriği */}
-          <div id="download" className="flex w-[580px] flex-col items-center gap-10">
+          <div id="download" className="flex w-full max-w-[327px] flex-col items-center gap-10 tb:max-w-none tb:!w-[580px]">
             <div className="flex flex-col items-center">
               <Image
                 src="/images/app-icon.png"
@@ -132,7 +138,7 @@ export function Hero() {
             </div>
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
-              <p className="text-center font-display text-[40px] font-normal leading-[48px] tracking-[-0.8px] text-text-primary">
+              <p className="text-center font-display text-[28px] font-normal leading-[34px] tracking-[-0.56px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
                 <RevealText text="Designed to heal, understand everything " mode="char" />
                 <RevealText
                   text="and ship with confidence."

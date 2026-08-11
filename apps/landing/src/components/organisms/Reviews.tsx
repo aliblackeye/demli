@@ -142,23 +142,23 @@ export function Reviews() {
           <FadeIn>
             <TrustBadge />
           </FadeIn>
-          <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
+          <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
             <RevealText text="Hear what other users" mode="word" className="text-white" />
             <br />
             <RevealText text="have to say" mode="word" className="text-text-dim" />
           </h2>
         </div>
 
-        {/* Kolonlar */}
-        <div className="flex h-[1357px] items-start justify-center gap-3 overflow-hidden">
-          <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
+        {/* Kolonlar — mobilde tek kolon */}
+        <div className="flex h-[1357px] flex-col items-center gap-3 overflow-hidden px-6 tb:flex-row tb:items-start tb:justify-center tb:px-0">
+          <div className="flex w-full max-w-[327px] flex-col gap-3 tb:w-[406px] tb:max-w-none tb:pt-[83px]">
             {COL_1.map((c, i) => (
               <CardReveal key={c.name} y={40} delay={i * 0.08}>
                 <ReviewCard data={c} />
               </CardReveal>
             ))}
           </div>
-          <div className="flex w-[406px] flex-col gap-3 pt-[83px]">
+          <div className="flex w-full max-w-[327px] flex-col gap-3 tb:w-[406px] tb:max-w-none tb:pt-[83px]">
             {COL_2.map((c, i) => (
               <CardReveal key={c.name} y={40} delay={i * 0.08 + 0.04}>
                 <ReviewCard data={c} />

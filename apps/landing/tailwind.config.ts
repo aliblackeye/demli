@@ -4,6 +4,11 @@ import type { Config } from "tailwindcss";
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
+    // Referans breakpoint'leri: ≤809 mobil · 810–1439 tablet/dar masaüstü · ≥1440 geniş
+    screens: {
+      tb: "810px",
+      dt: "1440px",
+    },
     extend: {
       colors: {
         base: "#0d0d0d",

@@ -24,7 +24,7 @@ export type PricingCardData = {
  */
 export function PricingCard({ data }: { data: PricingCardData }) {
   return (
-    <div className="flex w-[404px] flex-col gap-4 rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4">
+    <div className="flex w-full max-w-[327px] flex-col gap-4 rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 tb:w-[404px] tb:max-w-none">
       <div className="relative overflow-hidden rounded-[24px] bg-surface">
         <figure className="pointer-events-none absolute inset-0">
           <Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="372px" />
@@ -73,11 +73,11 @@ export function PricingCard({ data }: { data: PricingCardData }) {
                 </span>
               ) : null}
             </div>
-            <p className="w-[324px] text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-secondary">
+            <p className="w-full text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-secondary tb:w-[324px]">
               {data.description}
             </p>
           </div>
-          <div className="flex w-[324px] flex-col [&>a]:w-full">
+          <div className="flex w-full flex-col tb:w-[324px] [&>a]:w-full">
             <CtaButton href="#download" label={data.ctaLabel} variant={data.ctaVariant} />
           </div>
         </div>

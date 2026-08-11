@@ -61,11 +61,11 @@ export function SiteFooter() {
       </div>
 
       {/* CTA içeriği */}
-      <div className="relative flex w-[580px] flex-col items-center gap-10 pt-[120px]">
+      <div className="relative flex w-full max-w-[327px] flex-col items-center gap-10 pt-[120px] tb:max-w-none tb:!w-[580px]">
         <FadeIn>
           <TrustBadge />
         </FadeIn>
-        <p className="text-center font-display text-[40px] font-normal leading-[48px] tracking-[-0.8px] text-text-primary">
+        <p className="text-center font-display text-[28px] font-normal leading-[34px] tracking-[-0.56px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
           <RevealText text="Designed to heal, understand everything " mode="char" />
           <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
@@ -125,7 +125,7 @@ export function SiteFooter() {
       </div>
 
       {/* Footer Card */}
-      <div className="relative z-[1] mt-16 flex w-full items-center justify-center px-10 pb-10">
+      <div className="relative z-[1] mt-16 flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative w-full max-w-[1185px] overflow-hidden rounded-[32px] bg-[rgba(13,13,13,0.72)]">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden opacity-40">
             <video
@@ -137,7 +137,7 @@ export function SiteFooter() {
               className="h-full w-full object-cover"
             />
           </div>
-          <div className="relative z-[1] flex flex-col items-center gap-16 px-10 pb-10 pt-20">
+          <div className="relative z-[1] flex flex-col items-center gap-12 px-6 pb-8 pt-14 tb:gap-16 tb:px-10 tb:pb-10 tb:pt-20">
             <div className="flex flex-col items-center gap-6">
               <a href="#hero" className="flex items-center gap-[10px]">
                 <Image
