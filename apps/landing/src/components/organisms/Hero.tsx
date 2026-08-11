@@ -15,7 +15,7 @@ import { ShimmerText } from "../atoms/ShimmerText";
  */
 export function Hero() {
   return (
-    <header id="hero" className="relative flex flex-col items-center overflow-clip pt-[160px]">
+    <header id="hero" className="relative flex flex-col items-center overflow-clip pb-[120px] pt-[160px]">
       {/* BG: ışık huzmeleri + noise. Ölçülen: BG'de kenar vinyet maskı
           (radial 50%/50%, merkez saydam → kenar 0.32); noise sarmalayıcısı
           mask radial 65%/50% (0.88 @ %25 → 0) + mix-blend screen; karo 128px. */}

@@ -1,5 +1,6 @@
 import { SiteNav } from "../organisms/SiteNav";
 import { Hero } from "../organisms/Hero";
+import { Features } from "../organisms/Features";
 
 /**
  * Ana sayfa şablonu — bölümler referans sırasıyla eklenir:
@@ -11,6 +12,7 @@ export function HomeTemplate() {
       <SiteNav />
       <main className="relative">
         <Hero />
+        <Features />
       </main>
     </div>
   );

@@ -1,0 +1,19 @@
+"use client";
+
+import { ShimmerText } from "../atoms/ShimmerText";
+
+/**
+ * Bölüm başı hap etiketi — ölçülen: bg #0d0d0d, radius 50px,
+ * padding 12px 18px, metin Inter 500 16px #737373 + sarı shimmer.
+ */
+export function SectionTagline({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center rounded-[50px] bg-base px-[18px] py-3">
+      <ShimmerText
+        text={label}
+        color="#eab30a"
+        className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+      />
+    </div>
+  );
+}
