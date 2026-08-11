@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { MaskIcon } from "../atoms/MaskIcon";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
+import { TrustBadge } from "../molecules/TrustBadge";
 
 const COL_1: ReviewCardData[] = [
   {
@@ -82,8 +81,6 @@ const COL_2: ReviewCardData[] = [
   },
 ];
 
-const AVATARS = ["/images/avatar-1.jpg", "/images/avatar-2.jpg", "/images/avatar-3.jpg", "/images/avatar-4.jpg", "/images/avatar-5.jpg"];
-
 /**
  * [Section] Reviews — ölçülen: BG şeridi 467 (Features ile aynı reçete),
  * Container pt 120 / gap 80; Title: rozet (defne kanatları + avatar yığını
@@ -139,38 +136,7 @@ export function Reviews() {
       {/* İçerik */}
       <div className="relative flex w-full flex-col items-center gap-20 pb-[120px] pt-[120px]">
         <div className="flex flex-col items-center gap-8">
-          {/* Rozet */}
-          <div className="flex items-center gap-6">
-            <MaskIcon name="laurel-left" size={38} color="#737373" className="h-[38px] w-[28px]" />
-            <div className="flex items-center gap-3 rounded-[100px]">
-              {/* Ölçülen: avatar 32px, bindirme adımı 22px, halka 6px zemin renkli */}
-              <div className="flex h-[44px] items-center">
-                {AVATARS.map((src, i) => (
-                  <div
-                    key={src}
-                    className={
-                      "box-content h-8 w-8 overflow-hidden rounded-full border-[6px] border-[#000] " +
-                      (i > 0 ? "-ml-[22px]" : "")
-                    }
-                  >
-                    <Image src={src} alt="" width={32} height={32} className="h-8 w-8 object-cover" />
-                  </div>
-                ))}
-              </div>
-              {/* Ölçülen: kolon 76px — metin iki satıra sarar, toplam 50px */}
-              <div className="flex w-[76px] flex-col items-start gap-1">
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <MaskIcon key={i} name="star" size={12} color="#eab30a" />
-                  ))}
-                </div>
-                <p className="text-[14px] font-medium leading-[16.8px] tracking-[-0.28px] text-text-secondary">
-                  Trusted by 50K+ users
-                </p>
-              </div>
-            </div>
-            <MaskIcon name="laurel-right" size={38} color="#737373" className="h-[38px] w-[28px]" />
-          </div>
+          <TrustBadge />
           <h2 className="text-center font-display text-[48px] font-medium leading-[52.8px] tracking-[-0.2px]">
             <span className="text-white">Hear what other users</span>
             <br />
