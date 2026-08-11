@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./fonts.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,15 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Referansla aynı aileler: Inter (gövde) + Stack Sans Headline (başlık) */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Stack+Sans+Headline:wght@400..700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+      {/* Fontlar referansın birebir woff2 dosyalarından self-host (fonts.css) */}
       <body>{children}</body>
     </html>
   );

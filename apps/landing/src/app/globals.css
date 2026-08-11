@@ -18,8 +18,10 @@
   --color-star: #eab30a;
 }
 
+/* authored: body { background: rgb(0,0,0) } — site zemini SAF SİYAH;
+   #0d0d0d yalnız kart/yüzey token'ıdır. */
 html {
-  background: var(--color-base);
+  background: #000;
 }
 
 /* Referans shimmer animasyonu: background-position 200% → -100%, 3s linear infinite */
@@ -72,7 +74,7 @@ html {
 
 body {
   font-family: "Inter", sans-serif;
-  /* Referans gövde varsayılanları: 18px / %140, balance, cv setleri */
+  /* Referans gövde varsayılanları: cv setleri YALNIZ Inter metinlerde */
   font-feature-settings:
     "blwf" on,
     "cv09" on,
@@ -80,6 +82,15 @@ body {
     "cv04" on,
     "cv11" on;
   color: var(--color-text-primary);
-  background: var(--color-base);
+  background: #000;
   -webkit-font-smoothing: antialiased;
+}
+
+/* authored: başlık preset'lerinde --framer-font-open-type-features: normal —
+   Stack Sans Headline cv setlerinden etkilenmemeli. */
+h1,
+h2,
+h3,
+.font-display {
+  font-feature-settings: normal;
 }

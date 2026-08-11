@@ -30,7 +30,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
       className={
         "relative h-[782px] w-full max-w-[342px] overflow-hidden rounded-[32px] bg-base " +
         "tb:h-[1145px] tb:w-[730px] tb:max-w-[730px] tb:rounded-[44px] " +
-        "dt:flex dt:h-auto dt:min-h-[640px] dt:w-[1120px] dt:max-w-[1120px] dt:items-start " +
+        "dt:flex dt:h-[513px] dt:w-[1120px] dt:max-w-[1120px] dt:items-start " +
         (data.featured ? "dt:flex-row-reverse" : "dt:flex-row")
       }
     >
@@ -116,9 +116,17 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         </ul>
       </div>
 
-      {/* Telefon görseli — tb/mobil: alttan kırpılan mutlak konum;
-          dt: sağ (featured'da sol) kolonu dolduran akış öğesi. */}
-      <div className="absolute left-0 top-[453px] z-[1] h-[329px] w-full tb:top-[450px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-auto dt:min-h-[640px] dt:flex-1 dt:self-stretch">
+      {/* Telefon görseli — authored: alt solma maskı linear-gradient(0deg,
+          saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
+          dt: karşı kolonu dolduran akış öğesi. */}
+      <div
+        className="absolute left-0 top-[453px] z-[1] h-[329px] w-full tb:top-[450px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
+        style={{
+          WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
+          maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
+          filter: "saturate(1.4)",
+        }}
+      >
         <Image
           src={data.phoneImage}
           alt={data.title}

@@ -145,30 +145,31 @@ export function Reviews() {
           <FadeIn>
             <TrustBadge />
           </FadeIn>
+          {/* authored: mobil varyantta metin farklı ("Here from other users have to say") */}
           <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px]">
-            <RevealText text="Hear what other users" mode="word" className="text-white" />
-            <br />
-            <RevealText text="have to say" mode="word" className="text-text-dim" />
+            <span className="tb:hidden">
+              <RevealText text="Here from other users " mode="word" className="text-white" />
+              <RevealText text="have to say" mode="word" className="text-text-dim" />
+            </span>
+            <span className="hidden tb:inline">
+              <RevealText text="Hear what other users" mode="word" className="text-white" />
+              <br />
+              <RevealText text="have to say" mode="word" className="text-text-dim" />
+            </span>
           </h2>
         </div>
 
-        {/* Kolonlar — mobilde tek kolon */}
-        <div className="flex h-[1357px] flex-col items-center gap-3 overflow-hidden px-6 tb:flex-row tb:items-start tb:justify-center tb:px-0">
-          <div className="flex w-full max-w-[327px] flex-col gap-3 tb:w-[406px] tb:max-w-none tb:pt-[83px]">
-            {COL_1.map((c, i) => (
-              <CardReveal key={c.name} y={40} delay={i * 0.08}>
+        {/* authored: column-masonry grid, trackCount 3 (dt) / 2 (tb) / 1 (mobil),
+            rowGap 12; TÜM grid onInView y250→0 spring (damping60/stiffness500). */}
+        <CardReveal y={250} className="w-full">
+          <div className="mx-auto h-[1357px] w-full max-w-[327px] columns-1 gap-3 overflow-hidden tb:max-w-[824px] tb:columns-2 dt:max-w-[1242px] dt:columns-3">
+            {[...COL_1, ...COL_2].map((c) => (
+              <div key={c.name} className="mb-3 break-inside-avoid">
                 <ReviewCard data={c} />
-              </CardReveal>
+              </div>
             ))}
           </div>
-          <div className="flex w-full max-w-[327px] flex-col gap-3 tb:w-[406px] tb:max-w-none tb:pt-[83px]">
-            {COL_2.map((c, i) => (
-              <CardReveal key={c.name} y={40} delay={i * 0.08 + 0.04}>
-                <ReviewCard data={c} />
-              </CardReveal>
-            ))}
-          </div>
-        </div>
+        </CardReveal>
       </div>
     </section>
   );

@@ -100,9 +100,10 @@ export function Pricing() {
             <RevealText text="for your needs" mode="word" className="text-text-dim" />
           </h2>
         </div>
+        {/* authored transformTargets: kart1 y200→0, kart2 y400→0 (delay yok) */}
         <div className="flex flex-col items-center gap-4 px-6 tb:flex-row tb:items-start tb:px-0">
           {PLANS.map((p, i) => (
-            <CardReveal key={p.plan} y={200} delay={i * 0.15}>
+            <CardReveal key={p.plan} y={i === 0 ? 200 : 400}>
               <PricingCard data={p} />
             </CardReveal>
           ))}

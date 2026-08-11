@@ -1,23 +1,32 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, type Transition } from "framer-motion";
 import type { ReactNode } from "react";
 
 /**
- * Referans deseni (ölçüldü): kart görünür olunca BİR KEZ y 64→0 +
- * opacity 0→1 (~0.6s). Stagger için delay parametresi.
- * Viewport üstünde kalan kartlar açık başlasın diye amount düşük.
+ * authored scroll-transform (sayfa modülü __framer__styleTransformEffect):
+ * spring { damping:60, stiffness:500, mass:1 }, trigger onInView (bir kez),
+ * hedefler örn. y250→0 (reviews grid), y200/y400 (pricing), y64 (features).
  */
+const AUTHORED_SPRING: Transition = {
+  type: "spring",
+  damping: 60,
+  stiffness: 500,
+  mass: 1,
+};
+
 export function CardReveal({
   children,
   delay = 0,
   y = 64,
   className,
+  transition,
 }: {
   children: ReactNode;
   delay?: number;
   y?: number;
   className?: string;
+  transition?: Transition;
 }) {
   return (
     <motion.div
@@ -25,7 +34,7 @@ export function CardReveal({
       initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.05 }}
-      transition={{ type: "spring", duration: 0.7, bounce: 0.2, delay }}
+      transition={{ ...(transition ?? AUTHORED_SPRING), delay }}
     >
       {children}
     </motion.div>
