@@ -1,18 +1,20 @@
 {
   "name": "@demli/landing",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "AGPL-3.0-only",
   "private": true,
-  "type": "module",
-  "description": "Demli public landing page (getdemli.com) — static Vite/React build served by Caddy",
+  "description": "Demli public landing page (getdemli.com) — Next.js static export served by Caddy",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@demli/i18n": "workspace:*",
+    "framer-motion": "^11.11.9",
+    "gsap": "^3.12.5",
+    "lenis": "^1.1.14",
+    "next": "^15.1.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -20,8 +22,9 @@
     "@types/node": "^22.7.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.2",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.8"
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3"
   }
 }

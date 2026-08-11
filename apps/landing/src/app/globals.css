@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Appzen klon token'ları — docs/appzen-clone-reference.md */
+:root {
+  --color-base: #0d0d0d;
+  --color-base-translucent: #0d0d0db8;
+  --color-surface: #171717;
+  --color-surface-translucent: #171717b8;
+  --color-surface-2: #262626;
+  --color-line: #404040;
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #a3a3a3;
+  --color-text-dim: #737373;
+  --color-accent: #22c55e;
+  --color-accent-transparent: #22c55e00;
+  --color-star: #eab30a;
+}
+
+html {
+  background: var(--color-base);
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  /* Referans gövde varsayılanları: 18px / %140, balance, cv setleri */
+  font-feature-settings:
+    "blwf" on,
+    "cv09" on,
+    "cv03" on,
+    "cv04" on,
+    "cv11" on;
+  color: var(--color-text-primary);
+  background: var(--color-base);
+  -webkit-font-smoothing: antialiased;
+}
