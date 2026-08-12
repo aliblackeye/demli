@@ -5,9 +5,9 @@
   "private": true,
   "description": "Demli public landing page (getdemli.com) — Next.js static export served by Caddy",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3001",
+    "start": "next start -p 3000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
