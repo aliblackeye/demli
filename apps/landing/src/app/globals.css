@@ -94,3 +94,10 @@ h3,
 .font-display {
   font-feature-settings: normal;
 }
+
+/* Nav hapı iç gölgesi — referansta yalnız mobil varyantta */
+@media (max-width: 809.98px) {
+  .nav-pill-mobile-shadow {
+    box-shadow: rgba(38, 49, 64, 0.32) 0px -1px 0px 0px inset;
+  }
+}

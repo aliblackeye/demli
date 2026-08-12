@@ -8,7 +8,7 @@ import { ShimmerText } from "../atoms/ShimmerText";
  */
 export function SectionTagline({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center rounded-[50px] bg-base px-[18px] py-3">
+    <div className="flex items-center justify-center rounded-[50px] bg-base px-[18px] py-3 backdrop-blur-[8px]" style={{ boxShadow: "rgba(38, 49, 64, 0.32) 0px -1px 0px 0px inset" }}>
       <ShimmerText
         text={label}
         color="#eab30a"

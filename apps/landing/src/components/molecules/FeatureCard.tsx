@@ -116,7 +116,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         <ul className="flex w-full flex-col gap-2 tb:gap-3">
           {data.bullets.map((b) => (
             <li key={b} className="flex h-6 items-center gap-3">
-              <MaskIcon name="check-circle" size={20} color="#22c55e" />
+              <MaskIcon name="check-circle" size={24} color="#737373" />
               <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-secondary tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">{b}</p>
             </li>
           ))}

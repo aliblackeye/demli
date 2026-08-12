@@ -15,7 +15,7 @@ export function SiteNav() {
     <nav className="fixed inset-x-0 top-0 z-[6] flex items-center justify-center px-4 pt-4 tb:px-6 tb:pt-6 dt:px-0">
       <div className="relative w-full tb:max-w-[520px] dt:w-[544px] dt:max-w-none">
         <nav className="flex flex-col items-center justify-center rounded-[16px] backdrop-blur-[10px]">
-          <div className="relative z-10 flex w-full items-center justify-center gap-9 rounded-[16px] bg-[rgba(23,23,23,0.72)] py-3 pl-6 pr-3">
+          <div className="relative z-10 flex w-full items-center justify-center gap-9 rounded-[16px] bg-[rgba(23,23,23,0.72)] py-3 pl-6 pr-3 nav-pill-mobile-shadow">
             <div className="flex w-full items-center justify-between">
               <div className="flex flex-1 items-center justify-start gap-9">
                 <a

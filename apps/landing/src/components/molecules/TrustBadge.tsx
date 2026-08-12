@@ -30,7 +30,7 @@ export function TrustBadge() {
                 "h-8 w-8 overflow-hidden rounded-full " + (i > 0 ? "-ml-[9px]" : "")
               }
             >
-              <Image src={src} alt="" width={32} height={32} className="h-8 w-8 object-cover" />
+              <Image src={src} alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover" style={{ boxShadow: "0 0 0 6px #000" }} />
             </div>
           ))}
         </div>

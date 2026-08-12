@@ -112,6 +112,7 @@ export function Hero() {
             linear-gradient(#000 12%, saydam 100%) — kırpma değil solma. */}
         <div className="flex w-full flex-col items-center">
           <div className="relative flex aspect-[0.766667] w-full max-w-[344px] flex-col items-center tb:max-w-[564px] dt:max-w-[644px]">
+            <div aria-hidden className="absolute inset-y-0 left-[-318px] right-[-318px] translate-y-[160px] rounded-full opacity-[0.48] dt:left-[-398px] dt:right-[-398px]" style={{ background: "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)", filter: "blur(8px)" }} />
             <Appear
               spec={APPEAR.mockup}
               className="w-full"

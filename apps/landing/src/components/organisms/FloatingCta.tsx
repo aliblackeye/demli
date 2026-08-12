@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CtaButton } from "../atoms/CtaButton";
+import { MaskIcon } from "../atoms/MaskIcon";
 
 /**
  * Features Section Floating CTA — authored (audit2):
@@ -40,8 +41,14 @@ export function FloatingCta() {
       animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 120 }}
       transition={{ type: "spring", duration: 2, bounce: 0.2 }}
     >
-      <div className="pointer-events-auto">
+      <div className="pointer-events-auto flex items-center gap-2">
+        <a href="#appstore" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
+          <MaskIcon name="apple" size={24} color="#e5e5e5" />
+        </a>
         <CtaButton href="#download" label="Download App" variant="primary" />
+        <a href="#googleplay" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
+          <MaskIcon name="google-play" size={24} color="#e5e5e5" />
+        </a>
       </div>
     </motion.div>
   );

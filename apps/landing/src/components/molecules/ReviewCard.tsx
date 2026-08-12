@@ -20,7 +20,7 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
       href={data.href}
       target="_blank"
       rel="noreferrer"
-      className="flex w-full flex-col rounded-[24px] bg-base p-6"
+      className="flex w-full flex-col rounded-[24px] bg-base p-6 backdrop-blur-[10px]"
     >
       <div className="flex w-full flex-col gap-6">
         <div className="flex items-center gap-[10px]">

@@ -48,17 +48,17 @@ export function Pricing() {
       id="pricing"
       className="relative flex flex-col items-center overflow-clip px-6 py-20 tb:px-10 tb:py-[120px] dt:px-0 dt:py-[160px]"
     >
-      <div className="absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
+      <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
           aria-hidden
-          className="absolute inset-y-0 left-1/2 w-[1575px] -translate-x-1/2 rounded-full"
+          className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-full tb:left-[-318px] tb:right-[-318px] dt:left-[-398px] dt:right-[-398px]"
           style={{
             background:
               "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
             filter: "blur(8px)",
           }}
         />
-        <div className="rotate-180">
+        <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
           <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
         </div>
         <div
