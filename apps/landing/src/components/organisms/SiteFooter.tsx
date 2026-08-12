@@ -22,7 +22,7 @@ export function SiteFooter() {
   return (
     <footer className="relative flex flex-col items-center gap-10 overflow-clip pt-20 tb:gap-16 tb:pt-[120px] dt:pt-[160px]">
       {/* BG şeridi */}
-      <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
+      <div className="footer-strip-mask absolute inset-x-0 top-0 flex h-[300px] items-center justify-center overflow-clip tb:h-[467px] dt:h-[600px]">
         <div
           aria-hidden
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
@@ -33,7 +33,7 @@ export function SiteFooter() {
           }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px]" />
+          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px] dt:h-[600px] dt:w-[1440px]" />
         </div>
         <div
           aria-hidden
@@ -77,7 +77,7 @@ export function SiteFooter() {
           </div>
           <div className="flex items-center gap-[10px]">
             <div className="flex items-center gap-[6px]">
-              <MaskIcon name="arrow-circle-down" size={21} color="#737373" />
+              <MaskIcon name="arrow-circle-down" size={24} color="#737373" />
               <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                 50K+ downloads
               </p>
@@ -129,7 +129,7 @@ export function SiteFooter() {
               <VideoBg src="/videos/light-rays.webm" className="h-full w-full rotate-180 object-cover" />
             </div>
             <div className="absolute inset-0 mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
-            <div className="absolute left-1/2 top-[645px] h-[400px] w-[872px] -translate-x-1/2 rounded-[100%]" style={{ background: "radial-gradient(50% 50%, rgba(34,197,94,0.24) 0%, rgba(34,197,94,0) 100%)" }} />
+            <div className="absolute left-1/2 top-[-4px] h-[400px] w-[872px] -translate-x-1/2 rounded-[100%] dt:h-[420px] dt:w-[912px]" style={{ background: "radial-gradient(50% 50%, rgba(34,197,94,0.24) 0%, rgba(34,197,94,0) 100%)" }} />
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}
@@ -179,7 +179,7 @@ export function SiteFooter() {
                   </a>
                 </li>
                 <li className="flex items-center px-3">
-                  <MaskIcon name="dot" size={4} color="#737373" />
+                  <MaskIcon name="dot" size={24} color="#404040" />
                 </li>
                 <li>
                   <a

@@ -101,3 +101,9 @@ h3,
     box-shadow: rgba(38, 49, 64, 0.32) 0px -1px 0px 0px inset;
   }
 }
+
+/* authored footer BG şerit maskı */
+.footer-strip-mask {
+  -webkit-mask-image: radial-gradient(31% 29% at 50% 30.6%, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0) 100%);
+  mask-image: radial-gradient(31% 29% at 50% 30.6%, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0) 100%);
+}

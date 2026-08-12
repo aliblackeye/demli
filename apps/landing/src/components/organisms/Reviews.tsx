@@ -198,7 +198,7 @@ export function Reviews() {
             ))}
           </div>
           {/* Geniş: üç kolon (365), kırpmasız */}
-          <div className="mx-auto hidden w-full max-w-[1119px] gap-3 dt:flex">
+          <div className="mx-auto hidden w-full max-w-[1120px] gap-3 overflow-hidden dt:flex dt:h-[950px]" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
             {DT_COLS.map((col, i) => (
               <div key={i} className="flex w-[365px] flex-col gap-3">
                 {col.map((c) => (
