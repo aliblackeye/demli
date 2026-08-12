@@ -147,13 +147,16 @@ export function SiteFooter() {
       {/* Footer Card — authored: wrapper pad 0 40 40 (mobil 0 24 24) */}
       <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
-          {/* Ölçülen (görüş-içi, 3 bp): kartta YALNIZ footer-bg.webm var —
-              rays ve kart parıltısı yok; video her kırılımda görünür,
-              sabit 720×300 (mobil) / 1440×600 (tb+), ortalanmış */}
+          {/* Ölçülen (tam mount, kart görünürken): kartta footer-bg.webm +
+              "Light Rays Wrapper" 1440×600 (180° dönük, üst radyal maskla)
+              BİRLİKTE var. footer-bg her kırılımda görünür, sabit 720×300
+              (mobil, +54 dikey ortalı) / 1440×600 (tb+), ortalanmış. */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[300px] overflow-hidden tb:h-[600px]" style={{ WebkitMaskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)" }}>
-            {/* Ölçülen: video mobilde kart içinde +54 (dikey ortalı), tb+ üstte */}
             <div className="absolute left-1/2 top-[54px] h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:top-0 tb:h-[600px] tb:w-[1440px]">
               <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
+            </div>
+            <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:h-[600px] tb:w-[1440px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+              <VideoBg src="/videos/light-rays.webm" className="h-full w-full rotate-180 object-cover" />
             </div>
             <div className="absolute inset-0 mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
           </div>

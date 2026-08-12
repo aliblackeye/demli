@@ -2,7 +2,10 @@
 
 import { VideoBg } from "../atoms/VideoBg";
 import Image from "next/image";
+import { useEffect, useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { FadeIn } from "../atoms/FadeIn";
+import { useIsMobile } from "../atoms/CardReveal";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
 import { ShimmerText } from "../atoms/ShimmerText";
@@ -30,6 +33,47 @@ export type FeatureCardData = {
  */
 export function FeatureCard({ data }: { data: FeatureCardData }) {
   const kisa = data.mobilePhoneTop === 429;
+  // Ölçülen: telefon SCROLL-bağlı yükselir (çift yönlü) — üst kenarı
+  // viewport'un 1.272×'inden 0.208×'ine inerken y 250→0, opacity 0→1.
+  // Mobilde yok (390 ön-durum envanterinde Phone transformu ölçülmedi).
+  // Hesap layout-bazlı (offsetTop zinciri): useScroll(target) kendi
+  // transformunu geri besleyip eğriyi kaydırıyordu.
+  const telRef = useRef<HTMLDivElement | null>(null);
+  const telDocTop = useRef(0);
+  const mobil = useIsMobile();
+  useEffect(() => {
+    const hesapla = () => {
+      let el: HTMLElement | null = telRef.current;
+      let top = 0;
+      while (el) {
+        top += el.offsetTop;
+        el = el.offsetParent as HTMLElement | null;
+      }
+      telDocTop.current = top;
+    };
+    hesapla();
+    const ro = new ResizeObserver(hesapla);
+    ro.observe(document.body);
+    window.addEventListener("resize", hesapla);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", hesapla);
+    };
+  }, []);
+  const { scrollY } = useScroll();
+  const telProg = useTransform(scrollY, (sy) => {
+    if (mobil || !telDocTop.current || typeof window === "undefined") return 1;
+    // Ölçülen (ref, layout konumuna çözülmüş): layout üstü vh'den
+    // 0.209×vh'ye inerken p 0→1 (ref rect'i transform içerdiğinden ham
+    // eşikler 1.272/0.208 görünüyordu — layout karşılığı bu)
+    const vh = window.innerHeight;
+    const ust = telDocTop.current - sy;
+    const baslangic = 1.0 * vh;
+    const bitis = 0.209 * vh;
+    return Math.max(0, Math.min(1, (baslangic - ust) / (baslangic - bitis)));
+  });
+  const telY = useTransform(telProg, (p) => 250 * (1 - p));
+  const telOpacity = telProg;
   return (
     <div
       className={
@@ -90,36 +134,45 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           (data.featured ? "dt:pl-0 dt:pr-16" : "dt:pl-16 dt:pr-0")
         }
       >
-        {/* authored: Details bloğu y20 spring {bounce 0, delay .7, dur .6} */}
-        <FadeIn
-          className="flex w-full flex-col items-start gap-4 tb:w-[528px]"
-          amount={0.1}
-          transition={{ type: "spring", bounce: 0, delay: 0.7, duration: 0.6 }}
-        >
+        {/* Ölçülen kademe: başlık kelimeleri ~0.15s'te blur'la başlar,
+            tag ~0.6s'te y20 fade, açıklama ~0.7s, maddeler 0.8 */}
+        <div className="flex w-full flex-col items-start gap-4 tb:w-[528px]">
           {/* Fark motoru: featured kartın tag'ı YEŞİL (#22c55e); mobil 14px */}
-          <ShimmerText
-            text={data.tag}
-            color="#eab30a"
-            className={
-              "text-[14px] font-medium leading-[16.8px] tb:text-[16px] tb:leading-[19.2px] " +
-              (data.featured ? "text-accent" : "text-text-dim")
-            }
-          />
+          <FadeIn
+            amount={0.1}
+            transition={{ type: "spring", bounce: 0, delay: 0.6, duration: 0.6 }}
+          >
+            <ShimmerText
+              text={data.tag}
+              color="#eab30a"
+              className={
+                "text-[14px] font-medium leading-[16.8px] tb:text-[16px] tb:leading-[19.2px] " +
+                (data.featured ? "text-accent" : "text-text-dim")
+              }
+            />
+          </FadeIn>
           {/* authored h3 preset (1qsvjdb): 52px (tb+) / 40px (mobil), lh 1.1em */}
           <RevealText
             text={data.title}
             mode="word"
             as="h3"
+            blurlu
             className="font-display text-[40px] font-normal leading-[44px] text-white tb:text-[52px] tb:leading-[57.2px]"
           />
           {/* Ölçülen: desc mobil 16/24, tb+ 18/25.2 */}
-          <RevealText
-            text={data.description}
-            mode="char"
-            as="p"
-            className="text-[16px] leading-6 text-text-dim tb:text-[18px] tb:leading-[25.2px]"
-          />
-        </FadeIn>
+          <FadeIn
+            className="w-full"
+            amount={0.1}
+            transition={{ type: "spring", bounce: 0, delay: 0.7, duration: 0.6 }}
+          >
+            <RevealText
+              text={data.description}
+              mode="char"
+              as="p"
+              className="text-[16px] leading-6 text-text-dim tb:text-[18px] tb:leading-[25.2px]"
+            />
+          </FadeIn>
+        </div>
         {/* authored Benefits: gap 12 (mobil 8); y20 spring {bounce 0, delay .8, dur .6} */}
         <FadeIn
           amount={0.1}
@@ -141,7 +194,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
       {/* Telefon görseli — authored: alt solma maskı linear-gradient(0deg,
           saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
           dt: karşı kolonu dolduran akış öğesi. */}
-      <div
+      <motion.div
+        ref={telRef}
         className={
           "absolute left-0 z-[1] h-[344px] w-full overflow-hidden rounded-[32px] " +
           (kisa ? "top-[429px] " : "top-[453px] ") +
@@ -151,6 +205,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           filter: "saturate(1.4)",
+          y: telY,
+          opacity: telOpacity,
         }}
       >
         <Image
@@ -160,7 +216,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           height={712}
           className="h-full w-full object-cover object-top"
         />
-      </div>
+      </motion.div>
     </div>
   );
 }
