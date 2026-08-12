@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * Demli Design System v1 "Koyu Masa" — SPEC SAYFASI (onay turu, v3).
- * Süs yok: her bölüm, landing'den çıkarılmış GERÇEK reçetenin örneği +
- * yanında ölçülü değerleri. Kaynak: docs/design-system/demli-design-system.md
- * Landing henüz değişmedi; onaydan sonra entegre edilir.
+ * Demli Design System v1 "Koyu Masa" — SPEC SAYFASI (onay turu, v5).
+ * Ürün bileşen kütüphanesi: profil kartına kadar her bileşen, landing'in
+ * dilinden doğan ÖZGÜN reçetelerle. Kayan metin hover'ı YALNIZ landing'de
+ * kalır — ürün bileşenlerinde kullanılmaz (founder kararı).
+ * Kaynak doküman: docs/design-system/demli-design-system.md
  */
 
 import { Onest } from "next/font/google";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { MaskIcon } from "@/components/atoms/MaskIcon";
-import { ReviewCard } from "@/components/molecules/ReviewCard";
 
 const onest = Onest({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"] });
 
@@ -25,24 +25,29 @@ const T = {
   gold: "#eab30a",
   success: "#22c55e",
   danger: "#ff6fb5",
+  dangerSoft: "rgba(255,111,181,0.12)",
 };
 
-const SPRING_HOVER = { type: "spring", bounce: 0.2, duration: 0.4 } as const;
-
 const BOLUMLER = [
-  ["renk", "01 · Renk"],
-  ["tipografi", "02 · Tipografi"],
-  ["bosluk", "03 · Boşluk & radius"],
-  ["butonlar", "04 · Butonlar"],
-  ["hap", "05 · Hap & rozet"],
-  ["kart", "06 · Kartlar"],
-  ["form", "07 · Form & satırlar"],
-  ["durum", "08 · Durumlar"],
-  ["hareket", "09 · Hareket"],
-  ["esleme", "10 · Ürün eşlemesi"],
+  ["renk", "Renk"],
+  ["tipografi", "Tipografi"],
+  ["bosluk", "Boşluk"],
+  ["butonlar", "Butonlar"],
+  ["hap", "Hap & rozet"],
+  ["kart", "Kartlar"],
+  ["form", "Form"],
+  ["validasyon", "Validasyon"],
+  ["satirlar", "Satırlar"],
+  ["kiplikler", "Kiplikler"],
+  ["kaplamalar", "Kaplamalar"],
+  ["ayarlar", "Ayarlar"],
+  ["profil", "Profil"],
+  ["durum", "Durumlar"],
+  ["hareket", "Hareket"],
+  ["esleme", "Uygulama"],
 ] as const;
 
-/* ── Yapı taşları ─────────────────────────────────────────────── */
+/* ── Sayfa yapı taşları ───────────────────────────────────────── */
 
 function Bolum({ id, baslik, aciklama, children }: { id: string; baslik: string; aciklama: string; children: React.ReactNode }) {
   return (
@@ -78,72 +83,110 @@ function Swatch({ ad, deger, koyu, not }: { ad: string; deger: string; koyu?: bo
   );
 }
 
-/* Gerçek CTA reçetesi: radius 18, pad 16×32, metin 16/24→18/25.2, kayan hover */
-function Cta({ etiket, zemin, metin, devre }: { etiket: string; zemin: string; metin: string; devre?: boolean }) {
-  const cls = "whitespace-nowrap text-[16px] font-medium leading-6 tb:text-[18px] tb:leading-[25.2px]";
+/* ── ÜRÜN BİLEŞENLERİ — kayan metin YOK; hover = ton geçişi 200ms ── */
+
+type ButonTur = "birincil" | "ikincil" | "mercan" | "tehlike" | "hayalet";
+type ButonBoy = "lg" | "md" | "sm";
+
+function UrunButonu({ etiket, tur = "ikincil", boy = "md", devre, ikon }: { etiket: string; tur?: ButonTur; boy?: ButonBoy; devre?: boolean; ikon?: React.ReactNode }) {
+  const boyCls = boy === "lg" ? "rounded-[14px] px-5 py-3 text-[15px] leading-[20px]" : boy === "sm" ? "rounded-[10px] px-3 py-1.5 text-[13px] leading-[17px]" : "rounded-[12px] px-4 py-2.5 text-[14px] leading-[18px]";
+  const stil: Record<ButonTur, [string, string, string]> = {
+    birincil: ["#ffffff", "#171717", "#e5e5e5"],
+    ikincil: ["#262626", "#e5e5e5", "#303030"],
+    mercan: [T.accent, "#171717", T.accentStrong],
+    tehlike: [T.dangerSoft, T.danger, "rgba(255,111,181,0.2)"],
+    hayalet: ["transparent", "#a3a3a3", "#171717"],
+  };
+  const [zemin, metin, hoverZemin] = stil[tur];
   return (
-    <motion.a
-      href="#"
-      onClick={(e) => e.preventDefault()}
-      initial="rest"
-      animate="rest"
-      whileHover={devre ? undefined : "hover"}
-      className={"flex items-center justify-center rounded-[18px] px-8 py-4 " + (devre ? "opacity-40" : "")}
-      style={{ background: zemin }}
+    <button
+      disabled={devre}
+      className={"flex items-center gap-2 font-medium transition-colors duration-200 " + boyCls + (devre ? " cursor-not-allowed opacity-40" : "")}
+      style={{ background: zemin, color: metin }}
+      onMouseEnter={(e) => { if (!devre) e.currentTarget.style.background = hoverZemin; }}
+      onMouseLeave={(e) => { if (!devre) e.currentTarget.style.background = zemin; }}
     >
-      <div className="relative flex h-6 flex-col items-start overflow-hidden tb:h-[25px]">
-        <motion.strong variants={{ rest: { y: 0 }, hover: { y: -29 } }} transition={SPRING_HOVER} className={cls} style={{ color: metin }}>{etiket}</motion.strong>
-        <motion.strong aria-hidden variants={{ rest: { y: 0 }, hover: { y: -29 } }} transition={SPRING_HOVER} className={cls + " absolute top-[29px]"} style={{ color: metin }}>{etiket}</motion.strong>
+      {ikon}
+      {etiket}
+    </button>
+  );
+}
+
+function IkonButonu({ ikon, aktif, boyut = 40 }: { ikon: string; aktif?: boolean; boyut?: number }) {
+  return (
+    <span
+      className="flex cursor-pointer items-center justify-center rounded-[12px] transition-colors duration-200"
+      style={{ width: boyut, height: boyut, background: aktif ? T.accentSoft : "#171717" }}
+      onMouseEnter={(e) => { if (!aktif) e.currentTarget.style.background = "#262626"; }}
+      onMouseLeave={(e) => { if (!aktif) e.currentTarget.style.background = "#171717"; }}
+    >
+      <MaskIcon name={ikon} size={Math.round(boyut * 0.5)} color={aktif ? T.accentStrong : "#e5e5e5"} />
+    </span>
+  );
+}
+
+function Anahtar({ acikMi, degistir }: { acikMi: boolean; degistir: () => void }) {
+  return (
+    <button
+      onClick={degistir}
+      className="relative h-6 w-11 rounded-full transition-colors duration-200"
+      style={{ background: acikMi ? T.accent : "#262626" }}
+    >
+      <motion.span
+        animate={{ x: acikMi ? 22 : 2 }}
+        transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }}
+        className="absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white"
+        style={{ left: 0 }}
+      />
+    </button>
+  );
+}
+
+function SesSurgusu({ ad, oran }: { ad: string; oran: number }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-14 shrink-0 text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{ad}</span>
+      <div className="relative h-1 flex-1 rounded-full bg-surface-2">
+        <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: oran + "%", background: T.accent }} />
+        <span className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white" style={{ left: `calc(${oran}% - 7px)`, boxShadow: "rgb(13,13,13) 0 0 0 2px" }} />
       </div>
-    </motion.a>
-  );
-}
-
-/* Nav sekmesi reçetesi: 14/16px, kayan kopya 23px altta */
-function NavSekme({ etiket }: { etiket: string }) {
-  const cls = "text-[14px] font-medium leading-[1.2] tracking-[-0.02em] text-[#e5e5e5] tb:text-[16px]";
-  return (
-    <motion.span initial="rest" animate="rest" whileHover="hover" className="cursor-pointer rounded-[12px] px-3 py-2">
-      <span className="relative flex h-[17px] flex-col items-start overflow-hidden tb:h-[19px]">
-        <motion.span variants={{ rest: { y: 0 }, hover: { y: -23 } }} transition={SPRING_HOVER} className={cls + " whitespace-pre"}>{etiket}</motion.span>
-        <motion.span aria-hidden variants={{ rest: { y: 0 }, hover: { y: -23 } }} transition={SPRING_HOVER} className={cls + " absolute top-[23px] whitespace-pre"}>{etiket}</motion.span>
-      </span>
-    </motion.span>
-  );
-}
-
-/* Ürün satırı — cömert pad, hover'da yalnız yüzey açılır (founder: satırda
-   kayan metin YOK — o imza nav/CTA'ya özgü kalır) */
-function UrunSatiri({ etiket, secili, ikon }: { etiket: string; secili?: boolean; ikon?: string }) {
-  const renk = secili ? T.accentStrong : "#a3a3a3";
-  return (
-    <div
-      className="flex cursor-pointer items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-colors duration-[400ms]"
-      style={{ background: secili ? T.accentSoft : "transparent" }}
-      onMouseEnter={(e) => { if (!secili) e.currentTarget.style.background = "#171717"; }}
-      onMouseLeave={(e) => { if (!secili) e.currentTarget.style.background = "transparent"; }}
-    >
-      {ikon ? <span className="text-[14px]" style={{ color: renk }}>{ikon}</span> : null}
-      <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] tb:text-[15px]" style={{ color: renk }}>{etiket}</span>
+      <span className="w-12 shrink-0 rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-0.5 text-center text-[12px] font-medium leading-[16px] text-[#e5e5e5]">%{oran}</span>
     </div>
   );
 }
 
-/* Üye satırı — rozet avatarı reçetesi: 32px, 2px koyu halka, online nokta */
-function UyeSatiri({ ad, oran }: { ad: string; oran: string }) {
+function AramaAlani() {
   return (
-    <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2 transition-colors duration-[400ms] hover:bg-surface">
-      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[1000px] bg-surface-2 text-[12px] font-medium text-text-primary" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}>
-        {ad[0]}
-        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-base" style={{ background: T.success }} />
-      </span>
-      <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{ad}</span>
-      <span className="ml-auto rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-0.5 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{oran}</span>
+    <div className="flex items-center gap-2.5 rounded-[12px] bg-surface px-3.5 py-2.5 transition-colors duration-200 focus-within:bg-surface-2">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden>
+        <circle cx="6.5" cy="6.5" r="4.5" stroke="#737373" strokeWidth="1.5" />
+        <path d="m10 10 3 3" stroke="#737373" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+      <span className="text-[14px] leading-[19.6px] text-text-dim">Mesajlarda ara…</span>
     </div>
   );
 }
 
-/* Composer — CTA/mail hapı geometrisi: rounded-18, bg-surface-2, pad 16×24 */
+function SecimKutusu() {
+  return (
+    <div className="flex w-fit flex-col gap-2">
+      <div className="flex w-[220px] cursor-pointer items-center justify-between rounded-[12px] bg-surface px-3.5 py-2.5 transition-colors duration-200 hover:bg-surface-2">
+        <span className="text-[14px] font-medium leading-[19.6px] text-text-primary">1080p · 60 kare</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5 6 8l3.5-3.5" stroke="#737373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </div>
+      <div className="w-[220px] rounded-[12px] bg-[rgba(23,23,23,0.92)] p-1 backdrop-blur-[10px]">
+        {["720p · 30 kare", "1080p · 30 kare"].map((s) => (
+          <div key={s} className="rounded-[8px] px-3 py-2 text-[14px] font-medium leading-[19.6px] text-text-secondary transition-colors duration-200 hover:bg-surface-2 hover:text-[#e5e5e5]">{s}</div>
+        ))}
+        <div className="flex items-center justify-between rounded-[8px] px-3 py-2 text-[14px] font-medium leading-[19.6px] text-[#e5e5e5]">
+          1080p · 60 kare
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="m3 7.5 2.5 2.5L11 4.5" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Composer({ odak }: { odak?: boolean }) {
   return (
     <div
@@ -157,14 +200,24 @@ function Composer({ odak }: { odak?: boolean }) {
         {odak ? "Çay hazır, oda a" : "Mesaj yaz…"}
         {odak ? <span className="ml-[1px] inline-block h-[18px] w-[2px] translate-y-[3px] rounded-full" style={{ background: T.accent }} /> : null}
       </span>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-surface transition-colors hover:bg-[#303030]">
-        <MaskIcon name="arrow-circle-down" size={22} color={odak ? T.accent : "#737373"} />
-      </span>
+      <IkonButonu ikon="arrow-circle-down" aktif={odak} />
     </div>
   );
 }
 
-/* Bindirmeli avatar kümesi — rozet reçetesi: 24px, −7px bindirme, 2px halka */
+function UrunSatiri({ etiket, secili }: { etiket: string; secili?: boolean }) {
+  return (
+    <div
+      className="flex cursor-pointer items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-colors duration-200"
+      style={{ background: secili ? T.accentSoft : "transparent" }}
+      onMouseEnter={(e) => { if (!secili) e.currentTarget.style.background = "#171717"; }}
+      onMouseLeave={(e) => { if (!secili) e.currentTarget.style.background = "transparent"; }}
+    >
+      <span className="text-[15px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: secili ? T.accentStrong : "#a3a3a3" }}>{etiket}</span>
+    </div>
+  );
+}
+
 function AvatarKume({ adlar, boyut = 24 }: { adlar: string[]; boyut?: number }) {
   return (
     <span className="flex items-center">
@@ -181,19 +234,279 @@ function AvatarKume({ adlar, boyut = 24 }: { adlar: string[]; boyut?: number }) 
   );
 }
 
-/* Konuşan katılımcı tile'ı — landing parıltısı halka olur */
+function Avatar({ ad, boyut = 32, cevrimici, konusuyor }: { ad: string; boyut?: number; cevrimici?: boolean; konusuyor?: boolean }) {
+  const nokta = Math.max(10, Math.round(boyut * 0.3));
+  return (
+    <span
+      className="relative flex shrink-0 items-center justify-center rounded-[1000px] bg-surface-2 font-medium text-text-primary"
+      style={{ width: boyut, height: boyut, fontSize: Math.round(boyut * 0.38), boxShadow: konusuyor ? `rgb(13,13,13) 0 0 0 2px, ${T.accent} 0 0 0 4px` : "rgb(13,13,13) 0 0 0 2px" }}
+    >
+      {ad[0]}
+      {cevrimici ? <span className="absolute rounded-full border-2 border-base" style={{ width: nokta, height: nokta, right: -2, bottom: -2, background: T.success }} /> : null}
+    </span>
+  );
+}
+
+function UyeSatiri({ ad, oran }: { ad: string; oran: string }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-[12px] px-3 py-2 transition-colors duration-200 hover:bg-surface">
+      <Avatar ad={ad} cevrimici />
+      <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{ad}</span>
+      <span className="ml-auto rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-0.5 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{oran}</span>
+    </div>
+  );
+}
+
+function AyarSatiri({ baslik, aciklama, acikMi, degistir }: { baslik: string; aciklama: string; acikMi: boolean; degistir: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-6 rounded-[16px] px-4 py-3.5 transition-colors duration-200 hover:bg-surface">
+      <div className="min-w-0">
+        <p className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{baslik}</p>
+        <p className="mt-0.5 text-[13px] leading-[18px] text-text-dim">{aciklama}</p>
+      </div>
+      <Anahtar acikMi={acikMi} degistir={degistir} />
+    </div>
+  );
+}
+
+/* Metin girişi — kenarsız dolgulu dil: durumlar ton + alt mesajla anlatılır */
+function MetinGirisi({ etiket, deger, durum = "rest", mesaj }: { etiket: string; deger?: string; durum?: "rest" | "odak" | "hata"; mesaj?: string }) {
+  const zemin = durum === "odak" ? "#262626" : durum === "hata" ? T.dangerSoft : "#171717";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-secondary">{etiket}</label>
+      <div className="flex items-center rounded-[12px] px-3.5 py-2.5 transition-colors duration-200" style={{ background: zemin }}>
+        <span className={"text-[14px] leading-[19.6px] " + (deger ? "text-text-primary" : "text-text-dim")}>
+          {deger ?? "yaz…"}
+          {durum === "odak" ? <span className="ml-[1px] inline-block h-[14px] w-[2px] translate-y-[2px] rounded-full" style={{ background: T.accent }} /> : null}
+        </span>
+      </div>
+      {mesaj ? <p className="text-[13px] leading-[18px]" style={{ color: durum === "hata" ? T.danger : "#737373" }}>{mesaj}</p> : null}
+    </div>
+  );
+}
+
+function OnayKutusu({ etiket, isaretli, degistir }: { etiket: string; isaretli: boolean; degistir: () => void }) {
+  return (
+    <button onClick={degistir} className="flex items-center gap-2.5">
+      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[6px] transition-colors duration-200" style={{ background: isaretli ? T.accent : "#262626" }}>
+        {isaretli ? (
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="m3 7.5 2.5 2.5L11 4.5" stroke="#171717" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        ) : null}
+      </span>
+      <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{etiket}</span>
+    </button>
+  );
+}
+
+function Radyo({ etiket, aciklama, secili, sec }: { etiket: string; aciklama?: string; secili: boolean; sec: () => void }) {
+  return (
+    <button onClick={sec} className="flex w-full items-start gap-2.5 rounded-[12px] px-3 py-2.5 text-left transition-colors duration-200 hover:bg-surface" style={{ background: secili ? T.accentSoft : "transparent" }}>
+      <span className="mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full transition-colors duration-200" style={{ background: secili ? T.accent : "#262626" }}>
+        {secili ? <span className="h-[7px] w-[7px] rounded-full bg-[#171717]" /> : null}
+      </span>
+      <span>
+        <span className="block text-[14px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: secili ? T.accentStrong : "#e5e5e5" }}>{etiket}</span>
+        {aciklama ? <span className="block text-[13px] leading-[18px] text-text-dim">{aciklama}</span> : null}
+      </span>
+    </button>
+  );
+}
+
+/* Form kipliği — kanal oluşturma, validasyon hatası gösterimiyle */
+function FormKipligi() {
+  const [tur, setTur] = useState<"yazi" | "sesli">("sesli");
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-[24px] bg-black/60 p-6">
+      <div className="absolute inset-0 backdrop-blur-[4px]" style={{ background: "rgba(0,0,0,0.24)" }} />
+      <div className="relative w-full max-w-[400px] rounded-[24px] bg-base p-6">
+        <p className={onest.className + " text-[20px] font-medium leading-[1.15] text-white"}>Kanal oluştur</p>
+        <div className="mt-5 flex flex-col gap-4">
+          <MetinGirisi etiket="Kanal adı" deger="akşam odası 2" durum="hata" mesaj="Bu ad zaten var. Başka bir ad seç." />
+          <div className="flex flex-col gap-1">
+            <p className="text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-secondary">Tür</p>
+            <Radyo etiket="Sesli kanal" aciklama="Konuşma, ekran ve kamera" secili={tur === "sesli"} sec={() => setTur("sesli")} />
+            <Radyo etiket="Yazı kanalı" aciklama="Mesajlar ve dosyalar" secili={tur === "yazi"} sec={() => setTur("yazi")} />
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <UrunButonu etiket="Vazgeç" tur="hayalet" />
+          <UrunButonu etiket="Oluştur" tur="mercan" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Davet kipliği — bağlantı alanı + kopyala */
+function DavetKipligi() {
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-[24px] bg-black/60 p-6">
+      <div className="absolute inset-0 backdrop-blur-[4px]" style={{ background: "rgba(0,0,0,0.24)" }} />
+      <div className="relative w-full max-w-[400px] rounded-[24px] bg-base p-6">
+        <p className={onest.className + " text-[20px] font-medium leading-[1.15] text-white"}>Masaya davet et</p>
+        <p className="mt-1.5 text-[13px] leading-[18px] text-text-dim">Bağlantı 7 gün geçerli; istediğinde iptal edersin.</p>
+        <div className="mt-4 flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center rounded-[12px] bg-surface px-3.5 py-2.5">
+            <span className="truncate font-mono text-[13px] leading-[18px] text-text-secondary">getdemli.com/davet/k7x2m9</span>
+          </div>
+          <UrunButonu etiket="Kopyala" tur="mercan" />
+        </div>
+        <div className="mt-4 flex items-center justify-between rounded-[12px] bg-surface px-3.5 py-2.5">
+          <span className="text-[13px] font-medium leading-[18px] text-text-primary">Masadakiler</span>
+          <AvatarKume adlar={["Baran", "Ece", "Kaan"]} boyut={20} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Ayarlar kabuğu — sol bölüm listesi + içerik paneli + tehlike alanı */
+function AyarlarKabugu({ gurultu, setGurultu }: { gurultu: boolean; setGurultu: (v: boolean) => void }) {
+  return (
+    <div className="flex gap-2 rounded-[32px] bg-black p-2">
+      <div className="flex w-52 shrink-0 flex-col gap-0.5 rounded-[24px] bg-base p-3">
+        <p className={onest.className + " px-3 pb-2 pt-1 text-[18px] font-semibold leading-[1.15] text-white"}>Ayarlar</p>
+        <UrunSatiri etiket="Hesap" />
+        <div className="flex cursor-pointer items-center rounded-[12px] px-3 py-2.5" style={{ background: T.accentSoft }}>
+          <span className="text-[15px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: T.accentStrong }}>Ses ve görüntü</span>
+        </div>
+        <UrunSatiri etiket="Bildirimler" />
+        <UrunSatiri etiket="Görünüm" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-[24px] bg-base p-5">
+        <p className={onest.className + " px-1 pb-2 text-[20px] font-medium leading-[1.15]"}>
+          <span className="text-white">Ses ve görüntü</span>
+        </p>
+        <div className="rounded-[16px] bg-surface p-4">
+          <p className="pb-2 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-secondary">Mikrofon</p>
+          <div className="flex w-full max-w-[280px] cursor-pointer items-center justify-between rounded-[12px] bg-surface-2 px-3.5 py-2.5 transition-colors duration-200 hover:bg-[#303030]">
+            <span className="text-[14px] font-medium leading-[19.6px] text-text-primary">Varsayılan — Yeti X</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5 6 8l3.5-3.5" stroke="#737373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+        </div>
+        <AyarSatiri baslik="Gürültü engelleyici" aciklama="Müzik modunda kendiliğinden kapanır" acikMi={gurultu} degistir={() => setGurultu(!gurultu)} />
+        <div className="rounded-[16px] bg-surface p-4">
+          <p className="pb-3 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-secondary">Çıkış sesi</p>
+          <SesSurgusu ad="Genel" oran={80} />
+        </div>
+        <div className="mt-2 rounded-[16px] p-4" style={{ background: T.dangerSoft }}>
+          <p className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: T.danger }}>Hesabı sil</p>
+          <p className="mt-0.5 text-[13px] leading-[18px] text-text-dim">Mesajların ve üyeliklerin kalıcı olarak silinir. Bu geri alınamaz.</p>
+          <div className="mt-3"><UrunButonu etiket="Hesabı sil" tur="tehlike" boy="sm" /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BaglamMenusu() {
+  return (
+    <div className="w-[200px] rounded-[12px] bg-[rgba(23,23,23,0.92)] p-1 backdrop-blur-[10px]">
+      {["Yanıtla", "Kopyala", "Sabitle"].map((s) => (
+        <div key={s} className="rounded-[8px] px-3 py-2 text-[14px] font-medium leading-[19.6px] text-text-secondary transition-colors duration-200 hover:bg-surface-2 hover:text-[#e5e5e5]">{s}</div>
+      ))}
+      <div className="mx-2 my-1 h-px bg-white/[0.06]" />
+      <div className="rounded-[8px] px-3 py-2 text-[14px] font-medium leading-[19.6px] transition-colors duration-200 hover:bg-[rgba(255,111,181,0.12)]" style={{ color: T.danger }}>Sil</div>
+    </div>
+  );
+}
+
+function Kiplik() {
+  return (
+    <div className="relative flex h-[320px] items-center justify-center overflow-hidden rounded-[24px] bg-black/60 p-6">
+      <div className="absolute inset-0 backdrop-blur-[4px]" style={{ background: "rgba(0,0,0,0.24)" }} />
+      <div className="relative w-full max-w-[380px] rounded-[24px] bg-base p-6">
+        <p className={onest.className + " text-[20px] font-medium leading-[1.15] text-white"}>Kanalı sil</p>
+        <p className="mt-2 text-[14px] leading-[19.6px] text-text-secondary">&quot;oyun&quot; kanalı ve mesajları kalıcı olarak silinir. Bu geri alınamaz.</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <UrunButonu etiket="Vazgeç" tur="hayalet" />
+          <UrunButonu etiket="Kanalı sil" tur="tehlike" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Ipucu() {
+  return (
+    <div className="flex items-center gap-6">
+      <IkonButonu ikon="monitor" />
+      <span className="rounded-[8px] bg-[rgba(23,23,23,0.92)] px-2.5 py-1.5 text-[12px] font-medium leading-[16px] text-[#e5e5e5] backdrop-blur-[10px]">Ekranı paylaş</span>
+    </div>
+  );
+}
+
+function Bildirim() {
+  return (
+    <div className="flex w-fit items-center gap-3 rounded-[16px] bg-[rgba(23,23,23,0.92)] py-3 pl-4 pr-3 backdrop-blur-[10px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
+      <Avatar ad="Ece" boyut={28} />
+      <div>
+        <p className="text-[13px] font-medium leading-[17px] text-text-primary">Ece seni aradı</p>
+        <p className="text-[12px] leading-[16px] text-text-dim">akşam odası · az önce</p>
+      </div>
+      <UrunButonu etiket="Katıl" tur="mercan" boy="sm" />
+    </div>
+  );
+}
+
+function UyariBandi() {
+  return (
+    <div className="flex items-center gap-3 rounded-[12px] px-4 py-3" style={{ background: T.dangerSoft }}>
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: T.danger }} />
+      <p className="text-[14px] leading-[19.6px]" style={{ color: T.danger }}>Bağlantı koptu. Oda yeniden bağlanıyor; bağlanamazsa mikrofonun kapalı kalır.</p>
+    </div>
+  );
+}
+
+/* Profil kartı — landing kart dili: kenarsız, üstte mercan parıltı bandı */
+function ProfilKarti() {
+  return (
+    <div className="relative w-[300px] overflow-hidden rounded-[24px] bg-base">
+      <div className="relative h-20">
+        <div className="absolute inset-x-[-60px] top-[-70px] h-[160px] rounded-[100%]" style={{ background: `radial-gradient(50% 50%, ${T.glow} 0%, rgba(255,132,100,0) 100%)`, filter: "blur(8px)" }} />
+      </div>
+      <div className="relative -mt-8 px-5 pb-5">
+        <Avatar ad="Baran" boyut={64} cevrimici />
+        <p className={onest.className + " mt-3 text-[20px] font-medium leading-[1.15] text-white"}>Baran</p>
+        <p className="text-[13px] font-medium leading-[18px] text-text-dim">@baran · masada 2 yıl</p>
+        <p className="mt-3 rounded-[12px] bg-surface px-3 py-2 text-[13px] leading-[18px] text-text-secondary">🎸 gitar gecesi hazırlığı</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {["kurucu", "çaycı"].map((rol) => (
+            <span key={rol} className="rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2.5 py-1 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{rol}</span>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-2">
+          <div className="flex-1 [&>button]:w-full [&>button]:justify-center"><UrunButonu etiket="Mesaj yaz" tur="mercan" /></div>
+          <IkonButonu ikon="phone" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Kullanıcı çubuğu (kendi durumun) — panel altı hap */
+function KullaniciCubugu() {
+  return (
+    <div className="flex w-[260px] items-center gap-2.5 rounded-[16px] bg-surface p-2 pl-2.5">
+      <Avatar ad="Sen" boyut={32} cevrimici />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium leading-[17px] text-text-primary">Sen</p>
+        <p className="text-[11px] leading-[15px]" style={{ color: T.accentStrong }}>akşam odası</p>
+      </div>
+      <IkonButonu ikon="star" boyut={32} />
+      <IkonButonu ikon="monitor" boyut={32} aktif />
+    </div>
+  );
+}
+
 function KatilimciTile({ ad, konusuyor }: { ad: string; konusuyor?: boolean }) {
   return (
     <div className="relative flex h-40 flex-1 flex-col items-center justify-center overflow-hidden rounded-[24px] bg-base">
       {konusuyor ? (
         <div className="absolute inset-x-[-40px] inset-y-[-20px] rounded-[100%]" style={{ background: `radial-gradient(50% 50%, ${T.glow} 0%, rgba(255,132,100,0) 100%)`, filter: "blur(8px)" }} />
       ) : null}
-      <span
-        className="relative flex h-14 w-14 items-center justify-center rounded-[1000px] bg-surface-2 text-[20px] font-medium text-text-primary"
-        style={{ boxShadow: konusuyor ? `rgb(13,13,13) 0 0 0 2px, ${T.accent} 0 0 0 4px` : "rgb(13,13,13) 0 0 0 2px" }}
-      >
-        {ad[0]}
-      </span>
+      <span className="relative"><Avatar ad={ad} boyut={56} konusuyor={konusuyor} /></span>
       <span className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-[50px] bg-[rgba(0,0,0,0.24)] px-2.5 py-1 backdrop-blur-[8px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
         {konusuyor ? <span className="h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} /> : null}
         <span className="text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{ad}</span>
@@ -202,24 +515,10 @@ function KatilimciTile({ ad, konusuyor }: { ad: string; konusuyor?: boolean }) {
   );
 }
 
-/* Kontrol kutusu grubu — landing'in ikon-grubu hapı */
-function KontrolGrubu() {
-  return (
-    <span className="flex w-fit items-center gap-1 rounded-[16px] bg-base p-1">
-      {["monitor", "phone", "star"].map((ikon, i) => (
-        <span key={ikon} className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-colors hover:bg-surface-2" style={{ background: i === 0 ? T.accentSoft : "#171717" }}>
-          <MaskIcon name={ikon} size={20} color={i === 0 ? T.accentStrong : "#e5e5e5"} />
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/* Mesaj satırı — baloncuk YOK: landing'in sakin satır dili */
 function MesajSatiri({ ad, saat, metin }: { ad: string; saat: string; metin: string }) {
   return (
-    <div className="flex gap-3 rounded-[16px] px-3 py-2.5 transition-colors duration-[400ms] hover:bg-[#141414]">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[1000px] bg-surface-2 text-[12px] font-medium text-text-primary" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}>{ad[0]}</span>
+    <div className="flex gap-3 rounded-[16px] px-3 py-2.5 transition-colors duration-200 hover:bg-[#141414]">
+      <span className="mt-0.5"><Avatar ad={ad} /></span>
       <div className="min-w-0">
         <p className="flex items-baseline gap-2">
           <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{ad}</span>
@@ -231,12 +530,10 @@ function MesajSatiri({ ad, saat, metin }: { ad: string; saat: string; metin: str
   );
 }
 
-/* Uygulama dili — mevcut uygulamanın YAPISI, landing'den doğan ÖZGÜN stil:
-   yüzen hap üst çubuk + siyah boşlukta ada panelleri */
+/* Uygulama dili — YAPI üründen, STİL landing'den doğma */
 function UygulamaOnizleme() {
   return (
     <div className="flex flex-col gap-2 rounded-[32px] bg-black p-2">
-      {/* Üst çubuk — landing nav hapı dili */}
       <div className="flex items-center justify-between rounded-[16px] bg-[rgba(23,23,23,0.72)] py-2.5 pl-5 pr-2.5 backdrop-blur-[10px]">
         <div className="flex items-center gap-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-[12px]" style={{ background: T.accentSoft }}>
@@ -247,11 +544,10 @@ function UygulamaOnizleme() {
         </div>
         <div className="flex items-center gap-2">
           <AvatarKume adlar={["Baran", "Ece", "Kaan"]} />
-          <span className="rounded-[12px] bg-surface-2 px-3 py-1.5 text-[13px] font-medium leading-[17px] text-[#e5e5e5]">Davet et</span>
+          <UrunButonu etiket="Davet et" boy="sm" />
         </div>
       </div>
       <div className="flex gap-2">
-        {/* Sol ada: kanallar + aktif oda kartı */}
         <div className="flex w-64 shrink-0 flex-col rounded-[24px] bg-base p-3">
           <p className="px-3 pb-1.5 pt-1 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Sesli</p>
           <div className="flex cursor-pointer items-center justify-between rounded-[12px] px-3 py-2.5" style={{ background: T.accentSoft }}>
@@ -262,16 +558,8 @@ function UygulamaOnizleme() {
           <p className="px-3 pb-1.5 pt-4 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Yazı</p>
           <UrunSatiri etiket="sohbet" />
           <UrunSatiri etiket="oyun" />
-          {/* Aktif oda kartı — hap + kontrol grubu */}
-          <div className="mt-4 flex flex-col gap-2.5 rounded-[18px] bg-surface p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] font-medium leading-[17px]" style={{ color: T.accentStrong }}>akşam odası · bağlı</span>
-              <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} />
-            </div>
-            <KontrolGrubu />
-          </div>
+          <div className="mt-auto pt-4"><KullaniciCubugu /></div>
         </div>
-        {/* Orta ada: sesli oda tile'ları */}
         <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-[24px] bg-base p-4">
           <p className={onest.className + " px-1 pb-1 text-[20px] font-medium leading-[1.15]"}>
             <span className="text-white">akşam odası </span>
@@ -312,9 +600,12 @@ function HareketSatiri({ ad, deger, children }: { ad: string; deger: string; chi
 /* ── Sayfa ────────────────────────────────────────────────────── */
 
 export default function DesignShowcase() {
+  const [bildirimAcik, setBildirimAcik] = useState(true);
+  const [gurultu, setGurultu] = useState(false);
+  const [kabul, setKabul] = useState(true);
+  const [kalite, setKalite] = useState<"hd" | "fhd">("fhd");
   return (
     <div className="min-h-screen bg-black">
-      {/* Üst çubuk + içindekiler */}
       <header className="sticky top-0 z-10 border-b border-white/[0.06] bg-black/85 backdrop-blur-[10px]">
         <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center gap-x-5 gap-y-1 px-6 py-3">
           <span className={onest.className + " mr-2 text-[15px] font-semibold text-white"}>
@@ -323,7 +614,7 @@ export default function DesignShowcase() {
           </span>
           <nav className="flex flex-wrap gap-x-4 gap-y-1">
             {BOLUMLER.map(([id, ad]) => (
-              <a key={id} href={"#" + id} className="text-[12px] font-medium text-text-dim transition-colors hover:text-text-primary">{ad.slice(5)}</a>
+              <a key={id} href={"#" + id} className="text-[12px] font-medium text-text-dim transition-colors hover:text-text-primary">{ad}</a>
             ))}
           </nav>
         </div>
@@ -335,207 +626,210 @@ export default function DesignShowcase() {
             Demli Design System <span style={{ color: T.accent }}>v1</span>
           </h1>
           <p className="mt-3 max-w-[720px] text-[15px] leading-[22px] text-text-secondary">
-            Landing&apos;den çıkarılmış tek sistem; web + masaüstü buna çekilecek. Founder kararları:
-            zeminler nötr siyah · yeşil vurgu Demli mercanına döner · display font OFL (Onest önerisi) ·
-            token mimarisi koyu + açık-hazır. Her örnek gerçek reçeteyle basılmıştır; değerler yanındadır.
+            Ürün bileşen kütüphanesi — yapı mevcut üründen, stil landing&apos;den doğma. Kayan metin
+            hover&apos;ı yalnız landing&apos;de kalır; ürün hover&apos;ı ton geçişidir (200ms). Zeminler nötr
+            siyah, vurgu Demli mercanı, display font Onest (OFL).
           </p>
         </div>
 
-        {/* 01 RENK */}
-        <Bolum id="renk" baslik="01 · Renk" aciklama="İki katman: ham palet + anlamsal tokenlar. Kenar çizgisi yok — derinlik yüzey tonuyla kurulur. Açık tema geldiğinde yalnız anlamsal değerler değişir.">
+        {/* RENK */}
+        <Bolum id="renk" baslik="01 · Renk" aciklama="İki katman: ham palet + anlamsal tokenlar. Kenar çizgisi yok — derinlik yüzey tonuyla. Açık tema geldiğinde yalnız anlamsal değerler değişir.">
           <Spec etiket="Zeminler" deger={"bg-page      #000000\nbg-base      #0d0d0d\nbg-surface   #171717\nbg-surface-2 #262626\nbg-raised    rgba(23,23,23,.72)+blur10\nbg-veil      rgba(0,0,0,.24)+blur8"}>
             <div className="grid grid-cols-3 gap-3 tb:grid-cols-6">
               <Swatch ad="bg-page" deger="#000000" not="pencere/sayfa" />
-              <Swatch ad="bg-base" deger="#0d0d0d" not="kart, koyu blok" />
+              <Swatch ad="bg-base" deger="#0d0d0d" not="panel, kart" />
               <Swatch ad="bg-surface" deger="#171717" not="ikincil yüzey" />
               <Swatch ad="bg-surface-2" deger="#262626" not="buton, hover" />
-              <Swatch ad="bg-raised" deger="rgba(23,23,23,0.72)" not="nav hapı (+blur)" />
-              <Swatch ad="bg-veil" deger="rgba(0,0,0,0.24)" not="saydam rozet" />
+              <Swatch ad="bg-raised" deger="rgba(23,23,23,0.72)" not="yüzen panel (+blur)" />
+              <Swatch ad="bg-veil" deger="rgba(0,0,0,0.24)" not="saydam hap" />
             </div>
           </Spec>
-          <Spec etiket="Metin rampası" deger={"display   #ffffff\nprimary   #e5e5e5\nsecondary #a3a3a3\ndim       #737373\nfaint     #404040"}>
-            <div className="flex flex-col gap-1.5 rounded-[16px] bg-base p-6">
-              <p className="text-[16px] text-white">text-display — büyük başlıklar</p>
-              <p className="text-[16px] text-text-primary">text-primary — UI birincil</p>
-              <p className="text-[16px] text-text-secondary">text-secondary — gövde</p>
-              <p className="text-[16px] text-text-dim">text-dim — sönük, ikonlar</p>
-              <p className="text-[16px] text-[#404040]">text-faint — telif</p>
-            </div>
-          </Spec>
-          <Spec etiket="Vurgu — Demli mercanı" deger={"accent        #ff8464\naccent-strong #ffa48c\naccent-deep   #e8624a (basılı)\naccent-soft   12% zemin\naccent-glow   24% radyal\nKontrast: 7.4:1 (#0d0d0d)"}>
+          <Spec etiket="Metin + vurgu" deger={"display #fff · primary #e5e5e5\nsecondary #a3a3a3 · dim #737373\nfaint #404040\naccent #ff8464 · strong #ffa48c\ndeep #e8624a (basılı)\nsoft %12 zemin · glow %24 radyal\nKontrast: 7.4:1 (#0d0d0d)"}>
             <div className="grid grid-cols-3 gap-3 tb:grid-cols-6">
-              <Swatch ad="accent" deger={T.accent} koyu not="link, aktif, parıltı" />
+              <Swatch ad="accent" deger={T.accent} koyu not="vurgu, aktif" />
               <Swatch ad="accent-strong" deger={T.accentStrong} koyu not="hover" />
               <Swatch ad="accent-deep" deger={T.accentDeep} koyu not="basılı" />
-              <Swatch ad="accent-soft" deger="rgba(255,132,100,0.12)" not="seçili zemin" />
-              <Swatch ad="accent-glow" deger="rgba(255,132,100,0.24)" not="radyal parıltı" />
-              <Swatch ad="gold" deger={T.gold} koyu not="yıldız, shimmer" />
-            </div>
-          </Spec>
-          <Spec etiket="Durum renkleri" deger={"success/online #22c55e\ndanger         #ff6fb5\nwarn           #eab30a\ninfo           nötr gri\nKural: hata mercandan ≥30° hue\nayrı — daha kuvvetli kırmızı yasak"}>
-            <div className="grid grid-cols-2 gap-3 tb:grid-cols-4">
-              <Swatch ad="success / online" deger={T.success} koyu not="yeşil artık YALNIZ durum" />
-              <Swatch ad="danger" deger={T.danger} koyu not="pembe — kırmızı disiplini" />
-              <Swatch ad="warn" deger={T.gold} koyu not="altınla paylaşır" />
-              <Swatch ad="info" deger="#a3a3a3" koyu not="nötr — mavi markaya giremez" />
+              <Swatch ad="gold" deger={T.gold} koyu not="yıldız" />
+              <Swatch ad="success" deger={T.success} koyu not="YALNIZ çevrimiçi/başarı" />
+              <Swatch ad="danger" deger={T.danger} koyu not="pembe — ≥30° hue ayrımı" />
             </div>
           </Spec>
         </Bolum>
 
-        {/* 02 TİPOGRAFİ */}
-        <Bolum id="tipografi" baslik="02 · Tipografi" aciklama="Display: Onest (OFL, Türkçe tam) — Stack Sans'ın lisans-temiz karşılığı; alternatifler Schibsted Grotesk, General Sans. Gövde/UI: Inter. Display'de OpenType özellikleri normal; cv setleri yalnız Inter'de.">
-          <Spec etiket="Display-1 · hero" deger={"56 / 92 / 112px (m/t/d)\nlh %110 · ls −0.2px · 600\nfont: Onest"}>
-            <p className={onest.className + " truncate text-[56px] font-semibold leading-[1.1] tracking-[-0.2px] text-white tb:text-[72px]"}>Çayını al, gel.</p>
+        {/* TİPOGRAFİ */}
+        <Bolum id="tipografi" baslik="02 · Tipografi" aciklama="Display: Onest (OFL, Türkçe tam). Gövde/UI: Inter. Üründe display yalnız başlık rollerinde (panel/kiplik/profil başlığı, kanal başlığı); metin işi Inter'de.">
+          <Spec etiket="Display rolleri" deger={"D-hero 56/92/112 (yalnız landing)\nD-panel 20–24 · %115 · 500–600\nD-kart 20 · %115 · 500\nİki tonlu: beyaz + dim kuyruk"}>
+            <div className="flex flex-col gap-5 rounded-[16px] bg-base p-6">
+              <p className={onest.className + " text-[24px] font-semibold leading-[1.15] text-white"}>Ayarlar</p>
+              <p className={onest.className + " text-[20px] font-medium leading-[1.15]"}>
+                <span className="text-white">akşam odası </span>
+                <span className="text-text-dim">· 3 kişi</span>
+              </p>
+            </div>
           </Spec>
-          <Spec etiket="Display-2 · bölüm başlığı" deger={"36 / 48 / 56px\nlh %110 · ls −0.2px · 500\niki tonlu: beyaz + dim kuyruk"}>
-            <p className={onest.className + " text-[36px] font-medium leading-[1.1] tracking-[-0.2px] tb:text-[48px]"}>
-              <span className="text-white">Bir akşamın hepsi </span>
-              <span className="text-text-dim">tek masada</span>
-            </p>
-          </Spec>
-          <Spec etiket="Display-3 · kart başlığı" deger={"40 / 52px · lh %110 · 400"}>
-            <p className={onest.className + " text-[40px] font-normal leading-[1.1] text-white tb:text-[52px]"}>Ses bir ayar, ödül değil.</p>
-          </Spec>
-          <Spec etiket="Büyük açıklama" deger={"32 / 40 / 44px\nlh %120 · ls −0.02em · 400"}>
-            <p className={onest.className + " text-[32px] font-normal leading-[1.2] tracking-[-0.02em] tb:text-[40px]"}>
-              <span className="text-text-primary">Arkadaş grubunun sesli evi. </span>
-              <span className="text-text-dim">Reklam yok, algoritma yok.</span>
-            </p>
-          </Spec>
-          <Spec etiket="Gövde ve UI (Inter)" deger={"Gövde-L 16/24 · 18/25.2\nUI 14/19.6 · 16/19.2 (500)\nls −0.28 / −0.32px\nKüçük 12/14.4 · 14/16.8 (500)"}>
+          <Spec etiket="Gövde ve UI (Inter)" deger={"mesaj 15/22\ngövde 14/19.6 · ls −0.28 (500)\nikincil 13/18\nküçük 12/14.4 · ls −0.24 (500)\ncomposer 16/24"}>
             <div className="flex flex-col gap-2 rounded-[16px] bg-base p-6">
-              <p className="text-[16px] leading-6 text-text-secondary">Gövde-L — Kanal 128 kbps&apos;e kadar açık; kimse bunun için sunucu yükseltmez.</p>
+              <p className="text-[15px] leading-[22px] text-text-secondary">Mesaj — Çay hazır, oda açık. Gelenler ekrandan film seçiyor.</p>
               <p className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">UI — Odaya gir · Ekranı paylaş · Sesini ayarla</p>
-              <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-dim">Küçük — 13 Nis 2026 · çevrimiçi 4 kişi</p>
+              <p className="text-[13px] leading-[18px] text-text-dim">İkincil — açıklamalar, ayar alt metinleri</p>
+              <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-[#404040]">Küçük — 21:04 · az önce</p>
             </div>
           </Spec>
         </Bolum>
 
-        {/* 03 BOŞLUK & RADIUS */}
-        <Bolum id="bosluk" baslik="03 · Boşluk & radius" aciklama="4'lük taban. Bölüm ritmi 80/120/160; kart içi 24/32; satır içi 8–16. Radius ölçeği landing'den ölçülü; dış gölge yok, tek istisna hap iç gölgesi.">
-          <Spec etiket="Boşluk ölçeği" deger={"4 · 8 · 12 · 16 · 24 · 32\n40 · 64 · 80 · 120 · 160\nBölüm py: 80/120/160 (m/t/d)"}>
-            <div className="flex flex-wrap items-end gap-3 rounded-[16px] bg-base p-6">
-              {[4, 8, 12, 16, 24, 32, 40, 64, 80].map((s) => (
-                <div key={s} className="flex flex-col items-center gap-1.5">
-                  <div className="w-6 rounded-[3px]" style={{ height: s, background: T.accentSoft, boxShadow: `inset 0 0 0 1px ${T.accent}33` }} />
-                  <span className="font-mono text-[10px] text-text-dim">{s}</span>
-                </div>
-              ))}
-            </div>
-          </Spec>
-          <Spec etiket="Radius ölçeği" deger={"8 · 10 · 12 (sekme, ikon kutusu)\n16 (nav hapı) · 18 (CTA)\n24 (yorum kartı) · 32 (kart)\n44 (büyük kart) · 50 (hap)\ntam yuvarlak (avatar)"}>
+        {/* BOŞLUK */}
+        <Bolum id="bosluk" baslik="03 · Boşluk & radius" aciklama="4'lük taban. Panel içi pad 12–16; öğe içi 10×12; kart içi 20–24. Radius: 8 (menü öğesi) · 10 · 12 (satır, ikon kutusu, arama) · 14 · 16 (panel içi kart, bildirim) · 18 (composer) · 24 (panel, kiplik, profil) · 32 (dış kabuk) · 50 (hap) · tam (avatar). Dış gölge yok; tek istisna hap iç gölgesi.">
+          <Spec etiket="Radius ölçeği" deger={"8 · 10 · 12 · 14 · 16 · 18\n24 · 32 · 50 (hap) · tam"}>
             <div className="flex flex-wrap items-end gap-4 rounded-[16px] bg-base p-6">
-              {[8, 12, 16, 18, 24, 32, 44].map((r) => (
+              {[8, 10, 12, 14, 16, 18, 24, 32].map((r) => (
                 <div key={r} className="flex flex-col items-center gap-1.5">
-                  <div className="h-16 w-16 bg-surface-2" style={{ borderRadius: r }} />
+                  <div className="h-14 w-14 bg-surface-2" style={{ borderRadius: r }} />
                   <span className="font-mono text-[10px] text-text-dim">{r}</span>
                 </div>
               ))}
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-10 w-24 rounded-[50px] bg-surface-2" />
-                <span className="font-mono text-[10px] text-text-dim">hap 50</span>
+                <div className="h-9 w-20 rounded-[50px] bg-surface-2" />
+                <span className="font-mono text-[10px] text-text-dim">50</span>
               </div>
               <div className="flex flex-col items-center gap-1.5">
-                <div className="h-16 w-16 rounded-full bg-surface-2" />
+                <div className="h-14 w-14 rounded-full bg-surface-2" />
                 <span className="font-mono text-[10px] text-text-dim">tam</span>
               </div>
             </div>
           </Spec>
-          <Spec etiket="Derinlik" deger={"Dış gölge YOK.\nHap iç gölgesi:\ninset 0 -1px 0\nrgba(38,49,64,0.32)\nYüzen panel: blur(10px)"}>
-            <div className="flex flex-wrap items-center gap-4 rounded-[16px] bg-base p-6">
-              <div className="rounded-[50px] bg-[rgba(0,0,0,0.24)] px-5 py-2.5 text-[14px] font-medium text-text-primary backdrop-blur-[8px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>iç gölge imzası</div>
-              <div className="rounded-[16px] bg-[rgba(23,23,23,0.72)] px-5 py-2.5 text-[14px] font-medium text-text-primary backdrop-blur-[10px]">yüzen panel (blur 10)</div>
-            </div>
-          </Spec>
         </Bolum>
 
-        {/* 04 BUTONLAR */}
-        <Bolum id="butonlar" baslik="04 · Butonlar" aciklama="CTA: radius 18, pad 16×32, metin 16/24 → 18/25.2 (500). Hover'da metin kayar (kopya 29px altta, spring bounce .2 / .4s). Üstlerine gel — kayma canlı.">
-          <Spec etiket="CTA varyantları" deger={"birincil: #fff zemin, koyu metin\nikincil: #262626, açık metin\nmercan (YENİ): #ff8464, koyu metin\nbasılı: #e8624a · devre dışı: %40"}>
-            <div className="flex flex-wrap items-center gap-4">
-              <Cta etiket="Uygulamayı indir" zemin="#ffffff" metin="#171717" />
-              <Cta etiket="Demli'yi aç" zemin="#262626" metin="#e5e5e5" />
-              <Cta etiket="Odaya gir" zemin={T.accent} metin="#171717" />
-              <Cta etiket="Devre dışı" zemin="#262626" metin="#e5e5e5" devre />
-            </div>
-          </Spec>
-          <Spec etiket="Nav sekmesi" deger={"14/16px (m/t) · 500 · ls −0.02em\npad 8×12 · radius 12\nkayan kopya 23px altta"}>
-            <div className="flex w-fit items-center gap-2 rounded-[16px] bg-[rgba(23,23,23,0.72)] p-2 backdrop-blur-[10px]">
-              <NavSekme etiket="Özellikler" />
-              <NavSekme etiket="Yorumlar" />
-              <NavSekme etiket="GitHub" />
-            </div>
-          </Spec>
-          <Spec etiket="İkon butonu" deger={"40×40 · radius 12 · #171717\ngrupta: kap radius 16, pad 4\nikon 22–24px #e5e5e5"}>
-            <div className="flex w-fit items-center gap-1 rounded-[16px] bg-base p-1">
-              <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface transition-colors hover:bg-surface-2"><MaskIcon name="monitor" size={22} color="#e5e5e5" /></span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface transition-colors hover:bg-surface-2"><MaskIcon name="phone" size={22} color="#e5e5e5" /></span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface transition-colors hover:bg-surface-2"><MaskIcon name="star" size={20} color="#e5e5e5" /></span>
-            </div>
-          </Spec>
-        </Bolum>
-
-        {/* 05 HAP & ROZET */}
-        <Bolum id="hap" baslik="05 · Hap & rozet" aciklama="Saydam zemin + blur + iç gölge imzası. Shimmer yalnız altın vurgu kelimesinde.">
-          <Spec etiket="Bilgi hapı" deger={"radius 50 · pad 6/6/6/18\nbg-veil + blur(8)\niç çip: beyaz %12 zemin"}>
-            <div className="flex w-fit items-center gap-2 rounded-[50px] bg-[rgba(0,0,0,0.24)] py-[6px] pl-[6px] pr-[18px] backdrop-blur-[8px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
-              <div className="flex items-center gap-1.5 rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-1">
-                <MaskIcon name="star" size={12} color={T.gold} />
-                <span className="text-[14px] leading-[16.8px] text-[#e5e5e5]">2</span>
-              </div>
-              <span className="text-[14px] font-medium leading-[16.8px] text-[#e5e5e5]">Açık kaynak</span>
-              <span className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim">Ücretli kademe yok</span>
-            </div>
-          </Spec>
-          <Spec etiket="Etiket hapı (bölüm başı)" deger={"radius 50 · pad 8×12 / 12×18\nbg-base · metin 14/16 dim\nvurgu kelimesi: altın shimmer"}>
-            <div className="flex w-fit items-center rounded-[50px] bg-base px-[18px] py-3" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
-              <span className="text-[16px] font-medium leading-[19.2px] text-text-dim">Özellikler</span>
-            </div>
-          </Spec>
-          <Spec etiket="Durum çipi" deger={"seçili: accent-soft zemin +\naccent-strong metin\nnötr: metin secondary"}>
+        {/* BUTONLAR */}
+        <Bolum id="butonlar" baslik="04 · Butonlar" aciklama="Ürün butonlarında kayan metin YOK — hover ton geçişidir (200ms). Beş varyant, üç boy. Basılı durumda mercan bir ton koyulaşır (accent-deep).">
+          <Spec etiket="Varyantlar (md)" deger={"birincil: #fff → hover #e5e5e5\nikincil: #262626 → #303030\nmercan: #ff8464 → #ffa48c\ntehlike: danger-soft + danger metin\nhayalet: saydam → #171717\ndevre dışı: %40 opaklık"}>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="flex items-center gap-2 rounded-[10px] px-3 py-1.5 text-[13px] font-medium" style={{ background: T.accentSoft, color: T.accentStrong }}>Seçili</span>
-              <span className="flex items-center gap-2 rounded-[10px] bg-surface px-3 py-1.5 text-[13px] font-medium text-text-secondary">Nötr</span>
-              <span className="flex items-center gap-1.5 rounded-[10px] bg-surface px-3 py-1.5 text-[13px] font-medium text-text-secondary">
-                <span className="h-2 w-2 rounded-full" style={{ background: T.success }} /> Çevrimiçi
+              <UrunButonu etiket="Kaydet" tur="birincil" />
+              <UrunButonu etiket="Demli'yi aç" tur="ikincil" />
+              <UrunButonu etiket="Odaya gir" tur="mercan" />
+              <UrunButonu etiket="Kanalı sil" tur="tehlike" />
+              <UrunButonu etiket="Vazgeç" tur="hayalet" />
+              <UrunButonu etiket="Devre dışı" devre />
+            </div>
+          </Spec>
+          <Spec etiket="Boylar" deger={"lg: radius 14 · pad 12×20 · 15px\nmd: radius 12 · pad 10×16 · 14px\nsm: radius 10 · pad 6×12 · 13px"}>
+            <div className="flex flex-wrap items-center gap-3">
+              <UrunButonu etiket="Büyük" tur="mercan" boy="lg" />
+              <UrunButonu etiket="Orta" tur="mercan" boy="md" />
+              <UrunButonu etiket="Küçük" tur="mercan" boy="sm" />
+            </div>
+          </Spec>
+          <Spec etiket="İkon butonu" deger={"40×40 (küçük 32) · radius 12\nrest #171717 → hover #262626\naktif: accent-soft + accent-strong"}>
+            <div className="flex items-center gap-2">
+              <IkonButonu ikon="monitor" aktif />
+              <IkonButonu ikon="phone" />
+              <IkonButonu ikon="star" />
+              <IkonButonu ikon="mail" boyut={32} />
+            </div>
+          </Spec>
+        </Bolum>
+
+        {/* HAP & ROZET */}
+        <Bolum id="hap" baslik="05 · Hap & rozet" aciklama="Saydam zemin + blur + iç gölge imzası landing'den; üründe isim etiketi, sayaç ve rol çipi olarak yaşar.">
+          <Spec etiket="Veil hapı" deger={"radius 50 · bg-veil + blur(8)\niç gölge imzası\niçerik: 12px (500) #e5e5e5"}>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex items-center gap-1.5 rounded-[50px] bg-[rgba(0,0,0,0.24)] px-2.5 py-1 backdrop-blur-[8px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} />
+                <span className="text-[12px] font-medium leading-[16px] text-[#e5e5e5]">Baran</span>
               </span>
+              <span className="rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2.5 py-1 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">%80</span>
+              <span className="rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2.5 py-1 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">çaycı</span>
+              <span className="flex items-center gap-1.5 rounded-[50px] px-2.5 py-1 text-[12px] font-medium leading-[16px]" style={{ background: T.accentSoft, color: T.accentStrong }}>3 yeni</span>
             </div>
           </Spec>
         </Bolum>
 
-        {/* 06 KARTLAR */}
-        <Bolum id="kart" baslik="06 · Kartlar" aciklama="bg-base, radius 32 (büyük 44, yorum 24), KENARSIZ. Hover'da zemin rgba(23,23,23,0.72)'ye açılır (400ms). Doku (noise, screen blend) kart reçetesinin parçasıdır.">
-          <Spec etiket="Yorum kartı (gerçek bileşen)" deger={"radius 24 · pad 24 · bg #0d0d0d\nhover: rgba(23,23,23,.72) 400ms\nisim 14/19.6 · tarih 12/14.4 op.7\ngövde 16/24 op .7"}>
-            <div className="max-w-[420px]">
-              <ReviewCard data={{ store: "monitor", href: "#", name: "Ece", date: "13 Şub 2026", title: "Gitar gecesi kurtuldu", body: "Müzik moduna aldım, teller cızırtı olmaktan çıktı. Grup ilk kez susup dinledi." }} />
-            </div>
-          </Spec>
-          <Spec etiket="İçerik kartı" deger={"radius 32/44 · bg #0d0d0d\ntag: 14/16 (500) accent\nbaşlık: Display-3\nmadde: check 24px dim +\n14/19.6 secondary"}>
-            <div className="max-w-[560px] rounded-[32px] bg-base p-8 transition-colors duration-[400ms] hover:bg-[rgba(23,23,23,0.72)]">
-              <p className="text-[14px] font-medium leading-[16.8px]" style={{ color: T.accent }}>Sesli odalar</p>
-              <p className={onest.className + " mt-3 text-[28px] font-normal leading-[1.1] text-white"}>Ses bir ayar, ödül değil.</p>
-              <p className="mt-3 text-[16px] leading-6 text-text-dim">Kanal 128 kbps&apos;e kadar açık; kimse bunun için sunucu yükseltmez.</p>
-              <ul className="mt-5 flex flex-col gap-2">
-                {["128 kbps — kanal ayarı", "Müzik modu: 256 kbps stereo"].map((b) => (
-                  <li key={b} className="flex h-6 items-center gap-3">
-                    <MaskIcon name="check-circle" size={24} color="#737373" />
-                    <p className="text-[14px] leading-[19.6px] tracking-[-0.28px] text-text-secondary">{b}</p>
-                  </li>
-                ))}
-              </ul>
+        {/* KARTLAR */}
+        <Bolum id="kart" baslik="06 · Kartlar & paneller" aciklama="Panel: radius 24, bg-base, kenarsız, siyah boşlukla ayrılır. Panel içi kart: radius 16–18, bg-surface. Hover gereken kartlarda zemin yarım ton açılır (200ms).">
+          <Spec etiket="Panel + iç kart" deger={"panel: radius 24 · bg #0d0d0d · p 12–16\niç kart: radius 16/18 · bg #171717\nayraç çizgisi YOK"}>
+            <div className="w-full max-w-[420px] rounded-[24px] bg-base p-4">
+              <p className={onest.className + " px-1 pb-3 text-[20px] font-medium leading-[1.15] text-white"}>Ses ve görüntü</p>
+              <div className="flex flex-col gap-2">
+                <div className="rounded-[16px] bg-surface p-4">
+                  <p className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">Mikrofon</p>
+                  <p className="mt-0.5 text-[13px] leading-[18px] text-text-dim">Varsayılan — Yeti X</p>
+                </div>
+                <div className="rounded-[16px] bg-surface p-4 transition-colors duration-200 hover:bg-surface-2">
+                  <p className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">Hoparlör</p>
+                  <p className="mt-0.5 text-[13px] leading-[18px] text-text-dim">Kulaklık (hover&apos;lı kart)</p>
+                </div>
+              </div>
             </div>
           </Spec>
         </Bolum>
 
-        {/* 07 FORM */}
-        <Bolum id="form" baslik="07 · Form & satırlar" aciklama="Kenarsız, DOLGULU dil: giriş alanı CTA/hap geometrisini kullanır (rounded-18, bg-surface-2, cömert pad) — çizgi/ring YOK. Focus'ta yüzey yarım ton açılır + iç gölge imzası + mercan imleç. Satır hover'ı sade: yalnız yüzey açılır (kayan metin nav/CTA'ya özgüdür, satırlarda kullanılmaz).">
-          <Spec etiket="Composer / giriş alanı" deger={"radius 18 · pad 16×24 (hap gibi)\nrest: bg #262626, placeholder dim\nfocus: bg #303030 + iç gölge imzası\n+ mercan imleç · metin 16/24\nsağda 40px ikon kutusu (radius 12)"}>
+        {/* FORM */}
+        <Bolum id="form" baslik="07 · Form" aciklama="Kenarsız, dolgulu dil: alanlar yüzeyle ayrılır, çizgi/ring yok. Focus'ta yüzey yarım ton açılır (+ composer'da iç gölge imzası ve mercan imleç).">
+          <Spec etiket="Composer" deger={"radius 18 · pad 16×24 · metin 16/24\nrest: #262626 · focus: #303030\n+ iç gölge imzası + mercan imleç\nsağda 40px ikon kutusu"}>
             <div className="flex max-w-[520px] flex-col gap-3">
               <Composer />
               <Composer odak />
             </div>
           </Spec>
-          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 14–15 (500) ls −0.28\nhover: yalnız bg #171717 (400ms)\nseçili: accent-soft + accent-strong\nbölüm etiketi: cümle düzeni, dim 13\n(BÜYÜK HARF etiket ve ikon önek yok)\nsesli kanalda bindirmeli avatar kümesi"}>
+          <Spec etiket="Arama" deger={"radius 12 · pad 10×14 · bg #171717\nfocus: #262626 · ikon dim 15px"}>
+            <div className="max-w-[320px]"><AramaAlani /></div>
+          </Spec>
+          <Spec etiket="Seçim kutusu + menü" deger={"tetik: radius 12 · pad 10×14\nmenü: radius 12 · p-1\nraised(.92)+blur10 · öğe radius 8\naktif: mercan check"}>
+            <SecimKutusu />
+          </Spec>
+          <Spec etiket="Anahtar" deger={"44×24 · tam yuvarlak\naçık: accent · kapalı: #262626\ntop: 18px beyaz, authored spring"}>
+            <div className="flex items-center gap-4 rounded-[16px] bg-base p-4">
+              <Anahtar acikMi={gurultu} degistir={() => setGurultu(!gurultu)} />
+              <span className="text-[14px] font-medium leading-[19.6px] text-text-primary">Gürültü engelleyici</span>
+            </div>
+          </Spec>
+          <Spec etiket="Ses sürgüsü (kişi başı)" deger={"ray 4px tam yuvarlak #262626\ndolu: accent · top 14px beyaz\n+ 2px koyu halka · değer: beyaz\n%12 hap çipi"}>
+            <div className="flex max-w-[420px] flex-col gap-4 rounded-[16px] bg-base p-5">
+              <SesSurgusu ad="Baran" oran={80} />
+              <SesSurgusu ad="Ece" oran={100} />
+            </div>
+          </Spec>
+          <Spec etiket="Ayar satırı" deger={"radius 16 · pad 14×16\nbaşlık 14 (500) + açıklama 13 dim\nhover: bg #171717 (200ms)"}>
+            <div className="max-w-[480px] rounded-[24px] bg-base p-2">
+              <AyarSatiri baslik="Gürültü engelleyici" aciklama="Müzik modunda kendiliğinden kapanır" acikMi={gurultu} degistir={() => setGurultu(!gurultu)} />
+              <AyarSatiri baslik="Kapanışta güncelle" aciklama="Yeni sürüm çıkışta sessizce kurulur" acikMi={bildirimAcik} degistir={() => setBildirimAcik(!bildirimAcik)} />
+            </div>
+          </Spec>
+          <Spec etiket="Metin girişi" deger={"etiket 13 (500) secondary üstte\nalan: radius 12 · pad 10×14 · 14px\nrest #171717 · focus #262626\n+ mercan imleç · yardım 13 dim"}>
+            <div className="grid max-w-[560px] gap-4 tb:grid-cols-2">
+              <MetinGirisi etiket="Görünen ad" mesaj="Masada herkese böyle görünürsün." />
+              <MetinGirisi etiket="Görünen ad" deger="Baran" durum="odak" />
+            </div>
+          </Spec>
+          <Spec etiket="Onay kutusu & radyo" deger={"onay: 18px · radius 6\nişaretli: accent + koyu check\nradyo: 18px daire · seçili satır\naccent-soft zemin + iç nokta"}>
+            <div className="flex max-w-[420px] flex-col gap-4 rounded-[16px] bg-base p-5">
+              <OnayKutusu etiket="Beni davet edilince haberdar et" isaretli={kabul} degistir={() => setKabul(!kabul)} />
+              <div className="flex flex-col gap-1">
+                <Radyo etiket="1080p · 60 kare" aciklama="Önerilen" secili={kalite === "fhd"} sec={() => setKalite("fhd")} />
+                <Radyo etiket="720p · 30 kare" secili={kalite === "hd"} sec={() => setKalite("hd")} />
+              </div>
+            </div>
+          </Spec>
+        </Bolum>
+
+        {/* VALİDASYON */}
+        <Bolum id="validasyon" baslik="08 · Validasyon" aciklama="Kenarsız dilde hata: alanın zemini danger-soft'a döner, altına düz tonlu tek mesaj gelir — çerçeve/ünlem/ikon kalabalığı yok. Sıra copy-voice'tan: ne oldu → ne yapmalısın.">
+          <Spec etiket="Alan hatası" deger={"zemin: danger-soft (%12)\nmesaj: 13px danger, altta\nring/çerçeve YOK\nespri ve ünlem yok"}>
+            <div className="grid max-w-[560px] gap-4 tb:grid-cols-2">
+              <MetinGirisi etiket="Kanal adı" deger="akşam odası 2" durum="hata" mesaj="Bu ad zaten var. Başka bir ad seç." />
+              <MetinGirisi etiket="Davet bağlantısı" deger="getdemli/davet/x" durum="hata" mesaj="Bağlantı süresi dolmuş. Yeni bağlantı iste." />
+            </div>
+          </Spec>
+          <Spec etiket="Form düzeyi hata" deger={"uyarı bandı: radius 12\ndanger-soft zemin + danger metin\nbutonlar değişmez; alan odaklanır"}>
+            <div className="flex max-w-[420px] flex-col gap-3">
+              <UyariBandi />
+              <MetinGirisi etiket="Grup adı" durum="rest" />
+            </div>
+          </Spec>
+        </Bolum>
+
+        {/* SATIRLAR */}
+        <Bolum id="satirlar" baslik="09 · Satırlar & listeler" aciklama="Satır hover'ı sade: yalnız yüzey açılır (200ms). Bölüm etiketleri cümle düzeninde (BÜYÜK HARF ve ikon önek yok). Sesli kanal dolu odayı avatar kümesiyle gösterir.">
+          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 15 (500) ls −0.28\nseçili: accent-soft + accent-strong\nbölüm etiketi: 13 (500) dim"}>
             <div className="flex max-w-[300px] flex-col gap-0.5 rounded-[24px] bg-base p-3">
               <p className="px-3 pb-1.5 pt-1 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Sesli</p>
               <div className="flex cursor-pointer items-center justify-between rounded-[12px] px-3 py-2.5" style={{ background: T.accentSoft }}>
@@ -548,78 +842,113 @@ export default function DesignShowcase() {
               <UrunSatiri etiket="oyun" />
             </div>
           </Spec>
-          <Spec etiket="Üye satırı" deger={"avatar 32px + 2px koyu halka\n(rozet avatarı reçetesi)\nonline nokta: 12px success\nses oranı: beyaz %12 hap çipi"}>
+          <Spec etiket="Üye satırı" deger={"avatar 32 + 2px koyu halka\nonline nokta success\nses oranı: beyaz %12 hap"}>
             <div className="flex max-w-[300px] flex-col gap-1 rounded-[24px] bg-base p-3">
               <UyeSatiri ad="Baran" oran="%80" />
               <UyeSatiri ad="Ece" oran="%100" />
             </div>
           </Spec>
-          <Spec etiket="Açılır menü" deger={"radius 12 · pad 4\nbg rgba(23,23,23,.92)+blur(10)\nöğe: radius 8, pad 8×12\naktif: check accent"}>
-            <div className="w-fit rounded-[12px] bg-[rgba(23,23,23,0.92)] p-1 backdrop-blur-[10px]">
-              <div className="flex w-[150px] items-center justify-between rounded-[8px] px-3 py-2 text-[14px] font-medium text-[#e5e5e5]">
-                Türkçe
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="m3 7.5 2.5 2.5L11 4.5" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </div>
-              <div className="flex w-[150px] items-center rounded-[8px] px-3 py-2 text-[14px] font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-[#e5e5e5]">English</div>
+          <Spec etiket="Mesaj satırı" deger={"BALONCUK YOK — sakin satır\nradius 16 · pad 10×12\nisim 14 (500) + saat 12 faint\nmetin 15/22 · hover #141414"}>
+            <div className="max-w-[480px] rounded-[24px] bg-base p-2">
+              <MesajSatiri ad="Ece" saat="21:04" metin="Çay hazır, oda açık." />
+              <MesajSatiri ad="Baran" saat="21:05" metin="Geliyorum, iki dakika." />
             </div>
+          </Spec>
+          <Spec etiket="Bağlam menüsü" deger={"radius 12 · p-1 · raised+blur\nöğe: radius 8 · pad 8×12\ntehlike öğesi: danger + soft hover\nayraç: beyaz %6 (tek istisna)"}>
+            <BaglamMenusu />
           </Spec>
         </Bolum>
 
-        {/* 08 DURUMLAR */}
-        <Bolum id="durum" baslik="08 · Durumlar" aciklama="Yeşil yalnız çevrimiçi/başarı. Hata pembe (#ff6fb5) — mercandan ≥30° hue ayrımı zorunlu; hata durumunda espri ve ünlem yok (copy-voice).">
-          <Spec etiket="Durum örnekleri" deger={"online nokta: 12px + 2px kenar\nhata metni: danger, düz ton\nuyarı: gold\nbaşarı: success"}>
+        {/* KİPLİKLER */}
+        <Bolum id="kiplikler" baslik="10 · Kiplikler" aciklama="Örtü: veil + blur(4). Kart: radius 24, bg-base, pad 24, başlık display 20 (500). Butonlar sağ altta: hayalet + eylem. Yıkıcı eylem tehlike butonuyla; form kiplikleri validasyon reçetesini taşır.">
+          <Spec etiket="Onay kipliği (yıkıcı)" deger={"başlık + tek paragraf açıklama\neylem: tehlike butonu\nvazgeç: hayalet"}>
+            <Kiplik />
+          </Spec>
+          <Spec etiket="Form kipliği" deger={"alanlar form reçetesinden\nhata: alan zemini danger-soft +\naltta düz mesaj\nradyo: seçili accent-soft satır"}>
+            <FormKipligi />
+          </Spec>
+          <Spec etiket="Davet kipliği" deger={"bağlantı: mono 13, surface alanda\nkopyala: mercan buton\nüye özeti: avatar kümesi"}>
+            <DavetKipligi />
+          </Spec>
+        </Bolum>
+
+        {/* KAPLAMALAR */}
+        <Bolum id="kaplamalar" baslik="11 · Kaplamalar" aciklama="İpucu, bildirim, uyarı bandı. Hepsi kenarsız; yüzen olanlar raised+blur, kritik olanlar durum renginin soft zemininde.">
+          <Spec etiket="İpucu" deger={"radius 8 · pad 6×10\nraised(.92)+blur · 12px (500)"}>
+            <Ipucu />
+          </Spec>
+          <Spec etiket="Bildirim (toast)" deger={"radius 16 · raised(.92)+blur\niç gölge imzası · avatar 28\neylem: mercan sm buton"}>
+            <Bildirim />
+          </Spec>
+          <Spec etiket="Uyarı bandı" deger={"radius 12 · danger-soft zemin\nmetin danger · nokta 8px\nespri/ünlem yok (copy-voice)"}>
+            <div className="max-w-[560px]"><UyariBandi /></div>
+          </Spec>
+        </Bolum>
+
+        {/* AYARLAR */}
+        <Bolum id="ayarlar" baslik="12 · Ayarlar" aciklama="Ayarlar da ada dilinde: sol bölüm listesi (kanal listesi reçetesi) + içerik paneli. Cihaz seçimleri seçim kutusuyla, anahtarlar ayar satırında, yıkıcı işlemler tehlike alanında toplanır.">
+          <Spec etiket="Ayarlar kabuğu" deger={"sol: radius 24 panel, satırlar\nkanal listesi reçetesi\niçerik: radius 24 panel, başlık\ndisplay 20 · gruplar surface kartı\ntehlike alanı: danger-soft kart\n+ tehlike sm buton"}>
+            <AyarlarKabugu gurultu={gurultu} setGurultu={setGurultu} />
+          </Spec>
+        </Bolum>
+
+        {/* PROFİL */}
+        <Bolum id="profil" baslik="13 · Profil & kimlik" aciklama="Avatarlar her boyda 2px koyu halka taşır (rozet reçetesi); konuşan +2px mercan halka. Profil kartında landing'in parıltısı kimlik bandı olur.">
+          <Spec etiket="Avatar boyları" deger={"20 (küme) · 24 · 28 (toast)\n32 (satır) · 56 (tile) · 64 (profil)\nhalka: 2px #0d0d0d\nkonusan: +2px accent\nonline nokta: %30 boy, success"}>
+            <div className="flex items-end gap-4 rounded-[16px] bg-base p-5">
+              <Avatar ad="A" boyut={20} />
+              <Avatar ad="B" boyut={24} />
+              <Avatar ad="C" boyut={28} cevrimici />
+              <Avatar ad="D" boyut={32} cevrimici />
+              <Avatar ad="E" boyut={56} konusuyor />
+              <Avatar ad="F" boyut={64} cevrimici />
+              <AvatarKume adlar={["Baran", "Ece", "Kaan"]} />
+            </div>
+          </Spec>
+          <Spec etiket="Profil kartı" deger={"radius 24 · bg-base · kenarsız\nüst: mercan parıltı bandı (glow)\navatar 64 · ad display 20 (500)\n@kullanıcı 13 dim · durum: surface\nkutusu · roller: beyaz %12 hap\neylem: mercan md + ikon butonu"}>
+            <ProfilKarti />
+          </Spec>
+          <Spec etiket="Kullanıcı çubuğu" deger={"radius 16 · bg-surface · p 8\navatar 32 + ad 13 (500)\nbağlı oda: 11 accent-strong\nkontroller: 32px ikon kutuları"}>
+            <KullaniciCubugu />
+          </Spec>
+        </Bolum>
+
+        {/* DURUMLAR */}
+        <Bolum id="durum" baslik="14 · Durumlar" aciklama="Yeşil yalnız çevrimiçi/başarı. Hata pembe, düz tonda; ne oldu → ne yapılıyor → ne yapabilirsin sırasıyla (copy-voice).">
+          <Spec etiket="Durum örnekleri" deger={"online: nokta + success\nhata: danger, şakasız\nuyarı: gold · başarı: success"}>
             <div className="flex max-w-[560px] flex-col gap-3 rounded-[16px] bg-base p-6">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-[12px] text-text-primary">B<span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-base" style={{ background: T.success }} /></span>
+              <div className="flex items-center gap-2.5">
+                <Avatar ad="Baran" cevrimici />
                 <span className="text-[14px] leading-[19.6px] text-text-primary">Baran çevrimiçi</span>
               </div>
-              <p className="text-[14px] leading-[19.6px]" style={{ color: T.danger }}>Bağlantı koptu. Oda yeniden bağlanıyor; bağlanamazsa mikrofonun kapalı kalır.</p>
               <p className="text-[14px] leading-[19.6px]" style={{ color: T.gold }}>Mikrofon izni bekleniyor.</p>
               <p className="text-[14px] leading-[19.6px]" style={{ color: T.success }}>Ekran paylaşımı başladı.</p>
+              <UyariBandi />
             </div>
           </Spec>
         </Bolum>
 
-        {/* 09 HAREKET */}
-        <Bolum id="hareket" baslik="09 · Hareket" aciklama="Her şey spring, hiçbir şey lineer kaymaz. Pazarlama reveal'leri ürüne taşınmaz; üründe mikro hareket (hover kayması, panel geçişi 150–250ms). Landing'de reveal'ler çift yönlü (founder kararı).">
-          <HareketSatiri ad="Kart reveal" deger={"y64→0 + opacity\nspring damping 60, stiffness 500\nkademe ~120ms"}>
+        {/* HAREKET */}
+        <Bolum id="hareket" baslik="15 · Hareket" aciklama="Üründe mikro hareket: ton geçişleri 200ms; panel/anahtar gibi konum değiştirenler authored spring (damping 60, stiffness 500). Kayan metin hover'ı ve pazarlama reveal'leri ÜRÜNE GİRMEZ — landing'e özgüdür.">
+          <HareketSatiri ad="Panel girişi" deger={"y 24→0 + opacity\nspring damping 60, stiffness 500"}>
             {(tur) => (
-              <div className="flex gap-3">
-                {[0, 1, 2].map((i) => (
-                  <motion.div key={tur + "-" + i} initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1, delay: 0.1 + i * 0.12 }} className="h-12 w-20 rounded-[12px] bg-surface-2" />
-                ))}
-              </div>
+              <motion.div key={tur} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }} className="h-12 w-40 rounded-[16px] bg-surface-2" />
             )}
           </HareketSatiri>
-          <HareketSatiri ad="Kelime blur kademesi" deger={"blur(10px)+y10 → 0\n0.5s · ~70ms/adım · power2.out"}>
-            {(tur) => (
-              <div className="flex gap-[6px]">
-                {["Çayını", "al,", "gel."].map((k, i) => (
-                  <motion.span key={tur + "-" + i} initial={{ opacity: 0, y: 10, filter: "blur(10px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 + i * 0.07 }} className={onest.className + " text-[28px] font-medium text-white"}>{k}</motion.span>
-                ))}
-              </div>
-            )}
+          <HareketSatiri ad="Ton geçişi" deger={"background 200ms ease\n(satır, buton, kart hover'ı)"}>
+            {() => <UrunButonu etiket="Üstüme gel" tur="ikincil" />}
           </HareketSatiri>
-          <HareketSatiri ad="Hover kayan metin" deger={"kopya 23/29px altta\nspring bounce .2 · 0.4s\n(butonlar bölümünde canlı)"}>
-            {() => (
-              <motion.span initial="rest" animate="rest" whileHover="hover" className="cursor-pointer rounded-[12px] bg-surface-2 px-4 py-2">
-                <span className="relative flex h-6 flex-col items-start overflow-hidden">
-                  <motion.span variants={{ rest: { y: 0 }, hover: { y: -29 } }} transition={SPRING_HOVER} className="text-[16px] font-medium leading-6 text-text-primary">Üstüme gel</motion.span>
-                  <motion.span aria-hidden variants={{ rest: { y: 0 }, hover: { y: -29 } }} transition={SPRING_HOVER} className="absolute top-[29px] text-[16px] font-medium leading-6 text-text-primary">Üstüme gel</motion.span>
-                </span>
-              </motion.span>
-            )}
+          <HareketSatiri ad="Anahtar" deger={"top hareketi authored spring\n(damping 60, stiffness 500)"}>
+            {() => <Anahtar acikMi={gurultu} degistir={() => setGurultu(!gurultu)} />}
           </HareketSatiri>
-          <div className="rounded-[12px] bg-base p-4">
-            <p className="font-mono text-[12px] leading-[18px] text-text-dim">
-              Diğer ölçülü değerler: başlık blok reveal spring bounce .3 / 3s (threshold .5) · yüzen CTA y120↔0 bounce .2 / 2s · parıltı salınımı 0→380→0 (7017ms hero, 4017ms footer, ease [.44,0,.56,1]) · telefon parallax scroll-bağlı çift yönlü — bunlar LANDING&apos;e özgüdür, ürüne taşınmaz.
-            </p>
-          </div>
         </Bolum>
 
-        {/* 10 ÜRÜN EŞLEMESİ */}
-        <Bolum id="esleme" baslik="10 · Ürün eşlemesi" aciklama="Entegrasyonda --tc-* adları korunur, değerler bu sisteme çekilir — web (Tailwind v3) + desktop (v4) aynı dosyadan beslenmeye devam eder. Sıcak 'Demli Voice v2' rampası emekli olur.">
-          <Spec etiket="Token eşleme tablosu" deger={"tek kaynak:\npackages/app-ui/tokens.css"}>
+        {/* UYGULAMA */}
+        <Bolum id="esleme" baslik="16 · Uygulama önizlemesi & eşleme" aciklama="Yapı mevcut üründen (gruplar, kanallar, sesli oda, sohbet); stil bu sistemin reçeteleri. Entegrasyonda --tc-* adları korunur, değerler bu sisteme çekilir.">
+          <Spec etiket="Uygulama dili" deger={"üst çubuk: raised+blur hap,\ngrup adı display font, avatar kümesi\nadalar: radius 24, 8px siyah boşluk\nkonuşan: mercan parıltı + halka\nmesaj: baloncuksuz satır\ncomposer: 18'lik hap\nkullanıcı çubuğu panel altında"}>
+            <UygulamaOnizleme />
+          </Spec>
+          <Spec etiket="Token eşleme" deger={"tek kaynak:\npackages/app-ui/tokens.css"}>
             <div className="overflow-x-auto rounded-[16px] bg-base p-6">
               <table className="w-full text-left text-[13px] leading-[18px]">
                 <thead>
@@ -647,9 +976,6 @@ export default function DesignShowcase() {
                 </tbody>
               </table>
             </div>
-          </Spec>
-          <Spec etiket="Uygulama dili — özgün, landing'den doğma" deger={"YAPI mevcut üründen; STİL sıfırdan:\nüst çubuk: nav hapı (raised+blur,\n  radius 16) — grup adı display font\n  + bindirmeli avatar kümesi\nadalar: radius 24, siyah boşluk 8px\nkanal satırı: sesli kanalda avatar\n  kümesi; başlıklar cümle düzeni\n  (BÜYÜK HARF etiket yok)\nkonuşan: mercan parıltı + 2px halka\nkatılımcı adı: veil hapı (iç gölge)\nmesajlar: BALONCUK YOK — sakin\n  satır, hover'da yüzey (400ms)\naktif oda kartı: radius 18 +\n  kontrol kutuları (16/p-1, 12'lik)"}>
-            <UygulamaOnizleme />
           </Spec>
         </Bolum>
 

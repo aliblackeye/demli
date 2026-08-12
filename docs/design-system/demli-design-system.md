@@ -135,8 +135,32 @@ hareketler kullanılır. §27 performans kuralları bağlayıcı.
 - **Giriş alanı (ürün):** `bg-surface`, radius 12, focus'ta `accent-soft`
   zemin + `accent` çizgi izi (kenarsız dil korunur).
 - **Seçili satır (ürün):** `accent-soft` zemin, `accent` metin/ikon.
-  Satır hover'ı sade: yalnız yüzey açılır (#171717, 400ms) — kayan metin
-  hover'ı nav/CTA'ya özgüdür, liste satırlarında KULLANILMAZ (founder kararı).
+  Satır hover'ı sade: yalnız yüzey açılır (#171717, 200ms) — kayan metin
+  hover'ı YALNIZ landing'e özgüdür, ÜRÜN BİLEŞENLERİNDE KULLANILMAZ
+  (founder kararı; buton hover'ı da ton geçişidir).
+- **Ürün butonları:** 5 varyant (birincil beyaz · ikincil surface-2 ·
+  mercan · tehlike danger-soft · hayalet), 3 boy (lg 14/12×20/15 ·
+  md 12/10×16/14 · sm 10/6×12/13); devre dışı %40.
+- **Metin girişi:** etiket 13 üstte; alan radius 12, pad 10×14, rest
+  #171717 → focus #262626 + mercan imleç; yardım metni 13 dim.
+- **Validasyon:** hata = alanın zemini `danger-soft` + altta 13px danger
+  düz mesaj (çerçeve/ring/ikon YOK); form düzeyi = uyarı bandı.
+- **Kiplikler:** örtü veil+blur(4); kart radius 24 bg-base pad 24, başlık
+  display 20; butonlar sağ altta (hayalet + eylem); yıkıcı eylem tehlike
+  butonu; form kiplikleri form+validasyon reçetesini taşır.
+- **Ayarlar:** ada dilinde — sol bölüm listesi (kanal listesi reçetesi) +
+  içerik paneli; gruplar surface kartında, anahtarlar ayar satırında,
+  yıkıcı işlemler danger-soft "tehlike alanı" kartında.
+- **Anahtar/radyo/onay kutusu:** anahtar 44×24 (top authored spring);
+  radyo seçili satırı accent-soft; onay kutusu 18px radius 6, işaretli
+  accent + koyu check.
+- **Ses sürgüsü:** ray 4px surface-2, dolu accent, top 14px beyaz +
+  2px koyu halka, değer beyaz-%12 hap çipinde.
+- **Profil kartı:** radius 24 bg-base kenarsız; üstte mercan parıltı
+  bandı; avatar 64 (2px halka + online nokta); roller beyaz-%12 hap;
+  eylemler mercan md + ikon butonu.
+- **Avatarlar:** her boyda 2px #0d0d0d halka; konuşan +2px accent halka;
+  online nokta boyun %30'u, success; küme bindirmesi −%30.
 - **Parıltılar:** radyal `accent-glow` (yeşilin yerine), blur(8) yalnız
   şerit parıltısında.
 
