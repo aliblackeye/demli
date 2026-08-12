@@ -7,6 +7,7 @@ import { CtaButton } from "../atoms/CtaButton";
 import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
+import { SLIDE_SPRING, slideVariants } from "../atoms/SlideHoverText";
 import { TrustBadge } from "../molecules/TrustBadge";
 
 /**
