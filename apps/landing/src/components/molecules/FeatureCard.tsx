@@ -24,7 +24,7 @@ export type FeatureCardData = {
 };
 
 /**
- * Features kartı — authored CSS (audit2 + framer-IV7QC kuralları):
+ * Features kartı — authored CSS (referans ölçümleri):
  * dt (≥1440): 1120px YATAY düzen; içerik pad 72 0 72 64 (featured aynalı:
  *   72 64 72 0, içerik sağda), başlık/açıklama 528px, telefon flex-1.
  * tb (810–1439): 730px dikey; içerik pad 64 64 0; telefon 450px'te 730×712.

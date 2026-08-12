@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 /**
- * authored scroll-transform (sayfa modülü __framer__styleTransformEffect):
+ * authored scroll-transform (referans sayfa modülünden ölçüldü):
  * spring { damping:60, stiffness:500, mass:1 }, trigger onInView (bir kez),
  * hedefler örn. y250→0 (reviews grid), y200/y400 (pricing), y64 (features).
  */

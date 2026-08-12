@@ -4,7 +4,7 @@ import { motion, type Transition } from "framer-motion";
 import type { ReactNode } from "react";
 
 /**
- * Görünürken bir kez oynayan giriş (authored __framer__enter/animate).
+ * Görünürken bir kez oynayan giriş (referans giriş animasyonundan ölçüldü).
  * Varsayılan: y20 + spring {bounce .2, delay .4, duration .7} — bölüm
  * tagline'larının authored konfigürasyonu (threshold .5).
  */

@@ -9,7 +9,7 @@ export type AppearSpec = {
 };
 
 /**
- * Referansın appear kayıt defterinden (__framer__appearAnimationsContent)
+ * Referansın appear kayıt defterinden (referans appear kayıt defteri)
  * çıkarılan değerlerle bire bir sayfa-yüklenince animasyonu.
  * Spring'ler {type:'spring', bounce, duration}, tween'ler {ease:[...]}.
  */
@@ -37,7 +37,7 @@ export function Appear({
   );
 }
 
-/** Appear kayıt defteri — id'ler referanstaki data-framer-appear-id ile aynı. */
+/** Appear kayıt defteri — id'ler referans kayıt defteriyle aynı. */
 export const APPEAR: Record<string, AppearSpec> = {
   // Hero
   heroLightRays: { from: { opacity: 0.001 }, transition: { type: "tween", duration: 2.5, delay: 1, ease: [0.12, 0.23, 0.5, 1] } }, // 1j3h5kb

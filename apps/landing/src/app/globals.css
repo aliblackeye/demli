@@ -86,7 +86,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* authored: başlık preset'lerinde --framer-font-open-type-features: normal —
+/* authored: başlık preset'lerinde referans başlık preset'lerinde OpenType özellikleri: normal —
    Stack Sans Headline cv setlerinden etkilenmemeli. */
 h1,
 h2,
