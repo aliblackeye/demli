@@ -142,7 +142,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           alt={data.title}
           width={730}
           height={712}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover object-top"
         />
       </div>
     </div>
