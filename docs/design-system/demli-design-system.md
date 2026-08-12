@@ -135,6 +135,8 @@ hareketler kullanılır. §27 performans kuralları bağlayıcı.
 - **Giriş alanı (ürün):** `bg-surface`, radius 12, focus'ta `accent-soft`
   zemin + `accent` çizgi izi (kenarsız dil korunur).
 - **Seçili satır (ürün):** `accent-soft` zemin, `accent` metin/ikon.
+  Satır hover'ı sade: yalnız yüzey açılır (#171717, 400ms) — kayan metin
+  hover'ı nav/CTA'ya özgüdür, liste satırlarında KULLANILMAZ (founder kararı).
 - **Parıltılar:** radyal `accent-glow` (yeşilin yerine), blur(8) yalnız
   şerit parıltısında.
 

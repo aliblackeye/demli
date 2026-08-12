@@ -112,26 +112,20 @@ function NavSekme({ etiket }: { etiket: string }) {
   );
 }
 
-/* Ürün satırı — landing dili: kayan metin, cömert pad, hover'da yüzey açılır */
+/* Ürün satırı — cömert pad, hover'da yalnız yüzey açılır (founder: satırda
+   kayan metin YOK — o imza nav/CTA'ya özgü kalır) */
 function UrunSatiri({ etiket, secili, ikon }: { etiket: string; secili?: boolean; ikon?: string }) {
   const renk = secili ? T.accentStrong : "#a3a3a3";
-  const cls = "whitespace-pre text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] tb:text-[15px]";
   return (
-    <motion.div
-      initial="rest"
-      animate="rest"
-      whileHover="hover"
+    <div
       className="flex cursor-pointer items-center gap-2.5 rounded-[12px] px-3 py-2.5 transition-colors duration-[400ms]"
       style={{ background: secili ? T.accentSoft : "transparent" }}
       onMouseEnter={(e) => { if (!secili) e.currentTarget.style.background = "#171717"; }}
       onMouseLeave={(e) => { if (!secili) e.currentTarget.style.background = "transparent"; }}
     >
       {ikon ? <span className="text-[14px]" style={{ color: renk }}>{ikon}</span> : null}
-      <span className="relative flex h-[19px] flex-col items-start overflow-hidden">
-        <motion.span variants={{ rest: { y: 0 }, hover: { y: -23 } }} transition={SPRING_HOVER} className={cls} style={{ color: renk }}>{etiket}</motion.span>
-        <motion.span aria-hidden variants={{ rest: { y: 0 }, hover: { y: -23 } }} transition={SPRING_HOVER} className={cls + " absolute top-[23px]"} style={{ color: renk }}>{etiket}</motion.span>
-      </span>
-    </motion.div>
+      <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] tb:text-[15px]" style={{ color: renk }}>{etiket}</span>
+    </div>
   );
 }
 
@@ -447,14 +441,14 @@ export default function DesignShowcase() {
         </Bolum>
 
         {/* 07 FORM */}
-        <Bolum id="form" baslik="07 · Form & satırlar" aciklama="Kenarsız, DOLGULU dil: giriş alanı CTA/hap geometrisini kullanır (rounded-18, bg-surface-2, cömert pad) — çizgi/ring YOK. Focus'ta yüzey yarım ton açılır + iç gölge imzası + mercan imleç. Satır metinleri landing'in kayan hover'ını taşır.">
+        <Bolum id="form" baslik="07 · Form & satırlar" aciklama="Kenarsız, DOLGULU dil: giriş alanı CTA/hap geometrisini kullanır (rounded-18, bg-surface-2, cömert pad) — çizgi/ring YOK. Focus'ta yüzey yarım ton açılır + iç gölge imzası + mercan imleç. Satır hover'ı sade: yalnız yüzey açılır (kayan metin nav/CTA'ya özgüdür, satırlarda kullanılmaz).">
           <Spec etiket="Composer / giriş alanı" deger={"radius 18 · pad 16×24 (hap gibi)\nrest: bg #262626, placeholder dim\nfocus: bg #303030 + iç gölge imzası\n+ mercan imleç · metin 16/24\nsağda 40px ikon kutusu (radius 12)"}>
             <div className="flex max-w-[520px] flex-col gap-3">
               <Composer />
               <Composer odak />
             </div>
           </Spec>
-          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 14–15 (500) ls −0.28\nKAYAN HOVER (kopya 23px altta)\nseçili: accent-soft + accent-strong\nhover: bg #171717 (400ms)"}>
+          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 14–15 (500) ls −0.28\nhover: yalnız bg #171717 (400ms)\nseçili: accent-soft + accent-strong\n(kayan metin satırlarda YOK)"}>
             <div className="flex max-w-[300px] flex-col gap-0.5 rounded-[24px] bg-base p-3">
               <p className="px-3 pb-2 pt-1 text-[12px] font-medium leading-[14.4px] tracking-[0.08em] text-text-dim">SES KANALLARI</p>
               <UrunSatiri etiket="akşam odası" ikon="🔊" secili />
