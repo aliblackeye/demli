@@ -37,6 +37,8 @@ export function RevealText({ text, mode, className = "", as = "span", stagger, b
     const el = ref.current;
     if (!el) return;
     const parts = el.querySelectorAll<HTMLElement>("[data-reveal-part]");
+    // Founder kararı: metin reveal'leri ÇİFT YÖNLÜ — yukarı çıkınca
+    // geri sarar (blur/typewriter tersine oynar), tekrar girince yeniden
     if (blurlu) {
       // Ölçülen (kart başlığı): kelime başına blur(10px)+y10+opacity,
       // süre ~0.5, kademe ~70ms, başlangıç ~150ms
@@ -49,7 +51,7 @@ export function RevealText({ text, mode, className = "", as = "span", stagger, b
         ease: "power2.out",
         delay: delay ?? 0.15,
         stagger: stagger ?? 0.07,
-        scrollTrigger: { trigger: el, start: "top 90%", once: true },
+        scrollTrigger: { trigger: el, start: "top 90%", toggleActions: "play none none reverse" },
       });
       return () => {
         tween.scrollTrigger?.kill();
@@ -66,7 +68,7 @@ export function RevealText({ text, mode, className = "", as = "span", stagger, b
       scrollTrigger: {
         trigger: el,
         start: "top 90%",
-        once: true,
+        toggleActions: "play none none reverse",
       },
     });
     return () => {

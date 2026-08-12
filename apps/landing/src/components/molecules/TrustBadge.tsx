@@ -38,7 +38,7 @@ export function TrustBadge() {
               <motion.div
                 initial={{ y: -16 }}
                 whileInView={{ y: 0 }}
-                viewport={{ once: true, amount: 0.5 }}
+                viewport={{ amount: 0.5 }}
                 transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }}
               >
                 <Image src={src} alt="" width={32} height={32} className="h-8 w-8 rounded-[1000px] object-cover" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }} />

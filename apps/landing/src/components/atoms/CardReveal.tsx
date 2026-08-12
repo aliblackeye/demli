@@ -44,13 +44,19 @@ export function CardReveal({
   // Ölçülen (390, scroll-0): ref MOBİLDE DE kart transformlarını çalıştırıyor
   // (kartlar ty:64, reviews grid ty:250 ön-durumda) — mobil kapatma YOK.
   // Mobilde kapalı olan yalnız METİN reveal'leri (RevealText düz basar).
+  // Founder kararı: ÇİFT YÖNLÜ (ref'ten bilinçli sapma) — çıkınca
+  // gecikmesiz geri kayar, tekrar girince yeniden oynar.
+  const gecis = { ...(transition ?? AUTHORED_SPRING), delay };
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.05 }}
-      transition={{ ...(transition ?? AUTHORED_SPRING), delay }}
+      initial="gizli"
+      whileInView="acik"
+      variants={{
+        gizli: { opacity: 0, y, transition: { ...gecis, delay: 0 } },
+        acik: { opacity: 1, y: 0, transition: gecis },
+      }}
+      viewport={{ amount: 0.05 }}
     >
       {children}
     </motion.div>

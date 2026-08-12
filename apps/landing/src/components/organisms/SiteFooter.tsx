@@ -118,7 +118,7 @@ export function SiteFooter() {
       <motion.div
         initial="gizli"
         whileInView="acik"
-        viewport={{ once: true, amount: 0.05 }}
+        viewport={{ amount: 0.05 }}
         className="relative flex h-[120px] w-[240px] flex-col items-center tb:h-[190px] tb:w-[380px] dt:h-[210px] dt:w-[420px]"
       >
         <motion.div
@@ -147,18 +147,28 @@ export function SiteFooter() {
       {/* Footer Card — authored: wrapper pad 0 40 40 (mobil 0 24 24) */}
       <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
-          {/* Ölçülen (tam mount, kart görünürken): kartta footer-bg.webm +
-              "Light Rays Wrapper" 1440×600 (180° dönük, üst radyal maskla)
-              BİRLİKTE var. footer-bg her kırılımda görünür, sabit 720×300
-              (mobil, +54 dikey ortalı) / 1440×600 (tb+), ortalanmış. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[300px] overflow-hidden tb:h-[600px]" style={{ WebkitMaskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)" }}>
-            <div className="absolute left-1/2 top-[54px] h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:top-0 tb:h-[600px] tb:w-[1440px]">
-              <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
+          {/* Ölçülen (tam mount, katman söküm): kart BG'si KOMPLE 180° dönük;
+              içinde (1) Video Wrapper > 0.64 opacity'li footer-bg (dönük BG
+              yüzünden ters görünür — ref böyle), (2) kendi içinde tekrar 180°
+              dönen Light Rays Wrapper (net dik ışık süzmesi), (3) z-1 screen
+              noise. 0.08'lik radyal mask dönük BG'nin üstünde. Mobilde BG
+              +54'te 300px, tb+ 0'da 600px. */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-[54px] z-0 h-[300px] rotate-180 tb:top-0 tb:h-[600px]"
+            style={{
+              WebkitMaskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)",
+              maskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)",
+            }}
+          >
+            <div className="absolute inset-0">
+              <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 opacity-[0.64] tb:h-[600px] tb:w-[1440px]">
+                <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
+              </div>
             </div>
-            <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:h-[600px] tb:w-[1440px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-              <VideoBg src="/videos/light-rays.webm" className="h-full w-full rotate-180 object-cover" />
+            <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 rotate-180 tb:h-[600px] tb:w-[1440px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+              <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover" />
             </div>
-            <div className="absolute inset-0 mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
+            <div className="absolute inset-0 z-[1] mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}
