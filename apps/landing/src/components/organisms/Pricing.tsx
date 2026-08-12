@@ -59,7 +59,7 @@ export function Pricing() {
           }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px]" />
+          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px]" />
         </div>
         <div
           aria-hidden

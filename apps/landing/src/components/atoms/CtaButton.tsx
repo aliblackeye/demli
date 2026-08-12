@@ -20,17 +20,17 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
     <a
       href={href}
       className={
-        "group flex items-center justify-center gap-2 rounded-[18px] py-4 " +
+        "group flex w-full items-center justify-center gap-2 rounded-[18px] py-4 tb:w-auto " +
         (icon ? "pl-6 pr-8 " : "px-8 ") +
         (variant === "primary" ? "bg-white" : "bg-surface-2")
       }
     >
       {icon}
-      <div className="relative flex h-[22px] flex-col items-start overflow-hidden tb:h-[25px]">
+      <div className="relative flex h-[25px] flex-col items-start overflow-hidden">
         <div className="flex flex-col transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
           <strong
             className={
-              "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " +
+              "whitespace-nowrap text-[18px] font-medium leading-[1.4] " +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >
@@ -43,7 +43,7 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
         >
           <strong
             className={
-              "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " +
+              "whitespace-nowrap text-[18px] font-medium leading-[1.4] " +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >

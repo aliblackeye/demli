@@ -94,6 +94,7 @@ const MOBILE_ITEMS: ReviewCardData[] = [
   "Layla Morrison",
   "Kevin Patterson",
   "Marcus Thompson",
+  "Tyler Brooks",
 ].map(byName);
 
 /* Geniş ekran (ölçüldü): üç kolon */
@@ -128,7 +129,7 @@ export function Reviews() {
           }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px]" />
+          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px]" />
         </div>
         <div
           aria-hidden
@@ -182,7 +183,7 @@ export function Reviews() {
               [Emily,Layla,Tyler | Olivia,Kevin,Aisha | Jessica,Marcus,Daniel].
               CSS columns dengelemesi deterministik değil — açık kolonlar. */}
           {/* Mobil: tek kolon, 6 kart, 1728 kırpma */}
-          <div className="mx-auto flex h-[1728px] w-full max-w-[327px] flex-col gap-3 overflow-hidden tb:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
+          <div className="mx-auto flex h-[1728px] w-full max-w-[342px] flex-col gap-3 overflow-hidden tb:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
             {MOBILE_ITEMS.map((c) => (
               <ReviewCard key={c.name} data={c} />
             ))}
