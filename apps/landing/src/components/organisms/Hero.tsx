@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { Appear, APPEAR } from "../atoms/Appear";
 import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
@@ -17,6 +17,10 @@ import { ShimmerText } from "../atoms/ShimmerText";
  * Bottom Wrapper: telefon görseli (564×965, 736 görünür) + CTA içeriği.
  */
 export function Hero() {
+  // Ölçülen: ref Mockup Wrapper'ı 0.28×scrollY parallax taşır (doğrusal,
+  // klampsız, spring'siz — anlık bağ; 3000→840 doğrulandı)
+  const { scrollY } = useScroll();
+  const mockupParallax = useTransform(scrollY, (v) => v * 0.28);
   return (
     <header
       id="hero"
@@ -129,23 +133,25 @@ export function Hero() {
               animate={{ y: [0, 380, 0] }}
               transition={{ duration: 7.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
             />
-            <Appear
-              spec={APPEAR.mockup}
-              className="w-full"
-              style={{
-                WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
-                maskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
-              }}
-            >
-              <Image
-                src="/images/hero-phone.webp"
-                alt="Appzen app"
-                width={644}
-                height={1102}
-                priority
-                className="h-auto w-full object-contain"
-              />
-            </Appear>
+            <motion.div className="w-full" style={{ y: mockupParallax }}>
+              <Appear
+                spec={APPEAR.mockup}
+                className="w-full"
+                style={{
+                  WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
+                  maskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
+                }}
+              >
+                <Image
+                  src="/images/hero-phone.webp"
+                  alt="Appzen app"
+                  width={644}
+                  height={1102}
+                  priority
+                  className="h-auto w-full object-contain"
+                />
+              </Appear>
+            </motion.div>
           </div>
 
           {/* CTA içeriği */}
