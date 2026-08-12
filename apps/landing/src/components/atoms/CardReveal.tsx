@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, type Transition } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -41,14 +42,29 @@ export function CardReveal({
   transition?: Transition;
 }) {
   const mobil = useIsMobile();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [acik, setAcik] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || mobil) return;
+    const io = new IntersectionObserver((es) => {
+      for (const e of es) {
+        if (e.isIntersecting) setAcik(true);
+        // authored davranış: yalnız öğe viewport'un ALTINDAYSA resetle
+        else if (e.boundingClientRect.top > window.innerHeight) setAcik(false);
+      }
+    }, { threshold: 0.05 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [mobil]);
   // authored: mobil varyantta styleTransformEffect kapalı
   if (mobil) return <div className={className}>{children}</div>;
   return (
     <motion.div
+      ref={ref}
       className={className}
       initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, amount: 0.05 }}
+      animate={acik ? { opacity: 1, y: 0 } : { opacity: 0, y }}
       transition={{ ...(transition ?? AUTHORED_SPRING), delay }}
     >
       {children}

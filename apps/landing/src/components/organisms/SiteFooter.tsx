@@ -63,7 +63,7 @@ export function SiteFooter() {
         </FadeIn>
         <p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
           <RevealText text="Designed to heal, understand everything " mode="char" />
-          <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
+          <br /><RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
         <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
           <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">
