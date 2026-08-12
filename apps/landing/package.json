@@ -11,17 +11,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@demli/i18n": "workspace:*",
     "framer-motion": "^11.11.9",
     "gsap": "^3.12.5",
     "lenis": "^1.1.14",
     "next": "^15.1.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",

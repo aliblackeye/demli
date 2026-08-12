@@ -1,50 +1,11 @@
 "use client";
 
 import { VideoBg } from "../atoms/VideoBg";
+import { useTranslation } from "@demli/i18n";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { FeatureCard, type FeatureCardData } from "../molecules/FeatureCard";
 import { SectionTagline } from "../molecules/SectionTagline";
-
-const CARDS: FeatureCardData[] = [
-  {
-    tag: "Personalized Onboarding",
-    // Ölçülen: başlık kırılımları ref RichText'inde yazarın koyduğu \n'ler
-    title: "Built Around You,\nFrom Day One",
-    description:
-      "Set your health preferences, body metrics, lifestyle habits, and medical background, so every recommendation feels made specifically for you.",
-    bullets: [
-      "Tailored health profile setup",
-      "Tracks body & lifestyle metrics",
-      "Gets smarter every session",
-    ],
-    phoneImage: "/images/feature-phone-1.png",
-  },
-  {
-    tag: "AI Chat",
-    title: "Ask Anything. Get\nAnswers Fast.",
-    description:
-      "Chat with your 24/7 AI health assistant for symptom guidance, medication advice, and instant answers, no waiting rooms, no appointments needed.",
-    bullets: [
-      "24/7 AI availability",
-      "Symptom & medication guidance",
-      "Instant personalized responses",
-    ],
-    phoneImage: "/images/feature-phone-2.png",
-  },
-  {
-    tag: "Doctor Booking",
-    title: "Stop Searching.\nStart Healing.",
-    description:
-      "Browse verified doctors by specialty and location, compare real patient ratings, pick a slot, and confirm your appointment in minutes.",
-    bullets: [
-      "Instant booking confirmation",
-      "Live appointment availability",
-      "Filter by specialty and location",
-    ],
-    phoneImage: "/images/feature-phone-3.png",
-  },
-];
 
 /**
  * [Section] Features — authored: section padding 160 0 (dt) / 120 40 (tb) /
@@ -52,6 +13,14 @@ const CARDS: FeatureCardData[] = [
  * BG şeridi 467px (video + noise 0.72 + yeşil daire).
  */
 export function Features() {
+  const { t } = useTranslation("landing");
+  const CARDS: FeatureCardData[] = (["voice", "screen", "table"] as const).map((k) => ({
+    tag: t(`features.cards.${k}.tag`),
+    title: t(`features.cards.${k}.title`),
+    description: t(`features.cards.${k}.desc`),
+    bullets: [t(`features.cards.${k}.b1`), t(`features.cards.${k}.b2`), t(`features.cards.${k}.b3`)],
+    phoneImage: `/images/feature-phone-${k === "voice" ? 1 : k === "screen" ? 2 : 3}.png`,
+  }));
   return (
     <section
       id="features"
@@ -103,9 +72,8 @@ export function Features() {
           {/* authored: başlık BLOK olarak açılır — spring {bounce .3, dur 3}, threshold .5 */}
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
             <h2 className="whitespace-pre-wrap text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
-              {/* Ölçülen: mobilde <br> YOK — doğal sarım 3 satır
-                  ("Built for human" / "thinking automated" / "Intelligently") */}
-              <span className="tb:hidden"><span className="text-white">Built for human thinking </span><span className="text-text-dim">automated Intelligently</span></span><span className="hidden tb:inline"><span className="text-white">Designed for People</span><br /><span className="text-text-dim">Powered by AI</span></span>
+              {/* Yapı korunur: mobilde <br> yok (doğal sarım), tb+ iki satır */}
+              <span className="tb:hidden"><span className="text-white">{t("features.headingLight")} </span><span className="text-text-dim">{t("features.headingDim")}</span></span><span className="hidden tb:inline"><span className="text-white">{t("features.headingLight")}</span><br /><span className="text-text-dim">{t("features.headingDim")}</span></span>
             </h2>
           </FadeIn>
         </div>
@@ -118,7 +86,8 @@ export function Features() {
               y={64}
               transition={{ type: "spring", bounce: 0, delay: 0.45, duration: 0.6 }}
             >
-              <FeatureCard data={{ ...card, featured: i === 1, mobilePhoneTop: i === 2 ? 429 : 453 }} />
+              {/* Demli metinlerinde üç kartın içerik boyu dengeli — tek konum */}
+              <FeatureCard data={{ ...card, featured: i === 1 }} />
             </CardReveal>
           ))}
         </div>

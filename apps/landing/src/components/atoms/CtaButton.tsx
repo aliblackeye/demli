@@ -13,6 +13,8 @@ type CtaButtonProps = {
   variant: "primary" | "secondary";
   /** Sol tarafa ikon (ör. play) */
   icon?: ReactNode;
+  /** Dış bağlantı: yeni sekmede açılır */
+  external?: boolean;
 };
 
 /**
@@ -20,7 +22,7 @@ type CtaButtonProps = {
  * Inter 500 18px/25.2px; kayan hover kopyası 29px altta —
  * authored hover geçişi spring { bounce .2, duration .4 }.
  */
-export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButtonProps) {
+export function CtaButton({ href, label, variant, icon, mobileSmall, external }: CtaButtonProps) {
   // Ölçülen (390): CTA metni mobilde 16px/24 (tb+ 18px/25.2)
   const textCls =
     (mobileSmall
@@ -30,6 +32,8 @@ export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButton
   return (
     <motion.a
       href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
       initial="rest"
       animate="rest"
       whileHover="hover"

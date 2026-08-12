@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { useTranslation } from "@demli/i18n";
+import { GithubStarBadge } from "../atoms/GithubStars";
+import { APP_URL, DOWNLOAD_ANDROID_URL, DOWNLOAD_WINDOWS_URL, GITHUB_URL } from "../../lib/links";
 import { Appear, APPEAR } from "../atoms/Appear";
 import { useIsMobile } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
-import { RevealText } from "../atoms/RevealText";
 import { ShimmerText } from "../atoms/ShimmerText";
 
 /**
@@ -18,6 +20,7 @@ import { ShimmerText } from "../atoms/ShimmerText";
  * Bottom Wrapper: telefon görseli (564×965, 736 görünür) + CTA içeriği.
  */
 export function Hero() {
+  const { t } = useTranslation("landing");
   // Ölçülen: ref Mockup Wrapper'ı 0.28×scrollY parallax taşır (doğrusal,
   // klampsız, spring'siz — anlık bağ; 3000→840 doğrulandı)
   const { scrollY } = useScroll();
@@ -87,33 +90,34 @@ export function Hero() {
         {/* Başlık bloğu — authored: max-w 880 (dt) / 604 (tb), gap 32 (mobil 24) */}
         <div className="flex w-full max-w-[604px] flex-col items-center gap-6 tb:gap-8 dt:max-w-[880px]">
           <Appear spec={APPEAR.tagline}>
-            <div
+            {/* Founder kararı: hap = GitHub yıldızı + açık kaynak + ücretsiz */}
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
               className="flex items-center gap-2 rounded-[50px] bg-[rgba(0,0,0,0.24)] py-[6px] pl-[6px] pr-[18px] backdrop-blur-[8px]"
               style={{ boxShadow: "rgba(38, 49, 64, 0.32) 0px -1px 0px 0px inset" }}
             >
               <div className="flex items-center gap-[10px] rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-1">
-                <div className="flex items-center gap-1">
-                  <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">4.9</p>
-                  <MaskIcon name="star" size={14} color="#eab30a" />
-                </div>
+                <GithubStarBadge />
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-block">
                   <ShimmerText
-                    text="Rating"
+                    text={t("hero.pillOpenSource")}
                     color="#eab30a"
                     className="text-[14px] font-medium leading-[16.8px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px]"
                   />
                 </span>
                 <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
-                  Based on 700+ reviews
+                  {t("hero.pillFree")}
                 </p>
               </div>
-            </div>
+            </a>
           </Appear>
           <Appear spec={APPEAR.title} className="w-full" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 50%, rgba(0,0,0,0.64) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 50%, rgba(0,0,0,0.64) 100%)" }}>
             <h1 className="hero-title w-full text-center font-display font-semibold text-white">
-              Clarity Looks Like This
+              {t("hero.title")}
             </h1>
           </Appear>
         </div>
@@ -163,17 +167,17 @@ export function Hero() {
             <div className="flex flex-col items-center">
               {/* Ölçülen: ikon 80 (mobil) / 120 (tb) / 140 (dt) */}
               <Image
-                src="/images/app-icon.png"
+                src="/images/demli-mark.png"
                 alt=""
                 width={140}
                 height={140}
-                className="h-20 w-20 rounded-none object-cover tb:h-[120px] tb:w-[120px] dt:h-[140px] dt:w-[140px]"
+                className="h-20 w-20 rounded-none object-contain tb:h-[120px] tb:w-[120px] dt:h-[140px] dt:w-[140px]"
               />
             </div>
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
               {/* authored whhy8i: 32 (mobil) / 40 (tb) / 44 (dt), lh %120, ls -.02em */}
-              <FadeIn y={0} amount={0.2}><p className="whitespace-pre-wrap text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>Designed to heal, understand everything </span><span className="text-text-dim">and ship with confidence.</span></p></FadeIn>
+              <FadeIn y={0} amount={0.2}><p className="whitespace-pre-wrap text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>{t("hero.descLight")}</span><span className="text-text-dim">{t("hero.descDim")}</span></p></FadeIn>
             </div>
             <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
               {/* Sarmalayıcı genişliksiz kalınca flex-col ebeveynde büzüşüyordu
@@ -181,34 +185,31 @@ export function Hero() {
               <Appear spec={APPEAR.buttons} className="w-full tb:w-auto">
                 {/* authored Buttons: flex-wrap gap 20/16; mobil kolon gap 12 */}
                 <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">
-                  <CtaButton href="#download" label="Download App" variant="primary" />
-                  <CtaButton
-                    href="#demo"
-                    label="Watch demo"
-                    variant="secondary"
-                    icon={<MaskIcon name="play" size={24} color="#a3a3a3" />}
-                  />
+                  <CtaButton href={DOWNLOAD_WINDOWS_URL} label={t("hero.ctaDownload")} variant="primary" />
+                  <CtaButton href={APP_URL} label={t("hero.ctaOpen")} variant="secondary" external />
                 </div>
               </Appear>
               <div className="flex items-center gap-[10px]">
                 <div className="flex items-center gap-[6px]">
                   <MaskIcon name="arrow-circle-down" size={21} color="#737373" />
                   <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
-                    50K+ downloads
+                    {t("hero.platformsNote")}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 rounded-[16px] bg-base p-1">
                   <a
-                    href="#appstore"
+                    href={DOWNLOAD_WINDOWS_URL}
+                    aria-label={t("hero.windows")}
                     className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface"
                   >
-                    <MaskIcon name="apple" size={24} color="#e5e5e5" />
+                    <MaskIcon name="monitor" size={24} color="#e5e5e5" />
                   </a>
                   <a
-                    href="#googleplay"
+                    href={DOWNLOAD_ANDROID_URL}
+                    aria-label={t("hero.android")}
                     className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface"
                   >
-                    <MaskIcon name="google-play" size={24} color="#e5e5e5" />
+                    <MaskIcon name="phone" size={24} color="#e5e5e5" />
                   </a>
                 </div>
               </div>

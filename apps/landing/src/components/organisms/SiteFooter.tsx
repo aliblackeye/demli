@@ -3,6 +3,7 @@
 import { VideoBg } from "../atoms/VideoBg";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { useTranslation } from "@demli/i18n";
 import { CtaButton } from "../atoms/CtaButton";
 import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
@@ -10,6 +11,7 @@ import { RevealText } from "../atoms/RevealText";
 import { SLIDE_SPRING, slideVariants } from "../atoms/SlideHoverText";
 import { useIsMobile } from "../atoms/CardReveal";
 import { TrustBadge } from "../molecules/TrustBadge";
+import { APP_URL, DOWNLOAD_ANDROID_URL, DOWNLOAD_WINDOWS_URL, GITHUB_URL } from "../../lib/links";
 
 /**
  * [Section] Footer — authored (audit2):
@@ -22,6 +24,7 @@ import { TrustBadge } from "../molecules/TrustBadge";
  * Sosyal linkler: ul p-1 gap 16 (mobil 4), radius 16.
  */
 export function SiteFooter() {
+  const { t } = useTranslation("landing");
   // Ölçülen: şerit parıltısı tb+'da 0→380→0 salınır (periyot 4017 ms),
   // 390'da statik — hero parıltısıyla aynı ease, farklı süre
   const mobil = useIsMobile();
@@ -70,39 +73,36 @@ export function SiteFooter() {
           <TrustBadge />
         </FadeIn>
         <p className="whitespace-pre-wrap text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
-          {/* Ölçülen: ref desc'te <br> yok — 580'lik kapta doğal sarım */}
-          <RevealText text="Designed to heal, understand everything " mode="char" />
-          <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
+          {/* Yapı korunur: <br> yok — 580'lik kapta doğal sarım */}
+          <RevealText text={t("footer.descLight")} mode="char" />
+          <RevealText text={t("footer.descDim")} mode="char" className="text-text-dim" />
         </p>
         <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
           <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">
-            <CtaButton href="#download" label="Download App" variant="primary" />
-            <CtaButton
-              href="#demo"
-              label="Watch demo"
-              variant="secondary"
-              icon={<MaskIcon name="play" size={24} color="#a3a3a3" />}
-            />
+            <CtaButton href={DOWNLOAD_WINDOWS_URL} label={t("hero.ctaDownload")} variant="primary" />
+            <CtaButton href={APP_URL} label={t("hero.ctaOpen")} variant="secondary" external />
           </div>
           <div className="flex items-center gap-[10px]">
             <div className="flex items-center gap-[6px]">
               <MaskIcon name="arrow-circle-down" size={24} color="#737373" />
               <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
-                50K+ downloads
+                {t("hero.platformsNote")}
               </p>
             </div>
             <div className="flex items-center gap-1 rounded-[16px] bg-base p-1">
               <a
-                href="#appstore"
+                href={DOWNLOAD_WINDOWS_URL}
+                aria-label={t("hero.windows")}
                 className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface"
               >
-                <MaskIcon name="apple" size={24} color="#e5e5e5" />
+                <MaskIcon name="monitor" size={24} color="#e5e5e5" />
               </a>
               <a
-                href="#googleplay"
+                href={DOWNLOAD_ANDROID_URL}
+                aria-label={t("hero.android")}
                 className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface"
               >
-                <MaskIcon name="google-play" size={24} color="#e5e5e5" />
+                <MaskIcon name="phone" size={24} color="#e5e5e5" />
               </a>
             </div>
           </div>
@@ -135,7 +135,7 @@ export function SiteFooter() {
             }}
           />
           <Image
-            src="/images/footer-icon.png"
+            src="/images/demli-mark.png"
             alt=""
             width={420}
             height={420}
@@ -176,24 +176,25 @@ export function SiteFooter() {
             <div className="flex flex-col items-center">
               <a href="#hero" className="flex h-11 items-center gap-[10px]">
                 <Image
-                  src="/images/app-icon.png"
+                  src="/images/demli-mark.png"
                   alt=""
                   width={44}
                   height={44}
-                  className="h-11 w-11 rounded-[12px] object-cover"
+                  className="h-11 w-11 rounded-[12px] object-contain"
                 />
                 <span className="font-display text-[28px] font-bold leading-[33.6px] text-text-primary">
-                  Appzen
+                  Demli
                 </span>
               </a>
             </div>
             <div className="mt-[50px] flex flex-col items-center">
-              {/* Ölçülen (390): pad 16/32/16/24, gap 8, metin 16/24 */}
-              <motion.a href="mailto:support@appzen.com" initial="rest" animate="rest" whileHover="hover" className="group flex items-center gap-2 rounded-[18px] bg-surface-2 py-4 pl-6 pr-8">
-                <MaskIcon name="mail" size={24} color="#a3a3a3" />
+              {/* Ölçülen (390): pad 16/32/16/24, gap 8, metin 16/24.
+                  Mail yerine GitHub — Demli'nin iletişim adresi repo. */}
+              <motion.a href={GITHUB_URL} target="_blank" rel="noreferrer" initial="rest" animate="rest" whileHover="hover" className="group flex items-center gap-2 rounded-[18px] bg-surface-2 py-4 pl-6 pr-8">
+                <MaskIcon name="star" size={24} color="#a3a3a3" />
                 <div className="relative flex h-6 flex-col items-start overflow-hidden tb:h-[25px]">
-                  <motion.strong variants={slideVariants(29)} transition={SLIDE_SPRING} className="whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">support@appzen.com</motion.strong>
-                  <motion.strong aria-hidden variants={slideVariants(29)} transition={SLIDE_SPRING} className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">support@appzen.com</motion.strong>
+                  <motion.strong variants={slideVariants(29)} transition={SLIDE_SPRING} className="whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">{t("footer.githubPill")}</motion.strong>
+                  <motion.strong aria-hidden variants={slideVariants(29)} transition={SLIDE_SPRING} className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">{t("footer.githubPill")}</motion.strong>
                 </div>
               </motion.a>
               {/* authored Social CTA Wrapper: radius 16, gap 16 (mobil 4).
@@ -201,12 +202,12 @@ export function SiteFooter() {
               <ul className="mt-8 flex items-center gap-1 rounded-[16px] p-1 tb:mt-9 tb:gap-4">
                 <li>
                   <a
-                    href="https://x.com/ahmedwalidlab"
+                    href={GITHUB_URL}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[16px] font-medium leading-[22.4px] text-text-secondary tb:text-[18px] tb:leading-[25.2px]"
                   >
-                    X(Twitter)
+                    {t("footer.linkGithub")}
                   </a>
                 </li>
                 <li className="flex items-center px-3">
@@ -214,19 +215,19 @@ export function SiteFooter() {
                 </li>
                 <li>
                   <a
-                    href="https://www.linkedin.com/in/ahmed-walid-designer/"
+                    href={APP_URL}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[16px] font-medium leading-[22.4px] text-text-secondary tb:text-[18px] tb:leading-[25.2px]"
                   >
-                    Linkedin
+                    {t("footer.linkApp")}
                   </a>
                 </li>
               </ul>
             </div>
             {/* Ölçülen (390): telif lh 19.6 (iki satır 39), sosyal→telif 64 (tb 68) */}
             <p className="mt-16 text-center text-[14px] leading-[19.6px] tracking-[-0.28px] text-[#404040] tb:mt-[68px] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
-              Copyright © 2026 Appzen. All rights reserved.
+              {t("footer.copyright", { year: new Date().getFullYear() })}
             </p>
           </div>
         </div>

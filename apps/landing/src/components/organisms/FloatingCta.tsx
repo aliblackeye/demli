@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useTranslation } from "@demli/i18n";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
+import { DOWNLOAD_ANDROID_URL, DOWNLOAD_WINDOWS_URL } from "../../lib/links";
 
 /**
  * Features Section Floating CTA — authored (audit2):
@@ -14,6 +16,7 @@ import { MaskIcon } from "../atoms/MaskIcon";
  * Davranış (ölçüldü): Features görünürken y 120→0 + op 0→1 spring.
  */
 export function FloatingCta() {
+  const { t } = useTranslation("landing");
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -42,12 +45,12 @@ export function FloatingCta() {
       transition={{ type: "spring", duration: 2, bounce: 0.2 }}
     >
       <div className="pointer-events-auto flex items-center gap-2 [&_a]:!w-auto">
-        <CtaButton href="#download" label="Download App" variant="primary" mobileSmall />
-        <a href="#appstore" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
-          <MaskIcon name="apple" size={24} color="#e5e5e5" />
+        <CtaButton href={DOWNLOAD_WINDOWS_URL} label={t("floating.cta")} variant="primary" mobileSmall />
+        <a href={DOWNLOAD_WINDOWS_URL} aria-label={t("hero.windows")} className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
+          <MaskIcon name="monitor" size={24} color="#e5e5e5" />
         </a>
-        <a href="#googleplay" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
-          <MaskIcon name="google-play" size={24} color="#e5e5e5" />
+        <a href={DOWNLOAD_ANDROID_URL} aria-label={t("hero.android")} className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
+          <MaskIcon name="phone" size={24} color="#e5e5e5" />
         </a>
       </div>
     </motion.div>

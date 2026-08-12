@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { useTranslation } from "@demli/i18n";
 import { MaskIcon } from "../atoms/MaskIcon";
 
 const AVATARS = [
@@ -20,6 +21,7 @@ const AVATARS = [
  * Metin 76px'te iki satıra sarılır; 12px mobil / 14px tb+.
  */
 export function TrustBadge() {
+  const { t } = useTranslation("landing");
   return (
     <div className="flex items-center gap-6">
       <MaskIcon name="laurel-left" width={28} height={38} color="#eab30a" />
@@ -53,7 +55,7 @@ export function TrustBadge() {
             ))}
           </div>
           <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-secondary tb:text-[14px] tb:leading-[16.8px] tb:tracking-[-0.28px]">
-            Trusted by 50K+ users
+            {t("reviews.badge")}
           </p>
         </div>
       </div>

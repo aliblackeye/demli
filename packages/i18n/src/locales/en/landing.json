@@ -1,56 +1,85 @@
 {
   "meta": {
-    "title": "Demli - voice, screen share and chat for your friend group",
-    "description": "Demli is a private voice, screen-share and chat app for small friend groups. Windows and Android apps, plus a browser client."
+    "title": "Demli — your friend group's own place",
+    "description": "Voice rooms, screen sharing, video calls and chat — all of it unlocked, with no paid tier. No ads, no algorithm, invite-only."
   },
   "nav": {
-    "language": "Language",
-    "skip": "Skip to content"
-  },
-  "cta": {
+    "features": "Features",
+    "reviews": "Reviews",
+    "github": "GitHub",
     "openApp": "Open Demli",
-    "download": "Get the app"
+    "language": "Language"
   },
   "hero": {
-    "title": "A calm place for your friend group.",
-    "lead": "Voice channels, screen sharing, video calls and chat. It runs on our own server, and there are no ads."
+    "pillOpenSource": "Open source",
+    "pillFree": "No paid tier",
+    "title": "The kettle's on.",
+    "descLight": "Your friend group's own place. ",
+    "descDim": "No ads, no algorithm, invite-only.",
+    "ctaDownload": "Get the app",
+    "ctaOpen": "Open Demli",
+    "platformsNote": "For Windows and Android",
+    "windows": "Download for Windows",
+    "android": "Download the Android APK"
   },
   "features": {
-    "voice": {
-      "title": "Voice first",
-      "body": "Voice channels and one-to-one calls. Rooms recover on their own after a dropped connection, and a third person can join a call without it cutting out.",
-      "note": "Per-person volume, device picking, call history."
-    },
-    "share": {
-      "title": "Screen and camera",
-      "body": "Share a screen or a camera, focus one stream to fill the window, and set the quality yourself."
-    },
-    "chat": {
-      "title": "Chat that keeps up",
-      "body": "Messages, files, search, mentions and an unread line. The same on every device you use."
+    "tagline": "Features",
+    "headingLight": "The whole evening",
+    "headingDim": "at one table",
+    "cards": {
+      "voice": {
+        "tag": "Voice rooms",
+        "title": "Sound is a setting, not a reward.",
+        "desc": "The channel runs at up to 128 kbps, and nobody upgrades a server to get it there. On guitar night, music mode plays 256 kbps stereo and the noise suppressor steps aside on its own.",
+        "b1": "128 kbps — a channel setting",
+        "b2": "Music mode: 256 kbps stereo",
+        "b3": "No tier costs anything"
+      },
+      "screen": {
+        "tag": "Screen & camera",
+        "title": "The top end isn't locked.",
+        "desc": "Whoever shares picks the quality: 480p through 2K, at 15, 30 or 60 frames. The camera runs 1080p at 60 frames a second. No line of that list sits behind a plan.",
+        "b1": "480p through 2K streams",
+        "b2": "15 / 30 / 60 frames",
+        "b3": "Camera at 1080p60"
+      },
+      "table": {
+        "tag": "The table",
+        "title": "No discover page. Just invites.",
+        "desc": "There are no public servers and no discover page; you join a group by invitation. No ads, no data sales, no algorithm ranking your feed.",
+        "b1": "Invite-only entry",
+        "b2": "No ads, no algorithm",
+        "b3": "Same app in the browser"
+      }
     }
   },
-  "download": {
-    "title": "Get the app",
-    "lead": "Windows and Android have native apps. Everything else runs in the browser.",
-    "soon": "There is no macOS or iPhone app. Demli runs in the browser on both.",
-    "windows": {
-      "name": "Windows",
-      "note": "An installer that keeps itself up to date.",
-      "action": "Download"
-    },
-    "android": {
-      "name": "Android",
-      "note": "APK with a built-in updater. Not on Google Play.",
-      "action": "Download APK"
-    },
-    "browserNote": "On Linux, iOS or anything else, no install is needed:"
-  },
-  "openSource": {
-    "action": "Source on GitHub"
+  "reviews": {
+    "tagline": "Reviews",
+    "badge": "Full marks from the table",
+    "headingLight": "Around the table,",
+    "headingDim": "here's the word",
+    "items": {
+      "r1": { "name": "Baran", "date": "Apr 13, 2026", "title": "Silence, at last", "body": "Turned our loudest friend down with per-person volume. He's still shouting; we just can't hear it. The house is calm." },
+      "r2": { "name": "Ece", "date": "Feb 13, 2026", "title": "Guitar night, saved", "body": "Switched to music mode and the strings stopped coming through as static. The group actually went quiet and listened." },
+      "r3": { "name": "Mert", "date": "Jan 13, 2026", "title": "Still looking for the upgrade screen", "body": "Three months in and it hasn't tried to sell me anything. Suspicious, but I've made my peace with it." },
+      "r4": { "name": "Zeynep", "date": "Nov 12, 2025", "title": "The 2K stream", "body": "Streamed the match and they asked who broadcasts this sharp. I picked it from a menu, that's all. Cost nobody anything." },
+      "r5": { "name": "Kaan", "date": "Aug 7, 2025", "title": "The APK thing", "body": "Figured no Play Store meant no installs; turns out the app downloads its own updates." },
+      "r6": { "name": "Elif", "date": "May 13, 2025", "title": "No discover page", "body": "Nobody can invite strangers, because there's no place to discover us. The table stays ours." },
+      "r7": { "name": "Deniz", "date": "May 2, 2025", "title": "Updates on the way out", "body": "No wizard, no progress bar. Closed the app, next day it was the new version." },
+      "r8": { "name": "Selin", "date": "Mar 20, 2025", "title": "Came in from the browser", "body": "Nothing to install on my Mac; the browser opened the same app. I looked for the missing screens and there weren't any." },
+      "r9": { "name": "Emre", "date": "Feb 8, 2025", "title": "Waited for the ads", "body": "It's been a month. No ads, no go-premium nudge. Strange, but the good kind of strange." }
+    }
   },
   "footer": {
-    "note": "Demli is actively being built. New versions arrive in the app on their own.",
-    "rights": "© {{year}} Demli"
+    "descLight": "Your friend group's own place. ",
+    "descDim": "No ads, no algorithm, invite-only.",
+    "githubPill": "Open source on GitHub",
+    "linkGithub": "GitHub",
+    "linkApp": "Open in the browser",
+    "copyright": "© {{year}} Demli. New versions arrive in the app on their own."
+  },
+  "floating": {
+    "heading": "The kettle's on.",
+    "cta": "Get the app"
   }
 }

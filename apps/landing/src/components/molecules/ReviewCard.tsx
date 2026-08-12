@@ -1,7 +1,8 @@
 import { MaskIcon } from "../atoms/MaskIcon";
 
 export type ReviewCardData = {
-  store: "apple" | "google-play";
+  /** Platform ikonu (mask adı): monitor (Windows) / phone (Android) */
+  store: string;
   href: string;
   name: string;
   date: string;

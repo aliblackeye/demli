@@ -1,56 +1,85 @@
 {
   "meta": {
-    "title": "Demli - arkadaş grubun için ses, ekran paylaşımı ve sohbet",
-    "description": "Demli, küçük arkadaş grupları için özel bir ses, ekran paylaşımı ve sohbet uygulaması. Windows ve Android uygulamaları, ayrıca tarayıcı sürümü."
+    "title": "Demli — arkadaş grubunun sesli evi",
+    "description": "Sesli odalar, ekran paylaşımı, görüntülü arama ve sohbet — hepsi açık, ücretli kademe yok. Reklam yok, algoritma yok, davetle girilir."
   },
   "nav": {
-    "language": "Dil",
-    "skip": "İçeriğe geç"
-  },
-  "cta": {
+    "features": "Özellikler",
+    "reviews": "Yorumlar",
+    "github": "GitHub",
     "openApp": "Demli'yi aç",
-    "download": "Uygulamayı indir"
+    "language": "Dil"
   },
   "hero": {
-    "title": "Arkadaş grubunun sakin buluşma yeri.",
-    "lead": "Sesli kanallar, ekran paylaşımı, görüntülü arama ve sohbet. Kendi sunucumuzda çalışır, reklam yoktur."
+    "pillOpenSource": "Açık kaynak",
+    "pillFree": "Ücretli kademe yok",
+    "title": "Çayını al, gel.",
+    "descLight": "Arkadaş grubunun sesli evi. ",
+    "descDim": "Reklam yok, algoritma yok, davetle girilir.",
+    "ctaDownload": "Uygulamayı indir",
+    "ctaOpen": "Demli'yi aç",
+    "platformsNote": "Windows ve Android için",
+    "windows": "Windows sürümünü indir",
+    "android": "Android APK indir"
   },
   "features": {
-    "voice": {
-      "title": "Önce ses",
-      "body": "Sesli kanallar ve birebir aramalar. Bağlantı koptuğunda oda kendini toparlar, aramaya üçüncü kişi katıldığında konuşma kesilmeden gruba dönüşür.",
-      "note": "Kişi başı ses seviyesi, cihaz seçimi, arama geçmişi."
-    },
-    "share": {
-      "title": "Ekran ve kamera",
-      "body": "Ekranını ya da kameranı paylaş, bir yayını tam pencereye al, kaliteyi kendin ayarla."
-    },
-    "chat": {
-      "title": "Ayak uyduran sohbet",
-      "body": "Mesajlar, dosyalar, arama, bahsetmeler ve okunmadı çizgisi. Kullandığın her cihazda aynı."
+    "tagline": "Özellikler",
+    "headingLight": "Bir akşamın hepsi",
+    "headingDim": "tek masada",
+    "cards": {
+      "voice": {
+        "tag": "Sesli odalar",
+        "title": "Ses bir ayar, ödül değil.",
+        "desc": "Kanal 128 kbps'e kadar açık; kimse bunun için sunucu yükseltmez. Gitar gecesinde müzik modu 256 kbps stereo çalar, gürültü engelleyici kendiliğinden çekilir.",
+        "b1": "128 kbps — kanal ayarı",
+        "b2": "Müzik modu: 256 kbps stereo",
+        "b3": "Hiçbir kademe ücretli değil"
+      },
+      "screen": {
+        "tag": "Ekran ve kamera",
+        "title": "Üst uç kilitli değil.",
+        "desc": "Yayını paylaşan seçer: 480p'den 2K'ya, 15, 30 ya da 60 kare. Kamera 1080p'de saniyede 60 kare çalışır. Listenin hiçbir satırı bir plana bağlı değil.",
+        "b1": "480p'den 2K'ya yayın",
+        "b2": "15 / 30 / 60 kare",
+        "b3": "Kamera 1080p60"
+      },
+      "table": {
+        "tag": "Masa",
+        "title": "Keşfet yok. Davet var.",
+        "desc": "Herkese açık sunucu ya da keşfet sayfası yok; gruba davetle girilir. Reklam yok, veri satışı yok, akışı sıralayan bir algoritma yok.",
+        "b1": "Davetle giriş",
+        "b2": "Reklamsız, algoritmasız",
+        "b3": "Tarayıcıda aynı uygulama"
+      }
     }
   },
-  "download": {
-    "title": "Uygulamayı indir",
-    "lead": "Windows ve Android'in kendi uygulaması var. Geri kalan her şey tarayıcıdan çalışır.",
-    "soon": "macOS ve iPhone için uygulama yok. Demli ikisinde de tarayıcıdan çalışır.",
-    "windows": {
-      "name": "Windows",
-      "note": "Kendini güncelleyen kurulum dosyası.",
-      "action": "İndir"
-    },
-    "android": {
-      "name": "Android",
-      "note": "Kendini uygulama içinden güncelleyen APK. Google Play'de değil.",
-      "action": "APK indir"
-    },
-    "browserNote": "Linux, iOS ya da başka bir cihazdaysan kurulum gerekmez:"
-  },
-  "openSource": {
-    "action": "Kaynak kodu GitHub'da"
+  "reviews": {
+    "tagline": "Yorumlar",
+    "badge": "Masadan tam puan",
+    "headingLight": "Masadakiler",
+    "headingDim": "ne diyor?",
+    "items": {
+      "r1": { "name": "Baran", "date": "13 Nis 2026", "title": "Sonunda sessizlik", "body": "Sesi gür arkadaşımızı kişi başı ses ayarından kıstım. O bağırmaya devam ediyor, biz duymuyoruz. Ev sakin." },
+      "r2": { "name": "Ece", "date": "13 Şub 2026", "title": "Gitar gecesi kurtuldu", "body": "Müzik moduna aldım, teller cızırtı olmaktan çıktı. Grup ilk kez susup dinledi." },
+      "r3": { "name": "Mert", "date": "13 Oca 2026", "title": "Yükseltme ekranı arıyorum", "body": "Üç aydır kullanıyorum, hâlâ bana bir şey satmaya çalışmadı. Şüpheleniyorum ama alıştım." },
+      "r4": { "name": "Zeynep", "date": "12 Kas 2025", "title": "2K yayın", "body": "Maç izletirken \"kim bu netlikte yayın açıyor\" diye sordular. Ayardan seçtim, o kadar. Kimseye bir şey ödetmedi." },
+      "r5": { "name": "Kaan", "date": "7 Ağu 2025", "title": "APK olayı", "body": "Play Store'da yok diye kurulmaz sanmıştım; güncellemesini uygulama kendi indiriyor." },
+      "r6": { "name": "Elif", "date": "13 May 2025", "title": "Keşfet yok", "body": "Kimse yabancı davet edemiyor çünkü keşfet diye bir yer yok. Masa bizim masamız." },
+      "r7": { "name": "Deniz", "date": "2 May 2025", "title": "Kapatınca güncelleniyor", "body": "Sihirbaz yok, ilerleme çubuğu yok. Uygulamayı kapattım, ertesi gün yeni sürümdü." },
+      "r8": { "name": "Selin", "date": "20 Mar 2025", "title": "Tarayıcıdan girdim", "body": "Mac'te kuracak bir şey yokmuş; tarayıcıdan girince aynı uygulama açıldı. Eksik ekran aramadım çünkü yok." },
+      "r9": { "name": "Emre", "date": "8 Şub 2025", "title": "Reklam bekledim, gelmedi", "body": "Bir ay oldu. Ne reklam ne \"premium'a geç\" bildirimi. Garip ama iyi garip." }
+    }
   },
   "footer": {
-    "note": "Demli aktif geliştiriliyor. Yeni sürümler uygulamaya kendiliğinden gelir.",
-    "rights": "© {{year}} Demli"
+    "descLight": "Arkadaş grubunun sesli evi. ",
+    "descDim": "Reklam yok, algoritma yok, davetle girilir.",
+    "githubPill": "GitHub'da açık kaynak",
+    "linkGithub": "GitHub",
+    "linkApp": "Tarayıcıda aç",
+    "copyright": "© {{year}} Demli. Yeni sürümler uygulamaya kendiliğinden gelir."
+  },
+  "floating": {
+    "heading": "Çayını al, gel.",
+    "cta": "Uygulamayı indir"
   }
 }
