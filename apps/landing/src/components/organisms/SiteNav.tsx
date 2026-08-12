@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { useTranslation } from "@demli/i18n";
-import { GithubStarBadge } from "../atoms/GithubStars";
+import { GithubNavLink } from "../atoms/GithubStars";
 import { LanguageToggle } from "../atoms/LanguageToggle";
 import { PillLink } from "../atoms/PillLink";
-import { APP_URL, GITHUB_URL } from "../../lib/links";
+import { APP_URL } from "../../lib/links";
 
 /**
  * [Section] Nav — authored CSS (audit2.txt):
@@ -43,9 +43,9 @@ export function SiteNav() {
                   <li>
                     <PillLink href="./#reviews" label={t("nav.reviews")} />
                   </li>
-                  <li className="flex items-center">
-                    <PillLink href={GITHUB_URL} label={t("nav.github")} external />
-                    <GithubStarBadge className="-ml-1 pr-1" />
+                  <li className="flex items-center pl-3">
+                    {/* Founder tercihi: düz yazı yerine Invertocat + yıldız çipi */}
+                    <GithubNavLink ariaLabel={t("nav.github")} />
                   </li>
                 </ul>
               </div>
