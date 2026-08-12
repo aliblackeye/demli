@@ -26,9 +26,10 @@ export function Hero() {
           50% 0, #000 %82.24 → saydam; noise sarmalayıcı mask radial 65%/50%
           #000000e0 %25 → saydam + mix-blend screen; karo 128px. */}
       <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[600px] flex-col items-center justify-center overflow-clip">
-        <Appear
-          spec={APPEAR.heroLightRays}
-          className="absolute left-1/2 top-0 h-[392px] w-[720px] -translate-x-1/2 tb:h-[500px] tb:w-[1200px]"
+        {/* Ortalamayı motion-DIŞI div taşır: framer-motion inline transform'u
+            -translate-x-1/2 sınıfını eziyordu (video sağa kayıyordu). */}
+        <div
+          className="absolute left-1/2 top-0 h-[392px] w-[720px] max-w-none -translate-x-1/2 tb:h-[500px] tb:w-[1200px]"
           style={{
             WebkitMaskImage:
               "radial-gradient(50% 150% at 50% 0, rgb(0, 0, 0) 82.2354%, rgba(0, 0, 0, 0) 100%)",
@@ -36,6 +37,7 @@ export function Hero() {
               "radial-gradient(50% 150% at 50% 0, rgb(0, 0, 0) 82.2354%, rgba(0, 0, 0, 0) 100%)",
           }}
         >
+        <Appear spec={APPEAR.heroLightRays} className="h-full w-full">
           <Appear spec={APPEAR.heroVideo} className="h-full w-full">
             {/* Referansta video sarmalayıcısı matrix(-1,0,0,-1,0,0) — 180° çevrik */}
             <div className="h-full w-full rotate-180">
@@ -50,6 +52,7 @@ export function Hero() {
             </div>
           </Appear>
         </Appear>
+        </div>
         <div
           aria-hidden
           className="absolute inset-0 z-[1] mix-blend-screen"
