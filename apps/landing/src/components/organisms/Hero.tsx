@@ -28,7 +28,7 @@ export function Hero() {
       <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[600px] flex-col items-center justify-center overflow-clip">
         <Appear
           spec={APPEAR.heroLightRays}
-          className="absolute left-1/2 top-0 h-[500px] w-[1200px] -translate-x-1/2"
+          className="absolute left-1/2 top-0 h-[392px] w-[720px] -translate-x-1/2 tb:h-[500px] tb:w-[1200px]"
           style={{
             WebkitMaskImage:
               "radial-gradient(50% 150% at 50% 0, rgb(0, 0, 0) 82.2354%, rgba(0, 0, 0, 0) 100%)",
@@ -45,7 +45,7 @@ export function Hero() {
                 loop
                 muted
                 playsInline
-                className="h-[500px] w-[1200px] object-cover"
+                className="h-full w-full object-cover"
               />
             </div>
           </Appear>
@@ -112,7 +112,7 @@ export function Hero() {
             linear-gradient(#000 12%, saydam 100%) — kırpma değil solma. */}
         <div className="flex w-full flex-col items-center">
           <div className="relative flex aspect-[0.766667] w-full max-w-[344px] flex-col items-center tb:max-w-[564px] dt:max-w-[644px]">
-            <div aria-hidden className="absolute inset-y-0 left-[-318px] right-[-318px] translate-y-[68px] rounded-full opacity-[0.48] dt:left-[-398px] dt:right-[-398px]" style={{ background: "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)", filter: "blur(8px)" }} />
+            <div aria-hidden className="absolute inset-y-0 left-[-318px] right-[-318px] rounded-full opacity-[0.48] dt:left-[-398px] dt:right-[-398px]" style={{ background: "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)", filter: "blur(8px)" }} />
             <Appear
               spec={APPEAR.mockup}
               className="w-full"
@@ -150,10 +150,10 @@ export function Hero() {
               {/* authored whhy8i: 32 (mobil) / 40 (tb) / 44 (dt), lh %120, ls -.02em */}
               <FadeIn y={0} amount={0.2}><p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>Designed to heal, understand everything </span><span className="text-text-dim">and ship with confidence.</span></p></FadeIn>
             </div>
-            <div className="flex flex-col items-center gap-8">
+            <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
               <Appear spec={APPEAR.buttons}>
                 {/* authored Buttons: flex-wrap gap 20/16; mobil kolon gap 12 */}
-                <div className="flex flex-col items-center justify-center gap-3 tb:flex-row tb:flex-wrap tb:gap-x-4 tb:gap-y-5">
+                <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">
                   <CtaButton href="#download" label="Download App" variant="primary" />
                   <CtaButton
                     href="#demo"

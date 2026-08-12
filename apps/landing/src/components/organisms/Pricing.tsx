@@ -51,7 +51,7 @@ export function Pricing() {
       <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
         <div
           aria-hidden
-          className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-full tb:left-[-318px] tb:right-[-318px] dt:left-[-398px] dt:right-[-398px]"
+          className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-full tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
           style={{
             background:
               "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
