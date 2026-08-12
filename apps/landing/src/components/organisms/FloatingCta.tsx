@@ -41,7 +41,7 @@ export function FloatingCta() {
       animate={visible ? { opacity: 1, y: 0 } : { opacity: 0, y: 120 }}
       transition={{ type: "spring", duration: 2, bounce: 0.2 }}
     >
-      <div className="pointer-events-auto flex items-center gap-2">
+      <div className="pointer-events-auto flex items-center gap-2 [&_a]:!w-auto">
         <a href="#appstore" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
           <MaskIcon name="apple" size={24} color="#e5e5e5" />
         </a>
