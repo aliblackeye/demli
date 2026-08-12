@@ -15,6 +15,18 @@ const AUTHORED_SPRING: Transition = {
   mass: 1,
 };
 
+function useIsMobile() {
+  const [m, setM] = require("react").useState(false);
+  require("react").useEffect(() => {
+    const mq = window.matchMedia("(max-width: 809.98px)");
+    setM(mq.matches);
+    const fn = (e: MediaQueryListEvent) => setM(e.matches);
+    mq.addEventListener("change", fn);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
+  return m;
+}
+
 export function CardReveal({
   children,
   delay = 0,
@@ -28,6 +40,9 @@ export function CardReveal({
   className?: string;
   transition?: Transition;
 }) {
+  const mobil = useIsMobile();
+  // authored: mobil varyantta styleTransformEffect kapalı
+  if (mobil) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}

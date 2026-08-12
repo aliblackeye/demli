@@ -57,7 +57,7 @@ export function Features() {
       className="relative flex flex-col items-center overflow-clip px-6 py-20 tb:px-10 tb:py-[120px] dt:px-0 dt:py-[160px]"
     >
       {/* BG şeridi */}
-      <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[467px] items-center justify-center overflow-clip">
+      <div className="hero-bg-mask absolute inset-x-0 top-0 flex h-[300px] items-center justify-center overflow-clip tb:h-[467px]">
         <div
           aria-hidden
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
