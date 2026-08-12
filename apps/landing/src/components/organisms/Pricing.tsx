@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { PricingCard, type PricingCardData } from "../molecules/PricingCard";
@@ -58,14 +59,7 @@ export function Pricing() {
           }}
         />
         <div className="rotate-180">
-          <video
-            src="/videos/light-rays.webm"
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="h-[467px] w-[1120px] object-cover"
-          />
+          <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
         </div>
         <div
           aria-hidden

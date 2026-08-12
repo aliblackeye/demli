@@ -71,7 +71,7 @@ export function Hero() {
       </div>
 
       {/* İçerik */}
-      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-[52px]">
+      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-[52px] dt:gap-16">
         {/* Başlık bloğu — authored: max-w 880 (dt) / 604 (tb), gap 32 (mobil 24) */}
         <div className="flex w-full max-w-[604px] flex-col items-center gap-6 tb:gap-8 dt:max-w-[880px]">
           <Appear spec={APPEAR.tagline}>
@@ -81,20 +81,19 @@ export function Hero() {
             >
               <div className="flex items-center gap-[10px] rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2 py-1">
                 <div className="flex items-center gap-1">
-                  <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-[#e5e5e5]">4.9</p>
+                  <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">4.9</p>
                   <MaskIcon name="star" size={14} color="#eab30a" />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* Referans mobilde (≤809) "Rating" shimmer'ını gizliyor */}
-                <span className="hidden tb:inline-block">
+                <span className="inline-block">
                   <ShimmerText
                     text="Rating"
                     color="#eab30a"
                     className="text-[16px] font-medium leading-[19.2px] text-[#e5e5e5]"
                   />
                 </span>
-                <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+                <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                   Based on 700+ reviews
                 </p>
               </div>
@@ -171,7 +170,7 @@ export function Hero() {
               <div className="flex items-center gap-[10px]">
                 <div className="flex items-center gap-[6px]">
                   <MaskIcon name="arrow-circle-down" size={21} color="#737373" />
-                  <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+                  <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                     50K+ downloads
                   </p>
                 </div>

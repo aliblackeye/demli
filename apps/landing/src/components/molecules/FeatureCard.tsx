@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import Image from "next/image";
 import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
@@ -50,14 +51,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
       {data.featured && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           <div className="absolute left-1/2 top-[-22px] h-[712px] w-[1708px] -translate-x-1/2 rotate-180">
-            <video
-              src="/videos/light-rays.webm"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="h-full w-full object-cover opacity-40"
-            />
+            <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
           </div>
         </div>
       )}
@@ -90,10 +84,14 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           amount={0.1}
           transition={{ type: "spring", bounce: 0, delay: 0.7, duration: 0.6 }}
         >
+          {/* Fark motoru: featured kartın tag'ı YEŞİL (#22c55e); mobil 14px */}
           <ShimmerText
             text={data.tag}
             color="#eab30a"
-            className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+            className={
+              "text-[14px] font-medium leading-[16.8px] tb:text-[16px] tb:leading-[19.2px] " +
+              (data.featured ? "text-accent" : "text-text-dim")
+            }
           />
           {/* authored h3 preset (1qsvjdb): 52px (tb+) / 40px (mobil), lh 1.1em */}
           <RevealText
@@ -119,7 +117,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           {data.bullets.map((b) => (
             <li key={b} className="flex h-6 items-center gap-3">
               <MaskIcon name="check-circle" size={20} color="#22c55e" />
-              <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-[#e5e5e5]">{b}</p>
+              <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-secondary tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">{b}</p>
             </li>
           ))}
         </ul>

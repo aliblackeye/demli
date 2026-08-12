@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import Image from "next/image";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
@@ -41,14 +42,7 @@ export function PricingCard({ data }: { data: PricingCardData }) {
         {data.featured && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute left-1/2 top-[-22px] h-[712px] w-[1708px] -translate-x-1/2 rotate-180">
-              <video
-                src="/videos/light-rays.webm"
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-full w-full object-cover opacity-40"
-              />
+              <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
             </div>
           </div>
         )}
@@ -73,11 +67,12 @@ export function PricingCard({ data }: { data: PricingCardData }) {
           </div>
           <div className="flex flex-col items-start gap-[18px]">
             <div className="flex items-end gap-[6px]">
-              <span className="font-display text-[40px] font-normal leading-[48px] tracking-[-0.8px] text-text-primary">
+              {/* Fark motoru: fiyat mobil 32px; /month rengi #e5e5e5, mobil 14px */}
+              <span className="font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.64px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
                 {data.price}
               </span>
               {data.priceSuffix ? (
-                <span className="pb-[6px] text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+                <span className="pb-[6px] text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                   {data.priceSuffix}
                 </span>
               ) : null}
@@ -96,7 +91,7 @@ export function PricingCard({ data }: { data: PricingCardData }) {
         {data.features.map((f, i) => (
           <li key={f + i} className="flex h-6 items-center gap-[10px]">
             <MaskIcon name="check-circle" size={24} color="#737373" />
-            <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-secondary">{f}</p>
+            <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-secondary tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">{f}</p>
           </li>
         ))}
       </ul>

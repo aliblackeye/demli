@@ -12,7 +12,7 @@ export function SectionTagline({ label }: { label: string }) {
       <ShimmerText
         text={label}
         color="#eab30a"
-        className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+        className="text-[14px] font-medium leading-[16.8px] text-text-dim tb:text-[16px] tb:leading-[19.2px]"
       />
     </div>
   );

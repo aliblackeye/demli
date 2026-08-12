@@ -40,7 +40,7 @@ export function TrustBadge() {
               <MaskIcon key={i} name="star" size={12} color="#eab30a" />
             ))}
           </div>
-          <p className="text-[14px] font-medium leading-[16.8px] tracking-[-0.28px] text-text-secondary">
+          <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-secondary tb:text-[14px] tb:leading-[16.8px] tb:tracking-[-0.28px]">
             Trusted by 50K+ users
           </p>
         </div>

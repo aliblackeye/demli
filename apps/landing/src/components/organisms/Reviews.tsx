@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
@@ -125,14 +126,7 @@ export function Reviews() {
           }}
         />
         <div className="rotate-180">
-          <video
-            src="/videos/light-rays.webm"
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="h-[467px] w-[1120px] object-cover"
-          />
+          <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
         </div>
         <div
           aria-hidden
@@ -158,7 +152,7 @@ export function Reviews() {
       {/* İçerik */}
       <div className="relative flex w-full flex-col items-center gap-20">
         <div className="flex flex-col items-center gap-8">
-          <FadeIn>
+          <FadeIn className="hidden tb:block">
             <TrustBadge />
           </FadeIn>
           {/* authored: BLOK açılım spring {bounce .3, dur 3}, threshold .5;

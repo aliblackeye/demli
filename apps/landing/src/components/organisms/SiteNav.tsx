@@ -20,7 +20,7 @@ export function SiteNav() {
               <div className="flex flex-1 items-center justify-start gap-9">
                 <a
                   href="./"
-                  className="flex h-8 w-8 items-center justify-center tb:h-[35px] tb:w-[35px] dt:h-11 dt:w-11"
+                  className="flex h-8 w-8 items-center justify-center tb:h-[35px] tb:w-[35px]"
                 >
                   <Image
                     src="/images/logo.png"

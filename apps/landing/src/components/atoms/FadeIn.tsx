@@ -12,7 +12,7 @@ export function FadeIn({
   children,
   className,
   y = 20,
-  amount = 0.5,
+  amount = 0.3,
   transition = { type: "spring", bounce: 0.2, delay: 0.4, duration: 0.7 },
 }: {
   children: ReactNode;

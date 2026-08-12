@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { FeatureCard, type FeatureCardData } from "../molecules/FeatureCard";
@@ -68,14 +69,7 @@ export function Features() {
         />
         <div className="flex h-full w-full items-center justify-center">
           <div className="rotate-180">
-            <video
-              src="/videos/light-rays.webm"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="h-[467px] w-[1120px] object-cover"
-            />
+            <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
           </div>
         </div>
         <div

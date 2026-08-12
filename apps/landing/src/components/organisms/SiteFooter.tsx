@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoBg } from "../atoms/VideoBg";
 import Image from "next/image";
 import { CtaButton } from "../atoms/CtaButton";
 import { FadeIn } from "../atoms/FadeIn";
@@ -32,14 +33,7 @@ export function SiteFooter() {
           }}
         />
         <div className="rotate-180">
-          <video
-            src="/videos/light-rays.webm"
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="h-[467px] w-[1120px] object-cover"
-          />
+          <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
         </div>
         <div
           aria-hidden
@@ -84,7 +78,7 @@ export function SiteFooter() {
           <div className="flex items-center gap-[10px]">
             <div className="flex items-center gap-[6px]">
               <MaskIcon name="arrow-circle-down" size={21} color="#737373" />
-              <p className="text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+              <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                 50K+ downloads
               </p>
             </div>
@@ -130,14 +124,7 @@ export function SiteFooter() {
       <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden opacity-40">
-            <video
-              src="/videos/footer-bg.webm"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-            />
+            <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}
@@ -151,7 +138,7 @@ export function SiteFooter() {
                   height={44}
                   className="h-11 w-11 rounded-[12px] object-cover"
                 />
-                <span className="font-display text-[32px] font-medium leading-[38px] text-white">
+                <span className="font-display text-[28px] font-bold leading-[33.6px] text-text-primary">
                   Appzen
                 </span>
               </a>
@@ -163,12 +150,12 @@ export function SiteFooter() {
               >
                 <MaskIcon name="mail" size={24} color="#a3a3a3" />
                 <div className="relative flex h-[21px] flex-col items-start overflow-hidden">
-                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
+                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition tb:text-[18px]-transform duration-300 ease-out group-hover:-translate-y-[29px]">
                     support@appzen.com
                   </strong>
                   <strong
                     aria-hidden
-                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] tracking-[-0.32px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px]"
+                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition tb:text-[18px]-transform duration-300 ease-out group-hover:-translate-y-[29px]"
                   >
                     support@appzen.com
                   </strong>
@@ -181,7 +168,7 @@ export function SiteFooter() {
                     href="https://x.com/ahmedwalidlab"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
+                    className="text-[16px] font-medium leading-[22.4px] text-text-secondary tb:text-[18px] tb:leading-[25.2px]"
                   >
                     X(Twitter)
                   </a>
@@ -194,14 +181,14 @@ export function SiteFooter() {
                     href="https://www.linkedin.com/in/ahmed-walid-designer/"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[18px] font-medium leading-[25.2px] text-text-secondary"
+                    className="text-[16px] font-medium leading-[22.4px] text-text-secondary tb:text-[18px] tb:leading-[25.2px]"
                   >
                     Linkedin
                   </a>
                 </li>
               </ul>
             </div>
-            <p className="mt-[68px] text-center text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-dim">
+            <p className="mt-[68px] text-center text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#404040] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
               Copyright © 2026 Appzen. All rights reserved.
             </p>
           </div>
