@@ -128,11 +128,11 @@ export function Reviews() {
           }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
+          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px]" />
         </div>
         <div
           aria-hidden
-          className="absolute inset-0 z-[1] opacity-70 mix-blend-screen"
+          className="absolute inset-0 z-[1] opacity-70 mix-blend-screen backdrop-blur-[2px]"
           style={{
             WebkitMaskImage:
               "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",

@@ -29,7 +29,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
   return (
     <div
       className={
-        "relative h-[782px] w-full max-w-[342px] overflow-hidden rounded-[32px] bg-base " +
+        "relative h-[797px] w-full max-w-[342px] overflow-hidden rounded-[32px] bg-base " +
         "tb:h-[1145px] tb:w-[730px] tb:max-w-[730px] tb:rounded-[44px] " +
         "dt:flex dt:h-[513px] dt:w-[1120px] dt:max-w-[1120px] dt:items-start " +
         (data.featured ? "dt:flex-row-reverse" : "dt:flex-row")

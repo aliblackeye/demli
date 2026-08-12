@@ -33,11 +33,11 @@ export function SiteFooter() {
           }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[467px] w-[1120px] object-cover" />
+          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] object-cover tb:h-[467px] tb:w-[1120px]" />
         </div>
         <div
           aria-hidden
-          className="absolute inset-0 z-[1] opacity-70 mix-blend-screen"
+          className="absolute inset-0 z-[1] opacity-70 mix-blend-screen backdrop-blur-[2px]"
           style={{
             WebkitMaskImage:
               "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
@@ -104,7 +104,7 @@ export function SiteFooter() {
       <div className="relative flex h-[120px] w-[240px] flex-col items-center tb:h-[190px] tb:w-[380px] dt:h-[210px] dt:w-[420px]">
         <div
           aria-hidden
-          className="absolute left-1/2 top-0 h-[400px] w-[872px] -translate-x-1/2 rounded-full opacity-40"
+          className="absolute left-1/2 top-0 h-[400px] w-[872px] -translate-x-1/2 rounded-[100%] opacity-40"
           style={{
             background:
               "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
@@ -150,12 +150,12 @@ export function SiteFooter() {
               >
                 <MaskIcon name="mail" size={24} color="#a3a3a3" />
                 <div className="relative flex h-[21px] flex-col items-start overflow-hidden">
-                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition tb:text-[18px]-transform duration-300 ease-out group-hover:-translate-y-[29px]">
+                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px] tb:text-[18px]">
                     support@appzen.com
                   </strong>
                   <strong
                     aria-hidden
-                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition tb:text-[18px]-transform duration-300 ease-out group-hover:-translate-y-[29px]"
+                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px] tb:text-[18px]"
                   >
                     support@appzen.com
                   </strong>
