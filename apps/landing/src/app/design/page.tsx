@@ -164,40 +164,127 @@ function Composer({ odak }: { odak?: boolean }) {
   );
 }
 
-/* Uygulama kabuğu — yüzen adalar: siyah boşluk üstünde rounded panel'ler */
+/* Bindirmeli avatar kümesi — rozet reçetesi: 24px, −7px bindirme, 2px halka */
+function AvatarKume({ adlar, boyut = 24 }: { adlar: string[]; boyut?: number }) {
+  return (
+    <span className="flex items-center">
+      {adlar.map((a, i) => (
+        <span
+          key={a}
+          className="flex items-center justify-center rounded-[1000px] bg-surface-2 font-medium text-text-primary"
+          style={{ width: boyut, height: boyut, fontSize: boyut * 0.42, marginLeft: i > 0 ? -(boyut * 0.3) : 0, boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}
+        >
+          {a[0]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* Konuşan katılımcı tile'ı — landing parıltısı halka olur */
+function KatilimciTile({ ad, konusuyor }: { ad: string; konusuyor?: boolean }) {
+  return (
+    <div className="relative flex h-40 flex-1 flex-col items-center justify-center overflow-hidden rounded-[24px] bg-base">
+      {konusuyor ? (
+        <div className="absolute inset-x-[-40px] inset-y-[-20px] rounded-[100%]" style={{ background: `radial-gradient(50% 50%, ${T.glow} 0%, rgba(255,132,100,0) 100%)`, filter: "blur(8px)" }} />
+      ) : null}
+      <span
+        className="relative flex h-14 w-14 items-center justify-center rounded-[1000px] bg-surface-2 text-[20px] font-medium text-text-primary"
+        style={{ boxShadow: konusuyor ? `rgb(13,13,13) 0 0 0 2px, ${T.accent} 0 0 0 4px` : "rgb(13,13,13) 0 0 0 2px" }}
+      >
+        {ad[0]}
+      </span>
+      <span className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-[50px] bg-[rgba(0,0,0,0.24)] px-2.5 py-1 backdrop-blur-[8px]" style={{ boxShadow: "rgba(38,49,64,0.32) 0px -1px 0px 0px inset" }}>
+        {konusuyor ? <span className="h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} /> : null}
+        <span className="text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{ad}</span>
+      </span>
+    </div>
+  );
+}
+
+/* Kontrol kutusu grubu — landing'in ikon-grubu hapı */
+function KontrolGrubu() {
+  return (
+    <span className="flex w-fit items-center gap-1 rounded-[16px] bg-base p-1">
+      {["monitor", "phone", "star"].map((ikon, i) => (
+        <span key={ikon} className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-colors hover:bg-surface-2" style={{ background: i === 0 ? T.accentSoft : "#171717" }}>
+          <MaskIcon name={ikon} size={20} color={i === 0 ? T.accentStrong : "#e5e5e5"} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* Mesaj satırı — baloncuk YOK: landing'in sakin satır dili */
+function MesajSatiri({ ad, saat, metin }: { ad: string; saat: string; metin: string }) {
+  return (
+    <div className="flex gap-3 rounded-[16px] px-3 py-2.5 transition-colors duration-[400ms] hover:bg-[#141414]">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[1000px] bg-surface-2 text-[12px] font-medium text-text-primary" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}>{ad[0]}</span>
+      <div className="min-w-0">
+        <p className="flex items-baseline gap-2">
+          <span className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-text-primary">{ad}</span>
+          <span className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-[#404040]">{saat}</span>
+        </p>
+        <p className="text-[15px] leading-[22px] text-text-secondary">{metin}</p>
+      </div>
+    </div>
+  );
+}
+
+/* Uygulama dili — mevcut uygulamanın YAPISI, landing'den doğan ÖZGÜN stil:
+   yüzen hap üst çubuk + siyah boşlukta ada panelleri */
 function UygulamaOnizleme() {
   return (
-    <div className="flex gap-2 rounded-[32px] bg-black p-2">
-      <div className="flex flex-col items-center gap-1 self-start rounded-[16px] bg-base p-1">
-        <span className="flex h-10 w-10 items-center justify-center rounded-[12px]" style={{ background: T.accentSoft }}>
-          <span className="text-[13px] font-semibold" style={{ color: T.accentStrong }}>D</span>
-        </span>
-        <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-2">O</span>
-        <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-surface text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-2">+</span>
-      </div>
-      <div className="w-60 shrink-0 rounded-[24px] bg-base p-3">
-        <p className="px-3 pb-2 pt-1 text-[12px] font-medium leading-[14.4px] tracking-[0.08em] text-text-dim">SES KANALLARI</p>
-        <UrunSatiri etiket="akşam odası" ikon="🔊" secili />
-        <div className="mb-1 mt-0.5 flex flex-col gap-1 pl-4">
-          <UyeSatiri ad="Baran" oran="%80" />
-          <UyeSatiri ad="Ece" oran="%100" />
+    <div className="flex flex-col gap-2 rounded-[32px] bg-black p-2">
+      {/* Üst çubuk — landing nav hapı dili */}
+      <div className="flex items-center justify-between rounded-[16px] bg-[rgba(23,23,23,0.72)] py-2.5 pl-5 pr-2.5 backdrop-blur-[10px]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[12px]" style={{ background: T.accentSoft }}>
+            <span className="text-[13px] font-semibold" style={{ color: T.accentStrong }}>D</span>
+          </span>
+          <span className={onest.className + " text-[17px] font-semibold text-white"}>bizim masa</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="translate-y-[1px]"><path d="M2.5 4.5 6 8l3.5-3.5" stroke="#737373" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div>
-        <p className="px-3 pb-2 pt-3 text-[12px] font-medium leading-[14.4px] tracking-[0.08em] text-text-dim">METİN KANALLARI</p>
-        <UrunSatiri etiket="sohbet" ikon="#" />
-        <UrunSatiri etiket="oyun" ikon="#" />
+        <div className="flex items-center gap-2">
+          <AvatarKume adlar={["Baran", "Ece", "Kaan"]} />
+          <span className="rounded-[12px] bg-surface-2 px-3 py-1.5 text-[13px] font-medium leading-[17px] text-[#e5e5e5]">Davet et</span>
+        </div>
       </div>
-      <div className="flex min-h-[300px] flex-1 flex-col rounded-[24px] bg-base p-4">
-        <div className="flex flex-1 flex-col justify-end gap-3">
-          <div className="flex items-end gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[1000px] bg-surface-2 text-[12px] font-medium text-text-primary" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}>E</span>
-            <div className="max-w-[280px] rounded-[18px] rounded-bl-[6px] bg-surface-2 px-4 py-3">
-              <p className="text-[14px] leading-[19.6px] text-text-primary">Çay hazır, oda açık.</p>
-            </div>
+      <div className="flex gap-2">
+        {/* Sol ada: kanallar + aktif oda kartı */}
+        <div className="flex w-64 shrink-0 flex-col rounded-[24px] bg-base p-3">
+          <p className="px-3 pb-1.5 pt-1 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Sesli</p>
+          <div className="flex cursor-pointer items-center justify-between rounded-[12px] px-3 py-2.5" style={{ background: T.accentSoft }}>
+            <span className="text-[15px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: T.accentStrong }}>akşam odası</span>
+            <AvatarKume adlar={["Baran", "Ece"]} boyut={20} />
           </div>
-          <div className="flex justify-end">
-            <div className="max-w-[280px] rounded-[18px] rounded-br-[6px] px-4 py-3" style={{ background: T.accentSoft }}>
-              <p className="text-[14px] leading-[19.6px]" style={{ color: T.accentStrong }}>Geliyorum, iki dakika.</p>
+          <UrunSatiri etiket="film gecesi" />
+          <p className="px-3 pb-1.5 pt-4 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Yazı</p>
+          <UrunSatiri etiket="sohbet" />
+          <UrunSatiri etiket="oyun" />
+          {/* Aktif oda kartı — hap + kontrol grubu */}
+          <div className="mt-4 flex flex-col gap-2.5 rounded-[18px] bg-surface p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-medium leading-[17px]" style={{ color: T.accentStrong }}>akşam odası · bağlı</span>
+              <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} />
             </div>
+            <KontrolGrubu />
+          </div>
+        </div>
+        {/* Orta ada: sesli oda tile'ları */}
+        <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-[24px] bg-base p-4">
+          <p className={onest.className + " px-1 pb-1 text-[20px] font-medium leading-[1.15]"}>
+            <span className="text-white">akşam odası </span>
+            <span className="text-text-dim">· 3 kişi</span>
+          </p>
+          <div className="flex gap-2">
+            <KatilimciTile ad="Baran" konusuyor />
+            <KatilimciTile ad="Ece" />
+            <KatilimciTile ad="Kaan" />
+          </div>
+          <div className="mt-1 flex flex-col">
+            <MesajSatiri ad="Ece" saat="21:04" metin="Çay hazır, oda açık." />
+            <MesajSatiri ad="Baran" saat="21:05" metin="Geliyorum, iki dakika." />
           </div>
           <Composer />
         </div>
@@ -448,14 +535,17 @@ export default function DesignShowcase() {
               <Composer odak />
             </div>
           </Spec>
-          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 14–15 (500) ls −0.28\nhover: yalnız bg #171717 (400ms)\nseçili: accent-soft + accent-strong\n(kayan metin satırlarda YOK)"}>
+          <Spec etiket="Kanal listesi" deger={"satır: radius 12 · pad 10×12\nmetin 14–15 (500) ls −0.28\nhover: yalnız bg #171717 (400ms)\nseçili: accent-soft + accent-strong\nbölüm etiketi: cümle düzeni, dim 13\n(BÜYÜK HARF etiket ve ikon önek yok)\nsesli kanalda bindirmeli avatar kümesi"}>
             <div className="flex max-w-[300px] flex-col gap-0.5 rounded-[24px] bg-base p-3">
-              <p className="px-3 pb-2 pt-1 text-[12px] font-medium leading-[14.4px] tracking-[0.08em] text-text-dim">SES KANALLARI</p>
-              <UrunSatiri etiket="akşam odası" ikon="🔊" secili />
-              <UrunSatiri etiket="film gecesi" ikon="🔊" />
-              <p className="px-3 pb-2 pt-3 text-[12px] font-medium leading-[14.4px] tracking-[0.08em] text-text-dim">METİN KANALLARI</p>
-              <UrunSatiri etiket="sohbet" ikon="#" />
-              <UrunSatiri etiket="oyun" ikon="#" />
+              <p className="px-3 pb-1.5 pt-1 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Sesli</p>
+              <div className="flex cursor-pointer items-center justify-between rounded-[12px] px-3 py-2.5" style={{ background: T.accentSoft }}>
+                <span className="text-[15px] font-medium leading-[19.6px] tracking-[-0.28px]" style={{ color: T.accentStrong }}>akşam odası</span>
+                <AvatarKume adlar={["Baran", "Ece"]} boyut={20} />
+              </div>
+              <UrunSatiri etiket="film gecesi" />
+              <p className="px-3 pb-1.5 pt-3 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">Yazı</p>
+              <UrunSatiri etiket="sohbet" />
+              <UrunSatiri etiket="oyun" />
             </div>
           </Spec>
           <Spec etiket="Üye satırı" deger={"avatar 32px + 2px koyu halka\n(rozet avatarı reçetesi)\nonline nokta: 12px success\nses oranı: beyaz %12 hap çipi"}>
@@ -558,7 +648,7 @@ export default function DesignShowcase() {
               </table>
             </div>
           </Spec>
-          <Spec etiket="Uygulama kabuğu — yüzen adalar" deger={"siyah boşluk üstünde rounded\npaneller (landing'in ada dili):\nrail: ikon grubu (radius 16, p-1,\n  kutular radius 12)\nsidebar: radius 24, bg-base, p-3\nsohbet: radius 24, baloncuk 18\nkuyruk köşesi 6 · composer hap"}>
+          <Spec etiket="Uygulama dili — özgün, landing'den doğma" deger={"YAPI mevcut üründen; STİL sıfırdan:\nüst çubuk: nav hapı (raised+blur,\n  radius 16) — grup adı display font\n  + bindirmeli avatar kümesi\nadalar: radius 24, siyah boşluk 8px\nkanal satırı: sesli kanalda avatar\n  kümesi; başlıklar cümle düzeni\n  (BÜYÜK HARF etiket yok)\nkonuşan: mercan parıltı + 2px halka\nkatılımcı adı: veil hapı (iç gölge)\nmesajlar: BALONCUK YOK — sakin\n  satır, hover'da yüzey (400ms)\naktif oda kartı: radius 18 +\n  kontrol kutuları (16/p-1, 12'lik)"}>
             <UygulamaOnizleme />
           </Spec>
         </Bolum>
