@@ -35,10 +35,11 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         (data.featured ? "dt:flex-row-reverse" : "dt:flex-row")
       }
     >
-      {/* Dekor: dot-frame + noise (+ featured'da ışık huzmesi).
-          authored dots maskı: radial 50% 100% at 63.4% 50%, 0.32 → 0 */}
-      <figure
-        className="pointer-events-none absolute inset-x-0 top-[2px] h-[99%] overflow-hidden rounded-[inherit]"
+      {/* authored BG: tek maskeli ebeveyn (radial 63.4% .32) altında
+          noise (op .32, screen, 65% mask) + tam-yuvarlak dots figürü */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
         style={{
           WebkitMaskImage:
             "radial-gradient(50% 100% at 63.4% 50%, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 100%)",
@@ -46,8 +47,22 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
             "radial-gradient(50% 100% at 63.4% 50%, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 100%)",
         }}
       >
-        <Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="1120px" />
-      </figure>
+        <div
+          className="absolute inset-0 opacity-[0.32] mix-blend-screen"
+          style={{
+            backgroundImage: "url(/images/noise.png)",
+            backgroundRepeat: "repeat",
+            backgroundSize: "128px",
+            WebkitMaskImage:
+              "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
+            maskImage:
+              "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
+          }}
+        />
+        <figure className="absolute inset-x-0 top-[2px] h-[99%] overflow-hidden rounded-[100%]">
+          <Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="1120px" />
+        </figure>
+      </div>
       {data.featured && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           <div className="absolute left-1/2 top-[-22px] h-[712px] w-[1708px] -translate-x-1/2 rotate-180">
@@ -55,19 +70,6 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           </div>
         </div>
       )}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.32] mix-blend-screen"
-        style={{
-          backgroundImage: "url(/images/noise.png)",
-          backgroundRepeat: "repeat",
-          backgroundSize: "128px",
-          WebkitMaskImage:
-            "radial-gradient(65% 50% at 50% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
-          maskImage:
-            "radial-gradient(65% 50% at 50% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
-        }}
-      />
 
       {/* İçerik */}
       <div
@@ -128,7 +130,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
           dt: karşı kolonu dolduran akış öğesi. */}
       <div
-        className="absolute left-0 top-[453px] z-[1] h-[329px] w-full tb:top-[450px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
+        className="absolute left-0 top-[453px] z-[1] h-[329px] w-full overflow-hidden rounded-[32px] tb:top-[450px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
         style={{
           WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",

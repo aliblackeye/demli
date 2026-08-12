@@ -182,13 +182,13 @@ export function Reviews() {
               [Emily,Layla,Tyler | Olivia,Kevin,Aisha | Jessica,Marcus,Daniel].
               CSS columns dengelemesi deterministik değil — açık kolonlar. */}
           {/* Mobil: tek kolon, 6 kart, 1728 kırpma */}
-          <div className="mx-auto flex h-[1728px] w-full max-w-[327px] flex-col gap-3 overflow-hidden tb:hidden">
+          <div className="mx-auto flex h-[1728px] w-full max-w-[327px] flex-col gap-3 overflow-hidden tb:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
             {MOBILE_ITEMS.map((c) => (
               <ReviewCard key={c.name} data={c} />
             ))}
           </div>
           {/* Tablet: iki kolon (406), 1357 kırpma */}
-          <div className="mx-auto hidden h-[1357px] w-full max-w-[824px] gap-3 overflow-hidden tb:flex dt:hidden">
+          <div className="mx-auto hidden h-[1357px] w-full max-w-[824px] gap-3 overflow-hidden tb:flex dt:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
             {[COL_1, COL_2].map((col, i) => (
               <div key={i} className="flex w-[406px] flex-col gap-3">
                 {col.map((c) => (
