@@ -108,12 +108,12 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
             as="h3"
             className="font-display text-[40px] font-normal leading-[44px] text-white tb:text-[52px] tb:leading-[57.2px]"
           />
-          {/* Ölçülen (390): desc lh 24px (150%) */}
+          {/* Ölçülen: desc mobil 16/24, tb+ 18/25.2 */}
           <RevealText
             text={data.description}
             mode="char"
             as="p"
-            className="text-[16px] leading-6 text-text-dim tb:text-[18px] tb:leading-[27px]"
+            className="text-[16px] leading-6 text-text-dim tb:text-[18px] tb:leading-[25.2px]"
           />
         </FadeIn>
         {/* authored Benefits: gap 12 (mobil 8); y20 spring {bounce 0, delay .8, dur .6} */}

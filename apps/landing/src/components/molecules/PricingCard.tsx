@@ -26,7 +26,13 @@ export type PricingCardData = {
 export function PricingCard({ data }: { data: PricingCardData }) {
   return (
     // authored: gap 16, padding 16 16 24, radius 32, bg #171717b8
-    <div className="relative flex w-full max-w-[327px] flex-col gap-4 overflow-hidden rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none">
+    // Ölçülen (1440): Free 410, Premium 398 (tb ikisi de 404)
+    <div
+      className={
+        "relative flex w-full max-w-[327px] flex-col gap-4 overflow-hidden rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none " +
+        (data.featured ? "dt:w-[398px]" : "dt:w-[410px]")
+      }
+    >
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.32] mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(65% 50%, rgba(0,0,0,0.88) 25.044%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(65% 50%, rgba(0,0,0,0.88) 25.044%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
       <div className={"relative overflow-hidden rounded-[24px] " + (data.featured ? "bg-base backdrop-blur-[10px]" : "bg-surface")}>
         <div className="pointer-events-none absolute inset-0" style={{ WebkitMaskImage: "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0,0,0,0.8) 50.637%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0,0,0,0.8) 50.637%, rgba(0,0,0,0) 100%)" }}><figure className="absolute inset-0 overflow-hidden rounded-[100%]" style={{ WebkitMaskImage: "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0,0,0,0.8) 50.637%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0,0,0,0.8) 50.637%, rgba(0,0,0,0) 100%)" }}><Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="372px" /></figure></div>
