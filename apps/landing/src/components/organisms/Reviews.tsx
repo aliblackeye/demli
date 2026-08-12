@@ -87,6 +87,7 @@ const COL_2: ReviewCardData[] = [
 const byName = (n: string): ReviewCardData => [...COL_1, ...COL_2].find((c) => c.name === n)!;
 
 /* Mobil (ölçüldü): C1/C2 serpiştirme, ilk 6 */
+/* Ölçülen (390 yerinde): ref mobil kolonda 6 kart var (Apr/Feb/Jan/Nov/Aug/May-13) */
 const MOBILE_ITEMS: ReviewCardData[] = [
   "Emily Rodriguez",
   "Olivia Bennett",
@@ -94,7 +95,6 @@ const MOBILE_ITEMS: ReviewCardData[] = [
   "Layla Morrison",
   "Kevin Patterson",
   "Marcus Thompson",
-  "Tyler Brooks",
 ].map(byName);
 
 /* Geniş ekran (ölçüldü): üç kolon */
@@ -153,8 +153,9 @@ export function Reviews() {
       </div>
 
       {/* İçerik */}
-      <div className="relative flex w-full flex-col items-center gap-20">
-        <div className="flex flex-col items-center gap-8">
+      {/* Ölçülen (390): container gap 40, başlık bloğu gap 24 */}
+      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-20">
+        <div className="flex flex-col items-center gap-6 tb:gap-8">
           <FadeIn>
             <TrustBadge />
           </FadeIn>
@@ -183,7 +184,9 @@ export function Reviews() {
               [Emily,Layla,Tyler | Olivia,Kevin,Aisha | Jessica,Marcus,Daniel].
               CSS columns dengelemesi deterministik değil — açık kolonlar. */}
           {/* Mobil: tek kolon, 6 kart, 1728 kırpma */}
-          <div className="mx-auto flex h-[1728px] w-full max-w-[342px] flex-col gap-3 overflow-hidden tb:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
+          {/* Ölçülen: mobil kolonun içerik bloğunda 44px üst ofset var
+              (tb'deki 83px kolon başı ofsetinin mobil karşılığı) */}
+          <div className="mx-auto mt-11 flex h-[1728px] w-full max-w-[342px] flex-col gap-3 overflow-hidden tb:mt-0 tb:hidden" style={{ WebkitMaskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)", maskImage: "linear-gradient(rgb(0,0,0) 44%, rgba(0,0,0,0) 100%)" }}>
             {MOBILE_ITEMS.map((c) => (
               <ReviewCard key={c.name} data={c} />
             ))}
