@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { Appear, APPEAR } from "../atoms/Appear";
 import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
@@ -115,7 +116,19 @@ export function Hero() {
             linear-gradient(#000 12%, saydam 100%) — kırpma değil solma. */}
         <div className="flex w-full flex-col items-center">
           <div className="relative flex aspect-[0.766667] w-full max-w-[344px] flex-col items-center tb:max-w-[564px] dt:max-w-[644px]">
-            <div aria-hidden className="absolute inset-y-0 left-[-318px] right-[-318px] rounded-[100%] opacity-[0.48] dt:left-[-398px] dt:right-[-398px]" style={{ background: "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)", filter: "blur(8px)" }} />
+            {/* Ölçülen (rAF): parıltı scroll'a değil ZAMANA bağlı — tek döngüde
+                0→380→0, tam periyot 7017 ms, ease [.44,0,.56,1] */}
+            <motion.div
+              aria-hidden
+              className="absolute inset-y-0 left-[-318px] right-[-318px] rounded-[100%] opacity-[0.48] dt:left-[-398px] dt:right-[-398px]"
+              style={{
+                background:
+                  "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+                filter: "blur(8px)",
+              }}
+              animate={{ y: [0, 380, 0] }}
+              transition={{ duration: 7.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
+            />
             <Appear
               spec={APPEAR.mockup}
               className="w-full"
