@@ -9,7 +9,8 @@ import { SectionTagline } from "../molecules/SectionTagline";
 const CARDS: FeatureCardData[] = [
   {
     tag: "Personalized Onboarding",
-    title: "Built Around You, From Day One",
+    // Ölçülen: başlık kırılımları ref RichText'inde yazarın koyduğu \n'ler
+    title: "Built Around You,\nFrom Day One",
     description:
       "Set your health preferences, body metrics, lifestyle habits, and medical background, so every recommendation feels made specifically for you.",
     bullets: [
@@ -21,7 +22,7 @@ const CARDS: FeatureCardData[] = [
   },
   {
     tag: "AI Chat",
-    title: "Ask Anything. Get Answers Fast.",
+    title: "Ask Anything. Get\nAnswers Fast.",
     description:
       "Chat with your 24/7 AI health assistant for symptom guidance, medication advice, and instant answers, no waiting rooms, no appointments needed.",
     bullets: [
@@ -33,7 +34,7 @@ const CARDS: FeatureCardData[] = [
   },
   {
     tag: "Doctor Booking",
-    title: "Stop Searching. Start Healing.",
+    title: "Stop Searching.\nStart Healing.",
     description:
       "Browse verified doctors by specialty and location, compare real patient ratings, pick a slot, and confirm your appointment in minutes.",
     bullets: [
@@ -101,7 +102,7 @@ export function Features() {
           </FadeIn>
           {/* authored: başlık BLOK olarak açılır — spring {bounce .3, dur 3}, threshold .5 */}
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
-            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+            <h2 className="whitespace-pre-wrap text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
               {/* Ölçülen: mobilde <br> YOK — doğal sarım 3 satır
                   ("Built for human" / "thinking automated" / "Intelligently") */}
               <span className="tb:hidden"><span className="text-white">Built for human thinking </span><span className="text-text-dim">automated Intelligently</span></span><span className="hidden tb:inline"><span className="text-white">Designed for People</span><br /><span className="text-text-dim">Powered by AI</span></span>

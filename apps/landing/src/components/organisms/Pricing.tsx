@@ -91,7 +91,7 @@ export function Pricing() {
           </FadeIn>
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
             {/* Ölçülen: mobil varyantta <br> yok (doğal sarım), tb+ varyantında var */}
-            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+            <h2 className="whitespace-pre-wrap text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
               <span className="tb:hidden"><span className="text-white">Choose the perfect plan </span><span className="text-text-dim">for your needs</span></span>
               <span className="hidden tb:inline"><span className="text-white">Choose the perfect plan</span><br /><span className="text-text-dim">for your needs</span></span>
             </h2>

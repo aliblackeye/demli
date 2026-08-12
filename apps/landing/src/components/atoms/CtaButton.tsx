@@ -21,10 +21,11 @@ type CtaButtonProps = {
  * authored hover geçişi spring { bounce .2, duration .4 }.
  */
 export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButtonProps) {
+  // Ölçülen (390): CTA metni mobilde 16px/24 (tb+ 18px/25.2)
   const textCls =
     (mobileSmall
       ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] "
-      : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
+      : "whitespace-nowrap text-[16px] font-medium leading-[24px] tb:text-[18px] tb:leading-[25.2px] ") +
     (variant === "primary" ? "text-surface" : "text-text-primary");
   return (
     <motion.a
@@ -39,7 +40,7 @@ export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButton
       }
     >
       {icon}
-      <div className="relative flex h-[25px] flex-col items-start overflow-hidden">
+      <div className={"relative flex flex-col items-start overflow-hidden " + (mobileSmall ? "h-[25px]" : "h-6 tb:h-[25px]")}>
         <motion.div variants={slideVariants(29)} transition={SLIDE_SPRING} className="flex flex-col">
           <strong className={textCls}>{label}</strong>
         </motion.div>

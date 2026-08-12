@@ -69,9 +69,10 @@ export function SiteFooter() {
         <FadeIn>
           <TrustBadge />
         </FadeIn>
-        <p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
+        <p className="whitespace-pre-wrap text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
+          {/* Ölçülen: ref desc'te <br> yok — 580'lik kapta doğal sarım */}
           <RevealText text="Designed to heal, understand everything " mode="char" />
-          <br /><RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
+          <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
         <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
           <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">

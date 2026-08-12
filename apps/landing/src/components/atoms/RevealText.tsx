@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useIsMobile } from "./CardReveal";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -25,8 +26,11 @@ type RevealTextProps = {
  */
 export function RevealText({ text, mode, className = "", as = "span", stagger }: RevealTextProps) {
   const ref = useRef<HTMLElement | null>(null);
+  // Ölçülen: ref mobilde metin reveal'i YOK — düz RichText basıyor
+  const mobil = useIsMobile();
 
   useEffect(() => {
+    if (mobil) return;
     const el = ref.current;
     if (!el) return;
     const parts = el.querySelectorAll<HTMLElement>("[data-reveal-part]");
@@ -46,18 +50,42 @@ export function RevealText({ text, mode, className = "", as = "span", stagger }:
       tween.scrollTrigger?.kill();
       tween.kill();
     };
-  }, [mode, stagger, text]);
+  }, [mode, stagger, text, mobil]);
 
   const Tag = as as "span";
-  const pieces = mode === "word" ? text.split(/(?<= )/) : [...text];
+  // '\n' = yazarın satır kırılımı (ref RichText'inde var) — <br> olarak basılır
+  const satirlar = text.split("\n");
 
+  // Ölçülen: ref h3/desc white-space NORMAL (pre-wrap yalnız H2'lerde)
+  if (mobil) {
+    return (
+      <Tag ref={ref as never} className={className}>
+        {satirlar.map((s, i) => (
+          <span key={i} className="contents">
+            {i > 0 ? <br /> : null}
+            {s}
+          </span>
+        ))}
+      </Tag>
+    );
+  }
+
+  let anahtar = 0;
   return (
     <Tag ref={ref as never} className={className} aria-label={text}>
-      {pieces.map((p, i) => (
-        <span key={i} aria-hidden data-reveal-part style={{ opacity: 0.001 }}>
-          {p}
-        </span>
-      ))}
+      {satirlar.map((satir, si) => {
+        const pieces = mode === "word" ? satir.split(/(?<= )/) : [...satir];
+        return (
+          <span key={si} className="contents">
+            {si > 0 ? <br /> : null}
+            {pieces.map((p) => (
+              <span key={anahtar++} aria-hidden data-reveal-part style={{ opacity: 0.001 }}>
+                {p}
+              </span>
+            ))}
+          </span>
+        );
+      })}
     </Tag>
   );
 }

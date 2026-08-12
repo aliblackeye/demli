@@ -82,7 +82,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         className={
           "relative z-[2] flex w-full flex-col items-start gap-8 px-8 pt-8 " +
           "tb:px-16 tb:pt-16 " +
-          "dt:w-auto dt:flex-1 dt:py-[72px] " +
+          // Ölçülen (1440): ref içerik kolonu justify-center (h3 y107)
+          "dt:w-auto dt:flex-1 dt:justify-center dt:py-[72px] " +
           (data.featured ? "dt:pl-0 dt:pr-16" : "dt:pl-16 dt:pr-0")
         }
       >

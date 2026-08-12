@@ -173,7 +173,7 @@ export function Hero() {
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
               {/* authored whhy8i: 32 (mobil) / 40 (tb) / 44 (dt), lh %120, ls -.02em */}
-              <FadeIn y={0} amount={0.2}><p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>Designed to heal, understand everything </span><br /><span className="text-text-dim">and ship with confidence.</span></p></FadeIn>
+              <FadeIn y={0} amount={0.2}><p className="whitespace-pre-wrap text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>Designed to heal, understand everything </span><span className="text-text-dim">and ship with confidence.</span></p></FadeIn>
             </div>
             <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
               {/* Sarmalayıcı genişliksiz kalınca flex-col ebeveynde büzüşüyordu

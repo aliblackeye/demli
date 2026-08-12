@@ -161,7 +161,7 @@ export function Reviews() {
           {/* authored: BLOK açılım spring {bounce .3, dur 3}, threshold .5;
               mobil varyantta metin farklı ("Here from other users have to say") */}
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
-            <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
+            <h2 className="whitespace-pre-wrap text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
               <span className="tb:hidden">
                 <span className="text-white">Here from other users </span>
                 <span className="text-text-dim">have to say</span>
