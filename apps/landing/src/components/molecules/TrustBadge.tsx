@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { MaskIcon } from "../atoms/MaskIcon";
 
 const AVATARS = [
@@ -31,7 +34,15 @@ export function TrustBadge() {
                 "h-8 w-8 overflow-hidden rounded-[1000px] " + (i > 0 ? "-ml-[9px]" : "")
               }
             >
-              <Image src={src} alt="" width={32} height={32} className="h-8 w-8 rounded-[1000px] object-cover" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }} />
+              {/* Ölçülen (390 scroll-0): avatarlar y:-16 ön-durumdan kayarak gelir */}
+              <motion.div
+                initial={{ y: -16 }}
+                whileInView={{ y: 0 }}
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }}
+              >
+                <Image src={src} alt="" width={32} height={32} className="h-8 w-8 rounded-[1000px] object-cover" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }} />
+              </motion.div>
             </div>
           ))}
         </div>

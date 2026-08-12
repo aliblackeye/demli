@@ -41,10 +41,9 @@ export function CardReveal({
   className?: string;
   transition?: Transition;
 }) {
-  const mobil = useIsMobile();
-  
-  // authored: mobil varyantta styleTransformEffect kapalı
-  if (mobil) return <div className={className}>{children}</div>;
+  // Ölçülen (390, scroll-0): ref MOBİLDE DE kart transformlarını çalıştırıyor
+  // (kartlar ty:64, reviews grid ty:250 ön-durumda) — mobil kapatma YOK.
+  // Mobilde kapalı olan yalnız METİN reveal'leri (RevealText düz basar).
   return (
     <motion.div
       className={className}
