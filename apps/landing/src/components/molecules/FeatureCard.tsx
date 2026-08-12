@@ -130,7 +130,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
           dt: karşı kolonu dolduran akış öğesi. */}
       <div
-        className="absolute left-0 top-[453px] z-[1] h-[344px] w-full overflow-hidden rounded-[32px] tb:top-[450px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
+        className="absolute left-0 top-[453px] z-[1] h-[344px] w-full overflow-hidden rounded-[32px] tb:top-[433px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
         style={{
           WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
