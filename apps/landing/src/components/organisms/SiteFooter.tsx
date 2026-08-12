@@ -175,15 +175,17 @@ export function SiteFooter() {
               </a>
             </div>
             <div className="mt-[50px] flex flex-col items-center">
-              <motion.a href="mailto:support@appzen.com" initial="rest" animate="rest" whileHover="hover" className="group flex items-center gap-3 rounded-[18px] bg-surface-2 px-8 py-4">
+              {/* Ölçülen (390): pad 16/32/16/24, gap 8, metin 16/24 */}
+              <motion.a href="mailto:support@appzen.com" initial="rest" animate="rest" whileHover="hover" className="group flex items-center gap-2 rounded-[18px] bg-surface-2 py-4 pl-6 pr-8">
                 <MaskIcon name="mail" size={24} color="#a3a3a3" />
-                <div className="relative flex h-[21px] flex-col items-start overflow-hidden">
-                  <motion.strong variants={slideVariants(29)} transition={SLIDE_SPRING} className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary tb:text-[18px]">support@appzen.com</motion.strong>
-                  <motion.strong aria-hidden variants={slideVariants(29)} transition={SLIDE_SPRING} className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary tb:text-[18px]">support@appzen.com</motion.strong>
+                <div className="relative flex h-6 flex-col items-start overflow-hidden tb:h-[25px]">
+                  <motion.strong variants={slideVariants(29)} transition={SLIDE_SPRING} className="whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">support@appzen.com</motion.strong>
+                  <motion.strong aria-hidden variants={slideVariants(29)} transition={SLIDE_SPRING} className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-6 text-text-primary tb:text-[18px] tb:leading-[25.2px]">support@appzen.com</motion.strong>
                 </div>
               </motion.a>
-              {/* authored Social CTA Wrapper: radius 16, gap 16 (mobil 4) */}
-              <ul className="mt-9 flex items-center gap-1 rounded-[16px] tb:gap-4">
+              {/* authored Social CTA Wrapper: radius 16, gap 16 (mobil 4).
+                  Ölçülen (390): p-1, mail→sosyal 32 (tb 36) */}
+              <ul className="mt-8 flex items-center gap-1 rounded-[16px] p-1 tb:mt-9 tb:gap-4">
                 <li>
                   <a
                     href="https://x.com/ahmedwalidlab"
@@ -209,7 +211,8 @@ export function SiteFooter() {
                 </li>
               </ul>
             </div>
-            <p className="mt-[68px] text-center text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#404040] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
+            {/* Ölçülen (390): telif lh 19.6 (iki satır 39), sosyal→telif 64 (tb 68) */}
+            <p className="mt-16 text-center text-[14px] leading-[19.6px] tracking-[-0.28px] text-[#404040] tb:mt-[68px] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
               Copyright © 2026 Appzen. All rights reserved.
             </p>
           </div>
