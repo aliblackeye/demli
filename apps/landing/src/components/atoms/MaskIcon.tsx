@@ -6,11 +6,16 @@
 export function MaskIcon({
   name,
   size = 24,
+  width,
+  height,
   color,
   className = "",
 }: {
   name: string;
   size?: number;
+  /** Kare olmayan ikonlar için (inline stil sınıfları ezer) */
+  width?: number;
+  height?: number;
   color: string;
   className?: string;
 }) {
@@ -19,8 +24,8 @@ export function MaskIcon({
       aria-hidden
       className={className}
       style={{
-        width: size,
-        height: size,
+        width: width ?? size,
+        height: height ?? size,
         backgroundColor: color,
         WebkitMaskImage: `url(/icons/${name}.svg)`,
         maskImage: `url(/icons/${name}.svg)`,

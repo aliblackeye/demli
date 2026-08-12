@@ -16,7 +16,7 @@ const AUTHORED_SPRING: Transition = {
   mass: 1,
 };
 
-function useIsMobile() {
+export function useIsMobile() {
   const [m, setM] = require("react").useState(false);
   require("react").useEffect(() => {
     const mq = window.matchMedia("(max-width: 809.98px)");

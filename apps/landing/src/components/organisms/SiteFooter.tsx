@@ -8,6 +8,7 @@ import { FadeIn } from "../atoms/FadeIn";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
 import { SLIDE_SPRING, slideVariants } from "../atoms/SlideHoverText";
+import { useIsMobile } from "../atoms/CardReveal";
 import { TrustBadge } from "../molecules/TrustBadge";
 
 /**
@@ -21,11 +22,14 @@ import { TrustBadge } from "../molecules/TrustBadge";
  * Sosyal linkler: ul p-1 gap 16 (mobil 4), radius 16.
  */
 export function SiteFooter() {
+  // Ölçülen: şerit parıltısı tb+'da 0→380→0 salınır (periyot 4017 ms),
+  // 390'da statik — hero parıltısıyla aynı ease, farklı süre
+  const mobil = useIsMobile();
   return (
     <footer className="relative flex flex-col items-center gap-10 overflow-clip pt-20 tb:gap-16 tb:pt-[120px] dt:pt-[160px]">
       {/* BG şeridi */}
       <div className="footer-strip-mask absolute inset-x-0 top-0 flex h-[300px] items-center justify-center overflow-clip tb:h-[467px] dt:h-[600px]">
-        <div
+        <motion.div
           aria-hidden
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
           style={{
@@ -33,6 +37,8 @@ export function SiteFooter() {
               "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
             filter: "blur(8px)",
           }}
+          animate={mobil ? { y: 0 } : { y: [0, 380, 0] }}
+          transition={mobil ? undefined : { duration: 4.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
         />
         <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
           <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px] dt:h-[600px] dt:w-[1440px]" />
@@ -102,38 +108,53 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* Büyük footer ikonu — authored: sarmalayıcı 120/190/210, ikon 240/380/420 */}
-      <div className="relative flex h-[120px] w-[240px] flex-col items-center tb:h-[190px] tb:w-[380px] dt:h-[210px] dt:w-[420px]">
-        <div
-          aria-hidden
-          className="absolute left-1/2 top-0 h-[400px] w-[872px] -translate-x-1/2 rounded-[100%] opacity-40"
-          style={{
-            background:
-              "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
-            filter: "blur(8px)",
-          }}
-        />
-        <Image
-          src="/images/footer-icon.png"
-          alt=""
-          width={420}
-          height={420}
-          className="h-[240px] w-[240px] object-contain tb:h-[380px] tb:w-[380px] dt:h-[420px] dt:w-[420px]"
-        />
-      </div>
+      {/* Büyük footer ikonu — authored: sarmalayıcı 120/190/210, ikon 240/380/420.
+          Ölçülen: parıltı wrapper'a üstten hizalı, BLUR'SUZ, 732×330/872×400/912×420.
+          Wrapper'da y250→0 görünürlük reveal'i var — MOBİLDE DE aktif.
+          Tetik TRANSFORMSUZ dış kutuda (layout konumu): y250 ötelenmiş kutu
+          viewport'a girmediği için IO iç kutuda hiç ateşlemezdi; variant
+          kalıtımıyla iç motion.div oynar. */}
+      <motion.div
+        initial="gizli"
+        whileInView="acik"
+        viewport={{ once: true, amount: 0.05 }}
+        className="relative flex h-[120px] w-[240px] flex-col items-center tb:h-[190px] tb:w-[380px] dt:h-[210px] dt:w-[420px]"
+      >
+        <motion.div
+          variants={{ gizli: { y: 250 }, acik: { y: 0 } }}
+          transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }}
+          className="relative flex h-full w-full flex-col items-center"
+        >
+          <div
+            aria-hidden
+            className="absolute left-1/2 top-0 h-[330px] w-[732px] max-w-none -translate-x-1/2 rounded-[100%] opacity-40 tb:h-[400px] tb:w-[872px] dt:h-[420px] dt:w-[912px]"
+            style={{
+              background:
+                "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+            }}
+          />
+          <Image
+            src="/images/footer-icon.png"
+            alt=""
+            width={420}
+            height={420}
+            className="h-[240px] w-[240px] object-contain tb:h-[380px] tb:w-[380px] dt:h-[420px] dt:w-[420px]"
+          />
+        </motion.div>
+      </motion.div>
 
       {/* Footer Card — authored: wrapper pad 0 40 40 (mobil 0 24 24) */}
       <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
+          {/* Ölçülen (görüş-içi, 3 bp): kartta YALNIZ footer-bg.webm var —
+              rays ve kart parıltısı yok; video her kırılımda görünür,
+              sabit 720×300 (mobil) / 1440×600 (tb+), ortalanmış */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[300px] overflow-hidden tb:h-[600px]" style={{ WebkitMaskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)" }}>
-            <VideoBg src="/videos/footer-bg.webm" className="absolute inset-0 hidden h-full w-full object-cover tb:block" />
-            {/* Ölçülen: light-rays sarmalayıcısı TÜM genişliklerde 1440×600 */}
-            <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:h-[600px] tb:w-[1440px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-              <VideoBg src="/videos/light-rays.webm" className="h-full w-full rotate-180 object-cover" />
+            {/* Ölçülen: video mobilde kart içinde +54 (dikey ortalı), tb+ üstte */}
+            <div className="absolute left-1/2 top-[54px] h-[300px] w-[720px] max-w-none -translate-x-1/2 tb:top-0 tb:h-[600px] tb:w-[1440px]">
+              <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
             </div>
             <div className="absolute inset-0 mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
-            {/* Ölçülen: glow mobilde kart tepesinden 187px aşağıda */}
-            <div className="absolute left-1/2 top-[187px] h-[330px] w-[732px] max-w-none -translate-x-1/2 rounded-[100%] tb:top-[-4px] tb:h-[400px] tb:w-[872px] dt:h-[420px] dt:w-[912px]" style={{ background: "radial-gradient(50% 50%, rgba(34,197,94,0.24) 0%, rgba(34,197,94,0) 100%)" }} />
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}

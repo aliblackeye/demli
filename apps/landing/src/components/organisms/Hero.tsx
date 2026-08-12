@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Appear, APPEAR } from "../atoms/Appear";
+import { useIsMobile } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
@@ -21,6 +22,8 @@ export function Hero() {
   // klampsız, spring'siz — anlık bağ; 3000→840 doğrulandı)
   const { scrollY } = useScroll();
   const mockupParallax = useTransform(scrollY, (v) => v * 0.28);
+  // Ölçülen: parıltı salınımı 390'da yok (maxY 0) — yalnız tb+
+  const mobil = useIsMobile();
   return (
     <header
       id="hero"
@@ -130,8 +133,8 @@ export function Hero() {
                   "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
                 filter: "blur(8px)",
               }}
-              animate={{ y: [0, 380, 0] }}
-              transition={{ duration: 7.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
+              animate={mobil ? { y: 0 } : { y: [0, 380, 0] }}
+              transition={mobil ? undefined : { duration: 7.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
             />
             <motion.div className="w-full" style={{ y: mockupParallax }}>
               <Appear

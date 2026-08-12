@@ -10,19 +10,20 @@ const AVATARS = [
 ];
 
 /**
- * Defne kanatlı güven rozeti (Reviews + Footer'da aynı) — ölçülen:
- * kanatlar 28×38 #737373, orta blok gap 12: avatar yığını (32px,
- * 22px bindirme, 6px siyah halka) + 5 yıldız (12px) + 76px'te iki
- * satıra sarılan "Trusted by 50K+ users".
+ * Defne kanatlı güven rozeti (Reviews + Footer'da aynı "Reviews Badge") —
+ * ölçülen: kanatlar 28×38 ALTIN (#eab30a, Trust token), badge flex gap 24.
+ * Orta blok tb+: satır gap 12 (avatarlar 125×44 + 76px sütun) → 317×50;
+ * mobil: SÜTUN gap 8 (avatarlar üstte, yıldız/metin altta ortalı) → 229×97.
+ * Metin 76px'te iki satıra sarılır; 12px mobil / 14px tb+.
  */
 export function TrustBadge() {
   return (
     <div className="flex items-center gap-6">
-      <MaskIcon name="laurel-left" size={38} color="#737373" className="h-[38px] w-[28px]" />
-      <div className="flex items-center gap-3 rounded-[100px]">
-        {/* authored Stacked Avatars: 1px sarmalayıcılar + gap 22 → merkez
-            adımı 23px; görsel 32px, px-16 kenar payı. */}
-        <div className="flex h-[44px] items-center px-4">
+      <MaskIcon name="laurel-left" width={28} height={38} color="#eab30a" />
+      <div className="flex flex-col items-center gap-2 tb:flex-row tb:gap-3">
+        {/* authored Stacked Avatars: 125×44 kenar paysız; 32px görsel,
+            23px merkez adımı (bindirme -9px), 2px koyu halka */}
+        <div className="flex h-[44px] items-center">
           {AVATARS.map((src, i) => (
             <div
               key={src}
@@ -45,7 +46,7 @@ export function TrustBadge() {
           </p>
         </div>
       </div>
-      <MaskIcon name="laurel-right" size={38} color="#737373" className="h-[38px] w-[28px]" />
+      <MaskIcon name="laurel-right" width={28} height={38} color="#eab30a" />
     </div>
   );
 }
