@@ -1,6 +1,7 @@
 "use client";
 
 import { VideoBg } from "../atoms/VideoBg";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import { CtaButton } from "../atoms/CtaButton";
 import { FadeIn } from "../atoms/FadeIn";
@@ -151,23 +152,13 @@ export function SiteFooter() {
               </a>
             </div>
             <div className="mt-[50px] flex flex-col items-center">
-              <a
-                href="mailto:support@appzen.com"
-                className="group flex items-center gap-3 rounded-[18px] bg-surface-2 px-8 py-4"
-              >
+              <motion.a href="mailto:support@appzen.com" initial="rest" animate="rest" whileHover="hover" className="group flex items-center gap-3 rounded-[18px] bg-surface-2 px-8 py-4">
                 <MaskIcon name="mail" size={24} color="#a3a3a3" />
                 <div className="relative flex h-[21px] flex-col items-start overflow-hidden">
-                  <strong className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px] tb:text-[18px]">
-                    support@appzen.com
-                  </strong>
-                  <strong
-                    aria-hidden
-                    className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary transition-transform duration-300 ease-out group-hover:-translate-y-[29px] tb:text-[18px]"
-                  >
-                    support@appzen.com
-                  </strong>
+                  <motion.strong variants={slideVariants(29)} transition={SLIDE_SPRING} className="whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary tb:text-[18px]">support@appzen.com</motion.strong>
+                  <motion.strong aria-hidden variants={slideVariants(29)} transition={SLIDE_SPRING} className="absolute top-[29px] whitespace-pre text-[16px] font-medium leading-[21px] text-text-primary tb:text-[18px]">support@appzen.com</motion.strong>
                 </div>
-              </a>
+              </motion.a>
               {/* authored Social CTA Wrapper: radius 16, gap 16 (mobil 4) */}
               <ul className="mt-9 flex items-center gap-1 rounded-[16px] tb:gap-4">
                 <li>

@@ -1,9 +1,11 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { SLIDE_SPRING, slideVariants } from "./SlideHoverText";
 
 type CtaButtonProps = {
-  /** Yüzen CTA: mobilde 16px metin (ölçülen 177×57 yerine ~197) */
+  /** Yüzen CTA: mobilde 16px metin (ölçülen 177 genişlik) */
   mobileSmall?: boolean;
   href: string;
   label: string;
@@ -15,12 +17,21 @@ type CtaButtonProps = {
 
 /**
  * Ölçülen: radius 18px, padding 16px 32px (ikonluda sol 24px), metin
- * Inter 500 18px/25.2px; kayan hover kopyası 29px altta.
+ * Inter 500 18px/25.2px; kayan hover kopyası 29px altta —
+ * authored hover geçişi spring { bounce .2, duration .4 }.
  */
 export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButtonProps) {
+  const textCls =
+    (mobileSmall
+      ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] "
+      : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
+    (variant === "primary" ? "text-surface" : "text-text-primary");
   return (
-    <a
+    <motion.a
       href={href}
+      initial="rest"
+      animate="rest"
+      whileHover="hover"
       className={
         "group flex w-full items-center justify-center gap-2 rounded-[18px] py-4 tb:w-auto " +
         (icon ? "pl-6 pr-8 " : "px-8 ") +
@@ -29,30 +40,18 @@ export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButton
     >
       {icon}
       <div className="relative flex h-[25px] flex-col items-start overflow-hidden">
-        <div className="flex flex-col transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
-          <strong
-            className={
-              (mobileSmall ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
-              (variant === "primary" ? "text-surface" : "text-text-primary")
-            }
-          >
-            {label}
-          </strong>
-        </div>
-        <div
+        <motion.div variants={slideVariants(29)} transition={SLIDE_SPRING} className="flex flex-col">
+          <strong className={textCls}>{label}</strong>
+        </motion.div>
+        <motion.div
           aria-hidden
-          className="absolute top-[29px] flex flex-col transition-transform duration-300 ease-out group-hover:-translate-y-[29px]"
+          variants={slideVariants(29)}
+          transition={SLIDE_SPRING}
+          className="absolute top-[29px] flex flex-col"
         >
-          <strong
-            className={
-              (mobileSmall ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
-              (variant === "primary" ? "text-surface" : "text-text-primary")
-            }
-          >
-            {label}
-          </strong>
-        </div>
+          <strong className={textCls}>{label}</strong>
+        </motion.div>
       </div>
-    </a>
+    </motion.a>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { SlideHoverText } from "./SlideHoverText";
 
 type PillLinkProps = {
@@ -11,18 +12,21 @@ type PillLinkProps = {
 
 /**
  * Ölçülen ortak değerler: radius 12px, padding 8px 12px, flex row gap 8,
- * secondary zemini #262626 (token surface-2).
+ * secondary zemini #262626. Hover: kayan metin (authored spring).
  */
 export function PillLink({ href, label, variant = "tertiary" }: PillLinkProps) {
   return (
-    <a
+    <motion.a
       href={href}
+      initial="rest"
+      animate="rest"
+      whileHover="hover"
       className={
-        "group flex items-center justify-center gap-2 rounded-[12px] px-3 py-2 " +
+        "flex items-center justify-center gap-2 rounded-[12px] px-3 py-2 " +
         (variant === "secondary" ? "bg-surface-2" : "")
       }
     >
       <SlideHoverText label={label} />
-    </a>
+    </motion.a>
   );
 }
