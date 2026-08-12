@@ -26,10 +26,11 @@ export type PricingCardData = {
 export function PricingCard({ data }: { data: PricingCardData }) {
   return (
     // authored: gap 16, padding 16 16 24, radius 32, bg #171717b8
-    <div className="flex w-full max-w-[327px] flex-col gap-4 rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none">
+    <div className="relative flex w-full max-w-[327px] flex-col gap-4 overflow-hidden rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none">
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.32] mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(65% 50%, rgba(0,0,0,0.88) 25.044%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(65% 50%, rgba(0,0,0,0.88) 25.044%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
       <div className="relative overflow-hidden rounded-[24px] bg-surface">
         <figure
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-0 rounded-[100%]"
           style={{
             WebkitMaskImage:
               "radial-gradient(100% 86% at 19.3% 33.5%, rgba(0, 0, 0, 0.8) 50.637%, rgba(0, 0, 0, 0) 100%)",
@@ -41,20 +42,12 @@ export function PricingCard({ data }: { data: PricingCardData }) {
         </figure>
         {data.featured && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/2 top-[-22px] h-[712px] w-[1708px] -translate-x-1/2 rotate-180">
+            <div className="absolute left-1/2 top-[-22px] h-[712px] w-[1708px] -translate-x-1/2 rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
               <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
             </div>
           </div>
         )}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: "url(/images/noise.png)",
-            backgroundRepeat: "repeat",
-            backgroundSize: "128px",
-          }}
-        />
+        
         <div className="relative z-[1] flex flex-col gap-8 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-[14px]">

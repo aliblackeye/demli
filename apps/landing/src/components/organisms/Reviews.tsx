@@ -154,7 +154,7 @@ export function Reviews() {
       {/* İçerik */}
       <div className="relative flex w-full flex-col items-center gap-20">
         <div className="flex flex-col items-center gap-8">
-          <FadeIn className="hidden tb:block">
+          <FadeIn>
             <TrustBadge />
           </FadeIn>
           {/* authored: BLOK açılım spring {bounce .3, dur 3}, threshold .5;

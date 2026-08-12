@@ -29,6 +29,14 @@ export function ProgressiveBlur({
       }
       style={{ height }}
     >
+      {/* authored uç katman: bf'siz tam-mask (ref 8. çocuk) */}
+      <div
+        className="absolute inset-0"
+        style={{
+          WebkitMaskImage: `linear-gradient(${dir}, rgba(0,0,0,0) 0%, rgb(0,0,0) 100%)`,
+          maskImage: `linear-gradient(${dir}, rgba(0,0,0,0) 0%, rgb(0,0,0) 100%)`,
+        }}
+      />
       {LAYERS.map((l, i) => (
         <div
           key={i}

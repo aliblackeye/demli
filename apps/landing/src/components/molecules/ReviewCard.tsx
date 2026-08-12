@@ -44,7 +44,14 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
         </div>
         <div className="flex items-center gap-1">
           {Array.from({ length: 5 }).map((_, i) => (
-            <MaskIcon key={i} name="star" size={14} color="#eab30a" />
+            <span key={i} className="contents">
+              <span className="tb:hidden">
+                <MaskIcon name="star" size={12} color="#eab30a" />
+              </span>
+              <span className="hidden tb:block">
+                <MaskIcon name="star" size={14} color="#eab30a" />
+              </span>
+            </span>
           ))}
         </div>
       </div>

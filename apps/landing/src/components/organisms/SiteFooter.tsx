@@ -65,8 +65,8 @@ export function SiteFooter() {
           <RevealText text="Designed to heal, understand everything " mode="char" />
           <RevealText text="and ship with confidence." mode="char" className="text-text-dim" />
         </p>
-        <div className="flex flex-col items-center gap-8">
-          <div className="flex flex-col items-center justify-center gap-3 tb:flex-row tb:flex-wrap tb:gap-x-4 tb:gap-y-5">
+        <div className="flex w-full flex-col items-center gap-8 tb:w-auto">
+          <div className="flex w-full flex-col items-stretch justify-center gap-3 tb:w-auto tb:flex-row tb:flex-wrap tb:items-center tb:gap-x-4 tb:gap-y-5 [&>a]:w-full tb:[&>a]:w-auto">
             <CtaButton href="#download" label="Download App" variant="primary" />
             <CtaButton
               href="#demo"
@@ -123,8 +123,13 @@ export function SiteFooter() {
       {/* Footer Card — authored: wrapper pad 0 40 40 (mobil 0 24 24) */}
       <div className="relative z-[1] flex w-full items-center justify-center px-6 pb-6 tb:px-10 tb:pb-10">
         <div className="relative flex w-full max-w-[1440px] flex-col items-center overflow-hidden rounded-[32px] bg-[#0d0d0db8] dt:rounded-[40px]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden opacity-40">
-            <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden" style={{ WebkitMaskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 34% at 50% 64.3%, rgba(0,0,0,0.08) 37.7182%, rgba(0,0,0,0) 100%)" }}>
+            <VideoBg src="/videos/footer-bg.webm" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute left-1/2 top-0 h-[600px] w-[1440px] -translate-x-1/2" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+              <VideoBg src="/videos/light-rays.webm" className="h-full w-full rotate-180 object-cover" />
+            </div>
+            <div className="absolute inset-0 mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
+            <div className="absolute left-1/2 top-[645px] h-[400px] w-[872px] -translate-x-1/2 rounded-[100%]" style={{ background: "radial-gradient(50% 50%, rgba(34,197,94,0.24) 0%, rgba(34,197,94,0) 100%)" }} />
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}
