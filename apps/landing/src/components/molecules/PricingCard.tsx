@@ -29,7 +29,7 @@ export function PricingCard({ data }: { data: PricingCardData }) {
     // Ölçülen (1440): Free 410, Premium 398 (tb ikisi de 404)
     <div
       className={
-        "relative flex w-full max-w-[327px] flex-col gap-4 overflow-hidden rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none " +
+        "relative flex w-full max-w-[342px] flex-col gap-4 overflow-hidden rounded-[32px] bg-[rgba(23,23,23,0.72)] p-4 pb-6 tb:w-[404px] tb:max-w-none " +
         (data.featured ? "dt:w-[398px]" : "dt:w-[410px]")
       }
     >
@@ -45,8 +45,10 @@ export function PricingCard({ data }: { data: PricingCardData }) {
         )}
         
         <div className="relative z-[1] flex flex-col gap-8 p-6">
+          {/* Ölçülen (390): Free kartta plan adı satırın 20px altında
+              (ref'in kendi tuhaflığı, yalnız mobil); tb+ ikisi de hizalı */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-[14px]">
+            <div className={"flex items-center gap-[14px] " + (data.featured ? "" : "translate-y-5 tb:translate-y-0")}>
               <ShimmerText
                 text={data.plan}
                 color="#eab30a"
@@ -61,12 +63,14 @@ export function PricingCard({ data }: { data: PricingCardData }) {
                 {data.price}
               </span>
               {data.priceSuffix ? (
-                <span className="pb-[6px] text-[14px] leading-[16.8px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
+                // Ölçülen (390): /month lh 19.6
+                <span className="pb-[6px] text-[14px] leading-[19.6px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
                   {data.priceSuffix}
                 </span>
               ) : null}
             </div>
-            <p className="w-full text-[16px] leading-[19.2px] tracking-[-0.32px] text-text-secondary tb:w-[324px]">
+            {/* Ölçülen (390): desc mobil 14/19.6, tb+ 16/19.2 */}
+            <p className="w-full text-[14px] leading-[19.6px] tracking-[-0.28px] text-text-secondary tb:w-[324px] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
               {data.description}
             </p>
           </div>

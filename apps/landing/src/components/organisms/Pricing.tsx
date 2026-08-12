@@ -82,16 +82,18 @@ export function Pricing() {
         </div>
       </div>
 
-      <div className="relative flex w-full flex-col items-center gap-20">
-        <div className="flex flex-col items-center gap-8">
+      {/* Ölçülen (390): container gap 40, başlık gap 24; ref H2'de <br> yok —
+          doğal sarım (390: \"Choose the perfect\" / \"plan for your needs\") */}
+      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-20">
+        <div className="flex flex-col items-center gap-6 tb:gap-8">
           <FadeIn>
             <SectionTagline label="Pricing" />
           </FadeIn>
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
+            {/* Ölçülen: mobil varyantta <br> yok (doğal sarım), tb+ varyantında var */}
             <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
-              <span className="text-white">Choose the perfect plan</span>
-              <br />
-              <span className="text-text-dim">for your needs</span>
+              <span className="tb:hidden"><span className="text-white">Choose the perfect plan </span><span className="text-text-dim">for your needs</span></span>
+              <span className="hidden tb:inline"><span className="text-white">Choose the perfect plan</span><br /><span className="text-text-dim">for your needs</span></span>
             </h2>
           </FadeIn>
         </div>
