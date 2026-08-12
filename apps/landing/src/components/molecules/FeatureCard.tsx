@@ -15,6 +15,9 @@ export type FeatureCardData = {
   phoneImage: string;
   /** Featured kartta BG'de ışık huzmesi videosu var; dt'de düzen aynalı. */
   featured?: boolean;
+  /** Ölçülen: ref'te telefon içerik akışını izler — kart 3'te metin kısa
+      olduğundan telefon 429'da, kart 773 (varsayılan 453/797). */
+  mobilePhoneTop?: 453 | 429;
 };
 
 /**
@@ -26,10 +29,12 @@ export type FeatureCardData = {
  * Ortak: bg #0d0d0d, radius 44 (mobil 32), dots figürü, noise (screen).
  */
 export function FeatureCard({ data }: { data: FeatureCardData }) {
+  const kisa = data.mobilePhoneTop === 429;
   return (
     <div
       className={
-        "relative h-[797px] w-full max-w-[342px] overflow-hidden rounded-[32px] bg-base " +
+        "relative w-full max-w-[342px] overflow-hidden rounded-[32px] bg-base " +
+        (kisa ? "h-[773px] " : "h-[797px] ") +
         "tb:h-[1145px] tb:w-[730px] tb:max-w-[730px] tb:rounded-[44px] " +
         "dt:flex dt:h-[513px] dt:w-[1120px] dt:max-w-[1120px] dt:items-start " +
         (data.featured ? "dt:flex-row-reverse" : "dt:flex-row")
@@ -63,7 +68,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         </figure>
       </div>
       {data.featured && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+        /* Ölçülen: rays mobilde YOK — yalnız tb+ */
+        <div className="pointer-events-none absolute inset-0 hidden overflow-hidden rounded-[inherit] tb:block">
           {/* Ölçülen: mobil 880×366, tb+ 1708×712 — üst radyal maskla */}
           <div className="absolute left-1/2 top-[-22px] h-[366px] w-[880px] max-w-none -translate-x-1/2 rotate-180 tb:h-[712px] tb:w-[1708px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
             <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
@@ -102,11 +108,12 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
             as="h3"
             className="font-display text-[40px] font-normal leading-[44px] text-white tb:text-[52px] tb:leading-[57.2px]"
           />
+          {/* Ölçülen (390): desc lh 24px (150%) */}
           <RevealText
             text={data.description}
             mode="char"
             as="p"
-            className="text-[16px] leading-[22.4px] text-text-dim tb:text-[18px] tb:leading-[25.2px]"
+            className="text-[16px] leading-6 text-text-dim tb:text-[18px] tb:leading-[27px]"
           />
         </FadeIn>
         {/* authored Benefits: gap 12 (mobil 8); y20 spring {bounce 0, delay .8, dur .6} */}
@@ -119,7 +126,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           {data.bullets.map((b) => (
             <li key={b} className="flex h-6 items-center gap-3">
               <MaskIcon name="check-circle" size={24} color="#737373" />
-              <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-secondary tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">{b}</p>
+              {/* Ölçülen (390): madde lh 19.6px (140%) */}
+              <p className="text-[14px] leading-[19.6px] tracking-[-0.28px] text-text-secondary tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">{b}</p>
             </li>
           ))}
         </ul>
@@ -130,7 +138,11 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
           saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
           dt: karşı kolonu dolduran akış öğesi. */}
       <div
-        className="absolute left-0 top-[453px] z-[1] h-[344px] w-full overflow-hidden rounded-[32px] tb:top-[433px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
+        className={
+          "absolute left-0 z-[1] h-[344px] w-full overflow-hidden rounded-[32px] " +
+          (kisa ? "top-[429px] " : "top-[453px] ") +
+          "tb:top-[433px] tb:h-[712px] tb:w-[730px] dt:relative dt:top-0 dt:h-full dt:flex-1 dt:self-stretch"
+        }
         style={{
           WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",

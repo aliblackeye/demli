@@ -42,16 +42,10 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
           </strong>
           <p className="text-[16px] leading-[22.4px] text-text-secondary opacity-70 tb:text-[18px] tb:leading-[25.2px]">{data.body}</p>
         </div>
+        {/* Ölçülen (390 yerinde): kart yıldızları HER kırılımda 14px */}
         <div className="flex items-center gap-1">
           {Array.from({ length: 5 }).map((_, i) => (
-            <span key={i} className="contents">
-              <span className="tb:hidden">
-                <MaskIcon name="star" size={12} color="#eab30a" />
-              </span>
-              <span className="hidden tb:block">
-                <MaskIcon name="star" size={14} color="#eab30a" />
-              </span>
-            </span>
+            <MaskIcon key={i} name="star" size={14} color="#eab30a" />
           ))}
         </div>
       </div>

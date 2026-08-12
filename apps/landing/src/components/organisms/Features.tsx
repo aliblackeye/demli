@@ -93,16 +93,18 @@ export function Features() {
         </div>
       </div>
 
-      {/* İçerik */}
-      <div className="relative flex w-full flex-col items-center gap-20">
-        <div className="flex flex-col items-center gap-8">
+      {/* İçerik — Ölçülen (390): container gap 40, başlık bloğu gap 24 */}
+      <div className="relative flex w-full flex-col items-center gap-10 tb:gap-20">
+        <div className="flex flex-col items-center gap-6 tb:gap-8">
           <FadeIn>
             <SectionTagline label="Features" />
           </FadeIn>
           {/* authored: başlık BLOK olarak açılır — spring {bounce .3, dur 3}, threshold .5 */}
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
             <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
-              <span className="tb:hidden"><span className="text-white">Built for human thinking</span><br /><span className="text-text-dim">automated Intelligently</span></span><span className="hidden tb:inline"><span className="text-white">Designed for People</span><br /><span className="text-text-dim">Powered by AI</span></span>
+              {/* Ölçülen: mobilde <br> YOK — doğal sarım 3 satır
+                  ("Built for human" / "thinking automated" / "Intelligently") */}
+              <span className="tb:hidden"><span className="text-white">Built for human thinking </span><span className="text-text-dim">automated Intelligently</span></span><span className="hidden tb:inline"><span className="text-white">Designed for People</span><br /><span className="text-text-dim">Powered by AI</span></span>
             </h2>
           </FadeIn>
         </div>
@@ -115,7 +117,7 @@ export function Features() {
               y={64}
               transition={{ type: "spring", bounce: 0, delay: 0.45, duration: 0.6 }}
             >
-              <FeatureCard data={{ ...card, featured: i === 1 }} />
+              <FeatureCard data={{ ...card, featured: i === 1, mobilePhoneTop: i === 2 ? 429 : 453 }} />
             </CardReveal>
           ))}
         </div>
