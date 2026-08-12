@@ -15,7 +15,8 @@ import { ProgressiveBlur } from "../atoms/ProgressiveBlur";
 export function HomeTemplate() {
   return (
     <LenisProvider>
-    <div className="relative bg-base">
+    {/* authored: sayfa zemini body'nin SAF SİYAHI — sarmalayıcı boyamaz */}
+    <div className="relative">
       <SiteNav />
       <main className="relative">
         <Hero />

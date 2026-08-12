@@ -134,12 +134,13 @@ export function Hero() {
           {/* authored CTA Content: max-w 580, gap 64 (dt) / 40 (tb) / 32 (mobil) */}
           <div id="download" className="flex w-full max-w-[580px] flex-col items-center gap-8 tb:gap-10 dt:gap-16">
             <div className="flex flex-col items-center">
+              {/* Ölçülen: ikon 80 (mobil) / 120 (tb) / 140 (dt) */}
               <Image
                 src="/images/app-icon.png"
                 alt=""
-                width={120}
-                height={120}
-                className="h-[120px] w-[120px] rounded-none object-cover"
+                width={140}
+                height={140}
+                className="h-20 w-20 rounded-none object-cover tb:h-[120px] tb:w-[120px] dt:h-[140px] dt:w-[140px]"
               />
             </div>
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
