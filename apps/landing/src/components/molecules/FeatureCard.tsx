@@ -68,11 +68,14 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         </figure>
       </div>
       {data.featured && (
-        /* Ölçülen: rays mobilde YOK — yalnız tb+ */
-        <div className="pointer-events-none absolute inset-0 hidden overflow-hidden rounded-[inherit] tb:block">
+        /* Ölçülen: ref mobilde SARMALAYICILARI tutar, VİDEOYU basmaz —
+           yalnız video tb+ (DOM şekli ref'le birebir) */
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           {/* Ölçülen: mobil 880×366, tb+ 1708×712 — üst radyal maskla */}
           <div className="absolute left-1/2 top-[-22px] h-[366px] w-[880px] max-w-none -translate-x-1/2 rotate-180 tb:h-[712px] tb:w-[1708px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-            <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
+            <div className="hidden h-full w-full tb:block">
+              <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
+            </div>
           </div>
         </div>
       )}
