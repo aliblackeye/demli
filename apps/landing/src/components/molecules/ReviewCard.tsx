@@ -28,19 +28,19 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
             <MaskIcon name={data.store} size={24} color="#f5f5f5" />
           </div>
           <div className="flex flex-col gap-1">
-            <strong className="text-[16px] font-medium leading-[19.2px] tracking-[-0.32px] text-[#e5e5e5]">
+            <strong className="text-[14px] font-medium leading-[16.8px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
               {data.name}
             </strong>
-            <p className="text-[14px] font-medium leading-[16.8px] tracking-[-0.28px] text-text-secondary opacity-70">
+            <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-secondary opacity-70 tb:text-[14px] tb:leading-[16.8px] tb:tracking-[-0.28px]">
               {data.date}
             </p>
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <strong className="text-[18px] font-medium leading-[25.2px] text-text-primary">
+          <strong className="text-[16px] font-medium leading-[22.4px] text-text-primary tb:text-[18px] tb:leading-[25.2px]">
             {data.title}
           </strong>
-          <p className="text-[18px] leading-[25.2px] text-text-secondary opacity-70">{data.body}</p>
+          <p className="text-[16px] leading-[22.4px] text-text-secondary opacity-70 tb:text-[18px] tb:leading-[25.2px]">{data.body}</p>
         </div>
         <div className="flex items-center gap-1">
           {Array.from({ length: 5 }).map((_, i) => (

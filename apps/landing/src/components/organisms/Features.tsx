@@ -102,9 +102,7 @@ export function Features() {
           {/* authored: başlık BLOK olarak açılır — spring {bounce .3, dur 3}, threshold .5 */}
           <FadeIn y={0} amount={0.5} transition={{ type: "spring", bounce: 0.3, duration: 3 }}>
             <h2 className="text-center font-display text-[36px] font-medium leading-[39.6px] tracking-[-0.2px] tb:text-[48px] tb:leading-[52.8px] dt:text-[56px] dt:leading-[61.6px]">
-              <span className="text-white">Designed for People</span>
-              <br />
-              <span className="text-text-dim">Powered by AI</span>
+              <span className="tb:hidden"><span className="text-white">Built for human thinking</span><br /><span className="text-text-dim">automated Intelligently</span></span><span className="hidden tb:inline"><span className="text-white">Designed for People</span><br /><span className="text-text-dim">Powered by AI</span></span>
             </h2>
           </FadeIn>
         </div>

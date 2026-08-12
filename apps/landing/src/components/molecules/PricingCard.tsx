@@ -61,14 +61,14 @@ export function PricingCard({ data }: { data: PricingCardData }) {
               <ShimmerText
                 text={data.plan}
                 color="#eab30a"
-                className="text-[16px] font-medium leading-[19.2px] text-text-dim"
+                className={"text-[16px] font-medium leading-[19.2px] " + (data.featured ? "text-accent" : "text-text-dim")}
               />
             </div>
           </div>
           <div className="flex flex-col items-start gap-[18px]">
             <div className="flex items-end gap-[6px]">
               {/* Fark motoru: fiyat mobil 32px; /month rengi #e5e5e5, mobil 14px */}
-              <span className="font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.64px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px]">
+              <span className="font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.64px] text-text-primary tb:text-[40px] tb:leading-[48px] tb:tracking-[-0.8px] dt:text-[44px] dt:leading-[52.8px] dt:tracking-[-0.88px]">
                 {data.price}
               </span>
               {data.priceSuffix ? (

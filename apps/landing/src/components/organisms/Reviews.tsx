@@ -6,19 +6,6 @@ import { FadeIn } from "../atoms/FadeIn";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
 import { TrustBadge } from "../molecules/TrustBadge";
 
-/* Ölçülen kolon-dolum sırası (dt): 1-3 kol1, 4-6 kol2, 7-9 kol3 */
-const ITEMS_ORDER = [
-  "Emily Rodriguez",
-  "Layla Morrison",
-  "Tyler Brooks",
-  "Olivia Bennett",
-  "Kevin Patterson",
-  "Aisha Patel",
-  "Jessica Wang",
-  "Marcus Thompson",
-  "Daniel Harris",
-];
-
 const COL_1: ReviewCardData[] = [
   {
     store: "apple",
@@ -97,9 +84,24 @@ const COL_2: ReviewCardData[] = [
   },
 ];
 
-const ITEMS: ReviewCardData[] = ITEMS_ORDER.map(
-  (n) => [...COL_1, ...COL_2].find((c) => c.name === n)!
-);
+const byName = (n: string): ReviewCardData => [...COL_1, ...COL_2].find((c) => c.name === n)!;
+
+/* Mobil (ölçüldü): C1/C2 serpiştirme, ilk 6 */
+const MOBILE_ITEMS: ReviewCardData[] = [
+  "Emily Rodriguez",
+  "Olivia Bennett",
+  "Jessica Wang",
+  "Layla Morrison",
+  "Kevin Patterson",
+  "Marcus Thompson",
+].map(byName);
+
+/* Geniş ekran (ölçüldü): üç kolon */
+const DT_COLS: ReviewCardData[][] = [
+  ["Emily Rodriguez", "Layla Morrison", "Tyler Brooks"].map(byName),
+  ["Olivia Bennett", "Kevin Patterson", "Aisha Patel"].map(byName),
+  ["Jessica Wang", "Marcus Thompson", "Daniel Harris"].map(byName),
+];
 
 /**
  * [Section] Reviews — ölçülen: BG şeridi 467 (Features ile aynı reçete),
@@ -175,17 +177,33 @@ export function Reviews() {
         {/* authored: column-masonry grid, trackCount 3 (dt) / 2 (tb) / 1 (mobil),
             rowGap 12; TÜM grid onInView y250→0 spring (damping60/stiffness500). */}
         <CardReveal y={250} className="w-full">
-          {/* Ölçülen dt dağılım sırası: kolonlar dikey dolar —
-              [Emily, Layla, Tyler | Olivia, Kevin, Aisha | Jessica, Marcus, Daniel];
-              dt kart 365px (grid 1119), tb 406 (grid 824, 1357 kırpma), mobil tek kolon. */}
-          {/* Mobil (ölçüldü): yalnız ilk 6 kart, grid 1728px */}
-          <div className="mx-auto h-[1728px] w-full max-w-[327px] columns-1 gap-3 overflow-hidden tb:h-[1357px] tb:max-w-[824px] tb:columns-2 dt:h-auto dt:max-w-[1119px] dt:columns-3">
-            {ITEMS.map((c, i) => (
-              <div
-                key={c.name}
-                className={"mb-3 break-inside-avoid" + (i >= 6 ? " hidden tb:block" : "")}
-              >
-                <ReviewCard data={c} />
+          {/* Ölçülen sıralar (ref): mobil = C1/C2 serpiştirme ilk 6;
+              tb = C1(5)+C2(4) iki kolon; dt = üç kolon
+              [Emily,Layla,Tyler | Olivia,Kevin,Aisha | Jessica,Marcus,Daniel].
+              CSS columns dengelemesi deterministik değil — açık kolonlar. */}
+          {/* Mobil: tek kolon, 6 kart, 1728 kırpma */}
+          <div className="mx-auto flex h-[1728px] w-full max-w-[327px] flex-col gap-3 overflow-hidden tb:hidden">
+            {MOBILE_ITEMS.map((c) => (
+              <ReviewCard key={c.name} data={c} />
+            ))}
+          </div>
+          {/* Tablet: iki kolon (406), 1357 kırpma */}
+          <div className="mx-auto hidden h-[1357px] w-full max-w-[824px] gap-3 overflow-hidden tb:flex dt:hidden">
+            {[COL_1, COL_2].map((col, i) => (
+              <div key={i} className="flex w-[406px] flex-col gap-3">
+                {col.map((c) => (
+                  <ReviewCard key={c.name} data={c} />
+                ))}
+              </div>
+            ))}
+          </div>
+          {/* Geniş: üç kolon (365), kırpmasız */}
+          <div className="mx-auto hidden w-full max-w-[1119px] gap-3 dt:flex">
+            {DT_COLS.map((col, i) => (
+              <div key={i} className="flex w-[365px] flex-col gap-3">
+                {col.map((c) => (
+                  <ReviewCard key={c.name} data={c} />
+                ))}
               </div>
             ))}
           </div>

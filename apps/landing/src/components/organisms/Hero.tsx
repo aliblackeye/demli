@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Appear, APPEAR } from "../atoms/Appear";
+import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
@@ -90,7 +91,7 @@ export function Hero() {
                   <ShimmerText
                     text="Rating"
                     color="#eab30a"
-                    className="text-[16px] font-medium leading-[19.2px] text-[#e5e5e5]"
+                    className="text-[14px] font-medium leading-[16.8px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px]"
                   />
                 </span>
                 <p className="text-[14px] leading-[16.8px] tracking-[-0.28px] text-text-dim tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
@@ -146,14 +147,7 @@ export function Hero() {
             {/* Ölçülen: karakter bazlı bir-kez reveal (görünürken) */}
             <div className="flex flex-col items-center">
               {/* authored whhy8i: 32 (mobil) / 40 (tb) / 44 (dt), lh %120, ls -.02em */}
-              <p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]">
-                <RevealText text="Designed to heal, understand everything " mode="char" />
-                <RevealText
-                  text="and ship with confidence."
-                  mode="char"
-                  className="text-text-dim"
-                />
-              </p>
+              <FadeIn y={0} amount={0.2}><p className="text-center font-display text-[32px] font-normal leading-[38.4px] tracking-[-0.02em] text-text-primary tb:text-[40px] tb:leading-[48px] dt:text-[44px] dt:leading-[52.8px]"><span>Designed to heal, understand everything </span><span className="text-text-dim">and ship with confidence.</span></p></FadeIn>
             </div>
             <div className="flex flex-col items-center gap-8">
               <Appear spec={APPEAR.buttons}>

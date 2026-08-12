@@ -80,7 +80,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
       >
         {/* authored: Details bloğu y20 spring {bounce 0, delay .7, dur .6} */}
         <FadeIn
-          className="flex w-full flex-col items-start gap-4 dt:w-[528px]"
+          className="flex w-full flex-col items-start gap-4 tb:w-[528px]"
           amount={0.1}
           transition={{ type: "spring", bounce: 0, delay: 0.7, duration: 0.6 }}
         >
@@ -111,7 +111,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         <FadeIn
           amount={0.1}
           transition={{ type: "spring", bounce: 0, delay: 0.8, duration: 0.6 }}
-          className="w-full dt:w-[528px]"
+          className="w-full tb:w-[602px] dt:w-[528px]"
         >
         <ul className="flex w-full flex-col gap-2 tb:gap-3">
           {data.bullets.map((b) => (
