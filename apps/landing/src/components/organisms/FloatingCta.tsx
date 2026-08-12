@@ -45,7 +45,7 @@ export function FloatingCta() {
         <a href="#appstore" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
           <MaskIcon name="apple" size={24} color="#e5e5e5" />
         </a>
-        <CtaButton href="#download" label="Download App" variant="primary" />
+        <CtaButton href="#download" label="Download App" variant="primary" mobileSmall />
         <a href="#googleplay" className="flex h-[57px] w-[57px] items-center justify-center rounded-[12px] bg-surface">
           <MaskIcon name="google-play" size={24} color="#e5e5e5" />
         </a>

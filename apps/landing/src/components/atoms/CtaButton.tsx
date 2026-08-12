@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 
 type CtaButtonProps = {
+  /** Yüzen CTA: mobilde 16px metin (ölçülen 177×57 yerine ~197) */
+  mobileSmall?: boolean;
   href: string;
   label: string;
   /** primary: beyaz zemin koyu metin · secondary: #262626 zemin açık metin */
@@ -15,7 +17,7 @@ type CtaButtonProps = {
  * Ölçülen: radius 18px, padding 16px 32px (ikonluda sol 24px), metin
  * Inter 500 18px/25.2px; kayan hover kopyası 29px altta.
  */
-export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
+export function CtaButton({ href, label, variant, icon, mobileSmall }: CtaButtonProps) {
   return (
     <a
       href={href}
@@ -30,7 +32,7 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
         <div className="flex flex-col transition-transform duration-300 ease-out group-hover:-translate-y-[29px]">
           <strong
             className={
-              "whitespace-nowrap text-[18px] font-medium leading-[1.4] " +
+              (mobileSmall ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >
@@ -43,7 +45,7 @@ export function CtaButton({ href, label, variant, icon }: CtaButtonProps) {
         >
           <strong
             className={
-              "whitespace-nowrap text-[18px] font-medium leading-[1.4] " +
+              (mobileSmall ? "whitespace-nowrap text-[16px] font-medium leading-[1.4] tb:text-[18px] " : "whitespace-nowrap text-[18px] font-medium leading-[1.4] ") +
               (variant === "primary" ? "text-surface" : "text-text-primary")
             }
           >
