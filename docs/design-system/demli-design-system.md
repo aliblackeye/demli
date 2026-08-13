@@ -164,6 +164,29 @@ hareketler kullanılır. §27 performans kuralları bağlayıcı.
 - **Parıltılar:** radyal `accent-glow` (yeşilin yerine), blur(8) yalnız
   şerit parıltısında.
 
+## 5.1 Atomik yapı ve bileşen envanteri
+
+Sistem kodu atomic design'la örgütlü (`apps/landing/src/design/`; entegrasyonda
+`packages/ui`ye taşınır) — showcase sayfası template'tir:
+
+- **tokens.ts** — renk/spring sabitleri (tek kaynak).
+- **atoms.tsx** — UrunButonu (5 varyant × 3 boy), IkonButonu, Avatar,
+  AvatarKume, Anahtar, OnayKutusu, Radyo, GirisAlani, AramaAlani,
+  SesSurgusu, BahsetmeCipi, TepkiCipi, YaziyorNoktalari, Iskelet.
+- **molecules.tsx** — Composer, MesajSatiri, OkunmadiAyraci, YaziyorSatiri,
+  DosyaKarti, UyeSatiri, KanalListesi, AyarSatiri, SecimKutusu,
+  BaglamMenuluMesaj, KatilimciTile, EkranPaylasimKarosu, GelenAramaKarti,
+  ProfilKarti, KullaniciCubugu, Ipucu, BosDurum, IskeletListe.
+- **organisms.tsx** — KiplikOrtusu + OnayKipligi/FormKipligi/DavetKipligi,
+  AyarlarKabugu, UygulamaOnizleme.
+
+Ek reçeteler: bahsetme (accent-soft çip) · tepki (rounded-50, benimki
+accent-soft) · yazıyor (3 nokta, 1.2s nefes) · okunmadı ayracı (accent-soft
+iz + "yeni" çipi) · dosya kartı (radius 16 surface + tür kutusu + indir) ·
+gelen arama (avatar 48 + 1.4s nefes alan parıltı, Katıl mercan / Reddet
+tehlike) · ekran paylaşım karosu (16:9, canlı hapı, tam pencere kutusu) ·
+iskelet (animate-pulse surface) · boş durum (ikon 48 + display 18 + mercan sm).
+
 ## 6. Ruh (VIBE) — bu sistemin imzası
 
 Saf siyah üzerinde tek sıcak ışık. Kenarsızlık: hiçbir kutunun çizgisi
