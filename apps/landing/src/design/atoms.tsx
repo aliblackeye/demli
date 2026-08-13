@@ -43,18 +43,32 @@ export function UrunButonu({ etiket, tur = "ikincil", boy = "md", devre, tikla }
   );
 }
 
+/** Yerleşik ipucu sarmalı — hover'da 200ms'de beliren veil etiketi */
+export function IpucuSarmal({ metin, children }: { metin?: string; children: React.ReactNode }) {
+  if (!metin) return <>{children}</>;
+  return (
+    <span className="group/ipucu relative inline-flex">
+      {children}
+      <span className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 -translate-x-1/2 whitespace-nowrap rounded-[8px] bg-[rgba(23,23,23,0.92)] px-2.5 py-1.5 text-[12px] font-medium leading-[16px] text-[#e5e5e5] opacity-0 backdrop-blur-[10px] transition-opacity duration-200 group-hover/ipucu:opacity-100">
+        {metin}
+      </span>
+    </span>
+  );
+}
+
 export function IkonButonu({ ikon, aktif, boyut = 40, tikla, baslik }: { ikon: string; aktif?: boolean; boyut?: number; tikla?: () => void; baslik?: string }) {
   return (
-    <button
-      title={baslik}
-      onClick={tikla}
-      className="flex items-center justify-center rounded-[12px] transition-colors duration-200"
-      style={{ width: boyut, height: boyut, background: aktif ? T.accentSoft : "#171717" }}
-      onMouseEnter={(e) => { if (!aktif) e.currentTarget.style.background = "#262626"; }}
-      onMouseLeave={(e) => { if (!aktif) e.currentTarget.style.background = "#171717"; }}
-    >
-      <MaskIcon name={ikon} size={Math.round(boyut * 0.5)} color={aktif ? T.accentStrong : "#e5e5e5"} />
-    </button>
+    <IpucuSarmal metin={baslik}>
+      <button
+        onClick={tikla}
+        className="flex items-center justify-center rounded-[12px] transition-colors duration-200"
+        style={{ width: boyut, height: boyut, background: aktif ? T.accentSoft : "#171717" }}
+        onMouseEnter={(e) => { if (!aktif) e.currentTarget.style.background = "#262626"; }}
+        onMouseLeave={(e) => { if (!aktif) e.currentTarget.style.background = "#171717"; }}
+      >
+        <MaskIcon name={ikon} size={Math.round(boyut * 0.5)} color={aktif ? T.accentStrong : "#e5e5e5"} />
+      </button>
+    </IpucuSarmal>
   );
 }
 
@@ -227,6 +241,37 @@ export function YaziyorNoktalari() {
       ))}
     </span>
   );
+}
+
+/* ── Mikro atomlar ────────────────────────────────────────────── */
+
+/** Durum noktası — çevrimiçi/boşta/kapalı; en küçük kimlik parçası */
+export function NoktaDurum({ durum = "cevrimici", boyut = 10 }: { durum?: "cevrimici" | "bosta" | "kapali"; boyut?: number }) {
+  const renk = durum === "cevrimici" ? T.success : durum === "bosta" ? T.gold : "#404040";
+  return <span className="inline-block rounded-full" style={{ width: boyut, height: boyut, background: renk }} />;
+}
+
+/** Sayaç rozeti — okunmamış sayısı; mercan zeminli minik hap */
+export function SayacRozeti({ sayi }: { sayi: number }) {
+  return (
+    <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none" style={{ background: T.accent, color: "#171717" }}>
+      {sayi > 99 ? "99+" : sayi}
+    </span>
+  );
+}
+
+/** Kısayol tuşu — kbd çipi */
+export function KisayolTusu({ tus }: { tus: string }) {
+  return (
+    <kbd className="rounded-[6px] bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-[15px] text-text-secondary" style={{ boxShadow: "inset 0 -1px 0 rgba(0,0,0,0.4)" }}>
+      {tus}
+    </kbd>
+  );
+}
+
+/** Rol çipi — beyaz %12 hap (kurucu, çaycı…) */
+export function RolCipi({ ad }: { ad: string }) {
+  return <span className="rounded-[50px] bg-[rgba(255,255,255,0.12)] px-2.5 py-1 text-[12px] font-medium leading-[16px] text-[#e5e5e5]">{ad}</span>;
 }
 
 /* ── Yükleme ──────────────────────────────────────────────────── */

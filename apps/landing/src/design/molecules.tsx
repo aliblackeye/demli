@@ -68,6 +68,22 @@ export function OkunmadiAyraci() {
   );
 }
 
+/** Tarih ayracı — mesaj akışında gün değişimi */
+export function TarihAyraci({ etiket }: { etiket: string }) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5">
+      <span className="h-px flex-1 bg-white/[0.06]" />
+      <span className="text-[12px] font-medium leading-[16px] tracking-[-0.24px] text-text-dim">{etiket}</span>
+      <span className="h-px flex-1 bg-white/[0.06]" />
+    </div>
+  );
+}
+
+/** Bölüm etiketi — liste başları (cümle düzeni, BÜYÜK HARF yok) */
+export function BolumEtiketi({ etiket }: { etiket: string }) {
+  return <p className="px-3 pb-1.5 pt-1 text-[13px] font-medium leading-[17px] tracking-[-0.26px] text-text-dim">{etiket}</p>;
+}
+
 export function YaziyorSatiri({ ad }: { ad: string }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5">

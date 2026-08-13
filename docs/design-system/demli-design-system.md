@@ -170,15 +170,24 @@ Sistem kodu atomic design'la örgütlü (`apps/landing/src/design/`; entegrasyon
 `packages/ui`ye taşınır) — showcase sayfası template'tir:
 
 - **tokens.ts** — renk/spring sabitleri (tek kaynak).
-- **atoms.tsx** — UrunButonu (5 varyant × 3 boy), IkonButonu, Avatar,
-  AvatarKume, Anahtar, OnayKutusu, Radyo, GirisAlani, AramaAlani,
-  SesSurgusu, BahsetmeCipi, TepkiCipi, YaziyorNoktalari, Iskelet.
-- **molecules.tsx** — Composer, MesajSatiri, OkunmadiAyraci, YaziyorSatiri,
-  DosyaKarti, UyeSatiri, KanalListesi, AyarSatiri, SecimKutusu,
-  BaglamMenuluMesaj, KatilimciTile, EkranPaylasimKarosu, GelenAramaKarti,
-  ProfilKarti, KullaniciCubugu, Ipucu, BosDurum, IskeletListe.
+- **atoms.tsx** — UrunButonu (5 varyant × 3 boy), IkonButonu (yerleşik
+  ipuçlu), IpucuSarmal, Avatar, AvatarKume, Anahtar, OnayKutusu, Radyo,
+  GirisAlani, AramaAlani, SesSurgusu, BahsetmeCipi, TepkiCipi,
+  YaziyorNoktalari, NoktaDurum, SayacRozeti, KisayolTusu, RolCipi, Iskelet.
+- **molecules.tsx** — Composer, MesajSatiri, OkunmadiAyraci, TarihAyraci,
+  BolumEtiketi, YaziyorSatiri, DosyaKarti, UyeSatiri, KanalListesi,
+  AyarSatiri, SecimKutusu, BaglamMenuluMesaj, KatilimciTile,
+  EkranPaylasimKarosu, GelenAramaKarti, ProfilKarti, KullaniciCubugu,
+  Ipucu, BosDurum, IskeletListe.
 - **organisms.tsx** — KiplikOrtusu + OnayKipligi/FormKipligi/DavetKipligi,
   AyarlarKabugu, UygulamaOnizleme.
+- **ekranlar.tsx** — tam yüzey önizlemeleri: EkranSesliOda, EkranYaziKanali,
+  EkranYayinOdak, EkranAyarlar, EkranBosMasa (yapı üründen, stil sistemden).
+- **vitrin.tsx** — showcase yardımcıları (SayfaBaslik, Bolum, Spec, Swatch).
+
+Showcase sayfalandı (sol kenar çubuğuyla gezinilir): `/design` genel bakış ·
+`/design/temeller` · `/design/atomlar` · `/design/molekuller` ·
+`/design/organizmalar` · `/design/ekranlar`. Her örnek canlıdır.
 
 Ek reçeteler: bahsetme (accent-soft çip) · tepki (rounded-50, benimki
 accent-soft) · yazıyor (3 nokta, 1.2s nefes) · okunmadı ayracı (accent-soft
