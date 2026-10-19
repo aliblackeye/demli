@@ -34,7 +34,7 @@ import { I18nextProvider, type i18n as I18nInstance } from "@demli/i18n";
 import { Button, TooltipProvider, cn } from "@demli/ui";
 import type { ChannelId, GroupId, User, UserId } from "@demli/types";
 import { apiBaseUrl } from "../../../../desktop/src/renderer/src/lib/api-client";
-import { queryClient } from "../../../../desktop/src/renderer/src/lib/query-client";
+import { queryClient, queryKeys } from "../../../../desktop/src/renderer/src/lib/query-client";
 import { createDesktopI18n } from "../../../../desktop/src/renderer/src/lib/i18n";
 import { useAuthStore } from "../../../../desktop/src/renderer/src/stores/auth-store";
 import { useChatStore } from "../../../../desktop/src/renderer/src/stores/chat-store";
@@ -60,7 +60,7 @@ import {
   CriticalUpdateOverlay,
   GlobalUpdateBanner,
 } from "../../../../desktop/src/renderer/src/components/UpdateSettings";
-import { installFakeBackend, scenarioState } from "./fake-api";
+import { installFakeBackend, remoteEdits, scenarioState } from "./fake-api";
 import { installDesktopBridge, pushUpdateStatus } from "./desktop-bridge";
 import { ALL_USERS, CATEGORIES, DMS, GROUP_CHAT, ME, PRESENCE, SERVER_ID } from "./fixtures";
 
@@ -70,6 +70,23 @@ const surface = params.get("surface") === "desktop" ? "desktop" : "web";
 // Order matters: the fake backend and bridges must exist before the first query.
 installFakeBackend(apiBaseUrl);
 if (surface === "desktop") installDesktopBridge(params.get("failWrites") === "1");
+
+// "Another manager" edits: write the store, then invalidate exactly what the
+// realtime handler invalidates for role.updated / group.updated
+// (renderer/src/realtime/connection.ts).
+if (window.__harness) {
+  window.__harness.remote = {
+    renameRole: (roleId, name) => {
+      remoteEdits.renameRole(roleId, name);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.roles(SERVER_ID as GroupId) });
+    },
+    renameServer: (name) => {
+      remoteEdits.renameServer(name);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groupDetails(SERVER_ID as GroupId) });
+    },
+  };
+}
 
 type View = "settings" | "server" | "dialogs" | "friends" | "dm" | "group" | "calls" | "updates";
 const VIEWS: { id: View; label: string }[] = [

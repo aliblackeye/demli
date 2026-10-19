@@ -12,6 +12,13 @@
  *   ?state=ideal|loading|error|empty   applies to every list read
  *   ?latency=<ms>                      per request (default 260)
  *   ?failWrites=1                      every mutation answers 500
+ *   ?failReads=roles,details           only the TAGGED reads answer 500 (the
+ *                                      rest stay ideal) — e.g. members load
+ *                                      but their roles do not
+ *
+ * `window.__harness.remote` simulates another manager editing the server
+ * (writes the store, then invalidates exactly what the realtime handler
+ * would), so the draft guards can be proven against a refetch.
  */
 import type { Invite, Role, User } from "@demli/types";
 import {
@@ -52,6 +59,7 @@ export const scenarioState: ScenarioState = (["ideal", "loading", "error", "empt
   : "ideal";
 const latency = Number(params.get("latency") ?? 260);
 const failWrites = params.get("failWrites") === "1";
+const failReads = new Set((params.get("failReads") ?? "").split(",").filter(Boolean));
 
 class HttpError extends Error {
   constructor(
@@ -114,7 +122,15 @@ function makeInvite(groupId: string, body: { expiresInHours?: number; maxUses?: 
 /* ── Routes ─────────────────────────────────────────────────────────────── */
 
 type Ctx = { method: string; path: string; query: URLSearchParams; body: Record<string, unknown>; m: string[] };
-type Route = { method: string; pattern: RegExp; list?: boolean; handle: (ctx: Ctx) => unknown };
+type Route = {
+  method: string;
+  pattern: RegExp;
+  /** Honours ?state=loading|error (every read a surface depends on). */
+  list?: boolean;
+  /** Name for ?failReads=. */
+  tag?: string;
+  handle: (ctx: Ctx) => unknown;
+};
 
 const routes: Route[] = [
   // account
@@ -179,6 +195,8 @@ const routes: Route[] = [
   {
     method: "GET",
     pattern: /^\/groups\/([^/]+)$/,
+    list: true,
+    tag: "details",
     handle: ({ m }) => {
       if (m[1] !== db.server.id) throw new HttpError(404, "NOT_FOUND");
       return { group: db.server, channels: db.channels, members: db.members };
@@ -224,7 +242,13 @@ const routes: Route[] = [
       return { roleIds };
     },
   },
-  { method: "GET", pattern: /^\/groups\/([^/]+)\/roles$/, handle: () => ({ roles: db.roles }) },
+  {
+    method: "GET",
+    pattern: /^\/groups\/([^/]+)\/roles$/,
+    list: true,
+    tag: "roles",
+    handle: () => ({ roles: db.roles }),
+  },
   {
     method: "POST",
     pattern: /^\/groups\/([^/]+)\/roles$/,
@@ -542,7 +566,23 @@ const uploadedEmojiUrls: Record<string, string> = {};
 interface HarnessGlobal {
   unhandled: string[];
   requests: { method: string; path: string; status: number }[];
+  remote?: RemoteEdits;
 }
+
+/** Edits "another manager" makes, straight into the store (no request). */
+export interface RemoteEdits {
+  renameRole: (roleId: string, name: string) => void;
+  renameServer: (name: string) => void;
+}
+
+export const remoteEdits: RemoteEdits = {
+  renameRole: (roleId, name) => {
+    db.roles = db.roles.map((r) => (r.id === roleId ? { ...r, name } : r));
+  },
+  renameServer: (name) => {
+    db.server = { ...db.server, name };
+  },
+};
 
 declare global {
   interface Window {
@@ -590,7 +630,7 @@ export function installFakeBackend(apiBase: string): void {
     if (route.list && method === "GET" && scenarioState === "loading") {
       return new Promise<Response>(() => undefined);
     }
-    if (route.list && method === "GET" && scenarioState === "error") {
+    if (method === "GET" && ((route.list && scenarioState === "error") || (route.tag && failReads.has(route.tag)))) {
       harness.requests.push({ method, path, status: 500 });
       return json(500, { error: { code: "INTERNAL", message: "harness error state" } });
     }
