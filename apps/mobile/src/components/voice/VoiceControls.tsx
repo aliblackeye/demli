@@ -46,6 +46,7 @@ export function CallControl({
   toggle = false,
   disabled = false,
   haptic = "light",
+  size = "lg",
   onPress,
 }: {
   icon: LucideIcon;
@@ -55,20 +56,23 @@ export function CallControl({
   /** Announce as an on/off toggle (camera, share) instead of a plain button. */
   toggle?: boolean;
   disabled?: boolean;
-  haptic?: "light" | "medium";
+  /** "none" when the caller fires its own, more specific haptic (accept / decline). */
+  haptic?: "light" | "medium" | "none";
+  /** `lg` (48) on the dock; `xl` (56) on the ring screen, where it is the whole UI. */
+  size?: "lg" | "xl";
   onPress: () => void;
 }) {
   return (
-    <View style={{ alignItems: "center", gap: space.xs, width: 68 }}>
+    <View style={{ alignItems: "center", gap: space.xs, width: size === "xl" ? 84 : 68 }}>
       <IconButton
         icon={icon}
         label={label}
         variant={variant}
-        size="lg"
+        size={size}
         active={active}
         toggle={toggle}
         disabled={disabled}
-        haptic={haptic}
+        haptic={haptic === "none" ? undefined : haptic}
         onPress={onPress}
       />
       <ControlCaption label={label} disabled={disabled} />

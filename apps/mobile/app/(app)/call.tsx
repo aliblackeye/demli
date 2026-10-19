@@ -49,7 +49,9 @@ export default function CallScreen() {
     state.peer?.displayName || state.peer?.username || params.name || t("mobile:call.inCall");
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.app }}>
+    // Pure black: every phase of a call (ring, stage, outcome) sits on the same
+    // page, so moving between them never flashes a different tone.
+    <View style={{ flex: 1, backgroundColor: colors.rail }}>
       <Stack.Screen
         options={{
           headerShown: false,

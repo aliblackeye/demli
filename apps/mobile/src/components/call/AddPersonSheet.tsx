@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Modal, Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { UserPlus, X } from "lucide-react-native";
+import { ActivityIndicator, View } from "react-native";
+import { UserPlus, Users } from "lucide-react-native";
 import type { UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
+import { EmptyState } from "@/components/EmptyState";
+import { SkeletonList } from "@/components/Skeleton";
 import { useFriends } from "@/queries/social-queries";
 import { getCallController } from "@/stores/call-store";
 import { colors, radius, space } from "@/theme/theme";
+import { Sheet } from "../ui/Sheet";
+import { Text } from "../ui/Text";
+import { toast } from "../ui/Toast";
+import { Touchable } from "../ui/Touchable";
 
 /**
  * "Add person" picker for an active DM call (ADR 0012 §6 — seamless upgrade). Pick
@@ -18,6 +22,16 @@ import { colors, radius, space } from "@/theme/theme";
  *
  * Excludes the person already in the call (`excludeUserId`). Only mutual friends
  * appear — the server re-checks the inviter↔invitee friendship anyway.
+ *
+ * Drawn on the kit's draggable Sheet. Every state is designed: friends loading
+ * (skeleton rows, announced once), nobody to add (an empty block, not a blank
+ * card), one request in flight (that row shows the spinner, the others step back
+ * to 40% and stop taking taps), and a refused upgrade (a toast that says the call
+ * is still on — before this, a failure simply did nothing).
+ *
+ * The rows are rendered inside the sheet's own scroll body: a friend list is a
+ * few dozen rows at most, and a second virtualized list inside the sheet would
+ * fight its drag-to-dismiss gesture.
  */
 export function AddPersonSheet({
   visible,
@@ -29,7 +43,6 @@ export function AddPersonSheet({
   onClose: () => void;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const { data: friends, isLoading } = useFriends();
   const [pendingId, setPendingId] = useState<UserId | null>(null);
 
@@ -46,130 +59,90 @@ export function AddPersonSheet({
         onClose();
       })
       .catch(() => {
-        // The controller's onError already logged it; let the user retry.
+        // The controller's onError already logged the cause; tell the person the
+        // call itself is fine and that trying again is safe.
+        toast({
+          title: t("mobile:call.addPersonFailed"),
+          description: t("mobile:call.addPersonFailedHint"),
+          variant: "danger",
+        });
       })
       .finally(() => setPendingId(null));
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={t("mobile:call.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
-      >
-        {/* Stop taps inside the sheet from dismissing it. */}
-        <Pressable
-          onPress={() => {}}
-          style={{
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            paddingBottom: insets.bottom + space.md,
-            maxHeight: "70%",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: space.lg,
-              paddingTop: space.lg,
-              paddingBottom: space.sm,
-            }}
-          >
-            <Text variant="display" style={{ flex: 1, color: colors.fg, fontSize: 17, fontWeight: "700" }}>
-              {t("mobile:call.addPersonTitle")}
-            </Text>
-            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel={t("mobile:call.close")}>
-              <X size={22} color={colors.fgMuted} />
-            </Pressable>
-          </View>
-          <Text
-            style={{
-              color: colors.fgMuted,
-              fontSize: 13,
-              paddingHorizontal: space.lg,
-              paddingBottom: space.md,
-            }}
-          >
-            {t("mobile:call.addPersonSubtitle")}
-          </Text>
-
-          {isLoading ? (
-            <View style={{ padding: space.xl, alignItems: "center" }}>
-              <ActivityIndicator color={colors.fgFaint} />
-            </View>
-          ) : candidates.length === 0 ? (
-            <Text
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={t("mobile:call.addPersonTitle")}
+      description={t("mobile:call.addPersonSubtitle")}
+      snapPoints={candidates.length > 6 ? ["60%", "90%"] : undefined}
+    >
+      {isLoading ? (
+        <SkeletonList count={4} leadingSize={40} leadingRadius={radius.pill} />
+      ) : candidates.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<Users size={22} color={colors.fgMuted} strokeWidth={2} />}
+          title={t("mobile:call.addPersonEmpty")}
+        />
+      ) : (
+        candidates.map((item) => {
+          const name = item.user.displayName || item.user.username;
+          const busy = pendingId === item.user.id;
+          const waiting = pendingId !== null && !busy;
+          return (
+            <Touchable
+              key={item.user.id}
+              onPress={() => addPerson(item.user.id)}
+              disabled={pendingId !== null}
+              // Only the OTHER rows look "off" while one request is in flight; the
+              // busy row stays at full ink with its spinner.
+              dimmed={waiting}
+              haptic="light"
+              accessibilityRole="button"
+              accessibilityLabel={`${t("mobile:call.add")}: ${name}`}
+              accessibilityState={{ busy }}
               style={{
-                color: colors.fgFaint,
-                fontSize: 14,
-                textAlign: "center",
-                paddingHorizontal: space.lg,
-                paddingVertical: space.xl,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.md,
+                minHeight: 56,
+                paddingHorizontal: space.sm,
+                borderRadius: radius.lg,
+                borderCurve: "continuous",
               }}
             >
-              {t("mobile:call.addPersonEmpty")}
-            </Text>
-          ) : (
-            <FlatList
-              data={candidates}
-              keyExtractor={(f) => f.user.id}
-              contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}
-              renderItem={({ item }) => {
-                const name = item.user.displayName || item.user.username;
-                const busy = pendingId === item.user.id;
-                return (
-                  <Pressable
-                    onPress={() => addPerson(item.user.id)}
-                    disabled={!!pendingId}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("mobile:call.a11yAddPerson")}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: space.md,
-                      paddingVertical: space.md,
-                      opacity: pressed ? 0.7 : pendingId && !busy ? 0.5 : 1,
-                    })}
-                  >
-                    <Avatar name={name} size={40} uri={item.user.avatarUrl} />
-                    <Text
-                      numberOfLines={1}
-                      style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: "600" }}
-                    >
-                      {name}
-                    </Text>
-                    {busy ? (
-                      <ActivityIndicator color={colors.accent} size="small" />
-                    ) : (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: space.xs,
-                          paddingHorizontal: space.md,
-                          paddingVertical: space.xs,
-                          borderRadius: radius.pill,
-                          backgroundColor: colors.accentSurface,
-                        }}
-                      >
-                        <UserPlus size={15} color={colors.accent} />
-                        <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
-                          {t("mobile:call.add")}
-                        </Text>
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              }}
-            />
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+              <Avatar name={name} size="md" uri={item.user.avatarUrl} />
+              <Text type="body" tone="default" numberOfLines={1} style={{ flex: 1, fontWeight: "500" }}>
+                {name}
+              </Text>
+              {busy ? (
+                <View style={{ width: 72, alignItems: "center" }}>
+                  <ActivityIndicator color={colors.accent} size="small" />
+                </View>
+              ) : (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.xs,
+                    paddingHorizontal: space.md,
+                    minHeight: 32,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.accentSurface,
+                  }}
+                >
+                  <UserPlus size={15} color={colors.accent} strokeWidth={2} />
+                  <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
+                    {t("mobile:call.add")}
+                  </Text>
+                </View>
+              )}
+            </Touchable>
+          );
+        })
+      )}
+    </Sheet>
   );
 }

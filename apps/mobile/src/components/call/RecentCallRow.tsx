@@ -1,6 +1,5 @@
 import { memo } from "react";
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { View } from "react-native";
 import { Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Video } from "lucide-react-native";
 import type { UserId } from "@demli/types";
 import { useAppTranslation, type AppTFunction } from "../../lib/i18n";
@@ -8,6 +7,9 @@ import type { RecentCall } from "../../lib/clients";
 import { dmRelativeTime } from "../../lib/dm-preview";
 import { colors, radius, space, typography } from "../../theme/theme";
 import { Avatar } from "../Avatar";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
 
 /** True when the viewer MISSED an incoming call — the danger-color case. */
 function isMissedIncoming(call: RecentCall): boolean {
@@ -55,9 +57,11 @@ function callSummary(call: RecentCall, t: AppTFunction): string {
 }
 
 function DirectionGlyph({ call }: { call: RecentCall }) {
-  if (isMissedIncoming(call)) return <PhoneMissed size={15} color={colors.danger} />;
-  if (call.direction === "outgoing") return <PhoneOutgoing size={15} color={colors.fgFaint} />;
-  return <PhoneIncoming size={15} color={colors.fgFaint} />;
+  if (isMissedIncoming(call)) return <PhoneMissed size={14} color={colors.danger} strokeWidth={2} />;
+  if (call.direction === "outgoing") {
+    return <PhoneOutgoing size={14} color={colors.fgFaint} strokeWidth={2} />;
+  }
+  return <PhoneIncoming size={14} color={colors.fgFaint} strokeWidth={2} />;
 }
 
 /**
@@ -70,6 +74,11 @@ function DirectionGlyph({ call }: { call: RecentCall }) {
  *
  * The tappable name/avatar region and the call-back button are SIBLING pressables
  * (not nested) so a tap resolves unambiguously to one action.
+ *
+ * Koyu Masa row grammar: no card, the row sits on the page; a press is a tone
+ * change only (nothing lifts); the direction glyph moves under the name, next to
+ * the outcome it explains; the media glyph is the call-back disc itself, so the
+ * row says "voice" or "video" exactly once.
  */
 function RecentCallRowImpl({
   call,
@@ -92,69 +101,78 @@ function RecentCallRowImpl({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: space.sm,
-        paddingHorizontal: space.lg,
-        paddingVertical: space.md,
-        borderRadius: radius.md,
-        borderCurve: "continuous",
-        backgroundColor: colors.surface,
+        gap: space.xs,
+        paddingRight: space.sm,
       }}
     >
-      <Pressable
+      <Touchable
         onPress={() => onOpen(call.peer.id)}
         accessibilityRole="button"
-        style={({ pressed }) => ({
+        accessibilityLabel={`${call.peer.displayName}, ${callSummary(call, t)}${time ? `, ${time}` : ""}`}
+        style={{
           flex: 1,
           flexDirection: "row",
           alignItems: "center",
           gap: space.md,
-          opacity: pressed ? 0.7 : 1,
-        })}
+          minHeight: 64,
+          paddingHorizontal: space.md,
+          paddingVertical: space.sm,
+          borderRadius: radius.lg,
+          borderCurve: "continuous",
+        }}
       >
-        <Avatar name={call.peer.displayName} size={46} uri={call.peer.avatarUrl} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Avatar name={call.peer.displayName} size={44} uri={call.peer.avatarUrl} />
+        <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: missed ? colors.danger : colors.fg,
+              fontSize: 15,
+              lineHeight: 20,
+              fontWeight: "600",
+            }}
+          >
+            {call.peer.displayName}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs + 2 }}>
             <DirectionGlyph call={call} />
             <Text
               numberOfLines={1}
-              style={{ flexShrink: 1, color: missed ? colors.danger : colors.fg, fontSize: 15, fontWeight: "600" }}
+              style={{
+                flexShrink: 1,
+                color: missed ? colors.danger : colors.fgMuted,
+                fontSize: 13,
+                fontVariant: ["tabular-nums"],
+              }}
             >
-              {call.peer.displayName}
+              {callSummary(call, t)}
             </Text>
-            {isVideo ? (
-              <Video size={13} color={colors.fgFaint} />
-            ) : (
-              <Phone size={13} color={colors.fgFaint} />
-            )}
           </View>
-          <Text numberOfLines={1} style={{ color: missed ? colors.danger : colors.fgMuted, fontSize: 13 }}>
-            {callSummary(call, t)}
-          </Text>
         </View>
         {time ? (
-          <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"], fontVariant: ["tabular-nums"] }}>{time}</Text>
+          <Text
+            style={{
+              color: colors.fgFaint,
+              fontSize: typography.size["2xs"],
+              fontWeight: "500",
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {time}
+          </Text>
         ) : null}
-      </Pressable>
+      </Touchable>
 
-      <Pressable
-        onPress={() => onCallBack(call)}
+      <IconButton
+        icon={isVideo ? Video : Phone}
+        // The raised disc — a calm, repeatable action on every row. Disabled (40%)
+        // unless you are friends and no call is live; the server re-checks both.
+        variant="secondary"
         disabled={!canCall}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={t("mobile:recentCalls.callBack")}
-        accessibilityState={{ disabled: !canCall }}
-        style={({ pressed }) => ({
-          width: 40,
-          height: 40,
-          borderRadius: radius.pill,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.surfaceRaised,
-          opacity: !canCall ? 0.4 : pressed ? 0.6 : 1,
-        })}
-      >
-        {isVideo ? <Video size={18} color={colors.accent} /> : <Phone size={18} color={colors.accent} />}
-      </Pressable>
+        haptic="light"
+        label={t("mobile:recentCalls.callBack")}
+        onPress={() => onCallBack(call)}
+      />
     </View>
   );
 }

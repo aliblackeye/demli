@@ -1,15 +1,18 @@
 import { useEffect } from "react";
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { View } from "react-native";
+import Animated from "react-native-reanimated";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Phone, PhoneOff } from "lucide-react-native";
 import type { PendingInvite } from "@demli/client-core";
 import { Avatar } from "@/components/Avatar";
+import { FLOATING_BAR_ENTER, FLOATING_BAR_EXIT } from "@/components/voice/floating-bar-motion";
 import { useAppTranslation } from "@/lib/i18n";
 import { getCallController } from "@/stores/call-store";
 import { playSound } from "@/sounds/sound-manager";
-import { colors, elevation, radius, space } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
 
 /**
  * Compact "X is calling you" banner shown while ALREADY in a call (call UX wave
@@ -21,6 +24,12 @@ import { colors, elevation, radius, space } from "@/theme/theme";
  * ringtone reacts to `phase`, which a parked invite never changes) — only a short
  * single blip on appear, so the ongoing call's audio is never disrupted. Rendered
  * by {@link IncomingCallOverlay} (which owns the global call overlay slot).
+ *
+ * Koyu Masa: a floating glass bar that drops in from the top (the banner motion)
+ * and lifts away when answered or declined; the caller's face with the coral
+ * speaking-style ring (someone is reaching for you), Decline as the solid pink
+ * disc, Accept-and-switch as the solid coral one — the ring screen's grammar at
+ * banner size.
  */
 export function BusyCallBanner({ invite }: { invite: PendingInvite }) {
   const { t } = useAppTranslation();
@@ -48,7 +57,10 @@ export function BusyCallBanner({ invite }: { invite: PendingInvite }) {
   };
 
   return (
-    <View
+    <Animated.View
+      entering={FLOATING_BAR_ENTER.fromTop}
+      exiting={FLOATING_BAR_EXIT.toTop}
+      accessibilityRole="alert"
       style={{
         position: "absolute",
         left: space.sm,
@@ -64,15 +76,12 @@ export function BusyCallBanner({ invite }: { invite: PendingInvite }) {
           paddingLeft: space.md,
           paddingRight: space.sm,
           paddingVertical: space.sm,
-          borderRadius: radius.md,
+          borderRadius: radius.xl,
           borderCurve: "continuous",
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          backgroundColor: colors.surface,
-          ...elevation.panel,
+          backgroundColor: colors.glassStrong,
         }}
       >
-        <Avatar name={name} size={40} uri={caller.avatarUrl} />
+        <Avatar name={name} size="md" uri={caller.avatarUrl} speaking />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
             {title}
@@ -81,51 +90,23 @@ export function BusyCallBanner({ invite }: { invite: PendingInvite }) {
             {t("mobile:call.busySwitchHint")}
           </Text>
         </View>
-        <RoundButton
-          Icon={PhoneOff}
-          color={colors.danger}
+        <IconButton
+          icon={PhoneOff}
+          variant="dangerSolid"
+          size="md"
+          haptic="medium"
           label={t("mobile:call.a11yBusyDecline")}
           onPress={decline}
         />
-        <RoundButton
-          Icon={Phone}
-          color={colors.online}
+        <IconButton
+          icon={Phone}
+          variant="accent"
+          size="md"
+          haptic="medium"
           label={t("mobile:call.a11yBusyAccept")}
           onPress={accept}
         />
       </View>
-    </View>
-  );
-}
-
-function RoundButton({
-  Icon,
-  color,
-  label,
-  onPress,
-}: {
-  Icon: typeof Phone;
-  color: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={6}
-      style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        borderRadius: radius.pill,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: color,
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      <Icon size={18} color={colors.onAccent} />
-    </Pressable>
+    </Animated.View>
   );
 }
