@@ -14,9 +14,12 @@
     <!--
       First-paint background. `ready-to-show` (main/index.ts) reveals the window
       on the renderer's FIRST frame, which happens before globals.css is parsed —
-      without this the window flashes white before the splash appears. Same warm
-      gradient BootSplash paints, so there is no colour step either. Inline is
-      CSP-safe (`style-src 'self' 'unsafe-inline'`) and costs no request.
+      without this the window flashes white before the splash appears. Same
+      surface BootSplash paints (Koyu Masa: the black page + one coral glow), so
+      there is no colour step either. The values are literal because no
+      stylesheet has loaded yet; boot-surface.test.ts pins them to the
+      globals.css tokens (--color-rail, --color-accent-glow). Inline is CSP-safe
+      (`style-src 'self' 'unsafe-inline'`) and costs no request.
     -->
     <style>
       html,
@@ -24,7 +27,8 @@
         height: 100%;
         margin: 0;
         overflow: hidden;
-        background: radial-gradient(120% 90% at 50% 0%, #2a0f07 0%, #180806 46%, #0c0304 100%);
+        background-color: #000000;
+        background-image: radial-gradient(42% 32% at 50% 44%, rgb(255 132 100 / 0.24), transparent 72%);
       }
     </style>
   </head>

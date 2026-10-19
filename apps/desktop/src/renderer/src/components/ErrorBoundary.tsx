@@ -173,7 +173,13 @@ export class ErrorBoundary extends Component<
   }
 }
 
-function ErrorFallback({
+/**
+ * The crash fallback: a calm Koyu Masa card on the black page — what happened,
+ * and the one action that recovers it. No warm glow here on purpose (the brand
+ * light is for arrival, not for failure) and never a stack trace (§26); the
+ * details went to the crash log above.
+ */
+export function ErrorFallback({
   onRestart,
 }: {
   onRestart: () => void;
@@ -181,19 +187,22 @@ function ErrorFallback({
   // Requires the I18nextProvider ABOVE the boundary (see main.tsx render order).
   const { t } = useAppTranslation();
   return (
-    <div className="flex h-screen items-center justify-center bg-app text-fg">
-      <div className="w-[400px] max-w-[calc(100vw-2rem)] text-center">
-        <div className="mb-5 flex justify-center">
-          <div className="flex size-12 items-center justify-center rounded-[15px] bg-danger/10 text-danger">
-            <TriangleAlert className="size-6" />
-          </div>
+    <div className="flex h-screen items-center justify-center bg-rail p-4 text-fg">
+      <div
+        role="alert"
+        className="flex w-[420px] max-w-full animate-pop-in flex-col items-center rounded-card bg-app px-8 pb-8 pt-9 text-center"
+      >
+        <div className="flex size-12 items-center justify-center rounded-xl bg-danger-surface text-danger">
+          <TriangleAlert aria-hidden className="size-6" />
         </div>
-        <h1 className="text-lg font-semibold text-fg">{t("desktop:crash.title")}</h1>
-        <p className="mx-auto mt-1.5 max-w-[320px] text-sm text-fg-muted">
+        <h1 className="mt-5 font-display text-xl font-semibold leading-tight text-fg-display">
+          {t("desktop:crash.title")}
+        </h1>
+        <p className="mt-2 max-w-[320px] text-sm leading-relaxed text-fg-muted">
           {t("desktop:crash.body")}
         </p>
-        <Button onClick={onRestart} className="mt-6">
-          <RotateCcw className="size-4" />
+        <Button variant="primary" size="lg" onClick={onRestart} className="mt-7 w-full">
+          <RotateCcw aria-hidden className="size-4" />
           {t("desktop:crash.restart")}
         </Button>
       </div>

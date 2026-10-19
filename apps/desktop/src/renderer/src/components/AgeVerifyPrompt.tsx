@@ -11,6 +11,7 @@ import {
   cn,
 } from "@demli/ui";
 import { shouldPromptForBirthdate } from "@demli/client-core";
+import { floatingPillClass, floatingPillItemClass } from "@demli/app-ui";
 import { useAppTranslation } from "../lib/i18n";
 import { useMe } from "../queries/social-queries";
 import { useAgePromptStore } from "../stores/age-prompt-store";
@@ -75,33 +76,19 @@ export function AgeVerifyPrompt(): JSX.Element | null {
   return (
     <>
       {visible && (
-        <div
-          className={cn(
-            "flex items-center gap-0.5 rounded-full",
-            "border border-stroke bg-surface/95 py-1 pl-1 pr-1 shadow-lg backdrop-blur-sm",
-          )}
-        >
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className={cn(
-              "inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:bg-raised",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-            )}
-          >
-            <CalendarCheck className="size-4 text-accent" />
+        <div className={floatingPillClass}>
+          <button type="button" onClick={() => setOpen(true)} className={floatingPillItemClass}>
+            <CalendarCheck aria-hidden className="size-4 text-accent" />
             {t("desktop:ageVerify.pill")}
           </button>
           <button
             type="button"
             aria-label={t("desktop:ageVerify.dismiss")}
+            title={t("desktop:ageVerify.dismiss")}
             onClick={() => userId && dismiss(userId)}
-            className={cn(
-              "shrink-0 cursor-pointer rounded-full p-1 text-fg-faint transition-colors hover:bg-raised hover:text-fg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-            )}
+            className={cn(floatingPillItemClass, "p-1.5 text-fg-faint hover:text-fg")}
           >
-            <X className="size-3.5" />
+            <X aria-hidden className="size-3.5" />
           </button>
         </div>
       )}
@@ -124,13 +111,13 @@ export function AgeVerifyPrompt(): JSX.Element | null {
               />
             ) : (
               <div className="space-y-4">
-                <p className="flex items-start gap-2 text-sm leading-relaxed text-fg">
-                  <Check className="mt-0.5 size-4 shrink-0 text-online" aria-hidden />
+                <p className="flex animate-fade-in items-start gap-2.5 rounded-xl bg-surface p-4 text-sm leading-relaxed text-fg">
+                  <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
                   {savedAdult
                     ? t("desktop:birthdate.doneAdult")
                     : t("desktop:birthdate.doneMinor")}
                 </p>
-                <Button className="w-full" onClick={closeDialog}>
+                <Button variant="primary" className="w-full" onClick={closeDialog}>
                   {t("desktop:ageVerify.close")}
                 </Button>
               </div>

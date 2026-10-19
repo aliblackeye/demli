@@ -30,11 +30,16 @@ describe("authScreenRootClass", () => {
 
   it("shares the same centering + surface styling across both variants", () => {
     for (const variant of ["primary", "add"] as const) {
-      const cls = authScreenRootClass(variant);
-      expect(cls).toContain("flex");
-      expect(cls).toContain("items-center");
-      expect(cls).toContain("justify-center");
-      expect(cls).toContain("bg-app");
+      const classes = authScreenRootClass(variant).split(/\s+/);
+      expect(classes).toContain("flex");
+      // SAFE centring: centred while the form fits, never clipped above the
+      // viewport when it does not (the register form on a short window).
+      expect(classes).toContain("items-center-safe");
+      expect(classes).toContain("overflow-y-auto");
+      expect(classes).toContain("justify-center");
+      // An OPAQUE token surface — the add overlay must hide the running app.
+      // (Koyu Masa page tone; was bg-app before the M16 surface pass.)
+      expect(classes).toContain("bg-rail");
     }
   });
 });

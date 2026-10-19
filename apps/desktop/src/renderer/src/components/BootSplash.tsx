@@ -60,9 +60,15 @@ const CEILING_AFTER_SESSION_MS = 10_000;
 /** Fade-out duration; the unmount timer sits just past it. */
 const FADE_OUT_MS = 320;
 
-/** Design-v2 warm gradient — mirrored byte-for-byte in apps/web/index.html. */
-const SPLASH_BACKGROUND =
-  "radial-gradient(120% 90% at 50% 0%, #2a0f07 0%, #180806 46%, #0c0304 100%)";
+/**
+ * Koyu Masa splash: the black page (`--color-rail`) with ONE warm light behind the
+ * mark — the landing's "dem" glow, in the coral `--color-accent-glow`. Read from
+ * the tokens, never re-typed: the pre-boot skeletons in both index.html files
+ * must repeat the literal values (no stylesheet has loaded yet when they paint),
+ * and `boot-surface.test.ts` fails if either drifts from globals.css.
+ */
+export const SPLASH_GLOW =
+  "radial-gradient(42% 32% at 50% 44%, var(--color-accent-glow), transparent 72%)";
 
 /**
  * The line under the bar, per phase. A switch over literal keys (rather than a
@@ -210,9 +216,9 @@ export function BootSplash({ translationsReady }: BootSplashProps): JSX.Element 
   return (
     <div
       // Above every in-app layer (the highest product overlay is z-[100]).
-      className="fixed inset-0 z-[200] flex select-none flex-col items-center justify-center gap-6 px-6"
+      className="fixed inset-0 z-[200] flex select-none flex-col items-center justify-center gap-6 bg-rail px-6"
       style={{
-        background: SPLASH_BACKGROUND,
+        backgroundImage: SPLASH_GLOW,
         opacity: leaving ? 0 : 1,
         transition: `opacity ${FADE_OUT_MS}ms var(--motion-ease-standard)`,
         // Once it is fading it must not swallow a click meant for the app.
@@ -234,12 +240,12 @@ export function BootSplash({ translationsReady }: BootSplashProps): JSX.Element 
         height={128}
         onLoad={removeBootSkeleton}
         onError={removeBootSkeleton}
-        className="size-28 drop-shadow-[0_10px_28px_rgba(8,3,1,0.6)] wide:size-32"
+        className="size-28 wide:size-32"
       />
 
       <div className="flex w-[min(18rem,70vw)] flex-col items-center gap-3">
         <div
-          className="h-1 w-full overflow-hidden rounded-full bg-stroke-strong"
+          className="h-1 w-full overflow-hidden rounded-full bg-wash-strong"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
