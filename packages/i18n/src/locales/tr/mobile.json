@@ -667,7 +667,13 @@
     "cancelReply": "Yanıtı iptal et",
     "mentionInsert": "{{name}} bahset",
     "mentionEveryoneHint": "Herkese bildir",
-    "mentionHereHint": "Çevrimiçilere bildir"
+    "mentionHereHint": "Çevrimiçilere bildir",
+    "mentionHeading": "Üyeler",
+    "send": "Gönder",
+    "charsLeft_one": "{{count}} karakter kaldı",
+    "charsLeft_other": "{{count}} karakter kaldı",
+    "blockedNotice": "{{name}} adlı kişiyi engelledin. Mesaj gönderebilmek için engeli kaldır.",
+    "unblock": "Engeli kaldır"
   },
   "emojiPicker": {
     "title": "Emoji",
@@ -723,7 +729,12 @@
     "uploadRejected": "Depolama sunucusu bu yüklemeyi reddetti. Tekrar dene.",
     "uploadFailed": "Bu dosya yüklenemedi.",
     "maxPerMessage": "Bir mesaj en fazla {{max}} ek taşıyabilir.",
-    "nsfwBlocked": "Bu görsel hassas içerik olarak engellendi. Yaşa uygun (18+) bir kanalda paylaş."
+    "nsfwBlocked": "Bu görsel hassas içerik olarak engellendi. Yaşa uygun (18+) bir kanalda paylaş.",
+    "uploadProgress": "%{{percent}}",
+    "openFailed": "Görsel açılamadı.",
+    "position": "{{index}} / {{total}}",
+    "previousImage": "Önceki görsel",
+    "nextImage": "Sonraki görsel"
   },
   "chat": {
     "empty": "Henüz mesaj yok. Selam ver 👋",
@@ -733,7 +744,24 @@
     "newMessagesDivider": "Yeni mesajlar buradan başlıyor",
     "memberSummary_one": "{{count}} kişi · {{online}} çevrimiçi",
     "memberSummary_other": "{{count}} kişi · {{online}} çevrimiçi",
-    "headerPresenceA11y": "{{name}} — {{status}}"
+    "headerPresenceA11y": "{{name}} — {{status}}",
+    "dateToday": "Bugün",
+    "dateYesterday": "Dün",
+    "newChip": "YENİ",
+    "jumpNew_one": "{{count}} yeni mesaj",
+    "jumpNew_other": "{{count}} yeni mesaj",
+    "olderFailed": "Eski mesajlar yüklenemedi.",
+    "loadFailedTitle": "Mesajlar yüklenemedi",
+    "emptyTitle": "Henüz mesaj yok",
+    "emptyChannel": "{{name}} kanalına ilk mesajı sen yaz.",
+    "emptyGroup": "Bu sohbete ilk mesajı sen yaz.",
+    "channelStart": "Burası {{name}} kanalının başı, daha eski mesaj yok.",
+    "groupStart": "Burası sohbetin başı, daha eski mesaj yok.",
+    "textCopied": "Metin kopyalandı.",
+    "rowHint": "Eylemler için basılı tut, yanıtlamak için sağa kaydır",
+    "actionsA11y": "Mesaj eylemleri",
+    "copyFailed": "Metin kopyalanamadı.",
+    "chatLoadFailedTitle": "Sohbet yüklenemedi"
   },
   "message": {
     "sending": "gönderiliyor…",
@@ -763,7 +791,11 @@
     "queueChannelGone": "Bu kanal artık kullanılamıyor, bu mesajlar gönderilmedi.",
     "queueExhausted": "Bu mesaj birkaç denemeden sonra gönderilemedi.",
     "pin": "Mesajı sabitle",
-    "unpin": "Sabiti kaldır"
+    "unpin": "Sabiti kaldır",
+    "pinnedMarker": "Sabitlendi",
+    "replyTo": "{{name}} kişisine yanıt",
+    "reactionA11y_one": "{{emoji}} tepkisi, {{count}} kişi",
+    "reactionA11y_other": "{{emoji}} tepkisi, {{count}} kişi"
   },
   "connection": {
     "reconnecting": "Yeniden bağlanılıyor…",

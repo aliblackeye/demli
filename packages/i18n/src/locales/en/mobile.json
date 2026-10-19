@@ -667,7 +667,13 @@
     "cancelReply": "Cancel reply",
     "mentionInsert": "Mention {{name}}",
     "mentionEveryoneHint": "Notify everyone",
-    "mentionHereHint": "Notify online"
+    "mentionHereHint": "Notify online",
+    "mentionHeading": "Members",
+    "send": "Send",
+    "charsLeft_one": "{{count}} character left",
+    "charsLeft_other": "{{count}} characters left",
+    "blockedNotice": "You blocked {{name}}. Unblock them to send messages.",
+    "unblock": "Unblock"
   },
   "emojiPicker": {
     "title": "Emoji",
@@ -723,7 +729,12 @@
     "uploadRejected": "The storage server rejected this upload. Try again.",
     "uploadFailed": "This file could not be uploaded.",
     "maxPerMessage": "A message can carry at most {{max}} attachments.",
-    "nsfwBlocked": "That image was blocked as sensitive content. Post it in an age-restricted (18+) channel."
+    "nsfwBlocked": "That image was blocked as sensitive content. Post it in an age-restricted (18+) channel.",
+    "uploadProgress": "{{percent}}%",
+    "openFailed": "Couldn't open the image.",
+    "position": "{{index}} / {{total}}",
+    "previousImage": "Previous image",
+    "nextImage": "Next image"
   },
   "chat": {
     "empty": "No messages yet. Say hello 👋",
@@ -733,7 +744,24 @@
     "newMessagesDivider": "New messages start here",
     "memberSummary_one": "{{count}} member · {{online}} online",
     "memberSummary_other": "{{count}} members · {{online}} online",
-    "headerPresenceA11y": "{{name}} — {{status}}"
+    "headerPresenceA11y": "{{name}} — {{status}}",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday",
+    "newChip": "NEW",
+    "jumpNew_one": "{{count}} new message",
+    "jumpNew_other": "{{count}} new messages",
+    "olderFailed": "Couldn't load older messages.",
+    "loadFailedTitle": "Couldn't load messages",
+    "emptyTitle": "No messages yet",
+    "emptyChannel": "Write the first message in {{name}}.",
+    "emptyGroup": "Write the first message in this chat.",
+    "channelStart": "This is the start of {{name}}. There's nothing older.",
+    "groupStart": "This is the start of the conversation. There's nothing older.",
+    "textCopied": "Text copied.",
+    "rowHint": "Long press for actions, swipe right to reply",
+    "actionsA11y": "Message actions",
+    "copyFailed": "Couldn't copy the text.",
+    "chatLoadFailedTitle": "Couldn't load this chat"
   },
   "message": {
     "sending": "sending…",
@@ -763,7 +791,11 @@
     "queueChannelGone": "This channel is no longer available, so these messages were not sent.",
     "queueExhausted": "This message could not be sent after several tries.",
     "pin": "Pin message",
-    "unpin": "Unpin message"
+    "unpin": "Unpin message",
+    "pinnedMarker": "Pinned",
+    "replyTo": "Reply to {{name}}",
+    "reactionA11y_one": "{{emoji}} reaction, {{count}} person",
+    "reactionA11y_other": "{{emoji}} reaction, {{count}} people"
   },
   "connection": {
     "reconnecting": "Reconnecting…",
