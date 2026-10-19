@@ -2,17 +2,14 @@
  * The app's bottom-sheet action menu — mobile's answer to a desktop right-click
  * context menu / row hover affordance.
  *
- * Built on a plain RN `Modal` rather than a native sheet library on purpose:
- * everything here has to stay OTA-updatable (CLAUDE.md §32), so no new native
- * module may be introduced for chrome.
+ * Same API as before (`visible`, `title`, `onClose`, children of `ActionRow` /
+ * `ActionDivider`), now drawn by the kit's draggable {@link Sheet}: spring
+ * open, drag or flick down to dismiss, scrim derived from the card's travel,
+ * the Android back button, reduced motion honoured. Every call site keeps
+ * working untouched.
  *
- * This is the extraction of an idiom the app had already converged on by hand in
- * `ServerActionsSheet` and `NotificationMuteSheet` — same scrim, same radii, same
- * safe-area padding, and a byte-identical private `ActionRow` in both. One copy
- * now, so a menu row looks the same wherever it opens.
- *
- * Two things the card handles for every caller, because getting them wrong is
- * invisible until a particular device shows it:
+ * What the sheet still guarantees for every caller, because getting it wrong
+ * is invisible until a particular device shows it:
  *
  *  - The body SCROLLS under a max height. The full user menu for a moderator is
  *    seventeen rows; without a cap it runs off the bottom of a short screen (or
@@ -26,12 +23,11 @@
  */
 
 import type { ReactNode } from "react";
-import { Modal, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTranslation } from "@/lib/i18n";
-import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { View } from "react-native";
 import { colors, radius, space } from "@/theme/theme";
+import { Sheet } from "./Sheet";
 import { Text } from "./Text";
+import { Touchable } from "./Touchable";
 
 export function ActionSheet({
   visible,
@@ -45,73 +41,26 @@ export function ActionSheet({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
-  const keyboardHeight = useKeyboardHeight();
-  const { height: windowHeight } = useWindowDimensions();
-
-  // Leave the top of the screen visible so the sheet still reads as a sheet —
-  // and so the scrim it is dismissed by stays reachable.
-  const maxCardHeight = Math.max(240, windowHeight - keyboardHeight - insets.top - space.xxl);
-  // With the keyboard up, the card sits on the IME rather than on the nav bar,
-  // so adding the bottom inset too would leave a nav-bar-sized gap under it.
-  const bottomPad = keyboardHeight > 0 ? space.md : space.md + insets.bottom;
-
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      {/* Tapping the scrim dismisses; the inner Pressable swallows taps so a
-          press inside the card does not fall through to it. */}
-      <Pressable
-        onPress={onClose}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.55)",
-          justifyContent: "flex-end",
-          paddingBottom: keyboardHeight,
-        }}
-      >
-        <Pressable
-          onPress={() => {}}
+    <Sheet visible={visible} onClose={onClose} accessibilityLabel={title} contentPadding={space.sm}>
+      {title ? (
+        <Text
+          numberOfLines={1}
+          accessibilityRole="header"
           style={{
-            maxHeight: maxCardHeight,
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingTop: space.md,
+            color: colors.fgMuted,
+            fontSize: 13,
+            lineHeight: 18,
+            fontWeight: "600",
             paddingHorizontal: space.md,
+            paddingBottom: space.xs,
           }}
         >
-          {title ? (
-            <Text
-              numberOfLines={1}
-              style={{
-                color: colors.fgMuted,
-                fontSize: 13,
-                fontWeight: "600",
-                paddingHorizontal: space.sm,
-                paddingBottom: space.xs,
-              }}
-            >
-              {title}
-            </Text>
-          ) : null}
-          <ScrollView
-            // A short menu must not stretch to the cap, so the scroll view sizes
-            // to its content and only starts scrolling once it exceeds it.
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: space.xs, paddingBottom: bottomPad }}
-          >
-            {children}
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+          {title}
+        </Text>
+      ) : null}
+      {children}
+    </Sheet>
   );
 }
 
@@ -141,43 +90,50 @@ export function ActionRow({
   disabled?: boolean;
   onPress: () => void;
 }) {
+  const danger = labelColor === colors.danger;
   return (
-    <Pressable
+    <Touchable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={hint ? `${label}. ${hint}` : label}
-      accessibilityState={{ disabled }}
-      style={({ pressed }) => ({
+      // Press = tone only: the white wash on a neutral row, the pink wash on a
+      // destructive one, so the feedback carries the row's meaning.
+      pressedTone={danger ? colors.dangerSurface : colors.wash}
+      style={{
         flexDirection: "row",
         // Two-line rows keep the icon aligned with the LABEL, not with the
         // block's centre, so a row with a hint does not look misaligned next to
         // a single-line one.
         alignItems: hint ? "flex-start" : "center",
         gap: space.md,
+        minHeight: 48,
         paddingVertical: space.md,
-        paddingHorizontal: space.sm,
-        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
-        backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-        opacity: disabled ? 0.5 : 1,
-      })}
+      }}
     >
       {icon}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: labelColor ?? colors.fg, fontSize: 15, fontWeight: "600" }}>
+        <Text style={{ color: labelColor ?? colors.fg, fontSize: 15, lineHeight: 20, fontWeight: "500" }}>
           {label}
         </Text>
         {hint ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 12, fontWeight: "500" }}>{hint}</Text>
+          <Text style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16, fontWeight: "500" }}>{hint}</Text>
         ) : null}
       </View>
       {trailing}
-    </Pressable>
+    </Touchable>
   );
 }
 
 /** Hairline divider separating a destructive row from the rest of a menu. */
 export function ActionDivider() {
-  return <View style={{ height: 1, backgroundColor: colors.stroke, marginVertical: space.xs }} />;
+  return (
+    <View
+      importantForAccessibility="no"
+      style={{ height: 1, backgroundColor: colors.stroke, marginVertical: space.xs, marginHorizontal: space.md }}
+    />
+  );
 }
