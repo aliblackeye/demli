@@ -537,7 +537,12 @@
     "expiresInHours": "Expires in {{hours}}h",
     "neverExpires": "Never expires",
     "usesLeft": "{{left}} of {{max}} uses left",
-    "unlimitedUses": "Unlimited uses"
+    "unlimitedUses": "Unlimited uses",
+    "createErrorTitle": "Couldn't create an invite",
+    "copyLink": "Copy link",
+    "copyCode": "Copy code",
+    "linkCopied": "Link copied",
+    "codeCopied": "Code copied"
   },
   "join": {
     "title": "Join server",
@@ -545,7 +550,8 @@
     "invalidBody": "This link is missing an invite code.",
     "goToServers": "Go to servers",
     "goHome": "Go home",
-    "joining": "Joining server…"
+    "joining": "Joining server…",
+    "failedTitle": "Couldn't join with this invite"
   },
   "addFriend": {
     "title": "Add friend",
@@ -588,7 +594,12 @@
     "codeLabel": "Invite code or link",
     "codePlaceholder": "Invite link or code",
     "join": "Join server",
-    "validationCode": "Enter the invite code you received."
+    "validationCode": "Enter the invite code you received.",
+    "modeLabel": "Create or join a server",
+    "createBody": "Set up your own table. Channels, roles and invite links are yours to run.",
+    "joinBody": "Paste the invite link or code a friend sent you.",
+    "createErrorTitle": "Couldn't create the server",
+    "joinErrorTitle": "Couldn't join the server"
   },
   "newGroupChat": {
     "title": "New group chat",
@@ -601,7 +612,11 @@
     "createdTitle": "{{name}} is ready",
     "createdIntro": "Add a few friends by username, then open the chat. You can always add more later.",
     "memberAdded": "Added to the group.",
-    "openChat": "Open chat"
+    "openChat": "Open chat",
+    "step": "Step {{step}} of {{total}}",
+    "stepA11y": "Step {{step}} of {{total}}",
+    "createErrorTitle": "Couldn't create the group",
+    "memberAddedNamed": "@{{username}} added"
   },
   "groupChatDetails": {
     "fallbackTitle": "Group",
@@ -626,7 +641,10 @@
     "tabMembers": "Members",
     "tabMedia": "Media",
     "mediaEmptyTitle": "No media yet",
-    "mediaEmptySubtitle": "Photos and videos shared in this group show up here."
+    "mediaEmptySubtitle": "Photos and videos shared in this group show up here.",
+    "loadErrorTitle": "Couldn't load the group",
+    "tabsLabel": "Group sections",
+    "inviteRowSubtitle": "For anyone joining by link"
   },
   "groupChatInvite": {
     "menuItem": "Invite link",
@@ -643,7 +661,8 @@
     "ownerOnlyRevoke": "Only the group owner can revoke links.",
     "linkLabel": "Invite link",
     "shareMessage": "Join {{group}} on Demli: {{link}}",
-    "shareGroupFallback": "my group"
+    "shareGroupFallback": "my group",
+    "errorTitle": "Couldn't update the invite links"
   },
   "boot": {
     "phase": {

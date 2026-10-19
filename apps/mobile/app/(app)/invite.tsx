@@ -1,79 +1,54 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Share, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { useEffect } from "react";
+import { ScrollView, Share, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
-import { Check, Copy, Share2 } from "lucide-react-native";
+import { Clock, CloudOff, Copy, Link2, Share2, Users } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import type { Invite } from "@demli/types";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
+import { Skeleton } from "@/components/Skeleton";
+import { SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { Text } from "@/components/ui/Text";
+import { toast } from "@/components/ui/toast-store";
 import { localizeError } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { buildInviteLink } from "@/lib/deep-links";
 import { useCreateInvite } from "@/queries/chat-queries";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 const INVITE_EXPIRES_HOURS = 24 * 7;
 const INVITE_MAX_USES = 25;
 
-/** Human summary of an invite's limits, from the real server-issued values. */
-function inviteLimits(invite: Invite, t: AppTFunction): string {
-  const parts: string[] = [];
-  if (invite.expiresAt) {
-    const hours = Math.max(
-      0,
-      Math.round((new Date(invite.expiresAt).getTime() - Date.now()) / 3_600_000),
-    );
-    parts.push(
-      hours >= 48
-        ? t("mobile:invite.expiresInDays", { days: Math.round(hours / 24) })
-        : t("mobile:invite.expiresInHours", { hours }),
-    );
-  } else {
-    parts.push(t("mobile:invite.neverExpires"));
-  }
-  if (invite.maxUses !== null) {
-    const left = Math.max(0, invite.maxUses - invite.useCount);
-    parts.push(t("mobile:invite.usesLeft", { left, max: invite.maxUses }));
-  } else {
-    parts.push(t("mobile:invite.unlimitedUses"));
-  }
-  return parts.join(" · ");
+/** Expiry line from the real server-issued value. */
+function inviteExpiry(invite: Invite, t: AppTFunction): string {
+  if (!invite.expiresAt) return t("mobile:invite.neverExpires");
+  const hours = Math.max(0, Math.round((new Date(invite.expiresAt).getTime() - Date.now()) / 3_600_000));
+  return hours >= 48
+    ? t("mobile:invite.expiresInDays", { days: Math.round(hours / 24) })
+    : t("mobile:invite.expiresInHours", { hours });
 }
 
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <Text style={{ color: colors.fgMuted, fontSize: 12, fontWeight: "600" }}>{children}</Text>
-  );
-}
-
-/** A read-only, long-press-selectable value on a raised surface. */
-function ValueBox({ value }: { value: string }) {
-  return (
-    <View
-      style={{
-        backgroundColor: colors.surfaceRaised,
-        borderRadius: radius.sm,
-        borderCurve: "continuous",
-        paddingHorizontal: space.md,
-        paddingVertical: space.md,
-      }}
-    >
-      <Text
-        selectable
-        style={{ color: colors.fg, fontSize: 15, fontVariant: ["tabular-nums"] }}
-      >
-        {value}
-      </Text>
-    </View>
-  );
+/** Uses line from the real server-issued value. */
+function inviteUses(invite: Invite, t: AppTFunction): string {
+  if (invite.maxUses === null) return t("mobile:invite.unlimitedUses");
+  const left = Math.max(0, invite.maxUses - invite.useCount);
+  return t("mobile:invite.usesLeft", { left, max: invite.maxUses });
 }
 
 /**
  * Create + share an invite for a group you own/belong to. Mints a fresh invite
  * on mount (mirrors the desktop InviteDialog), then surfaces the shareable link
- * and the raw code. Copy is via long-press-select or the native Share sheet.
- * Presented as a modal from the group screen header.
+ * and the raw code with one-tap copy and the native Share sheet. Presented as a
+ * modal from the group screen header.
+ *
+ * Koyu Masa: the link in a raised card with its own copy control, the code as a
+ * wide-tracked pill, the real limits (expiry, uses left) as two quiet lines, and
+ * copy confirmed by a toast + haptic. Minting draws the card's shape; a failure
+ * says so with a retry.
  */
 export default function InviteScreen() {
   const { t } = useAppTranslation();
@@ -91,12 +66,16 @@ export default function InviteScreen() {
   const invite = createInvite.data?.invite;
   const link = invite ? buildInviteLink(invite.code) : "";
 
-  const [copied, setCopied] = useState(false);
-  const onCopy = () => {
-    if (!link) return;
-    void Clipboard.setStringAsync(link).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+  const copy = (value: string, what: "link" | "code") => {
+    if (!value) return;
+    void Clipboard.setStringAsync(value).then(() => {
+      haptics.light();
+      toast({
+        key: "invite-copied",
+        variant: "success",
+        title: what === "link" ? t("mobile:invite.linkCopied") : t("mobile:invite.codeCopied"),
+        duration: 2000,
+      });
     });
   };
 
@@ -104,11 +83,7 @@ export default function InviteScreen() {
     if (!invite) return;
     const serverName = params.name ?? t("mobile:invite.shareServerFallback");
     void Share.share({
-      message: t("mobile:invite.shareMessage", {
-        server: serverName,
-        link,
-        code: invite.code,
-      }),
+      message: t("mobile:invite.shareMessage", { server: serverName, link, code: invite.code }),
     });
   };
 
@@ -116,93 +91,99 @@ export default function InviteScreen() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.app }}
-      contentContainerStyle={{
-        padding: space.lg,
-        paddingBottom: space.lg + insets.bottom,
-        gap: space.xl,
-      }}
+      contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + insets.bottom, gap: space.xl }}
     >
       <Stack.Screen
         options={{
-          title: params.name
-            ? t("mobile:invite.titleNamed", { name: params.name })
-            : t("mobile:invite.titleGeneric"),
+          title: params.name ? t("mobile:invite.titleNamed", { name: params.name }) : t("mobile:invite.titleGeneric"),
         }}
       />
 
       {createInvite.isPending ? (
-        <View style={{ paddingTop: space.xl, alignItems: "center", gap: space.md }}>
-          <ActivityIndicator color={colors.fgFaint} />
-          <Text style={{ color: colors.fgMuted, fontSize: 14 }}>{t("mobile:invite.creating")}</Text>
+        <View accessible accessibilityLabel={t("mobile:invite.creating")} accessibilityState={{ busy: true }} style={{ gap: space.lg }}>
+          <Skeleton width="80%" height={16} />
+          <Skeleton width="100%" height={64} radius={radius.xl} />
+          <Skeleton width="50%" height={40} radius={radius.pill} />
+          <Skeleton width="100%" height={52} radius={radius.cta} />
         </View>
       ) : null}
 
       {createInvite.isError ? (
-        <View style={{ gap: space.md }}>
-          <View
-            style={{
-              backgroundColor: colors.dangerSurface,
-              borderRadius: radius.sm,
-              padding: space.md,
-            }}
-          >
-            <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-              {localizeError(createInvite.error, t)}
-            </Text>
-          </View>
-          <Button
-            label={t("buttons.retry")}
-            variant="ghost"
-            onPress={() => mutate({ expiresInHours: INVITE_EXPIRES_HOURS, maxUses: INVITE_MAX_USES })}
-          />
-        </View>
+        <EmptyState
+          tone="error"
+          icon={<CloudOff size={22} color={colors.danger} />}
+          title={t("mobile:invite.createErrorTitle")}
+          subtitle={localizeError(createInvite.error, t)}
+          action={
+            <Button
+              label={t("common:buttons.retry")}
+              variant="secondary"
+              size="sm"
+              onPress={() => mutate({ expiresInHours: INVITE_EXPIRES_HOURS, maxUses: INVITE_MAX_USES })}
+            />
+          }
+        />
       ) : null}
 
       {invite ? (
-        <>
-          <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
+        <Animated.View entering={FadeIn.duration(motion.duration.arrival).reduceMotion(ReduceMotion.System)} style={{ gap: space.xl }}>
+          <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20 }}>
             {t("mobile:invite.intro")}
           </Text>
 
-          <View style={{ gap: space.sm }}>
-            <FieldLabel>{t("mobile:invite.linkLabel")}</FieldLabel>
-            <ValueBox value={link} />
-          </View>
-
-          <View style={{ gap: space.sm }}>
-            <FieldLabel>{t("mobile:invite.codeLabel")}</FieldLabel>
-            <ValueBox value={invite.code} />
-          </View>
-
-          <View style={{ flexDirection: "row", gap: space.sm }}>
-            <Button variant="ghost" onPress={onCopy} style={{ flex: 1 }}>
-              {copied ? (
-                <Check size={18} color={colors.online} />
-              ) : (
-                <Copy size={18} color={colors.fg} />
-              )}
-              <Text
-                style={{
-                  color: copied ? colors.online : colors.fg,
-                  fontSize: 15,
-                  fontWeight: "600",
-                }}
-              >
-                {copied ? t("buttons.copied") : t("buttons.copy")}
+          <View>
+            <SectionEyebrow>{t("mobile:invite.linkLabel")}</SectionEyebrow>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.sm,
+                paddingLeft: space.lg,
+                paddingRight: space.xs,
+                paddingVertical: space.sm,
+                minHeight: 60,
+                borderRadius: radius.xl,
+                borderCurve: "continuous",
+                backgroundColor: colors.surface,
+              }}
+            >
+              <Link2 size={18} color={colors.accent} strokeWidth={2} />
+              <Text selectable type="ui" tone="default" numberOfLines={2} style={{ flex: 1, fontWeight: "500" }}>
+                {link}
               </Text>
-            </Button>
-            <Button onPress={onShare} style={{ flex: 1 }}>
-              <Share2 size={18} color={colors.onAccent} />
-              <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "600" }}>
-                {t("mobile:invite.share")}
-              </Text>
-            </Button>
+              <IconButton icon={Copy} label={t("mobile:invite.copyLink")} onPress={() => copy(link, "link")} />
+            </View>
           </View>
 
-          <Text style={{ color: colors.fgFaint, fontSize: 13, textAlign: "center" }}>
-            {inviteLimits(invite, t)}.
-          </Text>
-        </>
+          <View>
+            <SectionEyebrow>{t("mobile:invite.codeLabel")}</SectionEyebrow>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <View style={{ paddingHorizontal: space.lg, paddingVertical: space.sm + 2, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised }}>
+                <Text selectable type="subheading" tone="display" style={{ letterSpacing: 2, fontVariant: ["tabular-nums"] }}>
+                  {invite.code}
+                </Text>
+              </View>
+              <IconButton icon={Copy} label={t("mobile:invite.copyCode")} onPress={() => copy(invite.code, "code")} />
+            </View>
+          </View>
+
+          <View style={{ gap: space.sm }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <Clock size={15} color={colors.fgFaint} strokeWidth={2} />
+              <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
+                {inviteExpiry(invite, t)}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <Users size={15} color={colors.fgFaint} strokeWidth={2} />
+              <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
+                {inviteUses(invite, t)}
+              </Text>
+            </View>
+          </View>
+
+          <Button label={t("mobile:invite.share")} icon={Share2} variant="accent" size="lg" block onPress={onShare} />
+        </Animated.View>
       ) : null}
     </ScrollView>
   );

@@ -537,7 +537,12 @@
     "expiresInHours": "{{hours}} sa içinde sona erer",
     "neverExpires": "Süresiz",
     "usesLeft": "{{max}} kullanımdan {{left}} tanesi kaldı",
-    "unlimitedUses": "Sınırsız kullanım"
+    "unlimitedUses": "Sınırsız kullanım",
+    "createErrorTitle": "Davet oluşturulamadı",
+    "copyLink": "Bağlantıyı kopyala",
+    "copyCode": "Kodu kopyala",
+    "linkCopied": "Bağlantı kopyalandı",
+    "codeCopied": "Kod kopyalandı"
   },
   "join": {
     "title": "Sunucuya katıl",
@@ -545,7 +550,8 @@
     "invalidBody": "Bu bağlantıda davet kodu eksik.",
     "goToServers": "Sunuculara git",
     "goHome": "Ana sayfa",
-    "joining": "Sunucuya katılınıyor…"
+    "joining": "Sunucuya katılınıyor…",
+    "failedTitle": "Bu davetle katılınamadı"
   },
   "addFriend": {
     "title": "Arkadaş ekle",
@@ -588,7 +594,12 @@
     "codeLabel": "Davet kodu veya bağlantısı",
     "codePlaceholder": "Davet bağlantısı ya da kodu",
     "join": "Sunucuya katıl",
-    "validationCode": "Aldığın davet kodunu gir."
+    "validationCode": "Aldığın davet kodunu gir.",
+    "modeLabel": "Sunucu oluştur ya da katıl",
+    "createBody": "Kendi masanı kur. Kanallar, roller ve davet bağlantıları senin elinde.",
+    "joinBody": "Bir arkadaşının gönderdiği davet bağlantısını ya da kodunu yapıştır.",
+    "createErrorTitle": "Sunucu oluşturulamadı",
+    "joinErrorTitle": "Sunucuya katılınamadı"
   },
   "newGroupChat": {
     "title": "Yeni grup sohbeti",
@@ -601,7 +612,11 @@
     "createdTitle": "{{name}} hazır",
     "createdIntro": "Kullanıcı adıyla birkaç arkadaş ekle, sonra sohbeti aç. Daha sonra da ekleyebilirsin.",
     "memberAdded": "Gruba eklendi.",
-    "openChat": "Sohbeti aç"
+    "openChat": "Sohbeti aç",
+    "step": "Adım {{step}}/{{total}}",
+    "stepA11y": "Adım {{step}}/{{total}}",
+    "createErrorTitle": "Grup oluşturulamadı",
+    "memberAddedNamed": "@{{username}} eklendi"
   },
   "groupChatDetails": {
     "fallbackTitle": "Grup",
@@ -626,7 +641,10 @@
     "tabMembers": "Üyeler",
     "tabMedia": "Medya",
     "mediaEmptyTitle": "Henüz medya yok",
-    "mediaEmptySubtitle": "Bu grupta paylaşılan fotoğraf ve videolar burada görünür."
+    "mediaEmptySubtitle": "Bu grupta paylaşılan fotoğraf ve videolar burada görünür.",
+    "loadErrorTitle": "Grup bilgileri yüklenemedi",
+    "tabsLabel": "Grup bölümleri",
+    "inviteRowSubtitle": "Bağlantıyla katılmak isteyenler için"
   },
   "groupChatInvite": {
     "menuItem": "Davet linki",
@@ -643,7 +661,8 @@
     "ownerOnlyRevoke": "Linkleri yalnızca grup sahibi iptal edebilir.",
     "linkLabel": "Davet linki",
     "shareMessage": "{{group}} grubuna Demli'de katıl: {{link}}",
-    "shareGroupFallback": "grubuma"
+    "shareGroupFallback": "grubuma",
+    "errorTitle": "Davet bağlantıları güncellenemedi"
   },
   "boot": {
     "phase": {

@@ -1,46 +1,47 @@
 import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeInDown, LinearTransition, ReduceMotion } from "react-native-reanimated";
+import { AtSign, MessageCircle, Plus, UserPlus } from "lucide-react-native";
 import { GROUP_NAME_MAX_LENGTH, USERNAME_MAX_LENGTH } from "@demli/config";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/Button";
+import { SkeletonList } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
+import { SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
+import { toast } from "@/components/ui/toast-store";
 import { localizeError } from "@/lib/errors";
-import {
-  useAddGroupChatMember,
-  useCreateGroupChat,
-  useGroupChatDetails,
-} from "@/queries/group-chat-queries";
+import { haptics } from "@/lib/haptics";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useAddGroupChatMember, useCreateGroupChat, useGroupChatDetails } from "@/queries/group-chat-queries";
 import { useAuthStore } from "@/stores/auth-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 /** The created group's id + name, held once creation succeeds. */
 type CreatedGroup = { id: string; name: string };
 
-function SectionLabel({ children }: { children: string }) {
+/** "1 / 2" step marker: two short bars, the done/current ones in coral. */
+function StepMarker({ step }: { step: 1 | 2 }) {
+  const { t } = useAppTranslation();
   return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
+    <View
+      accessible
+      accessibilityLabel={t("mobile:newGroupChat.stepA11y", { step, total: 2 })}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}
     >
-      {children}
-    </Text>
-  );
-}
-
-function ErrorBox({ message }: { message: string }) {
-  return (
-    <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-      <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-        {message}
+      {[1, 2].map((n) => (
+        <View
+          key={n}
+          style={{ width: 28, height: 4, borderRadius: radius.pill, backgroundColor: n <= step ? colors.accent : colors.surfaceRaised }}
+        />
+      ))}
+      <Text type="caption" tone="faint" style={{ marginLeft: space.xs }}>
+        {t("mobile:newGroupChat.step", { step, total: 2 })}
       </Text>
     </View>
   );
@@ -55,18 +56,23 @@ function NameStep({ onCreated }: { onCreated: (group: CreatedGroup) => void }) {
   const createGroupChat = useCreateGroupChat();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const onCreate = () => {
     const trimmed = name.trim();
     if (trimmed.length === 0 || trimmed.length > GROUP_NAME_MAX_LENGTH) {
-      setError(t("mobile:newGroupChat.validationName", { max: GROUP_NAME_MAX_LENGTH }));
+      setFieldError(t("mobile:newGroupChat.validationName", { max: GROUP_NAME_MAX_LENGTH }));
       return;
     }
     setError(null);
+    setFieldError(null);
     createGroupChat.mutate(
       { name: trimmed },
       {
-        onSuccess: ({ group }) => onCreated({ id: group.id, name: group.name }),
+        onSuccess: ({ group }) => {
+          haptics.success();
+          onCreated({ id: group.id, name: group.name });
+        },
         onError: (err) => setError(localizeError(err, t)),
       },
     );
@@ -74,30 +80,43 @@ function NameStep({ onCreated }: { onCreated: (group: CreatedGroup) => void }) {
 
   return (
     <View style={{ gap: space.xl }}>
-      {error ? <ErrorBox message={error} /> : null}
-      <View style={{ gap: space.md }}>
-        <Text variant="display" style={{ color: colors.fg, fontSize: 16, fontWeight: "700" }}>
-          {t("mobile:newGroupChat.title")}
-        </Text>
-        <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
-          {t("mobile:newGroupChat.intro")}
-        </Text>
-        <TextField
-          label={t("mobile:newGroupChat.nameLabel")}
-          value={name}
-          onChangeText={setName}
-          maxLength={GROUP_NAME_MAX_LENGTH}
-          placeholder={t("mobile:newGroupChat.namePlaceholder")}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={onCreate}
-        />
-        <Button
-          label={t("mobile:newGroupChat.create")}
-          onPress={onCreate}
-          loading={createGroupChat.isPending}
-        />
+      <StepMarker step={1} />
+      <View style={{ alignItems: "center", gap: space.md }}>
+        <Avatar name={name.trim() || t("mobile:newGroupChat.namePlaceholder")} size={72} uri={null} />
+        <View style={{ alignItems: "center", gap: space.xs }}>
+          <Text type="heading" tone="display" accessibilityRole="header" style={{ textAlign: "center" }}>
+            {t("mobile:newGroupChat.title")}
+          </Text>
+          <Text type="ui" tone="muted" style={{ textAlign: "center", fontWeight: "400", lineHeight: 20 }}>
+            {t("mobile:newGroupChat.intro")}
+          </Text>
+        </View>
       </View>
+      {error ? <Banner variant="danger" title={t("mobile:newGroupChat.createErrorTitle")} description={error} /> : null}
+      <TextField
+        label={t("mobile:newGroupChat.nameLabel")}
+        value={name}
+        onChangeText={(next) => {
+          setName(next);
+          if (fieldError) setFieldError(null);
+        }}
+        maxLength={GROUP_NAME_MAX_LENGTH}
+        placeholder={t("mobile:newGroupChat.namePlaceholder")}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={onCreate}
+        error={fieldError}
+        editable={!createGroupChat.isPending}
+      />
+      <Button
+        label={t("mobile:newGroupChat.create")}
+        icon={Plus}
+        variant="accent"
+        size="lg"
+        block
+        onPress={onCreate}
+        loading={createGroupChat.isPending}
+      />
     </View>
   );
 }
@@ -106,8 +125,8 @@ function NameStep({ onCreated }: { onCreated: (group: CreatedGroup) => void }) {
  * Step 2 — add members by username, then open the chat. Flat group chats are
  * add-by-username (ADR 0005), not invite-link joins, so we reuse that existing
  * infra (useAddGroupChatMember) rather than minting a server-style invite. The
- * roster below reflects each add live so the creator sees who's in before
- * entering.
+ * roster below reflects each add live (a new row eases in) so the creator sees
+ * who's in before entering.
  */
 function InviteStep({ group }: { group: CreatedGroup }) {
   const { t } = useAppTranslation();
@@ -117,12 +136,11 @@ function InviteStep({ group }: { group: CreatedGroup }) {
 
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
 
   const members = details.data?.members ?? [];
 
   const onAdd = () => {
-    const trimmed = username.trim();
+    const trimmed = username.trim().replace(/^@/, "");
     if (trimmed.length === 0) {
       setError(t("mobile:groupChatDetails.validationUsername"));
       return;
@@ -133,7 +151,8 @@ function InviteStep({ group }: { group: CreatedGroup }) {
       {
         onSuccess: () => {
           setUsername("");
-          setAdded(true);
+          haptics.light();
+          toast({ key: "member-added", variant: "success", title: t("mobile:newGroupChat.memberAddedNamed", { username: trimmed }), duration: 2000 });
         },
         onError: (err) => setError(localizeError(err, t)),
       },
@@ -147,74 +166,80 @@ function InviteStep({ group }: { group: CreatedGroup }) {
     });
 
   return (
-    <View style={{ gap: space.xl }}>
-      <View style={{ gap: space.sm }}>
-        <Text variant="display" style={{ color: colors.fg, fontSize: 18, fontWeight: "800" }}>
+    <Animated.View entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)} style={{ gap: space.xl }}>
+      <StepMarker step={2} />
+      <View style={{ gap: space.xs }}>
+        <Text type="heading" tone="display" accessibilityRole="header">
           {t("mobile:newGroupChat.createdTitle", { name: group.name })}
         </Text>
-        <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
+        <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20 }}>
           {t("mobile:newGroupChat.createdIntro")}
         </Text>
       </View>
 
       <View style={{ gap: space.md }}>
-        <SectionLabel>{t("mobile:groupChatDetails.addMemberSection")}</SectionLabel>
-        {error ? <ErrorBox message={error} /> : null}
-        {added && !error ? (
-          <Text style={{ color: colors.online, fontSize: 13 }}>
-            {t("mobile:newGroupChat.memberAdded")}
-          </Text>
-        ) : null}
         <TextField
           label={t("mobile:groupChatDetails.usernameLabel")}
           value={username}
-          onChangeText={setUsername}
+          onChangeText={(next) => {
+            setUsername(next);
+            if (error) setError(null);
+          }}
+          leading={<AtSign size={16} color={colors.fgFaint} />}
           autoCapitalize="none"
           autoCorrect={false}
           maxLength={USERNAME_MAX_LENGTH}
           placeholder={t("mobile:groupChatDetails.usernamePlaceholder")}
           returnKeyType="done"
           onSubmitEditing={onAdd}
+          error={error}
         />
         <Button
           label={t("mobile:groupChatDetails.addMemberButton")}
-          variant="ghost"
+          icon={UserPlus}
+          variant="secondary"
+          block
           onPress={onAdd}
           loading={addMember.isPending}
+          disabled={username.trim().length === 0}
         />
       </View>
 
-      <View style={{ gap: space.md }}>
-        <SectionLabel>{t("mobile:group.membersCount", { n: members.length })}</SectionLabel>
+      <View>
+        <SectionEyebrow>{t("mobile:group.membersCount", { n: members.length })}</SectionEyebrow>
         {details.isLoading && members.length === 0 ? (
-          <ActivityIndicator color={colors.fgFaint} />
+          <SkeletonList count={2} lines={2} leadingSize={40} />
         ) : (
-          members.map((member) => {
-            const name = member.user.displayName || member.user.username;
-            const isMe = member.userId === meId;
-            return (
-              <View
-                key={member.userId}
-                style={{ flexDirection: "row", alignItems: "center", gap: space.md }}
-              >
-                <Avatar name={name} size={40} uri={member.user.avatarUrl} />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>
-                    {name}
-                    {isMe ? ` · ${t("mobile:common.you")}` : ""}
-                  </Text>
-                  <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    @{member.user.username}
-                  </Text>
-                </View>
-              </View>
-            );
-          })
+          <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl, borderCurve: "continuous", overflow: "hidden" }}>
+            {members.map((member) => {
+              const name = member.user.displayName || member.user.username;
+              const isMe = member.userId === meId;
+              return (
+                <Animated.View
+                  key={member.userId}
+                  entering={FadeInDown.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+                  layout={LinearTransition.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}
+                >
+                  <Avatar name={name} size={40} uri={member.user.avatarUrl} ringColor={colors.surface} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text type="body" tone="default" numberOfLines={1} style={{ fontWeight: "600" }}>
+                      {name}
+                    </Text>
+                    <Text type="meta" tone="faint" numberOfLines={1} style={{ fontWeight: "400" }}>
+                      @{member.user.username}
+                    </Text>
+                  </View>
+                  {isMe ? <Badge variant="neutral" label={t("mobile:common.you")} /> : null}
+                </Animated.View>
+              );
+            })}
+          </View>
         )}
       </View>
 
-      <Button label={t("mobile:newGroupChat.openChat")} onPress={openChat} />
-    </View>
+      <Button label={t("mobile:newGroupChat.openChat")} icon={MessageCircle} variant="accent" size="lg" block onPress={openChat} />
+    </Animated.View>
   );
 }
 
@@ -227,32 +252,20 @@ function InviteStep({ group }: { group: CreatedGroup }) {
 export default function NewGroupChat() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
   const [created, setCreated] = useState<CreatedGroup | null>(null);
 
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.app }}
-    >
-      <Stack.Screen
-        options={{
-          title: created
-            ? t("mobile:newGroupChat.inviteTitle")
-            : t("mobile:newGroupChat.title"),
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
+      <Stack.Screen options={{ title: created ? t("mobile:newGroupChat.inviteTitle") : t("mobile:newGroupChat.title") }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
-        contentContainerStyle={{
-          padding: space.lg,
-          paddingBottom: space.lg + insets.bottom,
-          gap: space.xl,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + insets.bottom + keyboard, gap: space.xl }}
         keyboardShouldPersistTaps="handled"
       >
         {created ? <InviteStep group={created} /> : <NameStep onCreated={setCreated} />}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
