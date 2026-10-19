@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,6 +36,13 @@ export default function SwitchAccountScreen() {
   const [menuFor, setMenuFor] = useState<StoredAccount | null>(null);
   const [removing, setRemoving] = useState<StoredAccount | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  /**
+   * The account whose removal was picked from the ⋯ menu. The confirm opens from
+   * the menu's `onClosed`, never in the same commit that hides the menu: on
+   * Android a Modal presented while another is being dismissed in that frame is
+   * attached but never shown (the same race MemberActionSheet documents).
+   */
+  const removeAfterMenu = useRef<StoredAccount | null>(null);
 
   const onSelect = async (account: StoredAccount): Promise<void> => {
     if (account.accountId === activeAccountId || switchingId) return;
@@ -179,16 +186,24 @@ export default function SwitchAccountScreen() {
         </Text>
       </ScrollView>
 
-      <ActionSheet visible={menuFor !== null} title={menuFor?.displayName || menuFor?.username} onClose={() => setMenuFor(null)}>
+      <ActionSheet
+        visible={menuFor !== null}
+        title={menuFor?.displayName || menuFor?.username}
+        onClose={() => setMenuFor(null)}
+        onClosed={() => {
+          const account = removeAfterMenu.current;
+          removeAfterMenu.current = null;
+          if (account) setRemoving(account);
+        }}
+      >
         <ActionRow
           icon={<LogOut size={20} color={colors.danger} />}
           label={t("mobile:accounts.remove")}
           hint={t("mobile:accounts.removeHint")}
           labelColor={colors.danger}
           onPress={() => {
-            const account = menuFor;
+            removeAfterMenu.current = menuFor;
             setMenuFor(null);
-            setRemoving(account);
           }}
         />
       </ActionSheet>

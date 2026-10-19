@@ -19,7 +19,7 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -64,6 +64,8 @@ import { localizeError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { requestMentionInsert } from "@/lib/mention-insert";
 import { ActionDivider, ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
+import { Button } from "@/components/ui/Button";
+import { toast } from "@/components/ui/toast-store";
 import { Text } from "@/components/ui/Text";
 import { useGroupDetails, useServerPermissions } from "@/queries/chat-queries";
 import {
@@ -121,7 +123,15 @@ export interface MemberSheetTarget {
 }
 
 /** Which sub-editor is on top of the menu. `"menu"` is the sheet itself. */
-type Mode = "menu" | "note" | "friendNickname" | "serverNickname" | "timeout";
+type Mode = "menu" | "note" | "friendNickname" | "serverNickname" | "timeout" | "confirm";
+
+/** A destructive row waiting for its confirm, shown in place of the menu. */
+interface PendingConfirm {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  action: () => void;
+}
 
 export function MemberActionSheet({
   target,
@@ -191,6 +201,7 @@ function MemberMenuBody({
 }) {
   const { t } = useAppTranslation();
   const [mode, setMode] = useState<Mode>("menu");
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const meId = useAuthStore((s) => s.user?.id);
   const isSelf = meId === target.userId;
@@ -293,8 +304,14 @@ function MemberMenuBody({
   const variantOf = (item: Parameters<typeof memberMenuEntryVariant>[0]): "add" | "edit" =>
     memberMenuEntryVariant(item, editable);
 
+  /**
+   * A failed action. The sheet has usually closed by then (rows dismiss before
+   * they act), so the reason surfaces as a danger toast on the screen below —
+   * said once, in place, without a blocking dialog.
+   */
   const fail = (err: unknown): void => {
-    Alert.alert(t("mobile:userMenu.actionFailed"), localizeError(err, t));
+    haptics.error();
+    toast({ variant: "danger", title: t("mobile:userMenu.actionFailed"), description: localizeError(err, t) });
   };
 
   /** Run an action and dismiss the sheet — the common case for a menu row. */
@@ -304,10 +321,11 @@ function MemberMenuBody({
   };
 
   /**
-   * A destructive action, gated behind the OS confirm dialog. The name is always
-   * in the title, because on a phone the row you long-pressed is hidden behind
-   * the sheet by the time the dialog appears — "Kick?" alone would be a coin
-   * flip about who.
+   * A destructive action, gated behind a confirm that REPLACES the menu inside
+   * the same sheet (the "one sheet, content swaps" rule below — a second Modal
+   * would race the first on Android). The name is always in the title, because
+   * on a phone the row you long-pressed is hidden behind the sheet — "Kick?"
+   * alone would be a coin flip about who.
    */
   const confirmDestructive = (
     title: string,
@@ -316,17 +334,8 @@ function MemberMenuBody({
     action: () => void,
   ): void => {
     haptics.medium();
-    Alert.alert(title, body, [
-      { text: t("common:buttons.cancel"), style: "cancel" },
-      {
-        text: confirmLabel,
-        style: "destructive",
-        onPress: () => {
-          onClose();
-          action();
-        },
-      },
-    ]);
+    setPendingConfirm({ title, body, confirmLabel, action });
+    setMode("confirm");
   };
 
   const openDmThen = (after: (dmId: DmId, participantName: string) => void): void => {
@@ -728,6 +737,46 @@ function MemberMenuBody({
    */
   const body = (() => {
     switch (mode) {
+      case "confirm":
+        return pendingConfirm ? (
+          <View style={{ gap: space.md, paddingHorizontal: space.sm, paddingBottom: space.sm }}>
+            <View style={{ gap: space.xs }}>
+              <Text type="heading" tone="display" accessibilityRole="header" numberOfLines={3}>
+                {pendingConfirm.title}
+              </Text>
+              <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 21 }}>
+                {pendingConfirm.body}
+              </Text>
+            </View>
+            <View style={{ gap: space.sm }}>
+              <Button
+                label={pendingConfirm.confirmLabel}
+                variant="danger"
+                size="lg"
+                block
+                haptic="medium"
+                onPress={() => {
+                  const { action } = pendingConfirm;
+                  setPendingConfirm(null);
+                  setMode("menu");
+                  onClose();
+                  action();
+                }}
+              />
+              <Button
+                label={t("common:buttons.cancel")}
+                variant="ghost"
+                size="lg"
+                block
+                onPress={() => {
+                  setPendingConfirm(null);
+                  setMode("menu");
+                }}
+              />
+            </View>
+          </View>
+        ) : null;
+
       case "timeout":
         // A preset ladder, not a form: a moderator wants "mute them for ten
         // minutes", not a number field.
