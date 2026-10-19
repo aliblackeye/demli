@@ -27,6 +27,7 @@ export {
   type ChatDeliveryState,
   type ChatMessageRowContext,
   type ChatHeaderControls,
+  type ChatIntro,
 } from "./chat-data";
 export {
   MessageRowServicesProvider,

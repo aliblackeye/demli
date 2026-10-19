@@ -406,3 +406,20 @@ describe("buildRows — date dividers (M16)", () => {
     expect(tailSentinel(rows)).toBe("m2");
   });
 });
+
+describe("row key of a confirmed own send", () => {
+  it("uses renderKey so the optimistic row is updated in place, not remounted", () => {
+    const optimistic = buildRows([msg("outbox-n1", "me", 0, { nonce: "n1", deliveryState: "sending" })], OPTIONS);
+    const confirmed = buildRows([msg("s1", "me", 0, { renderKey: "outbox-n1" })], OPTIONS);
+    const keyOf = (rows: ListRow[]) => rows.find((row) => row.kind === "message")?.key;
+    expect(keyOf(optimistic)).toBe("outbox-n1");
+    expect(keyOf(confirmed)).toBe("outbox-n1");
+    // Identity lookups (jump, divider, highlight) still use the server id.
+    expect(renderedMessageIds(confirmed)).toEqual(["s1"]);
+  });
+
+  it("keys every other message by its id", () => {
+    const rows = buildRows([msg("a", "u1")], OPTIONS);
+    expect(rows.find((row) => row.kind === "message")?.key).toBe("a");
+  });
+});

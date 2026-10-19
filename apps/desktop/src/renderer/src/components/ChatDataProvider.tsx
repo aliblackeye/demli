@@ -15,7 +15,7 @@
  * the shared list under it is keyed by channel id so its scroll/divider state
  * resets on a channel switch, exactly as before.
  */
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import {
   ChatDataProvider as AppChatDataProvider,
@@ -23,13 +23,15 @@ import {
   MessageRowServicesProvider,
   type ChatData,
   type ChatHeaderControls,
+  type ChatIntro,
   type ChatMessageRowContext,
   type ChatMessageView,
   type MessageRowServices,
 } from "@demli/app-ui";
 import { REPLY_PREVIEW_MAX } from "@demli/config";
 import type { Channel, GroupId } from "@demli/types";
-import { toSentChatMessage, type ChatMessage } from "../lib/chat-message";
+import type { ChatMessage } from "../lib/chat-message";
+import { assembleThread } from "../lib/thread-assembly";
 import { localizeError } from "../lib/errors";
 import { onMessageJump } from "../lib/message-jump";
 import { useAppTranslation } from "../lib/i18n";
@@ -99,9 +101,15 @@ export function ChatDataProvider({
   authorColors,
   profileGroupId,
   header,
+  intro,
   children,
 }: {
   channel: Channel;
+  /**
+   * How the empty thread opens (DM peer / group chat). Omitted on a server
+   * channel. Must be a stable reference — it is part of the context value.
+   */
+  intro?: ChatIntro;
   /** userId → member-name color (server surface); omitted for DMs / flat group chats. */
   authorColors?: ReadonlyMap<string, string>;
   /** Server group id for the message-avatar / mention profile card's role list. */
@@ -129,43 +137,21 @@ export function ChatDataProvider({
   const timedOutMembers = useTimedOutMembers(profileGroupId ?? null);
 
   /**
-   * Ascending (oldest→newest) view of the cache. Pages are newest-first and each
-   * page is newest-first internally, so walk both backwards. Dedupe by id — a
-   * realtime insert racing a refetch must never render twice. Optimistic sends
-   * render after everything confirmed. (Moved verbatim from the former MessageList.)
+   * Ascending (oldest→newest) thread: cached pages + optimistic outbox, with the
+   * optimistic → confirmed hand-over kept on ONE row (no remount, no replayed
+   * arrival motion, no one-render gap) — see `assembleThread`. The ref holds the
+   * last optimistic frame so a just-confirmed send survives the render between
+   * the outbox update and the cache update.
    */
+  const carriedRef = useRef<Map<string, ChatMessage>>(new Map());
   const messages = useMemo(() => {
-    const seen = new Set<string>();
-    const ascending: ChatMessage[] = [];
-    const pages = data?.pages ?? [];
-    for (let p = pages.length - 1; p >= 0; p--) {
-      const page = pages[p];
-      if (!page) continue;
-      for (let i = page.messages.length - 1; i >= 0; i--) {
-        const message = page.messages[i];
-        if (!message || seen.has(message.id)) continue;
-        seen.add(message.id);
-        ascending.push(toSentChatMessage(message));
-      }
-    }
-    for (const pending of outbox ?? []) {
-      ascending.push({
-        id: `outbox-${pending.nonce}`,
-        channelId: pending.channelId,
-        authorId: pending.authorId,
-        content: pending.content,
-        createdAt: pending.createdAt,
-        updatedAt: null,
-        deletedAt: null,
-        deliveryState: pending.deliveryState,
-        errorKey: pending.errorKey,
-        nonce: pending.nonce,
-        attachments: pending.attachments,
-        localAttachmentUrls: pending.localAttachmentUrls,
-        replyTo: pending.replyTo,
-      });
-    }
-    return ascending;
+    const { messages: thread, snapshot } = assembleThread(
+      data?.pages ?? [],
+      outbox ?? [],
+      carriedRef.current,
+    );
+    carriedRef.current = snapshot;
+    return thread;
   }, [data, outbox]);
 
   // Advance (and persist) the read watermark to the newest message while the
@@ -300,6 +286,7 @@ export function ChatDataProvider({
       renderMessage,
       ignoredAuthorIds,
       header,
+      intro,
     }),
     [
       channel,
@@ -315,6 +302,7 @@ export function ChatDataProvider({
       renderMessage,
       ignoredAuthorIds,
       header,
+      intro,
     ],
   );
 

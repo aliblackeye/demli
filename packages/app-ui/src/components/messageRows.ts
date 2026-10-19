@@ -197,7 +197,7 @@ export function buildRows(messages: ChatMessageView[], options: BuildRowsOptions
     if (!isIgnoredMessage(message, ignoredAuthorIds)) {
       rows.push({
         kind: "message",
-        key: message.id,
+        key: message.renderKey ?? message.id,
         message,
         isContinuation: isContinuationOf(message, previous),
       });
