@@ -92,7 +92,12 @@
     "versionTitle": "Sürüm",
     "versionValue": "{{version}} (runtime {{runtime}})",
     "versionUnknown": "Bilinmiyor",
-    "updateIdTitle": "Güncelleme kimliği"
+    "updateIdTitle": "Güncelleme kimliği",
+    "editShort": "Düzenle",
+    "accountCount": "{{count}} hesap",
+    "signOutTitle": "{{name}} hesabından çıkılsın mı?",
+    "signOutSwitches": "Bu cihazdaki diğer hesabına geçersin. Bu hesaba yeniden girmek için şifren gerekir.",
+    "signOutLast": "Bu cihazda başka hesap yok; giriş ekranına dönersin."
   },
   "sound": {
     "section": "Sesler",

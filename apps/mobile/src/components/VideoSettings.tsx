@@ -1,7 +1,6 @@
-import { View } from "react-native";
-import { Text } from "./ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
+import { SettingsBlock, SettingsSection } from "@/components/settings/SettingsSection";
 import { useMediaSettings } from "@/stores/media-settings";
 import {
   ANDROID_SCREEN_CAPTURE_MAX_FPS,
@@ -14,7 +13,6 @@ import {
   type CameraQuality,
   type ScreenShareResolution,
 } from "@demli/media";
-import { colors, space, typography } from "@/theme/theme";
 
 /** Resolution tier → chip label (1440p is marketed as 2K). */
 const SCREEN_RESOLUTION_LABEL: Record<ScreenShareResolution, string> = {
@@ -33,31 +31,6 @@ const SCREEN_RESOLUTION_LABEL: Record<ScreenShareResolution, string> = {
  * (ScreenShareQualitySheet) opens with and the engine publishes at.
  */
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        paddingHorizontal: space.lg,
-        paddingTop: space.lg,
-        paddingBottom: space.xs,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>{children}</Text>
-  );
-}
-
 export function VideoSettings() {
   const { t } = useAppTranslation();
   const video = useMediaSettings((s) => s.video);
@@ -70,12 +43,10 @@ export function VideoSettings() {
   const screenFrameRate = screenShareFrameRateOf(video.screenShareQuality);
 
   return (
-    <View>
-      <SectionLabel>{t("mobile:video.section")}</SectionLabel>
-
-      <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
-        <FieldLabel>{t("mobile:video.cameraQuality")}</FieldLabel>
+    <SettingsSection title={t("mobile:video.section")} footer={t("mobile:video.note")}>
+      <SettingsBlock label={t("mobile:video.cameraQuality")}>
         <ChipSelect
+          accessibilityLabel={t("mobile:video.cameraQuality")}
           options={[
             { key: "auto", label: t("mobile:video.cameraAuto") },
             { key: "hd", label: "720p" },
@@ -84,11 +55,11 @@ export function VideoSettings() {
           selectedKey={video.cameraQuality}
           onSelect={(key) => setCameraQuality(key as CameraQuality)}
         />
-      </View>
+      </SettingsBlock>
 
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm }}>
-        <FieldLabel>{t("mobile:video.frameRate")}</FieldLabel>
+      <SettingsBlock label={t("mobile:video.frameRate")}>
         <ChipSelect
+          accessibilityLabel={t("mobile:video.frameRate")}
           options={[
             { key: "30", label: "30 FPS" },
             { key: "60", label: "60 FPS" },
@@ -96,11 +67,11 @@ export function VideoSettings() {
           selectedKey={String(video.cameraFrameRate)}
           onSelect={(key) => setCameraFrameRate(Number(key) as CameraFrameRate)}
         />
-      </View>
+      </SettingsBlock>
 
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm }}>
-        <FieldLabel>{t("mobile:video.screenResolution")}</FieldLabel>
+      <SettingsBlock label={t("mobile:video.screenResolution")}>
         <ChipSelect
+          accessibilityLabel={t("mobile:video.screenResolution")}
           options={SCREEN_SHARE_RESOLUTIONS.map((res) => ({
             key: res,
             label: SCREEN_RESOLUTION_LABEL[res],
@@ -112,11 +83,11 @@ export function VideoSettings() {
             )
           }
         />
-      </View>
+      </SettingsBlock>
 
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm }}>
-        <FieldLabel>{t("mobile:video.screenFrameRate")}</FieldLabel>
+      <SettingsBlock label={t("mobile:video.screenFrameRate")}>
         <ChipSelect
+          accessibilityLabel={t("mobile:video.screenFrameRate")}
           // 30 is Android's real capture ceiling — see ANDROID_SCREEN_CAPTURE_MAX_FPS.
           options={screenShareFrameRatesUpTo(ANDROID_SCREEN_CAPTURE_MAX_FPS).map((fps) => ({
             key: String(fps),
@@ -129,18 +100,7 @@ export function VideoSettings() {
             )
           }
         />
-      </View>
-
-      <Text
-        style={{
-          color: colors.fgFaint,
-          fontSize: 12,
-          paddingHorizontal: space.lg,
-          paddingTop: space.sm,
-        }}
-      >
-        {t("mobile:video.note")}
-      </Text>
-    </View>
+      </SettingsBlock>
+    </SettingsSection>
   );
 }

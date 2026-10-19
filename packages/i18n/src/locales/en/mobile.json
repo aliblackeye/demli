@@ -92,7 +92,12 @@
     "versionTitle": "Version",
     "versionValue": "{{version}} (runtime {{runtime}})",
     "versionUnknown": "Unknown",
-    "updateIdTitle": "Update ID"
+    "updateIdTitle": "Update ID",
+    "editShort": "Edit",
+    "accountCount": "{{count}} accounts",
+    "signOutTitle": "Sign out of {{name}}?",
+    "signOutSwitches": "You'll switch to your other account on this device. Signing back in here needs your password.",
+    "signOutLast": "There's no other account on this device, so you'll go back to sign-in."
   },
   "sound": {
     "section": "Sounds",

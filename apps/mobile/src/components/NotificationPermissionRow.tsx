@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, View } from "react-native";
+import { Linking } from "react-native";
 import * as Notifications from "expo-notifications";
 import { Bell, BellOff } from "lucide-react-native";
-import { Text } from "./ui/Text";
-import { Row } from "./Row";
+import { SettingsRow, SettingsSection } from "./settings/SettingsSection";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, space, typography } from "../theme/theme";
 
 /**
  * Notification permission, made visible and recoverable.
@@ -23,26 +21,6 @@ import { colors, space, typography } from "../theme/theme";
  * change it. It is deliberately NOT a nag: when permission is granted it is a
  * quiet confirmation, not a banner demanding attention.
  */
-/** Matches the settings screen's own section label (local to that file). */
-function SectionLabel({ children }: { children: string }): JSX.Element {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        paddingHorizontal: space.lg,
-        paddingTop: space.lg,
-        paddingBottom: space.xs,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
 export function NotificationPermissionRow(): JSX.Element | null {
   const { t } = useAppTranslation();
   const [granted, setGranted] = useState<boolean | null>(null);
@@ -89,43 +67,18 @@ export function NotificationPermissionRow(): JSX.Element | null {
   if (granted === null) return null;
 
   return (
-    <>
-      <SectionLabel>{t("mobile:notifications.permissionSection")}</SectionLabel>
-      <View style={{ paddingHorizontal: space.md }}>
-        <Row
-          title={
-            granted
-              ? t("mobile:notifications.permissionOnTitle")
-              : t("mobile:notifications.permissionOffTitle")
-          }
-          subtitle={
-            granted
-              ? t("mobile:notifications.permissionOnSubtitle")
-              : t("mobile:notifications.permissionOffSubtitle")
-          }
-          leading={
-            granted ? (
-              <Bell size={20} color={colors.fgMuted} />
-            ) : (
-              <BellOff size={20} color={colors.danger} />
-            )
-          }
-          onPress={granted ? undefined : onPress}
-          showChevron={!granted}
-        />
-      </View>
-      {!granted ? (
-        <Text
-          style={{
-            color: colors.fgFaint,
-            fontSize: 12,
-            paddingHorizontal: space.lg,
-            paddingTop: space.xs,
-          }}
-        >
-          {t("mobile:notifications.permissionHint")}
-        </Text>
-      ) : null}
-    </>
+    <SettingsSection
+      title={t("mobile:notifications.permissionSection")}
+      footer={granted ? undefined : t("mobile:notifications.permissionHint")}
+    >
+      <SettingsRow
+        icon={granted ? Bell : BellOff}
+        destructive={!granted}
+        title={granted ? t("mobile:notifications.permissionOnTitle") : t("mobile:notifications.permissionOffTitle")}
+        subtitle={granted ? t("mobile:notifications.permissionOnSubtitle") : t("mobile:notifications.permissionOffSubtitle")}
+        onPress={granted ? undefined : onPress}
+        chevron={!granted}
+      />
+    </SettingsSection>
   );
 }

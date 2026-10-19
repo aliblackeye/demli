@@ -4,7 +4,7 @@ import { Text } from "./ui/Text";
 import { HeadphonesConfirm } from "@/components/HeadphonesConfirm";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
-import { ToggleRow } from "@/components/ToggleRow";
+import { SettingsBlock, SettingsSection, SettingsSwitch } from "@/components/settings/SettingsSection";
 import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
 import {
@@ -14,7 +14,7 @@ import {
   type InputMode,
   type NoiseSuppressionTier,
 } from "@demli/media";
-import { colors, space, typography } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
 
 /**
  * "Mikrofon" settings — the mobile counterpart of the desktop MicSettingsForm.
@@ -22,9 +22,9 @@ import { colors, space, typography } from "@/theme/theme";
  * over the persisted `useMediaSettings` store (the voice store pushes it into the
  * shared engine — the single source of truth for the livekit capture constraints).
  *
- * Sensitivity is a 3-step ChipSelect (Low/Medium/High) rather than a slider:
- * React Native ships no core slider and a community one is a NEW native module,
- * which would break OTA delivery — same reasoning as SoundSettings' volume.
+ * Sensitivity stays a 3-step chip set (Low/Medium/High) mapped onto the stored
+ * threshold — the same three values the engine has been tuned and tested with.
+ * Laid out as one Koyu Masa settings card (components/settings).
  */
 
 const SENSITIVITY_STEPS = { low: 0.25, medium: 0.5, high: 0.85 } as const;
@@ -34,25 +34,6 @@ function sensitivityKey(value: number): SensitivityKey {
   if (value <= 0.37) return "low";
   if (value <= 0.67) return "medium";
   return "high";
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        paddingHorizontal: space.lg,
-        paddingTop: space.lg,
-        paddingBottom: space.xs,
-      }}
-    >
-      {children}
-    </Text>
-  );
 }
 
 /**
@@ -86,13 +67,19 @@ function EchoCancellationRow({ music }: { music: boolean }) {
   const warningStyle = {
     color: colors.warning,
     fontSize: 12,
-    paddingHorizontal: space.md,
-    paddingBottom: space.sm,
+    lineHeight: 17,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.md,
   } as const;
 
   return (
     <View>
-      <ToggleRow label={t("mobile:mic.echoCancellation")} checked={on} onToggle={onToggle} />
+      <SettingsSwitch
+        title={t("mobile:mic.echoCancellation")}
+        value={on}
+        onValueChange={onToggle}
+        disabled={music}
+      />
       {confirming && on && !music ? (
         <HeadphonesConfirm
           message={t("mobile:mic.echoOffWarning")}
@@ -139,14 +126,13 @@ export function MicSettings() {
   const effectiveQuality: AudioQuality = music ? "music" : audio.quality;
 
   return (
-    <View>
-      <SectionLabel>{t("mobile:mic.section")}</SectionLabel>
-
-      <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
-        <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-          {t("mobile:mic.inputMode")}
-        </Text>
+    <SettingsSection title={t("mobile:mic.section")} footer={t("mobile:mic.note")}>
+      <SettingsBlock
+        label={t("mobile:mic.inputMode")}
+        hint={audio.inputMode === "push_to_talk" ? t("mobile:mic.pushToTalkHint") : undefined}
+      >
         <ChipSelect
+          accessibilityLabel={t("mobile:mic.inputMode")}
           options={[
             { key: "push_to_talk", label: t("mobile:mic.inputPushToTalk") },
             { key: "voice_activity", label: t("mobile:mic.inputVoiceActivity") },
@@ -155,19 +141,12 @@ export function MicSettings() {
           selectedKey={audio.inputMode}
           onSelect={onSelectInputMode}
         />
-        {audio.inputMode === "push_to_talk" ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-            {t("mobile:mic.pushToTalkHint")}
-          </Text>
-        ) : null}
-      </View>
+      </SettingsBlock>
 
       {audio.inputMode === "voice_activity" ? (
-        <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm }}>
-          <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-            {t("mobile:mic.sensitivity")}
-          </Text>
+        <SettingsBlock label={t("mobile:mic.sensitivity")}>
           <ChipSelect
+            accessibilityLabel={t("mobile:mic.sensitivity")}
             options={[
               { key: "low", label: t("mobile:mic.sensitivityLow") },
               { key: "medium", label: t("mobile:mic.sensitivityMedium") },
@@ -176,77 +155,63 @@ export function MicSettings() {
             selectedKey={sensitivityKey(audio.vadThreshold)}
             onSelect={(key) => setVadThreshold(SENSITIVITY_STEPS[key as SensitivityKey])}
           />
-        </View>
+        </SettingsBlock>
       ) : null}
 
-      <View style={{ paddingHorizontal: space.md, paddingTop: space.sm, gap: space.xs }}>
-        <ToggleRow
-          label={t("mobile:mic.musicMode")}
-          description={t("mobile:mic.musicModeDesc")}
-          checked={music}
-          onToggle={() => setMusicMode(!music)}
+      <SettingsSwitch
+        title={t("mobile:mic.musicMode")}
+        description={t("mobile:mic.musicModeDesc")}
+        value={music}
+        onValueChange={() => setMusicMode(!music)}
+      />
+
+      {/* Music mode owns these three while it is on (noise off, AGC off, AEC
+          kept): shown dimmed and inert rather than hidden, so the reason for
+          their state is visible right above them. */}
+      <SettingsBlock label={t("mobile:mic.noiseSuppression")} disabled={music}>
+        <ChipSelect
+          accessibilityLabel={t("mobile:mic.noiseSuppression")}
+          // Mobile offers only Standart / Kapalı — the "Yüksek" (RNNoise) tier is a
+          // desktop-only worklet for now (no dead button, §35).
+          options={[
+            { key: "standard", label: t("mobile:mic.noiseStandard") },
+            { key: "off", label: t("mobile:mic.noiseOff") },
+          ]}
+          selectedKey={music ? "off" : audio.noiseSuppression}
+          onSelect={(key) => setNoiseSuppression(key as NoiseSuppressionTier)}
         />
-        <View style={{ opacity: music ? 0.5 : 1 }} pointerEvents={music ? "none" : "auto"}>
-          <View style={{ paddingHorizontal: space.sm, paddingTop: space.sm, gap: space.xs }}>
-            <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-              {t("mobile:mic.noiseSuppression")}
-            </Text>
-            <ChipSelect
-              // Mobile offers only Standart / Kapalı — the "Yüksek" (RNNoise) tier is a
-              // desktop-only worklet for now (no dead button, §35).
-              options={[
-                { key: "standard", label: t("mobile:mic.noiseStandard") },
-                { key: "off", label: t("mobile:mic.noiseOff") },
-              ]}
-              selectedKey={music ? "off" : audio.noiseSuppression}
-              onSelect={(key) => setNoiseSuppression(key as NoiseSuppressionTier)}
-            />
-          </View>
-          <EchoCancellationRow music={music} />
-          <ToggleRow
-            label={t("mobile:mic.autoGainControl")}
-            checked={!music && audio.processing.autoGainControl}
-            onToggle={() => setAutoGainControl(!audio.processing.autoGainControl)}
-          />
-        </View>
-      </View>
+      </SettingsBlock>
 
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm }}>
-        <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-          {t("mobile:mic.quality")}
-        </Text>
-        <View style={{ opacity: music ? 0.5 : 1 }} pointerEvents={music ? "none" : "auto"}>
-          <ChipSelect
-            options={[
-              {
-                key: "standard",
-                label: `${t("mobile:mic.qualityStandard")} · ${AUDIO_QUALITY_BITRATE_KBPS.standard}k`,
-              },
-              {
-                key: "high",
-                label: `${t("mobile:mic.qualityHigh")} · ${AUDIO_QUALITY_BITRATE_KBPS.high}k`,
-              },
-              {
-                key: "music",
-                label: `${t("mobile:mic.qualityMusic")} · ${AUDIO_QUALITY_BITRATE_KBPS.music}k`,
-              },
-            ]}
-            selectedKey={effectiveQuality}
-            onSelect={(key) => setAudioQuality(key as AudioQuality)}
-          />
-        </View>
-      </View>
+      <EchoCancellationRow music={music} />
 
-      <Text
-        style={{
-          color: colors.fgFaint,
-          fontSize: 12,
-          paddingHorizontal: space.lg,
-          paddingTop: space.sm,
-        }}
-      >
-        {t("mobile:mic.note")}
-      </Text>
-    </View>
+      <SettingsSwitch
+        title={t("mobile:mic.autoGainControl")}
+        value={!music && audio.processing.autoGainControl}
+        onValueChange={() => setAutoGainControl(!audio.processing.autoGainControl)}
+        disabled={music}
+      />
+
+      <SettingsBlock label={t("mobile:mic.quality")} disabled={music}>
+        <ChipSelect
+          accessibilityLabel={t("mobile:mic.quality")}
+          options={[
+            {
+              key: "standard",
+              label: `${t("mobile:mic.qualityStandard")} · ${AUDIO_QUALITY_BITRATE_KBPS.standard}k`,
+            },
+            {
+              key: "high",
+              label: `${t("mobile:mic.qualityHigh")} · ${AUDIO_QUALITY_BITRATE_KBPS.high}k`,
+            },
+            {
+              key: "music",
+              label: `${t("mobile:mic.qualityMusic")} · ${AUDIO_QUALITY_BITRATE_KBPS.music}k`,
+            },
+          ]}
+          selectedKey={effectiveQuality}
+          onSelect={(key) => setAudioQuality(key as AudioQuality)}
+        />
+      </SettingsBlock>
+    </SettingsSection>
   );
 }
