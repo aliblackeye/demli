@@ -282,9 +282,12 @@ export function useRegenerateFriendCode() {
  * Everyone the signed-in user has blocked, for the settings list. Deliberately
  * NOT "who blocked me" — that is never queryable, so no UI can ever reveal it.
  */
-export function useBlocks() {
+export function useBlocks(enabled = true) {
   return useQuery({
     queryKey: queryKeys.blocks,
+    // Optional gate (M16): the DM composer only needs the list while a DM is
+    // open, so a server-channel composer never issues the request.
+    enabled,
     queryFn: async () => {
       const { blocks } = await api.listBlocks();
       useChatStore.getState().upsertUsers(blocks.map((b) => b.user));
