@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type TouchEvent as ReactTouchEvent } from "react";
 import { cn } from "@demli/ui";
 
 interface MobileDrawerProps {
@@ -75,16 +75,29 @@ export function MobileDrawer({ side, open, onClose, label, children }: MobileDra
     return undefined;
   }, [open]);
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (event.pointerType === "mouse") return;
-    swipe.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  // Swipe-to-close reads TOUCH events, not pointer events: the moment a finger
+  // moves, the browser claims the gesture as a pan (the panel's lists are
+  // scroll containers) and fires `pointercancel`, so a pointer-based swipe never
+  // sees its `pointerup` and the drawer stayed open. Touch events keep arriving
+  // through a browser pan, and `touchend` reports where the finger lifted.
+  const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>): void => {
+    // One finger only — a second finger (pinch) abandons the swipe.
+    if (event.touches.length !== 1) {
+      swipe.current = null;
+      return;
+    }
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    swipe.current = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
   };
-  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+  const onTouchEnd = (event: ReactTouchEvent<HTMLDivElement>): void => {
     const start = swipe.current;
+    if (!start) return;
+    const touch = Array.from(event.changedTouches).find((t) => t.identifier === start.id);
+    if (!touch) return;
     swipe.current = null;
-    if (!start || start.id !== event.pointerId) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
     // Horizontal, toward the drawer's own edge, and clearly not a vertical scroll.
     const towardEdge = side === "left" ? dx < -SWIPE_CLOSE_PX : dx > SWIPE_CLOSE_PX;
     if (towardEdge && Math.abs(dx) > Math.abs(dy) * 1.5) onClose();
@@ -107,9 +120,9 @@ export function MobileDrawer({ side, open, onClose, label, children }: MobileDra
         aria-label={label}
         aria-hidden={!open}
         data-state={open ? "open" : "closed"}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerCancel={() => {
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={() => {
           swipe.current = null;
         }}
         className={cn(
