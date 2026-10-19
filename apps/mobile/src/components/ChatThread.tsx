@@ -525,7 +525,7 @@ export function ChatThread({
       { messageId: target.id, pinned: target.pinned ?? false },
       {
         onError: (err) =>
-          toast({ title: t("mobile:pins.error"), description: pinErrorText(err, t), variant: "danger" }),
+          toast({ title: pinErrorText(err, t), variant: "danger" }),
       },
     );
   }, [actionTarget, togglePin, t]);
