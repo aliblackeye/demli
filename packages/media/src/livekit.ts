@@ -147,6 +147,26 @@ const _pinParticipantRemoved: DisconnectReason.PARTICIPANT_REMOVED =
 void _pinDuplicateIdentity;
 void _pinParticipantRemoved;
 
+type MicDspFlags = Pick<
+  AudioCaptureOptionsLike,
+  "noiseSuppression" | "echoCancellation" | "autoGainControl"
+>;
+
+/**
+ * True only when a capture track's `getSettings()` reports every requested DSP flag
+ * with the requested value. A flag the track does not report at all counts as NOT
+ * applied — without the readback there is no evidence the DSP changed.
+ */
+export function micDspSettingsMatch(
+  settings: Partial<Record<keyof MicDspFlags, unknown>>,
+  requested: MicDspFlags,
+): boolean {
+  return (Object.keys(requested) as (keyof MicDspFlags)[]).every((key) => {
+    const want = requested[key];
+    return typeof want !== "boolean" || settings[key] === want;
+  });
+}
+
 export async function createLiveKitRoom(): Promise<VoiceRoomAdapter> {
   const { Room, RoomEvent, Track, VideoQuality, createAudioAnalyser } = await import(
     "livekit-client"
@@ -440,6 +460,10 @@ export async function createLiveKitRoom(): Promise<VoiceRoomAdapter> {
    * `LocalAudioTrack.restartTrack` swaps the underlying getUserMedia track in
    * place, keeping the same publication (and its bitrate). No-op when the mic
    * isn't currently published.
+   *
+   * The CURRENT device is carried over. livekit fills a missing `deviceId` with
+   * `{ ideal: "default" }`, so restarting with the DSP flags alone would silently
+   * move a user who picked a specific microphone back to the system default.
    */
   const restartAudioTrack = async (
     captureOptions: AudioCaptureOptionsLike,
@@ -447,7 +471,9 @@ export async function createLiveKitRoom(): Promise<VoiceRoomAdapter> {
     const audioTrack = room.localParticipant.getTrackPublication(
       Track.Source.Microphone,
     )?.audioTrack;
-    if (audioTrack) await audioTrack.restartTrack(captureOptions);
+    if (!audioTrack) return;
+    const deviceId = audioTrack.constraints?.deviceId;
+    await audioTrack.restartTrack(deviceId ? { ...captureOptions, deviceId } : captureOptions);
   };
 
   /**
@@ -466,6 +492,15 @@ export async function createLiveKitRoom(): Promise<VoiceRoomAdapter> {
    *
    * Only the three DSP booleans are sent. `sampleRate`/`channelCount` are structural
    * and are NOT passed here — the engine routes those to a re-acquire.
+   *
+   * A resolved promise is NOT proof. Measured on Electron 33.4.11 (Chromium
+   * 130.0.6723.191), real Voicemeeter input and the fake device alike:
+   * `applyConstraints({ echoCancellation: false, noiseSuppression: false,
+   * autoGainControl: false })` RESOLVES while `getSettings()` still reports all three
+   * true (and `{ exact: false }` rejects with OverconstrainedError); the reverse
+   * direction behaves the same. A fresh getUserMedia with the new flags does report
+   * them. So success is decided by reading `getSettings()` back: any requested flag
+   * the track does not report means the DSP did not move, and the engine re-acquires.
    */
   const applyMicCaptureConstraints = async (
     captureOptions: AudioCaptureOptionsLike,
@@ -476,18 +511,19 @@ export async function createLiveKitRoom(): Promise<VoiceRoomAdapter> {
     if (!audioTrack || audioTrack.getProcessor()) return false;
     const raw = audioTrack.mediaStreamTrack;
     if (!raw || raw.readyState !== "live") return false;
+    const requested = {
+      noiseSuppression: captureOptions.noiseSuppression,
+      echoCancellation: captureOptions.echoCancellation,
+      autoGainControl: captureOptions.autoGainControl,
+    };
     try {
-      await raw.applyConstraints({
-        noiseSuppression: captureOptions.noiseSuppression,
-        echoCancellation: captureOptions.echoCancellation,
-        autoGainControl: captureOptions.autoGainControl,
-      });
-      return true;
+      await raw.applyConstraints(requested);
     } catch {
       // OverconstrainedError / unsupported constraint — let the engine take the
       // heavier re-acquire path rather than leaving the user on stale settings.
       return false;
     }
+    return micDspSettingsMatch(raw.getSettings(), requested);
   };
 
   /**

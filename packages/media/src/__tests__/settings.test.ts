@@ -20,12 +20,15 @@ import {
   effectiveAudioProcessing,
   effectiveAudioQuality,
   effectiveNoiseSuppression,
+  AUDIO_SETTINGS_SCHEMA_VERSION,
   isAudioQuality,
   isCameraFrameRate,
   isCameraQuality,
   isInputMode,
+  isEchoCancellationOn,
   isNoiseSuppressionTier,
   micPublishOptionsForSettings,
+  migrateAudioSettings,
   MOBILE_CAMERA_CAPTURE_DEFAULT,
   NOISE_SUPPRESSION_TIERS,
   normalizeAudioSettings,
@@ -37,6 +40,7 @@ import {
   SPEAKING_SENSITIVITY_MAX_THRESHOLD,
   SPEAKING_SENSITIVITY_MIN_THRESHOLD,
   wantsNoiseFilter,
+  withEchoCancellation,
   type AudioSettings,
 } from "../index.js";
 
@@ -45,6 +49,7 @@ const base: AudioSettings = {
   vadThreshold: 0.5,
   noiseSuppression: "standard",
   processing: { echoCancellation: true, autoGainControl: true },
+  headphonesConfirmed: false,
   musicMode: false,
   quality: "standard",
 };
@@ -97,11 +102,119 @@ describe("audio settings — processing + music-mode override", () => {
       ...base,
       musicMode: true,
       processing: { echoCancellation: false, autoGainControl: true },
+      headphonesConfirmed: true,
     };
     // Music mode forces AEC back ON regardless of the stored toggle — the founder's
     // absolute rule: nothing from the loudspeaker may loop back into the mic.
     expect(effectiveAudioProcessing(s).echoCancellation).toBe(true);
     expect(audioCaptureOptionsForSettings(s).echoCancellation).toBe(true);
+  });
+});
+
+describe("echo-cancellation policy — off only with confirmed headphones", () => {
+  it("defaults to AEC on with no headphones confirmation", () => {
+    expect(DEFAULT_AUDIO_SETTINGS.processing.echoCancellation).toBe(true);
+    expect(DEFAULT_AUDIO_SETTINGS.headphonesConfirmed).toBe(false);
+    expect(isEchoCancellationOn(DEFAULT_AUDIO_SETTINGS)).toBe(true);
+  });
+
+  it("an unconfirmed echoCancellation:false still captures WITH echo cancellation", () => {
+    const s: AudioSettings = {
+      ...base,
+      processing: { echoCancellation: false, autoGainControl: false },
+      headphonesConfirmed: false,
+    };
+    expect(isEchoCancellationOn(s)).toBe(true);
+    expect(audioCaptureOptionsForSettings(s).echoCancellation).toBe(true);
+    // The other axis is untouched by the echo policy.
+    expect(audioCaptureOptionsForSettings(s).autoGainControl).toBe(false);
+  });
+
+  it("AEC goes off only through the confirmed-headphones transition", () => {
+    const off = withEchoCancellation(base, "off_headphones");
+    expect(off.processing.echoCancellation).toBe(false);
+    expect(off.headphonesConfirmed).toBe(true);
+    expect(isEchoCancellationOn(off)).toBe(false);
+    expect(audioCaptureOptionsForSettings(off).echoCancellation).toBe(false);
+  });
+
+  it("turning AEC back on clears the confirmation, so the next off asks again", () => {
+    const on = withEchoCancellation(withEchoCancellation(base, "off_headphones"), "on");
+    expect(on.processing.echoCancellation).toBe(true);
+    expect(on.headphonesConfirmed).toBe(false);
+    // A later plain write of echoCancellation:false is not enough on its own.
+    const stray: AudioSettings = {
+      ...on,
+      processing: { ...on.processing, echoCancellation: false },
+    };
+    expect(isEchoCancellationOn(stray)).toBe(true);
+  });
+
+  it("normalize keeps a confirmed off and repairs an unconfirmed one", () => {
+    const confirmed = normalizeAudioSettings({
+      processing: { echoCancellation: false, autoGainControl: true },
+      headphonesConfirmed: true,
+    });
+    expect(confirmed.processing.echoCancellation).toBe(false);
+    expect(confirmed.headphonesConfirmed).toBe(true);
+
+    const unconfirmed = normalizeAudioSettings({
+      processing: { echoCancellation: false, autoGainControl: true },
+    });
+    expect(unconfirmed.processing.echoCancellation).toBe(true);
+    expect(unconfirmed.headphonesConfirmed).toBe(false);
+
+    // A confirmation without AEC actually off is meaningless and is dropped.
+    const stale = normalizeAudioSettings({
+      processing: { echoCancellation: true },
+      headphonesConfirmed: true,
+    });
+    expect(stale.headphonesConfirmed).toBe(false);
+  });
+
+  it("migrates a pre-v2 blob ONCE: AEC back on, AGC/NS choices kept", () => {
+    // The founder's stored desktop blob before this change.
+    const legacy = {
+      inputMode: "open_mic",
+      musicMode: false,
+      noiseSuppression: "off",
+      processing: { echoCancellation: false, autoGainControl: false },
+      quality: "standard",
+      vadThreshold: 0.5,
+    };
+    const migrated = normalizeAudioSettings(migrateAudioSettings(legacy, 0));
+    expect(migrated.processing).toEqual({ echoCancellation: true, autoGainControl: false });
+    expect(migrated.noiseSuppression).toBe("off");
+    expect(migrated.inputMode).toBe("open_mic");
+    expect(migrated.headphonesConfirmed).toBe(false);
+
+    // A v1 blob that somehow carried a confirmation is still reset — the warning
+    // did not exist then, so nobody saw it.
+    const v1Confirmed = migrateAudioSettings(
+      { processing: { echoCancellation: false }, headphonesConfirmed: true },
+      1,
+    );
+    expect(normalizeAudioSettings(v1Confirmed).processing.echoCancellation).toBe(true);
+  });
+
+  it("does not touch a current-version blob (a confirmed off survives restarts)", () => {
+    const current = {
+      ...base,
+      processing: { echoCancellation: false, autoGainControl: true },
+      headphonesConfirmed: true,
+    };
+    expect(migrateAudioSettings(current, AUDIO_SETTINGS_SCHEMA_VERSION)).toBe(current);
+    expect(
+      normalizeAudioSettings(migrateAudioSettings(current, AUDIO_SETTINGS_SCHEMA_VERSION)).processing
+        .echoCancellation,
+    ).toBe(false);
+  });
+
+  it("migration tolerates junk", () => {
+    expect(migrateAudioSettings(undefined, 0)).toBeUndefined();
+    expect(migrateAudioSettings("x", 0)).toBe("x");
+    expect(normalizeAudioSettings(migrateAudioSettings({ processing: 5 }, 0)).processing)
+      .toEqual({ echoCancellation: true, autoGainControl: true });
   });
 });
 
@@ -365,6 +478,7 @@ describe("audio settings — guards + normalization", () => {
       vadThreshold: 1,
       noiseSuppression: "high",
       processing: { echoCancellation: true, autoGainControl: true },
+      headphonesConfirmed: false,
       musicMode: true,
       quality: "music",
     });

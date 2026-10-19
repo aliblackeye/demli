@@ -179,6 +179,7 @@ export type {
   AudioProcessing,
   AudioQuality,
   AudioSettings,
+  EchoCancellationChoice,
   InputMode,
   NoiseSuppressionTier,
 } from "./audio-settings.js";
@@ -187,6 +188,7 @@ export {
   AUDIO_QUALITIES,
   AUDIO_QUALITY_BITRATE_KBPS,
   AUDIO_QUALITY_PUBLISH_PROFILE,
+  AUDIO_SETTINGS_SCHEMA_VERSION,
   audioBitrateKbpsForSettings,
   audioCaptureOptionsForSettings,
   DEFAULT_AUDIO_PROCESSING,
@@ -198,14 +200,17 @@ export {
   effectiveNoiseSuppression,
   INPUT_MODES,
   isAudioQuality,
+  isEchoCancellationOn,
   isInputMode,
   isNoiseSuppressionTier,
   micPublishOptionsForSettings,
+  migrateAudioSettings,
   NOISE_SUPPRESSION_TIERS,
   normalizeAudioSettings,
   normalizeVadThreshold,
   resolveMicBitrateKbps,
   wantsNoiseFilter,
+  withEchoCancellation,
 } from "./audio-settings.js";
 
 export type {
@@ -221,6 +226,7 @@ export type { ParticipantVolumeMap } from "./participant-volume.js";
 export {
   clampParticipantVolume,
   DEFAULT_PARTICIPANT_VOLUME,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   isDefaultParticipantVolume,
   MAX_PARTICIPANT_VOLUME,
   MIN_PARTICIPANT_VOLUME,

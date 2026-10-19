@@ -156,7 +156,11 @@ export const DEFAULT_NOISE_SUPPRESSION: NoiseSuppressionTier = "high";
  * 1:1 onto the mic-capture constraints.
  */
 export interface AudioProcessing {
-  /** Yankı Engelleme — echoCancellation capture constraint. */
+  /**
+   * Yankı Engelleme — echoCancellation capture constraint. `false` is honoured only
+   * together with {@link AudioSettings.headphonesConfirmed}; see
+   * {@link effectiveAudioProcessing}.
+   */
   echoCancellation: boolean;
   /** Otomatik Seviye — autoGainControl capture constraint. */
   autoGainControl: boolean;
@@ -188,6 +192,14 @@ export interface AudioSettings {
   /** The two remaining DSP toggles; AEC forced ON, AGC forced OFF while {@link musicMode}. */
   processing: AudioProcessing;
   /**
+   * The user explicitly confirmed they listen on headphones. This is the ONLY state
+   * in which echo cancellation may be off: without it, whatever comes out of the
+   * speakers is picked up by the mic and sent back to the room. Set together with
+   * `processing.echoCancellation = false` and cleared when AEC is turned back on
+   * (see {@link withEchoCancellation}), so turning it off again asks again.
+   */
+  headphonesConfirmed: boolean;
+  /**
    * Müzik Modu — a single studio toggle. When ON it forces {@link noiseSuppression}
    * to `off` and {@link processing} auto-gain to OFF (so a guitar transmits
    * unfiltered — the founder's requirement) — but KEEPS echo cancellation on — AND
@@ -204,6 +216,7 @@ export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   vadThreshold: DEFAULT_VAD_THRESHOLD,
   noiseSuppression: DEFAULT_NOISE_SUPPRESSION,
   processing: { ...DEFAULT_AUDIO_PROCESSING },
+  headphonesConfirmed: false,
   musicMode: false,
   quality: "standard",
 };
@@ -213,24 +226,52 @@ export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
 // ---------------------------------------------------------------------------
 
 /**
- * Effective DSP flags after the music-mode override.
+ * Effective DSP flags after the echo policy and the music-mode override.
+ *
+ * Echo cancellation is ON unless the user turned it off AND confirmed they use
+ * headphones ({@link AudioSettings.headphonesConfirmed}). The founder's rule is that
+ * nothing coming out of the speaker may go back to the room; with AEC off on
+ * speakers the far end hears itself (the desktop "kendi sesimi duyuyorum" report was
+ * a mic stored with AEC/AGC/NS all off). An unconfirmed `false` — a legacy blob, a
+ * stray caller — therefore resolves to ON.
  *
  * Music/studio mode drops AUTO GAIN (and, via {@link effectiveNoiseSuppression},
- * noise suppression) so an instrument/voice transmits unfiltered (the founder's
- * guitar requirement) — but ACOUSTIC ECHO CANCELLATION stays ON. AEC and NS/AGC
- * are INDEPENDENT axes: they were being turned off together, and disabling AEC is
- * what let a phone's loudspeaker output (voices + the shared film's sound) leak
- * back into its own mic and loop forever during a movie night. The rule is
- * absolute — NOTHING coming out of the speaker may go back to the room — so AEC is
- * on in EVERY mode; music mode only relaxes NS/AGC. (Hardware AEC on Android needs
- * MODE_IN_COMMUNICATION too; the mobile AudioSession already uses the communication
- * preset.)
+ * noise suppression) so an instrument transmits unfiltered, and always keeps AEC on,
+ * even with headphones confirmed. AEC and NS/AGC are independent axes.
  */
 export function effectiveAudioProcessing(settings: AudioSettings): AudioProcessing {
   if (settings.musicMode) {
     return { echoCancellation: true, autoGainControl: false };
   }
-  return settings.processing;
+  return {
+    echoCancellation: settings.processing.echoCancellation || !settings.headphonesConfirmed,
+    autoGainControl: settings.processing.autoGainControl,
+  };
+}
+
+/** Whether the mic actually runs echo cancellation for these settings (what UIs show). */
+export function isEchoCancellationOn(settings: AudioSettings): boolean {
+  return effectiveAudioProcessing(settings).echoCancellation;
+}
+
+/**
+ * The only two legal echo-cancellation transitions. Turning AEC ON clears the
+ * headphones confirmation; turning it OFF requires one (`"off_headphones"` is the
+ * caller's statement that the user confirmed it). There is deliberately no plain
+ * "off".
+ */
+export type EchoCancellationChoice = "on" | "off_headphones";
+
+export function withEchoCancellation(
+  settings: AudioSettings,
+  choice: EchoCancellationChoice,
+): AudioSettings {
+  const off = choice === "off_headphones";
+  return {
+    ...settings,
+    processing: { ...settings.processing, echoCancellation: !off },
+    headphonesConfirmed: off,
+  };
 }
 
 /**
@@ -274,9 +315,10 @@ export function audioBitrateKbpsForSettings(settings: AudioSettings): number {
  *    is available (mobile today, or before the desktop factory loads) it FALLS BACK
  *    to ON, so `high` degrades to `standard` rather than to "no suppression at all".
  *  - `off` → OFF.
- * Echo cancellation + auto gain come straight from the effective processing flags,
- * and AEC is on in every mode (music included). The worklet, when used, processes
- * the already-AEC'd capture track — AEC runs first, the filter cleans the residual.
+ * Echo cancellation + auto gain come from the effective processing flags (AEC is on
+ * unless headphones were confirmed, and always on in music mode). The worklet, when
+ * used, processes the already-AEC'd capture track — AEC runs first, the filter
+ * cleans the residual.
  */
 export function audioCaptureOptionsForSettings(
   settings: AudioSettings,
@@ -392,15 +434,51 @@ function normalizeNoiseSuppression(raw: unknown, legacyProcessing: unknown): Noi
   return DEFAULT_NOISE_SUPPRESSION;
 }
 
-/** Build a valid {@link AudioSettings} from an untrusted persisted blob. */
+/**
+ * Build a valid {@link AudioSettings} from an untrusted persisted blob. Enforces the
+ * echo invariant on the way in: a stored `echoCancellation: false` without
+ * `headphonesConfirmed: true` is read as ON, so storage and UI never show "off"
+ * for a mic that is (by {@link effectiveAudioProcessing}) cancelling echo.
+ */
 export function normalizeAudioSettings(raw: unknown): AudioSettings {
   const r = (raw ?? {}) as Partial<Record<keyof AudioSettings, unknown>>;
+  const processing = normalizeProcessing(r.processing);
+  const echoOff = !processing.echoCancellation && r.headphonesConfirmed === true;
   return {
     inputMode: isInputMode(r.inputMode) ? r.inputMode : DEFAULT_AUDIO_SETTINGS.inputMode,
     vadThreshold: normalizeVadThreshold(r.vadThreshold),
     noiseSuppression: normalizeNoiseSuppression(r.noiseSuppression, r.processing),
-    processing: normalizeProcessing(r.processing),
+    processing: { ...processing, echoCancellation: !echoOff },
+    headphonesConfirmed: echoOff,
     musicMode: typeof r.musicMode === "boolean" ? r.musicMode : false,
     quality: isAudioQuality(r.quality) ? r.quality : DEFAULT_AUDIO_SETTINGS.quality,
+  };
+}
+
+/**
+ * Persisted-settings schema version for the clients' `demli.media-settings` store
+ * (zustand `persist` `version`). Version 2 introduced the echo policy; a blob from
+ * before it is migrated ONCE by {@link migrateAudioSettings}.
+ */
+export const AUDIO_SETTINGS_SCHEMA_VERSION = 2;
+
+/**
+ * One-time migration of a persisted audio blob written at `fromVersion`. Before v2
+ * echo cancellation could be switched off with no warning, so every such blob gets
+ * it back ON (and no headphones confirmation): the user is asked again, with the
+ * warning, if they still want it off. Returns the blob unchanged for v2+.
+ */
+export function migrateAudioSettings(raw: unknown, fromVersion: number): unknown {
+  if (fromVersion >= AUDIO_SETTINGS_SCHEMA_VERSION) return raw;
+  if (!raw || typeof raw !== "object") return raw;
+  const r = raw as Record<string, unknown>;
+  const processing =
+    r.processing && typeof r.processing === "object"
+      ? (r.processing as Record<string, unknown>)
+      : {};
+  return {
+    ...r,
+    processing: { ...processing, echoCancellation: true },
+    headphonesConfirmed: false,
   };
 }
