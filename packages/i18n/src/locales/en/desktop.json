@@ -54,7 +54,15 @@
     "ignoredRunMany_one": "{{count}} message from people you ignore",
     "ignoredRunMany_other": "{{count}} messages from people you ignore",
     "ignoredShow": "Show",
-    "ignoredHide": "Hide"
+    "ignoredHide": "Hide",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday",
+    "newChip": "New",
+    "loadFailedTitle": "Couldn't load messages",
+    "spoilerReveal": "Spoiler — click to reveal",
+    "editedAt": "Edited {{time}}",
+    "sending": "Sending…",
+    "listLabel": "Messages in {{channel}}"
   },
   "app": {
     "starting": "Starting Demli"
@@ -92,7 +100,11 @@
     "dropToAttach": "Drop to attach",
     "mentionHeading": "Members",
     "mentionEveryoneHint": "Notify everyone",
-    "mentionHereHint": "Notify online"
+    "mentionHereHint": "Notify online",
+    "blockedNotice": "You've blocked {{name}}. Unblock them to send a message.",
+    "unblock": "Unblock",
+    "charsLeft_one": "{{count}} character left",
+    "charsLeft_other": "{{count}} characters left"
   },
   "attachments": {
     "altImage": "Image attachment",
@@ -120,7 +132,17 @@
     "copied": "Image copied to the clipboard.",
     "saveFailed": "Couldn't save the image. Please try again.",
     "copyFailed": "Couldn't copy the image. Please try again.",
-    "copyUnsupported": "This image format can't be copied to the clipboard. You can save it instead."
+    "copyUnsupported": "This image format can't be copied to the clipboard. You can save it instead.",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomFit": "Fit to screen",
+    "zoomLevel": "{{percent}}%",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "position": "{{index}} of {{total}}",
+    "lightboxHint": "Scroll to zoom · drag to pan · double-click to fit",
+    "openFailed": "Couldn't open this image.",
+    "uploadProgress": "{{percent}}% uploaded"
   },
   "commandMenu": {
     "label": "Command menu",
@@ -1221,7 +1243,9 @@
     "jumpTo": "Jump to message",
     "full": "This channel already has the maximum of {{max}} pinned messages.",
     "error": "That message could not be pinned.",
-    "count": "{{count}} pinned"
+    "count": "{{count}} pinned",
+    "loadFailed": "Couldn't load the pinned messages.",
+    "emptyHint": "You can pin a message from its “More” menu."
   },
   "emoji": {
     "title": "Emoji",

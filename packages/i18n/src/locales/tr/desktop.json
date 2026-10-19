@@ -54,7 +54,15 @@
     "ignoredRunMany_one": "Yok saydığın kişilerden {{count}} mesaj",
     "ignoredRunMany_other": "Yok saydığın kişilerden {{count}} mesaj",
     "ignoredShow": "Göster",
-    "ignoredHide": "Gizle"
+    "ignoredHide": "Gizle",
+    "dateToday": "Bugün",
+    "dateYesterday": "Dün",
+    "newChip": "Yeni",
+    "loadFailedTitle": "Mesajlar yüklenemedi",
+    "spoilerReveal": "Spoiler — göstermek için tıkla",
+    "editedAt": "Düzenlendi: {{time}}",
+    "sending": "Gönderiliyor…",
+    "listLabel": "{{channel}} mesajları"
   },
   "app": {
     "starting": "Demli başlatılıyor"
@@ -92,7 +100,11 @@
     "dropToAttach": "Eklemek için bırak",
     "mentionHeading": "Üyeler",
     "mentionEveryoneHint": "Herkese bildir",
-    "mentionHereHint": "Çevrimiçilere bildir"
+    "mentionHereHint": "Çevrimiçilere bildir",
+    "blockedNotice": "{{name}} adlı kişiyi engelledin. Mesaj gönderebilmek için engeli kaldır.",
+    "unblock": "Engeli kaldır",
+    "charsLeft_one": "{{count}} karakter kaldı",
+    "charsLeft_other": "{{count}} karakter kaldı"
   },
   "attachments": {
     "altImage": "Resim eki",
@@ -120,7 +132,17 @@
     "copied": "Görsel panoya kopyalandı.",
     "saveFailed": "Görsel kaydedilemedi. Lütfen tekrar deneyin.",
     "copyFailed": "Görsel kopyalanamadı. Lütfen tekrar deneyin.",
-    "copyUnsupported": "Bu görsel biçimi panoya kopyalanamıyor. Bunun yerine kaydedebilirsin."
+    "copyUnsupported": "Bu görsel biçimi panoya kopyalanamıyor. Bunun yerine kaydedebilirsin.",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "zoomFit": "Ekrana sığdır",
+    "zoomLevel": "%{{percent}}",
+    "previousImage": "Önceki görsel",
+    "nextImage": "Sonraki görsel",
+    "position": "{{index}} / {{total}}",
+    "lightboxHint": "Tekerlekle yakınlaştır · sürükleyerek gez · çift tıkla: sığdır",
+    "openFailed": "Görsel açılamadı.",
+    "uploadProgress": "%{{percent}} yüklendi"
   },
   "commandMenu": {
     "label": "Komut menüsü",
@@ -1221,7 +1243,9 @@
     "jumpTo": "Mesaja git",
     "full": "Bu kanalda en fazla {{max}} mesaj sabitlenebilir.",
     "error": "Bu mesaj sabitlenemedi.",
-    "count": "{{count}} sabitlenmiş"
+    "count": "{{count}} sabitlenmiş",
+    "loadFailed": "Sabitlenmiş mesajlar yüklenemedi.",
+    "emptyHint": "Bir mesajı, üzerindeki “Daha fazla” menüsünden sabitleyebilirsin."
   },
   "emoji": {
     "title": "Emoji",
