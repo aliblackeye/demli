@@ -3,14 +3,14 @@
     "name": "Demli",
     "slug": "demli",
     "owner": "aliblackeye",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "scheme": "demli",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#1a0806",
     "newArchEnabled": true,
-    "runtimeVersion": "2.0.0",
+    "runtimeVersion": "2.1.0",
     "updates": {
       "url": "https://u.expo.dev/b1833097-351b-49b9-82af-fbf951279fcf",
       "checkAutomatically": "NEVER",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "app.demli.mobile",
-      "versionCode": 10,
+      "versionCode": 11,
       "edgeToEdgeEnabled": true,
       "intentFilters": [
         {
