@@ -36,12 +36,13 @@
  * toaster cannot draw over it: the sheet hosts its own <Toaster/>, which takes
  * the shared queue while the sheet is the topmost window.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   Modal,
   Pressable,
   View,
   useWindowDimensions,
+  type ScrollView,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
@@ -92,6 +93,11 @@ export type SheetProps = {
   /** Inner padding of the content area. Default space.md. */
   contentPadding?: number;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * The body's scroll view, for a caller that must move it (an emoji picker
+   * returning to the top when its category changes). Scrollable sheets only.
+   */
+  scrollRef?: RefObject<ScrollView>;
 };
 
 const GRABBER_AREA = 20;
@@ -112,6 +118,7 @@ export function Sheet({
   accessibilityLabel,
   contentPadding = space.md,
   contentStyle,
+  scrollRef,
 }: SheetProps) {
   const { t } = useAppTranslation();
   const reduced = useReducedMotion();
@@ -396,6 +403,7 @@ export function Sheet({
   const body = scrollable ? (
     <GestureDetector gesture={scrollGesture}>
       <Animated.ScrollView
+        ref={scrollRef}
         onScroll={onScroll}
         scrollEventThrottle={16}
         scrollEnabled={atTopSnap || !fixed}

@@ -1,17 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Keyboard,
   Platform,
-  Pressable,
   ScrollView,
   View,
   type NativeSyntheticEvent,
   type TextInputSelectionChangeEventData,
 } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  FadeOutDown,
+  LinearTransition,
+  ReduceMotion,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { Text, TextInput } from "./ui/Text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AtSign, Check, Paperclip, Pencil, Reply, SendHorizontal, Smile, Timer, X } from "lucide-react-native";
+import {
+  AtSign,
+  Ban,
+  Check,
+  Pencil,
+  Plus,
+  Reply,
+  SendHorizontal,
+  Smile,
+  Timer,
+  X,
+} from "lucide-react-native";
 import { ATTACHMENT_MAX_PER_MESSAGE, MESSAGE_MAX_LENGTH } from "@demli/config";
 import {
   applyMentionInsert,
@@ -47,13 +67,31 @@ import { Avatar } from "./Avatar";
 import { AttachmentTray } from "./attachments/AttachmentTray";
 import { AttachmentSheet } from "./AttachmentSheet";
 import { EmojiPicker } from "./EmojiPicker";
-import { colors, radius, space } from "../theme/theme";
+import { Button } from "./ui/Button";
+import { IconButton } from "./ui/IconButton";
+import { Touchable } from "./ui/Touchable";
+import { toast } from "./ui/Toast";
+import { PRESS } from "../theme/motion-presets";
+import { toneTo, useReducedMotion } from "../theme/motion";
+import { colors, elevation, motion, radius, space, typography } from "../theme/theme";
+import { charsLeft, mentionMatchLength } from "./chat/composer-math";
 
 /** Max mention suggestions shown above the input. */
 const MENTION_SUGGESTION_LIMIT = 6;
+/** Below this many characters left, the counter appears (desktop: last 200). */
+const COUNTER_FROM = 200;
+/** …and turns pink here. */
+const COUNTER_WARN = 20;
 
 /** Stable empty reference so the zustand selector doesn't churn identities. */
 const EMPTY_DRAFTS: DraftAttachment[] = [];
+
+/** A DM with someone the viewer blocked: what the composer says instead. */
+export interface ComposerBlockedState {
+  name: string;
+  onUnblock: () => void;
+  busy: boolean;
+}
 
 /** Seconds remaining until `until` (epoch ms), or 0 when past/absent. */
 function remainingSeconds(until: number | undefined, now: number): number {
@@ -62,9 +100,9 @@ function remainingSeconds(until: number | undefined, now: number): number {
 }
 
 /**
- * Amber countdown while a SLOWMODE cooldown is active; ticks each second and
+ * Countdown while a SLOWMODE cooldown is active; ticks each second and
  * auto-clears at 0. Owns its own 1s timer + store subscription so ticking never
- * rerenders the message list (CLAUDE.md §27) — the composer sits below the list.
+ * rerenders the message list (CLAUDE.md §27).
  */
 function SlowmodeBanner({
   channelId,
@@ -94,9 +132,12 @@ function SlowmodeBanner({
 
   if (remaining > 0) {
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-        <Timer size={13} color={colors.idle} />
-        <Text style={{ color: colors.idle, fontSize: 12, fontWeight: "600" }}>
+      <View
+        accessibilityLiveRegion="polite"
+        style={{ flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xs }}
+      >
+        <Timer size={13} color={colors.warning} />
+        <Text type="meta" tone="warning">
           {t("mobile:composer.slowmodeCooldown", { duration: formatSlowmodeInterval(remaining) })}
         </Text>
       </View>
@@ -105,9 +146,9 @@ function SlowmodeBanner({
 
   if (slowmodeSeconds && slowmodeSeconds > 0) {
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xs }}>
         <Timer size={13} color={colors.fgFaint} />
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
+        <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
           {t("mobile:composer.slowmodeActive", { duration: formatSlowmodeInterval(slowmodeSeconds) })}
         </Text>
       </View>
@@ -117,23 +158,80 @@ function SlowmodeBanner({
   return null;
 }
 
+/** The context strip at the top of the field: replying to / editing. */
+function ContextStrip({
+  icon,
+  tone,
+  title,
+  detail,
+  closeLabel,
+  onClose,
+}: {
+  icon: "reply" | "edit";
+  tone: "neutral" | "accent";
+  title: string;
+  detail?: string;
+  closeLabel: string;
+  onClose: () => void;
+}) {
+  const Icon = icon === "reply" ? Reply : Pencil;
+  const ink = tone === "accent" ? colors.accent : colors.fgMuted;
+  return (
+    <Animated.View
+      entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.sm,
+        paddingLeft: space.md,
+        paddingRight: space.xs,
+        paddingTop: space.xs,
+      }}
+    >
+      <Icon size={14} color={ink} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} type="meta" style={{ color: ink, fontWeight: "600" }}>
+          {title}
+        </Text>
+        {detail ? (
+          <Text numberOfLines={1} type="meta" tone="faint" style={{ fontWeight: "400" }}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      <IconButton icon={X} label={closeLabel} size="sm" onPress={onClose} />
+    </Animated.View>
+  );
+}
+
 /**
- * Message composer. Drives the same optimistic-send + typing-notification
- * pipeline as desktop (realtime/connection.ts): throttled typing.start on every
- * keystroke, typing.stop on idle/send. When the channel has slow mode on, a
- * <SlowmodeBanner> shows the interval and any active post-send cooldown.
+ * Message composer — the Koyu Masa composer on the phone: a borderless raised
+ * field (radius 18) that steps one tone up and gains the inset pill line when
+ * focused; the add button on its left, the send button on its right, emoji
+ * inside the field. Replying / editing / pending attachments live INSIDE the
+ * field, so what you are about to send is all in one place.
  *
- * Attachments (ADR 0008): the paperclip opens the photo/video picker or the
- * audio file picker; picked files upload through lib/attachments/manager.ts
- * into the tray above the input. Send is enabled with text OR ≥1 ready
- * attachment, and waits (with a hint) while uploads are still in flight — what
- * you see in the tray is exactly what sends.
+ * Drives the same optimistic-send + typing-notification pipeline as desktop
+ * (realtime/connection.ts): throttled typing.start on every keystroke,
+ * typing.stop on idle/send. Slow mode shows its interval and any active
+ * cooldown above the field.
+ *
+ * Attachments (ADR 0008): "+" opens the photo/video or audio picker; picked
+ * files upload through lib/attachments/manager.ts into the tray with a live
+ * percentage. Send is enabled with text OR ≥1 ready attachment, and waits
+ * (with a hint) while uploads are in flight — what you see is exactly what sends.
+ *
+ * States: idle · focused · ready to send · uploading · upload failed (chip +
+ * line) · replying · editing (✓ saves) · slow mode / cooldown · near the length
+ * cap (counter from 200 left, pink from 20) · blocked DM (notice + unblock).
  */
 export function Composer({
   channelId,
   slowmodeSeconds,
   allowBroadcast = true,
   bottomReserve = 0,
+  blocked,
 }: {
   channelId: ChannelId;
   slowmodeSeconds?: number;
@@ -141,20 +239,23 @@ export function Composer({
   allowBroadcast?: boolean;
   /**
    * Extra bottom space to clear the floating voice mini-bar so it never covers
-   * the input. Collapsed while the keyboard is open (the bar hides behind it),
-   * so typing keeps the input snug against the keyboard.
+   * the input. Collapsed while the keyboard is open (the bar hides behind it).
    */
   bottomReserve?: number;
+  /** DM with a peer the viewer blocked: notice + unblock instead of the field. */
+  blocked?: ComposerBlockedState;
 }) {
   const { t } = useAppTranslation();
-  // Seed from this stream's saved draft (M17 — unsent messages) so a
-  // restored draft is on screen at first paint, before the channel-change effect runs.
+  const reduced = useReducedMotion();
+  // Seed from this stream's saved draft (M17 — unsent messages) so a restored
+  // draft is on screen at first paint, before the channel-change effect runs.
   const [text, setText] = useState(() =>
     getDraftText(useDraftStore.getState().drafts, channelId),
   );
   const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
   const [attachSheetVisible, setAttachSheetVisible] = useState(false);
   const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInput>(null);
 
   // Track the keyboard so the voice-bar reserve applies only when it's closed.
   const [keyboardShown, setKeyboardShown] = useState(false);
@@ -169,6 +270,13 @@ export function Composer({
     };
   }, []);
   const drafts = useAttachmentStore((s) => s.drafts[channelId]) ?? EMPTY_DRAFTS;
+
+  // Field focus → one tone up + the inset pill line (design system "Composer").
+  const focus = useSharedValue(0);
+  const [focused, setFocused] = useState(false);
+  const fieldStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(focus.value, [0, 1], [colors.surfaceRaised, colors.raisedHover]),
+  }));
 
   // @mention autocomplete. Candidates come from the in-memory users directory
   // (fed by the roster loads — reused, not refetched); picked mentions are
@@ -214,9 +322,14 @@ export function Composer({
       t("mobile:chat.unknownAuthor")
     : "";
 
+  // A reply started from the thread (swipe, sheet) puts the caret in the field.
+  const replyId = activeReply?.preview.id;
+  useEffect(() => {
+    if (replyId) inputRef.current?.focus();
+  }, [replyId]);
+
   // Edit draft (Feature A) — prefills the input and switches send → PATCH. Only
-  // for THIS channel's stream, and mutually exclusive with a reply (the store
-  // clears one when the other starts).
+  // for THIS channel's stream, and mutually exclusive with a reply.
   const editDraft = useChatStore((s) => s.editDraft);
   const clearEditDraft = useChatStore((s) => s.clearEditDraft);
   const activeEdit = editDraft?.channelId === channelId ? editDraft : null;
@@ -237,13 +350,12 @@ export function Composer({
     );
     setText(seededText);
     setPendingMentions(mentions);
+    inputRef.current?.focus();
   }, [activeEdit?.messageId]);
 
   // Restore this stream's saved draft on enter, and on leave flush the just-typed
-  // text into the store before the next stream loads (M17). The store debounces its
-  // persist, so this flush is what guarantees a fast channel switch keeps the draft.
-  // Skipped while an edit is in progress for this stream — the edit owns the input
-  // then (its own effect above seeds it), and edit text is never a channel draft.
+  // text into the store before the next stream loads (M17). Skipped while an
+  // edit is in progress for this stream — the edit owns the input then.
   useEffect(() => {
     const edit = useChatStore.getState().editDraft;
     if (edit?.channelId !== channelId) {
@@ -270,6 +382,15 @@ export function Composer({
   const canSend = isEditing
     ? text.trim().length > 0
     : (text.trim().length > 0 || readyCount > 0) && !uploadsPending;
+  const left = charsLeft(text, MESSAGE_MAX_LENGTH);
+
+  const sendTone = useSharedValue(canSend ? 1 : 0);
+  useEffect(() => {
+    sendTone.value = toneTo(canSend, reduced);
+  }, [canSend, reduced, sendTone]);
+  const sendStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(sendTone.value, [0, 1], [colors.surfaceRaised, colors.accent]),
+  }));
 
   const onChange = (next: string) => {
     setText(next);
@@ -292,6 +413,7 @@ export function Composer({
   /** Insert a tapped mention candidate and remember it for send-serialization. */
   const pickMention = (candidate: MentionCandidate) => {
     if (!mentionQuery) return;
+    haptics.selection();
     const res = applyMentionPick(text, mentionQuery.start, selection.end, candidate);
     setText(res.text);
     setPendingMentions((prev) => [...prev, res.pending]);
@@ -307,12 +429,10 @@ export function Composer({
    *
    * NOT a bare `applyMentionPick` at the caret, which is the bug this replaced:
    * splicing into a caret glued to a word produces `selam@Ali`, and
-   * `serializeMentions` refuses to rewrite an `@` that follows a word character
-   * (it would turn `mail@host` into a ping). The mention silently degraded to
-   * plain text — the user believed they had tagged someone and nobody was
-   * tagged. `applyMentionInsert` adds the separating space when, and only when,
-   * the preceding character needs one. State setters are read functionally
-   * because this subscription outlives any single render.
+   * `serializeMentions` refuses to rewrite an `@` that follows a word character.
+   * `applyMentionInsert` adds the separating space when, and only when, the
+   * preceding character needs one. State setters are read functionally because
+   * this subscription outlives any single render.
    */
   useEffect(() => {
     return onMentionInsert(({ userId, label }) => {
@@ -329,11 +449,8 @@ export function Composer({
   }, [channelId]);
 
   /**
-   * Insert a picked emoji at the caret (from the emoji picker). The sheet stays
-   * open for consecutive picks, so we advance the tracked selection each time —
-   * a second pick lands after the first rather than at the original spot. We
-   * don't control the TextInput's `selection` prop (it drifts on Android while
-   * typing), so the visible caret settles wherever the user next taps.
+   * Insert a picked emoji at the caret (from the emoji picker), advancing the
+   * tracked selection so a second pick lands after the first.
    */
   const insertEmoji = (emoji: string) => {
     const start = selection.start;
@@ -349,13 +466,14 @@ export function Composer({
   const onAttach = () => {
     const remaining = ATTACHMENT_MAX_PER_MESSAGE - drafts.length;
     if (remaining <= 0) {
-      Alert.alert(
-        t("mobile:attachments.limitTitle"),
-        t("mobile:attachments.maxPerMessage", { max: ATTACHMENT_MAX_PER_MESSAGE }),
-      );
+      toast({
+        title: t("mobile:attachments.limitTitle"),
+        description: t("mobile:attachments.maxPerMessage", { max: ATTACHMENT_MAX_PER_MESSAGE }),
+        key: "attach-limit",
+      });
       return;
     }
-    // Founder UX: a themed bottom sheet, not the dated Alert options dialog.
+    Keyboard.dismiss();
     setAttachSheetVisible(true);
   };
 
@@ -376,14 +494,13 @@ export function Composer({
     if (!canSend) return;
     // Light tap on send — the outgoing-message confirmation touch.
     haptics.light();
-    // Rewrite picked @mentions (`@Name`) to their `<@id>` wire form before send
-    // (shared serializer). Round-trips edit content unchanged when untouched.
+    // Rewrite picked @mentions (`@Name`) to their `<@id>` wire form before send.
     const content = serializeMentions(text, pendingMentions).trim();
 
     // Edit path (Feature A): PATCH the target instead of sending a new message.
-    // The `message.updated` broadcast reconciles the cache (adds "(edited)"), so
-    // we just clear the draft. An unchanged edit is a silent cancel; a failure
-    // surfaces as an alert without corrupting the input.
+    // The `message.updated` broadcast reconciles the cache (adds "(edited)").
+    // An unchanged edit is a silent cancel; a failure surfaces as a toast
+    // without corrupting the input.
     if (activeEdit) {
       if (content.length === 0) return;
       const { messageId, content: original } = activeEdit;
@@ -391,12 +508,14 @@ export function Composer({
         void getApi()
           .editMessage(messageId, content)
           .catch((err: unknown) =>
-            Alert.alert(t("mobile:message.editError"), friendlyErrorMessage(err)),
+            toast({
+              title: t("mobile:message.editError"),
+              description: friendlyErrorMessage(err),
+              variant: "danger",
+            }),
           );
       }
       clearEditDraft();
-      // Leaving edit mode returns to this stream's own saved draft (usually empty);
-      // the edit never touched it.
       setText(getDraftText(useDraftStore.getState().drafts, channelId));
       setPendingMentions([]);
       notifyComposerIdle(channelId);
@@ -415,247 +534,286 @@ export function Composer({
     useDraftStore.getState().clearDraft(channelId);
   };
 
+  const bottomPad = space.sm + insets.bottom + (keyboardShown ? 0 : bottomReserve);
+
+  if (blocked) {
+    return (
+      <View style={{ paddingHorizontal: space.md, paddingTop: space.xs, paddingBottom: bottomPad }}>
+        <View
+          accessibilityRole="alert"
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.md,
+            padding: space.md,
+            borderRadius: radius.cta,
+            borderCurve: "continuous",
+            backgroundColor: colors.surface,
+          }}
+        >
+          <Ban size={18} color={colors.fgMuted} />
+          <Text type="meta" tone="muted" style={{ flex: 1, fontWeight: "400", lineHeight: 17 }}>
+            {t("mobile:composer.blockedNotice", { name: blocked.name })}
+          </Text>
+          <Button
+            label={t("mobile:composer.unblock")}
+            variant="secondary"
+            size="sm"
+            loading={blocked.busy}
+            onPress={blocked.onUnblock}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={{
         paddingHorizontal: space.md,
-        paddingTop: space.sm,
+        paddingTop: space.xs,
         // Clear the Android gesture nav bar / iOS home indicator (edge-to-edge),
-        // plus room for the floating voice mini-bar when a call is live (dropped
-        // while the keyboard is up, where the bar hides behind the keyboard).
-        paddingBottom: space.sm + insets.bottom + (keyboardShown ? 0 : bottomReserve),
-        borderTopWidth: 1,
-        borderTopColor: colors.stroke,
-        backgroundColor: colors.surface,
+        // plus room for the floating voice mini-bar when a call is live.
+        paddingBottom: bottomPad,
         gap: space.xs,
       }}
     >
       <SlowmodeBanner channelId={channelId} slowmodeSeconds={slowmodeSeconds} />
-      {activeReply ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.sm,
-            paddingVertical: space.xs,
-          }}
-        >
-          <Reply size={14} color={colors.fgFaint} />
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ color: colors.fgMuted, fontSize: 12 }}>
-              {t("mobile:composer.replyingTo", { name: replyAuthorName })}
-            </Text>
-            {/*
-              The quoted line always renders. Dropping it for a caption-less
-              image or a deleted target left the bar naming a person and no
-              message, which is the state the bar exists to prevent — the same
-              gap the desktop composer had, where the quote was missing outright.
-            */}
-            <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12 }}>
-              {activeReply.preview.deleted
-                ? t("mobile:message.replyDeleted")
-                : replyPreviewText(
-                    activeReply.preview.content,
-                    t("mobile:search.attachmentOnly"),
-                  )}
-            </Text>
-          </View>
-          <Pressable
-            onPress={clearReplyDraft}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:composer.cancelReply")}
-            hitSlop={8}
-            style={{ padding: 4 }}
-          >
-            <X size={16} color={colors.fgMuted} />
-          </Pressable>
-        </View>
-      ) : null}
-      {activeEdit ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.sm,
-            paddingVertical: space.xs,
-          }}
-        >
-          <Pencil size={14} color={colors.accent} />
-          <Text style={{ flex: 1, color: colors.accent, fontSize: 12, fontWeight: "600" }}>
-            {t("mobile:message.editing")}
-          </Text>
-          <Pressable
-            onPress={cancelEdit}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:message.cancelEdit")}
-            hitSlop={8}
-            style={{ padding: 4 }}
-          >
-            <X size={16} color={colors.fgMuted} />
-          </Pressable>
-        </View>
-      ) : null}
-      <AttachmentTray channelId={channelId} />
-      {uploadsPending && (
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-          {t("mobile:attachments.uploading")}
-        </Text>
-      )}
       {suggestions.length > 0 ? (
-        <View
+        <Animated.View
+          entering={FadeInDown.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOutDown.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
           style={{
-            borderWidth: 1,
-            borderColor: colors.stroke,
-            borderRadius: radius.md,
+            borderRadius: radius.xl,
             borderCurve: "continuous",
-            backgroundColor: colors.surfaceRaised,
+            backgroundColor: colors.surface,
             overflow: "hidden",
-            marginBottom: space.xs,
+            paddingVertical: space.xs,
           }}
         >
-          <ScrollView keyboardShouldPersistTaps="always" style={{ maxHeight: 208 }}>
-            {suggestions.map((c) => (
-              <Pressable
-                key={c.id}
-                onPress={() => pickMention(c)}
-                accessibilityRole="button"
-                accessibilityLabel={t("mobile:composer.mentionInsert", {
-                  name: c.broadcast ? `@${c.label}` : c.label,
-                })}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: space.sm,
-                  paddingHorizontal: space.md,
-                  paddingVertical: space.sm,
-                  backgroundColor: pressed ? colors.surface : "transparent",
-                })}
-              >
-                {c.broadcast ? (
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.accentSurface,
-                    }}
-                  >
-                    <AtSign size={16} color={colors.accent} />
-                  </View>
-                ) : (
-                  // Non-broadcast candidates are built from `usersDir` (see
-                  // `candidates` above), so their id is always a real user id —
-                  // read the photo back out rather than widening the shared
-                  // `MentionCandidate` contract that desktop also consumes.
-                  <Avatar name={c.label} size={28} uri={usersDir[c.id]?.avatarUrl ?? null} />
-                )}
-                <Text
-                  numberOfLines={1}
-                  style={{ flex: 1, color: colors.fg, fontSize: 14, fontWeight: "600" }}
+          <Text type="caption" tone="faint" style={{ paddingHorizontal: space.md, paddingVertical: 4 }}>
+            {t("mobile:composer.mentionHeading")}
+          </Text>
+          <ScrollView keyboardShouldPersistTaps="always" style={{ maxHeight: 220 }}>
+            {suggestions.map((c, index) => {
+              const label = c.broadcast ? `@${c.label}` : c.label;
+              const matched = mentionMatchLength(c.label, mentionQuery?.query ?? "");
+              const offset = c.broadcast ? 1 : 0;
+              return (
+                <Touchable
+                  key={c.id}
+                  onPress={() => pickMention(c)}
+                  // The best match is the one a tap is most likely aimed at.
+                  tone={index === 0 ? colors.wash : undefined}
+                  pressedTone={colors.washStrong}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("mobile:composer.mentionInsert", { name: label })}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.md,
+                    minHeight: 44,
+                    marginHorizontal: space.xs,
+                    paddingHorizontal: space.sm,
+                    borderRadius: radius.lg,
+                  }}
                 >
-                  {c.broadcast ? `@${c.label}` : c.label}
-                </Text>
-                {c.broadcast ? (
-                  <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    {c.id === "everyone"
-                      ? t("mobile:composer.mentionEveryoneHint")
-                      : t("mobile:composer.mentionHereHint")}
+                  {c.broadcast ? (
+                    <View
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: radius.pill,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.accentSurface,
+                      }}
+                    >
+                      <AtSign size={15} color={colors.accent} />
+                    </View>
+                  ) : (
+                    // Non-broadcast candidates are built from `usersDir`, so their
+                    // id is always a real user id — read the photo back out.
+                    <Avatar name={c.label} size={28} uri={usersDir[c.id]?.avatarUrl ?? null} />
+                  )}
+                  <Text numberOfLines={1} type="ui" tone="default" style={{ flex: 1 }}>
+                    {matched > 0 ? (
+                      <>
+                        <Text style={{ color: colors.fgDisplay, fontWeight: "600" }}>
+                          {label.slice(0, matched + offset)}
+                        </Text>
+                        {label.slice(matched + offset)}
+                      </>
+                    ) : (
+                      label
+                    )}
                   </Text>
-                ) : c.username ? (
-                  <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    @{c.username}
-                  </Text>
-                ) : null}
-              </Pressable>
-            ))}
+                  {c.broadcast ? (
+                    <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
+                      {c.id === "everyone"
+                        ? t("mobile:composer.mentionEveryoneHint")
+                        : t("mobile:composer.mentionHereHint")}
+                    </Text>
+                  ) : c.username ? (
+                    <Text numberOfLines={1} type="meta" tone="faint" style={{ fontWeight: "400", maxWidth: "40%" }}>
+                      @{c.username}
+                    </Text>
+                  ) : null}
+                </Touchable>
+              );
+            })}
           </ScrollView>
-        </View>
+        </Animated.View>
       ) : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
         {isEditing ? null : (
-          <>
-            <Pressable
-              onPress={onAttach}
-              accessibilityLabel={t("mobile:attachments.addTitle")}
-              style={({ pressed }) => ({
-                width: 44,
-                height: 44,
-                borderRadius: radius.lg,
-                borderCurve: "continuous",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.surfaceRaised,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Paperclip size={20} color={colors.fgMuted} />
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                Keyboard.dismiss();
-                setEmojiPickerVisible(true);
-              }}
-              accessibilityLabel={t("mobile:emojiPicker.open")}
-              style={({ pressed }) => ({
-                width: 44,
-                height: 44,
-                borderRadius: radius.lg,
-                borderCurve: "continuous",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.surfaceRaised,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Smile size={20} color={colors.fgMuted} />
-            </Pressable>
-          </>
+          <IconButton
+            icon={Plus}
+            label={t("mobile:attachments.addTitle")}
+            variant="secondary"
+            size="lg"
+            haptic="light"
+            onPress={onAttach}
+          />
         )}
-        <TextInput
-          value={text}
-          onChangeText={onChange}
-          onSelectionChange={onSelectionChange}
-          placeholder={t("mobile:composer.placeholder")}
-          placeholderTextColor={colors.fgFaint}
-          multiline
-          maxLength={MESSAGE_MAX_LENGTH}
-          style={{
-            flex: 1,
-            maxHeight: 120,
-            minHeight: 44,
-            color: colors.fg,
-            fontSize: 15,
-            backgroundColor: colors.surfaceRaised,
-            borderRadius: radius.lg,
-            borderCurve: "continuous",
-            paddingHorizontal: space.md,
-            paddingTop: space.sm,
-            paddingBottom: space.sm,
-          }}
-        />
-        <Pressable
-          onPress={onSend}
-          disabled={!canSend}
-          style={({ pressed }) => ({
-            width: 44,
-            height: 44,
-            borderRadius: radius.lg,
-            borderCurve: "continuous",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: canSend ? colors.accent : colors.surfaceRaised,
-            opacity: pressed ? 0.85 : 1,
-          })}
+        <Animated.View
+          layout={reduced ? undefined : LinearTransition.duration(motion.duration.fast)}
+          style={[
+            {
+              flex: 1,
+              minHeight: 48,
+              borderRadius: radius.cta,
+              borderCurve: "continuous",
+              overflow: "hidden",
+            },
+            focused ? elevation.pillInset : null,
+            fieldStyle,
+          ]}
         >
-          {isEditing ? (
-            <Check size={20} color={canSend ? colors.onAccent : colors.fgFaint} />
-          ) : (
-            <SendHorizontal size={20} color={canSend ? colors.onAccent : colors.fgFaint} />
+          {activeReply ? (
+            <ContextStrip
+              icon="reply"
+              tone="neutral"
+              title={t("mobile:composer.replyingTo", { name: replyAuthorName })}
+              // The quoted line always renders, even for a caption-less image or
+              // a deleted target — the strip must never name a person and no message.
+              detail={
+                activeReply.preview.deleted
+                  ? t("mobile:message.replyDeleted")
+                  : replyPreviewText(activeReply.preview.content, t("mobile:search.attachmentOnly"))
+              }
+              closeLabel={t("mobile:composer.cancelReply")}
+              onClose={clearReplyDraft}
+            />
+          ) : null}
+          {activeEdit ? (
+            <ContextStrip
+              icon="edit"
+              tone="accent"
+              title={t("mobile:message.editing")}
+              closeLabel={t("mobile:message.cancelEdit")}
+              onClose={cancelEdit}
+            />
+          ) : null}
+          {isEditing ? null : (
+            <View style={{ paddingHorizontal: space.sm, paddingTop: drafts.length > 0 ? space.sm : 0 }}>
+              <AttachmentTray channelId={channelId} />
+              {uploadsPending ? (
+                <Text type="caption" tone="faint" style={{ paddingTop: space.xs, paddingHorizontal: space.xs }}>
+                  {t("mobile:attachments.uploading")}
+                </Text>
+              ) : null}
+            </View>
           )}
-        </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+            <TextInput
+              ref={inputRef}
+              value={text}
+              onChangeText={onChange}
+              onSelectionChange={onSelectionChange}
+              onFocus={() => {
+                setFocused(true);
+                focus.value = toneTo(true, reduced);
+              }}
+              onBlur={() => {
+                setFocused(false);
+                focus.value = toneTo(false, reduced);
+              }}
+              placeholder={t("mobile:composer.placeholder")}
+              placeholderTextColor={colors.fgFaint}
+              accessibilityLabel={t("mobile:composer.placeholder")}
+              multiline
+              maxLength={MESSAGE_MAX_LENGTH}
+              style={{
+                flex: 1,
+                maxHeight: 132,
+                minHeight: 48,
+                color: colors.fg,
+                fontSize: 16,
+                lineHeight: 22,
+                paddingLeft: space.lg,
+                paddingRight: space.xs,
+                paddingTop: 13,
+                paddingBottom: 13,
+                textAlignVertical: "center",
+              }}
+            />
+            <View style={{ paddingBottom: 6, paddingRight: 6 }}>
+              <IconButton
+                icon={Smile}
+                label={t("mobile:emojiPicker.open")}
+                size="md"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setEmojiPickerVisible(true);
+                }}
+              />
+            </View>
+          </View>
+        </Animated.View>
+        <Animated.View style={[{ width: 48, height: 48, borderRadius: radius.pill }, sendStyle]}>
+          <Touchable
+            onPress={onSend}
+            disabled={!canSend}
+            dimmed={false}
+            pressedTone={colors.washStrong}
+            pressScale={PRESS.scale.icon}
+            accessibilityRole="button"
+            accessibilityLabel={isEditing ? t("buttons.save") : t("mobile:composer.send")}
+            accessibilityHint={
+              !canSend && uploadsPending ? t("mobile:attachments.uploading") : undefined
+            }
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: radius.pill,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isEditing ? (
+              <Check size={20} color={canSend ? colors.onAccent : colors.fgSubtle} strokeWidth={2.4} />
+            ) : (
+              <SendHorizontal size={20} color={canSend ? colors.onAccent : colors.fgSubtle} />
+            )}
+          </Touchable>
+        </Animated.View>
       </View>
+      {left <= COUNTER_FROM ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          type="caption"
+          style={{
+            alignSelf: "flex-end",
+            paddingRight: space.xs,
+            fontVariant: ["tabular-nums"],
+            fontSize: typography.size["2xs"],
+            color: left <= COUNTER_WARN ? colors.danger : colors.fgFaint,
+          }}
+        >
+          {t("mobile:composer.charsLeft", { count: left })}
+        </Text>
+      ) : null}
       <EmojiPicker
         visible={emojiPickerVisible}
         onSelect={insertEmoji}
