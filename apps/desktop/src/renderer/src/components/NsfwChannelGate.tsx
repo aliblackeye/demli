@@ -61,22 +61,32 @@ export function NsfwChannelGate({
 
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center bg-app p-6">
-      <div className="w-full max-w-sm rounded-xl border border-stroke bg-raised/60 p-6 text-center shadow-lg">
-        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-dnd/15 text-dnd">
+      {/* Koyu Masa card: the surface tone on the base column, radius 24, no
+          frame and no outer shadow; it pops in like every other card. */}
+      <section
+        aria-labelledby="nsfw-gate-title"
+        className="w-full max-w-sm rounded-card bg-surface p-6 text-center animate-pop-in"
+      >
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-danger/12 text-danger">
           <Icon className="size-6" aria-hidden />
         </div>
-        <h2 className="text-base font-semibold text-fg">{title}</h2>
+        <h2
+          id="nsfw-gate-title"
+          className="font-display text-lg font-semibold tracking-[-0.01em] text-fg-display"
+        >
+          {title}
+        </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{body}</p>
 
         {stage === "confirmAdult" && (
-          <Button className="mt-5 w-full" onClick={() => confirm(channel.id)}>
+          <Button variant="primary" className="mt-5 w-full" onClick={() => confirm(channel.id)}>
             {t("desktop:nsfwGate.continue")}
           </Button>
         )}
         {stage === "verifyAge" && <BirthdateVerification className="mt-5" />}
         {/* `minorBlocked` renders no action at all — there is nothing the user
             can do here, and offering a button would promise otherwise. */}
-      </div>
+      </section>
     </div>
   );
 }

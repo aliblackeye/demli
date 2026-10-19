@@ -1,4 +1,4 @@
-import { cn } from "@demli/ui";
+import { chipVariants, cn } from "@demli/ui";
 import type { MarkdownSlots } from "@demli/app-ui";
 import { MENTION_EVERYONE, MENTION_HERE } from "@demli/protocol";
 import type { GroupId } from "@demli/types";
@@ -36,9 +36,13 @@ function MentionPill({ id, groupId }: { id: string; groupId?: GroupId }): JSX.El
     ? `@${id}`
     : `@${user?.displayName ?? user?.username ?? t("desktop:chat.unknownUser")}`;
 
+  // The shared mention chip (coral wash, light-coral label, radius 6) — the same
+  // recipe the design system specifies — inline-sized for running text: no
+  // vertical padding, so a pill never grows the line box of the message.
   const className = cn(
-    "mx-[1px] rounded px-1 py-[1px] font-medium text-accent transition-colors",
-    mentionsMe ? "bg-accent/25 hover:bg-accent/35" : "bg-accent/15 hover:bg-accent/25",
+    chipVariants({ variant: "mention" }),
+    "mx-px inline whitespace-normal align-baseline transition-colors motion-hover",
+    mentionsMe ? "bg-accent/25 text-accent-hover hover:bg-accent/35" : "hover:bg-accent/20",
   );
 
   if (isBroadcast) {
@@ -55,7 +59,7 @@ function MentionPill({ id, groupId }: { id: string; groupId?: GroupId }): JSX.El
         type="button"
         className={cn(
           className,
-          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         )}
         data-mention="user"
       >

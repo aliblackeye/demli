@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { WifiOff } from "lucide-react";
+import { TypingDots } from "@demli/app-ui";
 import type { ChannelId } from "@demli/types";
 import { useAppTranslation } from "../lib/i18n";
 import { useChatStore } from "../stores/chat-store";
@@ -35,8 +36,12 @@ export function TypingIndicator({ channelId }: { channelId: ChannelId }): JSX.El
         : t("desktop:chat.typingMany");
 
   return (
-    <p aria-live="polite" className="px-4 pb-1 text-xs text-fg-muted">
-      <span className="font-semibold">{label}</span>
+    // Fixed h-5 line: the server-channel view lays it over the composer's
+    // bottom padding (so the thread never resizes), the DM / group views keep it
+    // in flow — the same 20px either way.
+    <p aria-live="polite" className="flex h-5 items-center px-4 text-2xs text-fg-muted animate-fade-in">
+      <TypingDots className="mr-2 shrink-0" />
+      <span className="truncate font-medium">{label}</span>
     </p>
   );
 }

@@ -92,9 +92,13 @@ export function EmojiPicker({
       >
         <Suspense
           fallback={
+            // The picker's own footprint, pulsing, while its chunk loads — the
+            // popover never resizes when emoji-mart arrives.
             <div
-              className="h-[420px] w-[352px] rounded-[10px] border border-stroke bg-raised"
+              role="status"
+              aria-label={t("desktop:emoji.title")}
               aria-busy="true"
+              className="h-[420px] w-[352px] animate-pulse rounded-xl surface-glass-strong"
             />
           }
         >
