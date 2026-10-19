@@ -34,8 +34,8 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { AnimatePresence, m } from "framer-motion";
-import { Loader2, TriangleAlert, type LucideIcon } from "lucide-react";
+import { AnimatePresence, m, useAnimate, useReducedMotion } from "framer-motion";
+import { Loader2, RefreshCw, TriangleAlert, type LucideIcon } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -237,33 +237,75 @@ export function ListSkeleton({
 }
 
 /**
- * Inline failure block for a section that could not load: what happened (the
- * localized error) and the one thing the user can do about it (retry).
+ * THE failure block for anything that could not load — a settings section, a
+ * list, a whole pane (friends, recent calls, a group chat). One design for the
+ * one moment: what happened (the localized error), optionally what failed to
+ * open (`title`), and the one thing the user can do about it (retry).
  */
 export function InlineError({
+  title,
   message,
   retryLabel,
   onRetry,
   retrying = false,
+  className,
 }: {
+  /** Names what failed when the block stands in for a whole pane. */
+  title?: string;
   message: string;
   retryLabel?: string;
   onRetry?: () => void;
   retrying?: boolean;
+  className?: string;
 }): JSX.Element {
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-xl bg-danger-surface px-4 py-3.5"
+      data-inline-error
+      className={cn("flex items-start gap-3 rounded-xl bg-danger-surface px-4 py-3.5", className)}
     >
       <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
-      <p className="min-w-0 flex-1 text-sm leading-relaxed text-fg">{message}</p>
+      <div className="min-w-0 flex-1">
+        {title && <p className="text-sm font-semibold leading-5 text-fg">{title}</p>}
+        <p className={cn("text-sm leading-relaxed", title ? "mt-0.5 text-fg-muted" : "text-fg")}>{message}</p>
+      </div>
       {onRetry && retryLabel && (
         <Button variant="secondary" size="sm" onClick={onRetry} loading={retrying} className="shrink-0">
           {retryLabel}
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * "This changed while you were editing" — shown above a dirty draft whose
+ * server value moved underneath it. Nothing is lost: the user keeps the draft
+ * (saving overwrites, and the copy says so) or loads the latest server value.
+ */
+export function ChangedElsewhereNotice({
+  message,
+  actionLabel,
+  onAction,
+}: {
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+}): JSX.Element {
+  return (
+    <m.div
+      role="status"
+      data-changed-elsewhere
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0, transition: springs.position }}
+      className="flex items-start gap-3 rounded-xl bg-raised px-4 py-3"
+    >
+      <RefreshCw aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+      <p className="min-w-0 flex-1 text-sm leading-relaxed text-fg">{message}</p>
+      <Button variant="secondary" size="sm" onClick={onAction} className="shrink-0">
+        {actionLabel}
+      </Button>
+    </m.div>
   );
 }
 
@@ -459,15 +501,24 @@ export function UnsavedChangesBar({
 }): JSX.Element {
   const [alert, setAlert] = useState(false);
   const lastNudge = useRef(nudge);
+  // The shake is played IMPERATIVELY on one stable element. Re-keying the
+  // element to replay it would unmount the Save/Reset buttons (dropping a
+  // keyboard user's focus) and re-insert the live region (so the reason might
+  // never be announced).
+  const [scope, animate] = useAnimate<HTMLDivElement>();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (nudge === lastNudge.current) return;
     lastNudge.current = nudge;
     if (!open) return;
     setAlert(true);
+    if (!reduceMotion && scope.current) {
+      void animate(scope.current, { x: [0, -6, 6, -3, 3, 0] }, { duration: 0.36, ease: "easeOut" });
+    }
     const timer = window.setTimeout(() => setAlert(false), 1800);
     return () => window.clearTimeout(timer);
-  }, [nudge, open]);
+  }, [nudge, open, reduceMotion, animate, scope]);
 
   useEffect(() => {
     if (!open) setAlert(false);
@@ -485,10 +536,10 @@ export function UnsavedChangesBar({
           exit={{ opacity: 0, y: 12, transition: transitions.fast }}
           className={cn("pointer-events-auto", className)}
         >
-          <m.div
-            key={alert ? `alert-${nudge}` : "calm"}
-            animate={alert ? { x: [0, -6, 6, -3, 3, 0] } : { x: 0 }}
-            transition={{ duration: 0.36, ease: "easeOut" }}
+          <div
+            ref={scope}
+            data-unsaved-bar
+            data-alert={alert ? "true" : undefined}
             className={cn(
               "relative flex items-center gap-3 overflow-hidden rounded-xl py-2 pl-4 pr-2 surface-glass-strong",
               "shadow-[inset_0_-1px_0_rgb(38_49_64/0.32)]",
@@ -518,7 +569,7 @@ export function UnsavedChangesBar({
             <Button variant="accent" size="sm" loading={saving} disabled={saveDisabled} onClick={onSave}>
               {saveLabel}
             </Button>
-          </m.div>
+          </div>
         </m.div>
       )}
     </AnimatePresence>
