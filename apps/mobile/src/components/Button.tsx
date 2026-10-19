@@ -1,14 +1,25 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable } from "react-native";
-import { Text } from "./ui/Text";
 import type { ViewStyle } from "react-native";
-import { colors, radius, space } from "../theme/theme";
+import { Button as KitButton, type ButtonVariant } from "./ui/Button";
 
-type Variant = "primary" | "ghost" | "danger";
+type LegacyVariant = "primary" | "ghost" | "danger";
 
 /**
- * Primary action button. `pressed` dims via Pressable's style callback rather
- * than an animation library (E1 keeps the native-module surface minimal).
+ * The legacy name → Koyu Masa variant. Kept so the ~30 existing call sites keep
+ * their MEANING while they move to `ui/Button` one screen at a time: the old
+ * "primary" was the coral call to action (now `accent`; Koyu Masa's `primary`
+ * is the white button), the old "ghost" was the bordered secondary (now
+ * `outline`). Same trick the desktop used (`default`/`outline` aliases).
+ */
+const LEGACY: Record<LegacyVariant, ButtonVariant> = {
+  primary: "accent",
+  ghost: "outline",
+  danger: "danger",
+};
+
+/**
+ * Legacy action button — a thin adapter over {@link KitButton}. New code
+ * imports `@/components/ui/Button` and names a Koyu Masa variant directly.
  */
 export function Button({
   label,
@@ -21,51 +32,22 @@ export function Button({
 }: {
   label?: string;
   onPress?: () => void;
-  variant?: Variant;
+  variant?: LegacyVariant;
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
   children?: ReactNode;
 }) {
-  const isDisabled = disabled || loading;
-  const bg =
-    variant === "primary"
-      ? colors.accent
-      : variant === "danger"
-        ? colors.dangerSurface
-        : "transparent";
-  const fg =
-    variant === "primary" ? colors.onAccent : variant === "danger" ? colors.danger : colors.fg;
-
   return (
-    <Pressable
+    <KitButton
+      label={label}
       onPress={onPress}
-      disabled={isDisabled}
-      style={({ pressed }) => [
-        {
-          minHeight: 46,
-          borderRadius: radius.md,
-          borderCurve: "continuous",
-          paddingHorizontal: space.lg,
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "row",
-          gap: space.sm,
-          backgroundColor: bg,
-          borderWidth: variant === "ghost" ? 1 : 0,
-          borderColor: colors.stroke,
-          opacity: isDisabled ? 0.5 : pressed ? 0.85 : 1,
-        },
-        style,
-      ]}
+      variant={LEGACY[variant]}
+      loading={loading}
+      disabled={disabled}
+      style={style}
     >
-      {loading && <ActivityIndicator color={fg} size="small" />}
-      {label ? (
-        <Text selectable={false} style={{ color: fg, fontSize: 15, fontWeight: "600" }}>
-          {label}
-        </Text>
-      ) : null}
       {children}
-    </Pressable>
+    </KitButton>
   );
 }
