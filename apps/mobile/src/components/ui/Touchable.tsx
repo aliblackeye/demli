@@ -136,3 +136,20 @@ export function Touchable({
     </AnimatedPressable>
   );
 }
+
+/**
+ * Spread on the root view of a `Modal` that can be mounted INSIDE a pressable
+ * (an image viewer opened from a chat row, a sheet opened from a tile).
+ *
+ * JS touch negotiation bubbles through the React tree, and a Modal's children
+ * are still React children of whatever rendered them: a hold on a part of the
+ * window nobody claims (the picture, a sheet's title) reaches the row behind
+ * it, whose long press then opens its own menu on top. Claiming here, at the
+ * window's root, ends the bubble inside the window; anything deeper (buttons,
+ * the scrim, a scroll view) still claims first, and native gestures and
+ * scrolling may take the touch over at any time.
+ */
+export const MODAL_RESPONDER_BARRIER = {
+  onStartShouldSetResponder: () => true,
+  onResponderTerminationRequest: () => true,
+} as const;

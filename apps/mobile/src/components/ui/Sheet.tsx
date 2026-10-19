@@ -63,6 +63,7 @@ import { resolveRelease, resolveSnapHeights, rubberBand, type SnapPoint } from "
 import { createDismissController } from "./sheet-dismiss";
 import { Text } from "./Text";
 import { Toaster } from "./Toast";
+import { MODAL_RESPONDER_BARRIER } from "./Touchable";
 
 export type SheetProps = {
   visible: boolean;
@@ -445,7 +446,7 @@ export function Sheet({
       navigationBarTranslucent
       onRequestClose={() => close?.()}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1 }} {...MODAL_RESPONDER_BARRIER}>
         <Animated.View
           style={[
             { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.scrim },
@@ -498,8 +499,12 @@ export function Sheet({
             </Animated.View>
           </GestureDetector>
         </View>
-        {/* This window's toast host — see the header comment. */}
-        <Toaster placement="top" />
+        {/* This window's toast host — see the header comment. Only while the
+            sheet is open: a closing sheet hands the queue back at once, so a
+            toast raised by the action that closed it (Copy → "Kopyalandı")
+            draws once on the window beneath instead of flashing up here and
+            then replaying there when the exit slide ends. */}
+        {visible ? <Toaster placement="top" /> : null}
       </GestureHandlerRootView>
     </Modal>
   );
