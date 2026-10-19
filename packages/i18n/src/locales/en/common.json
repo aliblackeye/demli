@@ -56,7 +56,8 @@
     "tr": "Türkçe"
   },
   "a11y": {
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "notifications": "Notifications"
   },
   "validation": {
     "required": "This field is required.",

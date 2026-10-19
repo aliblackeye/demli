@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Demli — Koyu Masa UI kit (dev only)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #000000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      DEV-ONLY page (founder gate G2). Vite's production build has index.html as
+      its single entry, so this file and src/harness/* never reach a bundle.
+      See src/harness/ui-kit.tsx.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/harness/ui-kit.tsx"></script>
+  </body>
+</html>
