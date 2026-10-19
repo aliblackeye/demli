@@ -112,14 +112,14 @@
     "tooLarge": "This file is too large — the limit is {{limit}}.",
     "uploadCancelled": "Upload cancelled.",
     "processFailed": "This file couldn't be processed. Try another one.",
-    "uploadFailed": "Upload failed. Please try again.",
+    "uploadFailed": "Upload failed. Try again.",
     "nsfwBlocked": "This image was flagged as NSFW — it can only be uploaded to NSFW channels.",
     "saveImage": "Save image",
     "copyImage": "Copy image",
     "saved": "Image saved.",
     "copied": "Image copied to the clipboard.",
-    "saveFailed": "Couldn't save the image. Please try again.",
-    "copyFailed": "Couldn't copy the image. Please try again.",
+    "saveFailed": "Couldn't save the image. Try again.",
+    "copyFailed": "Couldn't copy the image. Try again.",
     "copyUnsupported": "This image format can't be copied to the clipboard. You can save it instead."
   },
   "commandMenu": {
@@ -148,7 +148,7 @@
     "hint": "Type at least {{count}} characters to search this channel.",
     "tooShort": "Keep typing — at least {{count}} characters.",
     "searching": "Searching…",
-    "error": "Couldn't run the search. Please try again.",
+    "error": "Couldn't run the search. Try again.",
     "rateLimited": "Too many searches. Wait a moment and try again.",
     "noResults": "No messages found for “{{query}}”.",
     "resultCount_one": "{{count}} result",
@@ -184,7 +184,8 @@
     "loadingChannels": "Loading channels",
     "emptyTitle": "No channels yet",
     "emptyBodyManage": "Open a text or voice channel — that's where the table gets set.",
-    "emptyBodyMember": "Channels show up here once someone allowed to create them opens one."
+    "emptyBodyMember": "Channels show up here once someone allowed to create them opens one.",
+    "loadFailed": "Couldn't load the channels"
   },
   "channel": {
     "connectedToVoice": "Connected to voice",
@@ -586,7 +587,9 @@
     "copied": "Copied",
     "regenerate": "Regenerate code",
     "dmEmptyTitle": "Your messages",
-    "dmEmptyBody": "Pick a conversation, or open one from a friend's profile."
+    "dmEmptyBody": "Pick a conversation, or open one from a friend's profile.",
+    "dmsLoading": "Loading conversations",
+    "dmsLoadFailed": "Couldn't load your conversations"
   },
   "profileCard": {
     "loading": "Loading profile…",
@@ -654,7 +657,8 @@
     "manageRoles": "Manage roles",
     "timedOut": "Timed out",
     "timedOutUntil": "Muted until {{date}}",
-    "loading": "Loading members"
+    "loading": "Loading members",
+    "loadFailed": "Couldn't load the members"
   },
   "footer": {
     "userMenu": "User menu",
@@ -679,7 +683,8 @@
     "leaveGroup": "Leave group",
     "deleteGroup": "Delete group",
     "deleteConfirmBody": "<strong>{{group}}</strong> will be deleted for everyone in it, along with its messages. This cannot be undone.",
-    "leaveConfirmBody": "You'll leave <strong>{{group}}</strong> and lose access to its messages. You can be added back later."
+    "leaveConfirmBody": "You'll leave <strong>{{group}}</strong> and lose access to its messages. You can be added back later.",
+    "loadFailed": "Couldn't load your groups"
   },
   "voice": {
     "statusJoining": "Connecting…",
@@ -1001,9 +1006,9 @@
   },
   "auth": {
     "welcomeBack": "Welcome back",
-    "createAccountHeading": "Make your account",
+    "createAccountHeading": "Create your account",
     "signInSubtitle": "Sign in with your username and password.",
-    "registerSubtitle": "Make your account, then take your seat with a friend's invite.",
+    "registerSubtitle": "Create your account, then take your seat with a friend's invite.",
     "usernameLabel": "Username",
     "usernamePlaceholder": "Your username",
     "displayNameLabel": "Display name — optional",
@@ -1015,7 +1020,7 @@
     "createAccount": "Create account",
     "newToDemli": "No account yet?",
     "alreadyHaveAccount": "Already have one?",
-    "switchToRegister": "Make one",
+    "switchToRegister": "Create one",
     "switchToLogin": "Sign in",
     "birthdateLabel": "Date of birth",
     "birthdateHint": "Required for 18+ content.",
@@ -1053,7 +1058,7 @@
     "checkForUpdates": "Check for updates",
     "critical": {
       "title": "Required update",
-      "body": "A required update for this version is installing. The app will restart automatically — you can't skip this step.",
+      "body": "A required update for this version is installing. The app will restart by itself — this step can't be skipped.",
       "restarting": "Restarting…",
       "preparing": "Preparing…",
       "downloading": "Downloading… {{percent}}%"
