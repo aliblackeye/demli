@@ -1585,9 +1585,9 @@ tablosundaki "⛔ M16 Dalga 4" mobil hücreleri bu dalla kapanıyor (birleştirm
 | Uzun bas sayfası kit Sheet'inde: mesaj önizlemesi, hızlı tepkiler (seninkiler seçili), Yanıtla/Kopyala/Sabitle/Düzenle, Sil **aynı sayfada onay adımıyla** | ✅ menü + onay diyaloğu | ✅ | Sistem `Alert`'i kalktı; kopyala/sil/sabitle sonucu tost |
 | Tepkiler hap; + hapı tam seçiciyi açar | ✅ | ✅ | |
 | Durumlar: iskelet · ilk sayfa hatası (başlık + neden + yeniden dene) · boş (yeri adlandırır) · eski sayfa iskeleti / satır içi yeniden dene · geçmişin başı başlığı (kanal/grup/DM kartı) | ✅ | ✅ | Önceden ilk sayfa hatası "Henüz mesaj yok" diyordu (yalan durum) |
-| "En sona git" hapı: yukarıdayken gelen başkalarının mesajlarını sayar ("3 yeni mesaj") | ◑ (sayısız) | ✅ | |
+| "En sona git" hapı: yukarıdayken gelen başkalarının mesajlarını sayar ("3 yeni mesaj") | ? (bu dalda ölçülmedi) | ✅ | |
 | Yazıyor: 3 nefes alan nokta, yüksekliği sabit (liste zıplamaz) | ✅ | ✅ | |
-| Varlık (presence) tikinde tüm sohbet yeniden çizilmez | ✅ | ✅ | Satır kendi yazarının durumunu okur; satırlar alan bazlı karşılaştırmayla memo (§27) |
+| Varlık (presence) tikinde tüm sohbet yeniden çizilmez | ? (bu dalda ölçülmedi) | ✅ | Satır kendi yazarının durumunu okur; satırlar alan bazlı karşılaştırmayla memo (§27). Önceden `ChatThread` `presence`'a abone olduğu için her durum değişimi tüm görünür satırları yeniden çiziyordu |
 | Composer: kenarsız alan (r18), odakta bir ton yukarı + iç çizgi; yanıt/düzenleme şeridi ve ekler alanın İÇİNDE; gönder tonu hazırlığa göre | ✅ | ✅ | |
 | Bahsetme listesi: "Üyeler" başlığı, yazılan önek kalın (Türkçe I/İ/ı güvenli) | ✅ (`aria-activedescendant`) | ✅ | `chat/composer-math.ts` testli |
 | Karakter sayacı (son 200, son 20'de pembe) | ✅ | ✅ | |
