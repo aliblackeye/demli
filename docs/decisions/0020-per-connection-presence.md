@@ -147,6 +147,18 @@ and masking would turn `invisible` into `offline`). That is a protocol shape cha
 two-platform client change: out of scope here, and it does not block this ADR — no peer-facing
 status is wrong without it.
 
+**Correction + partial closure (M16, 2026-10-20).** The sentence above was wrong about the
+code: the snapshot did NOT exclude self. `groups.listCoMemberUserIds` includes the user, and
+the gateway used it as the audience, so the user received their own PEER-masked presence — live
+and in the snapshot — and an invisible user's own dot read `offline` on both clients. The fix
+needed no shape change: the gateway removes self from `presenceAudience`, and sends the user's
+OWN sockets a second copy of each `presence.updated` with the REAL derived status (the socket
+whose handshake triggered the broadcast excluded; never `offline`). The snapshot is peers only;
+the client seeds itself and gets the real status from the echo of its connect-time re-assert.
+So the DOT now follows the account across devices. The PICKER still shows this device's own
+choice — that half of the gap remains a UI decision. Contract text: `PresencePayload` in
+`packages/protocol/src/events.ts`.
+
 ## Alternatives considered
 
 - **Keep one per-user key, add a TTL.** Rejected: a TTL picks an arbitrary expiry for a fact
