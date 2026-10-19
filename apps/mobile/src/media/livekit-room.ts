@@ -33,6 +33,10 @@
  *  - Ordering with expo-audio: `setAudioModeAsync` rewrites the Android audio
  *    mode, so connect acquires ../sounds/audio-mode-guard first and the LiveKit
  *    session is always the last writer.
+ *  - One owner for the native session: the engine fires an old room's
+ *    disconnect without awaiting it, so its teardown can land after the next
+ *    call started. Session start/stop run one at a time behind an audioswitch
+ *    barrier, and only the adapter that owns the session may stop it.
  */
 import { AudioSession } from "@livekit/react-native";
 import { Room, RoomEvent, Track, VideoQuality } from "livekit-client";
@@ -64,9 +68,19 @@ import type {
 } from "@demli/media";
 import type { LocalAudioMeter } from "@demli/media";
 import { connectionQualityLevelFromLiveKit, MOBILE_CAMERA_CAPTURE_DEFAULT } from "@demli/media";
-import { acquireCallAudio, releaseCallAudio } from "../sounds/audio-mode-guard";
+import {
+  acquireCallAudio,
+  releaseCallAudio,
+  type CallAudioLease,
+} from "../sounds/audio-mode-guard";
 import { androidAudioTypeOptionsFor, getActiveAudioProfile } from "./audio-profile";
-import { clearAudioRoute, getAudioRouteSnapshot, refreshAudioRoute } from "./audio-route";
+import {
+  clearAudioRoute,
+  getAudioRouteSnapshot,
+  getUserAudioRoutePick,
+  refreshAudioRoute,
+  settleAudioSwitch,
+} from "./audio-route";
 import { ensureLiveKitGlobals } from "./livekit-globals";
 import { createRNLocalAudioMeter } from "./local-audio-meter";
 import {
@@ -118,6 +132,50 @@ export function subscribeLocalCamera(listener: () => void): () => void {
   return () => {
     localCameraListeners.delete(listener);
   };
+}
+
+// ---------------------------------------------------------------------------
+// Native audio session ownership (M16 · 1D)
+//
+// There is ONE native audio session (audioswitch) per process and a fresh adapter
+// per join. `sessionOwner` is the adapter whose call it serves; `sessionLive`
+// says a start has not been followed by a stop yet. Every start/stop/select goes
+// through `runSessionOp`, so they reach native in order, and each start/stop ends
+// on the audioswitch barrier (settleAudioSwitch) so the next op sees its result.
+// ---------------------------------------------------------------------------
+let sessionOwner: LiveKitMobileRoom | null = null;
+let sessionLive = false;
+let sessionOps: Promise<void> = Promise.resolve();
+
+function claimNativeSession(owner: LiveKitMobileRoom): void {
+  sessionOwner = owner;
+}
+
+function runSessionOp<T>(op: () => Promise<T>): Promise<T> {
+  const run = sessionOps.then(op);
+  sessionOps = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function startNativeSession(): Promise<void> {
+  await AudioSession.configureAudio({
+    android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
+  });
+  await AudioSession.startAudioSession();
+  sessionLive = true;
+  await settleAudioSwitch();
+}
+
+async function stopNativeSession(): Promise<void> {
+  try {
+    await AudioSession.stopAudioSession();
+  } finally {
+    sessionLive = false;
+    await settleAudioSwitch();
+  }
 }
 
 /**
@@ -241,6 +299,7 @@ class LocalParticipantAdapter implements LocalParticipantLike {
 class LiveKitMobileRoom implements VoiceRoomAdapter {
   private readonly local: LocalParticipantLike;
   private audioActive = false;
+  private audioLease: CallAudioLease | null = null;
   /** Deafen state — remote audio is muted while true (see setRemoteAudioMuted). */
   private deafened = false;
   /**
@@ -412,39 +471,49 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
 
   /**
    * Video calls play on the loudspeaker. audioswitch already starts there when no
-   * headset is connected, but a route the user picked earlier (the engine
-   * re-applies its last output pick on every join) can leave a call on the
+   * headset is connected, but a route carried over from an earlier call (the
+   * engine re-applies its last output pick on every join) can leave a call on the
    * EARPIECE; the moment our camera goes live we move that one case to the
-   * speaker. Headset and Bluetooth are never overridden.
+   * speaker. An earpiece the user picked by hand during THIS call stays, and
+   * headset and Bluetooth are never overridden.
    */
   private preferSpeakerForVideo(): void {
     if (!this.audioActive) return;
     const camera = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
     if (!camera || camera.isMuted) return;
     if (getAudioRouteSnapshot().selected !== "earpiece") return;
-    void AudioSession.selectAudioOutput("speaker")
-      .then(() => refreshAudioRoute())
-      .catch(() => undefined);
+    if (getUserAudioRoutePick() === "earpiece") return;
+    void this.selectOutput("speaker").catch(() => undefined);
+  }
+
+  private async selectOutput(route: string): Promise<void> {
+    await runSessionOp(async () => {
+      if (sessionOwner !== this) return;
+      await AudioSession.selectAudioOutput(route);
+    });
+    void refreshAudioRoute();
   }
 
   /**
    * Re-apply the call audio session after an expo-audio mode change landed while
-   * we owned it (see audio-mode-guard): stop + configure + start puts the mode
-   * back to the profile's, then the route the call was on is restored.
+   * we owned it (see audio-mode-guard). audioswitch writes the mode only when it
+   * ACTIVATES, so the session is restarted: stop, wait for the teardown to run,
+   * start, wait for the activation, then select the route the call was on again.
+   * Without the waits `start()` still sees the old session object and does
+   * nothing, and the queued teardown then leaves the call with no session at all.
    */
   private readonly reassertAudioSession = async (): Promise<void> => {
-    if (!this.audioActive) return;
-    const route = getAudioRouteSnapshot().selected;
-    try {
-      await AudioSession.stopAudioSession();
-      await AudioSession.configureAudio({
-        android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
-      });
-      await AudioSession.startAudioSession();
-      if (route) await AudioSession.selectAudioOutput(route);
-    } finally {
-      void refreshAudioRoute();
-    }
+    await runSessionOp(async () => {
+      if (!this.audioActive || sessionOwner !== this) return;
+      const route = (await refreshAudioRoute()).selected;
+      try {
+        await stopNativeSession();
+        await startNativeSession();
+        if (route) await AudioSession.selectAudioOutput(route);
+      } finally {
+        void refreshAudioRoute();
+      }
+    });
   };
 
   // The engine subscribes with `ROOM_EVENT` string values (RoomEventName), whose
@@ -486,16 +555,23 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       // call stream. Read at connect time and never mid-session — the RN SDK
       // offers no live switch, and the settings UI states that plainly. See
       // ./audio-profile for the tradeoffs the UI discloses.
-      await acquireCallAudio(this.reassertAudioSession);
+      const lease = await acquireCallAudio(this.reassertAudioSession);
       try {
-        await AudioSession.configureAudio({
-          android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
+        await runSessionOp(async () => {
+          // A previous call's session can still be alive here (the engine fires
+          // its disconnect without awaiting it). Take it over and restart it with
+          // this call's profile; that call's late stop then finds another owner.
+          claimNativeSession(this);
+          clearAudioRoute();
+          if (sessionLive) await stopNativeSession();
+          await startNativeSession();
         });
-        await AudioSession.startAudioSession();
       } catch (err) {
-        releaseCallAudio();
+        if (sessionOwner === this) sessionOwner = null;
+        releaseCallAudio(lease);
         throw err;
       }
+      this.audioLease = lease;
       this.audioActive = true;
       void refreshAudioRoute();
     }
@@ -530,13 +606,22 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
   private async stopAudio(): Promise<void> {
     if (!this.audioActive) return;
     this.audioActive = false;
+    const lease = this.audioLease;
+    this.audioLease = null;
     try {
-      await AudioSession.stopAudioSession();
+      await runSessionOp(async () => {
+        if (sessionOwner !== this) return;
+        sessionOwner = null;
+        try {
+          await stopNativeSession();
+        } finally {
+          clearAudioRoute();
+        }
+      });
     } catch {
       // Best effort — the session may already be torn down.
     } finally {
-      releaseCallAudio();
-      clearAudioRoute();
+      if (lease) releaseCallAudio(lease);
     }
   }
 
@@ -563,8 +648,7 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       // RN has no arbitrary output sink ids; it routes to a named audio output
       // (speaker / earpiece / bluetooth) through the native session. Output-switch
       // failures are treated as non-fatal by the engine.
-      await AudioSession.selectAudioOutput(deviceId);
-      void refreshAudioRoute();
+      await this.selectOutput(deviceId);
       return undefined;
     }
     // audioinput + videoinput (camera device select, task #18) both go through

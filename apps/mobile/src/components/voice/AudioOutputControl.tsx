@@ -14,6 +14,7 @@ import type { LucideIcon } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import {
   getAudioRouteSnapshot,
+  noteUserAudioRoutePick,
   refreshAudioRoute,
   subscribeAudioRoute,
 } from "@/media/audio-route";
@@ -98,6 +99,7 @@ export function AudioOutputControl() {
   };
 
   const onSelect = (id: string) => {
+    noteUserAudioRoutePick(id);
     setOutputDevice(id);
     setOpen(false);
   };

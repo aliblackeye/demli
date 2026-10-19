@@ -62,6 +62,8 @@ vi.mock("../audio-route", () => ({
   clearAudioRoute: vi.fn(),
   getAudioRouteSnapshot: vi.fn(() => ({ selected: null, available: [] })),
   refreshAudioRoute: vi.fn(async () => ({ selected: null, available: [] })),
+  getUserAudioRoutePick: vi.fn(() => null),
+  settleAudioSwitch: vi.fn(async () => undefined),
 }));
 vi.mock("../local-audio-meter", () => ({ createRNLocalAudioMeter: vi.fn() }));
 vi.mock("../permissions", () => ({

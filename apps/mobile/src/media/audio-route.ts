@@ -28,13 +28,15 @@ export type AudioRouteSnapshot = {
 };
 
 export type AudioProcessingInfo = {
-  /** The running ADM uses the platform echo canceller / noise suppressor. */
+  /** The platform echo canceller actually runs in the live ADM. */
   hardwareActive: boolean;
+  /** The platform noise suppressor actually runs in the live ADM. */
+  hardwareNsActive?: boolean;
   /** The persisted choice the NEXT app start builds the ADM with. */
   hardwarePreferred: boolean;
   /** Android 10+ — the only versions LiveKit enables hardware processing on. */
   hardwareSupported: boolean;
-  /** The device exposes a platform AcousticEchoCanceler effect at all. */
+  /** libwebrtc accepts the device's platform echo canceller (the AOSP one it refuses). */
   aecAvailable: boolean;
   nsAvailable: boolean;
 };
@@ -72,6 +74,8 @@ const EMPTY: AudioRouteSnapshot = { selected: null, available: [] };
 let snapshot: AudioRouteSnapshot = EMPTY;
 const listeners = new Set<() => void>();
 let nativeSubscribed = false;
+/** A route the user picked in the output sheet during the current session. */
+let userPick: AudioRoute | null = null;
 
 function publish(next: AudioRouteSnapshot): void {
   if (
@@ -126,9 +130,39 @@ export async function refreshAudioRoute(): Promise<AudioRouteSnapshot> {
   return snapshot;
 }
 
-/** Forget the route when the call audio session stops. */
+/** Forget the route (and the user's pick) when the call audio session stops. */
 export function clearAudioRoute(): void {
+  userPick = null;
   publish(EMPTY);
+}
+
+/** Record a route the user picked by hand in this session. */
+export function noteUserAudioRoutePick(route: string): void {
+  userPick = toAudioRoute(route);
+}
+
+/** The route the user picked by hand in this session, if any. */
+export function getUserAudioRoutePick(): AudioRoute | null {
+  return userPick;
+}
+
+/**
+ * Resolve once every audioswitch task queued before this call has run.
+ *
+ * `startAudioSession` / `stopAudioSession` are void bridge methods: audioswitch
+ * only POSTS the work to the main looper, and `start()` does nothing while the
+ * previous session object still exists. `getSelectedAudioOutput` is posted to
+ * the same looper, behind that work, so awaiting it is the barrier that keeps a
+ * stop from landing after the next start.
+ */
+export async function settleAudioSwitch(): Promise<void> {
+  const mod = nativeModule();
+  if (!mod || typeof mod.getSelectedAudioOutput !== "function") return;
+  try {
+    await mod.getSelectedAudioOutput();
+  } catch {
+    // the barrier only orders work; a failed read has nothing to report
+  }
 }
 
 /** Echo-canceller state, or null where it does not apply (iOS / older binary). */

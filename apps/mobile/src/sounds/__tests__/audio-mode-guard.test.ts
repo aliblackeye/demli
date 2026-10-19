@@ -58,13 +58,42 @@ describe("audio-mode-guard", () => {
   );
 
   it("refuses while the room adapter owns the session, and allows it again after release", async () => {
-    await acquireCallAudio(async () => undefined);
+    const lease = await acquireCallAudio(async () => undefined);
     expect(isCallAudioActive()).toBe(true);
     const change = vi.fn(async () => undefined);
     await expect(runAudioModeChange(change)).resolves.toBe(false);
-    releaseCallAudio();
+    releaseCallAudio(lease);
     await expect(runAudioModeChange(change)).resolves.toBe(true);
     expect(change).toHaveBeenCalledTimes(1);
+  });
+
+  it("an earlier call's late release does not unlock the call that replaced it", async () => {
+    const oldCall = await acquireCallAudio(async () => undefined);
+    const newCall = await acquireCallAudio(async () => undefined);
+    releaseCallAudio(oldCall);
+    expect(isCallAudioActive()).toBe(true);
+    const change = vi.fn(async () => undefined);
+    await expect(runAudioModeChange(change)).resolves.toBe(false);
+    releaseCallAudio(newCall);
+    expect(isCallAudioActive()).toBe(false);
+  });
+
+  it("a slow change that outlives one call re-asserts the call that owns the session when it lands", async () => {
+    vi.useFakeTimers();
+    const gate = deferred();
+    const modeChange = runAudioModeChange(() => gate.promise);
+    const oldReassert = vi.fn(async () => undefined);
+    const newReassert = vi.fn(async () => undefined);
+    const oldCall = acquireCallAudio(oldReassert, 100);
+    await vi.advanceTimersByTimeAsync(100);
+    releaseCallAudio(await oldCall);
+    const newCall = acquireCallAudio(newReassert, 100);
+    await vi.advanceTimersByTimeAsync(100);
+    await newCall;
+    gate.resolve();
+    await modeChange;
+    expect(oldReassert).not.toHaveBeenCalled();
+    expect(newReassert).toHaveBeenCalledTimes(1);
   });
 
   it("makes a connect wait for an in-flight change so LiveKit writes last", async () => {
@@ -118,8 +147,7 @@ describe("audio-mode-guard", () => {
     const reassert = vi.fn(async () => undefined);
     const connect = acquireCallAudio(reassert, 100);
     await vi.advanceTimersByTimeAsync(100);
-    await connect;
-    releaseCallAudio();
+    releaseCallAudio(await connect);
     gate.resolve();
     await modeChange;
     expect(reassert).not.toHaveBeenCalled();
@@ -131,6 +159,6 @@ describe("audio-mode-guard", () => {
     const connect = acquireCallAudio(async () => undefined, 10_000);
     gate.reject(new Error("native failure"));
     await expect(modeChange).rejects.toThrow("native failure");
-    await expect(connect).resolves.toBeUndefined();
+    await expect(connect).resolves.toEqual({ reassert: expect.any(Function) });
   });
 });

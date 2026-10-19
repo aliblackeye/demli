@@ -17,6 +17,10 @@
  *  3. If that wait times out and the change lands while the call owns the
  *     session, the adapter's re-assert hook runs right after it.
  *
+ * Ownership is a LEASE: a new call's acquire replaces the previous one, and a
+ * release only ends the lease it was given. An old room whose teardown settles
+ * after the next call connected therefore cannot unlock the guard for that call.
+ *
  * Pure module (no native imports) so the ordering is unit-tested.
  */
 
@@ -32,9 +36,11 @@ const SESSION_STATUSES: ReadonlySet<string> = new Set(["joining", "connected", "
 /** Default upper bound on how long a connect waits for an in-flight mode change. */
 export const ACQUIRE_WAIT_MS = 1_500;
 
+/** Proof of ownership handed to the call that acquired the session. */
+export type CallAudioLease = { readonly reassert: CallAudioReassert };
+
 let voiceSessionProbe: () => boolean = () => false;
-let callAudioOwned = false;
-let reassertHook: CallAudioReassert | null = null;
+let lease: CallAudioLease | null = null;
 let inFlight: { settled: Promise<void>; done: boolean } | null = null;
 /** Set when a connect stopped waiting for an in-flight change (it timed out). */
 let reassertOnSettle = false;
@@ -51,7 +57,7 @@ export function setVoiceSessionProbe(probe: () => boolean): void {
 
 /** Whether a call currently owns, or is acquiring, the device audio session. */
 export function isCallAudioActive(): boolean {
-  return callAudioOwned || voiceSessionProbe();
+  return lease !== null || voiceSessionProbe();
 }
 
 /**
@@ -79,27 +85,28 @@ export async function runAudioModeChange(change: AudioModeChange): Promise<boole
     await run;
   } finally {
     if (inFlight === tracked) inFlight = null;
-    if (reassertOnSettle && callAudioOwned && reassertHook) {
+    const owner = lease;
+    if (reassertOnSettle && owner) {
       reassertOnSettle = false;
-      const reassert = reassertHook;
-      await reassert().catch(() => undefined);
+      await owner.reassert().catch(() => undefined);
     }
   }
   return true;
 }
 
 /**
- * Mark the call audio session as owned (call BEFORE configuring LiveKit) and
- * wait — at most `waitMs` — for a mode change that is already running.
+ * Take the call audio session (call BEFORE configuring LiveKit) and wait — at
+ * most `waitMs` — for a mode change that is already running. The returned lease
+ * replaces any earlier one.
  */
 export async function acquireCallAudio(
   reassert: CallAudioReassert,
   waitMs: number = ACQUIRE_WAIT_MS,
-): Promise<void> {
-  callAudioOwned = true;
-  reassertHook = reassert;
+): Promise<CallAudioLease> {
+  const mine: CallAudioLease = { reassert };
+  lease = mine;
   const pending = inFlight;
-  if (!pending) return;
+  if (!pending) return mine;
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([
     pending.settled,
@@ -108,21 +115,24 @@ export async function acquireCallAudio(
     }),
   ]);
   if (timer !== undefined) clearTimeout(timer);
-  if (!pending.done) reassertOnSettle = true;
+  if (!pending.done && lease === mine) reassertOnSettle = true;
+  return mine;
 }
 
-/** Release ownership once the LiveKit audio session has been stopped. */
-export function releaseCallAudio(): void {
-  callAudioOwned = false;
-  reassertHook = null;
+/**
+ * End `held` once its LiveKit audio session has been stopped. A lease that a
+ * later call already replaced is left alone.
+ */
+export function releaseCallAudio(held: CallAudioLease): void {
+  if (lease !== held) return;
+  lease = null;
   reassertOnSettle = false;
 }
 
 /** Test-only reset of the module state. */
 export function resetAudioModeGuardForTests(): void {
   voiceSessionProbe = () => false;
-  callAudioOwned = false;
-  reassertHook = null;
+  lease = null;
   inFlight = null;
   reassertOnSettle = false;
 }
