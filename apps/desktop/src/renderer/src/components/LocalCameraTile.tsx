@@ -35,7 +35,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { useAuthStore } from "../stores/auth-store";
 import { startLocalPreviewPlayback } from "../lib/video-playback";
 import { VideoTileLabel } from "./VideoTileLabel";
-import { SpeakingGlow } from "./AvatarTile";
+import { SpeakingGlow, TileFocusRing } from "./AvatarTile";
 
 export interface LocalCameraTileProps {
   /** Selected camera device (null = platform default). */
@@ -45,8 +45,6 @@ export interface LocalCameraTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
   /** Show the name chip — grid/filmstrip/stage tiles turn it on. */
   showName?: boolean;
 }
@@ -56,7 +54,6 @@ export const LocalCameraTile = memo(function LocalCameraTile({
   participant,
   className,
   onSelect,
-  active = false,
   showName = false,
 }: LocalCameraTileProps): JSX.Element {
   const { t } = useAppTranslation();
@@ -133,11 +130,9 @@ export const LocalCameraTile = memo(function LocalCameraTile({
       className={cn(
         "group/tile relative flex items-center justify-center overflow-hidden rounded-xl bg-rail",
         "[--avatar-ring:var(--color-rail)]",
-        // Inset rings — same reason as CameraTile/AvatarTile: a scroll container
-        // clips on all four sides, so an outset ring loses its outer edge.
-        interactive &&
-          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        active && "ring-2 ring-inset ring-accent",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
@@ -168,6 +163,9 @@ export const LocalCameraTile = memo(function LocalCameraTile({
         />
       )}
       <SpeakingGlow on={speaking} />
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 });

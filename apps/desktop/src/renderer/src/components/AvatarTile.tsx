@@ -77,6 +77,36 @@ export function SpeakingGlow({ on }: { on: boolean }): JSX.Element {
   );
 }
 
+/**
+ * The keyboard focus mark of a stage tile, drawn as an overlay above the tile's
+ * content for the same reason as the speaking light: a `focus-visible:ring` is a
+ * box-shadow on the tile itself, and a full-bleed <video> paints straight over
+ * it, so a keyboard user tabbing into the grid saw nothing on a camera or share
+ * tile.
+ *
+ * Deliberately a different SHAPE from the speaking light, so focus and "this
+ * person is talking" never read as the same thing: a crisp white 2px edge with a
+ * black 2px keyline inside it (legible on bright video and on the black stage),
+ * no coral and no soft halo. Inset, so a scroll container cannot clip it
+ * (tile-glow-inset.test.ts). It only shows when the tile ITSELF is
+ * focus-visible — focus on a control inside the tile does not light the tile.
+ */
+export const TILE_FOCUS_RING =
+  "shadow-[inset_0_0_0_2px_var(--color-fg-display),inset_0_0_0_4px_var(--color-rail)]";
+
+export function TileFocusRing(): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      data-testid="tile-focus-ring"
+      className={cn(
+        "pointer-events-none absolute inset-0 z-20 rounded-[inherit] opacity-0 transition-opacity motion-hover group-focus-visible/tile:opacity-100",
+        TILE_FOCUS_RING,
+      )}
+    />
+  );
+}
+
 export const AvatarTile = memo(function AvatarTile({
   participant,
   className,
@@ -124,7 +154,7 @@ export const AvatarTile = memo(function AvatarTile({
         "[--avatar-ring:var(--color-surface)]",
         interactive &&
           // Hover is a tone change (surface → raised, 200ms); nothing lifts.
-          "cursor-pointer outline-none transition-colors motion-hover hover:bg-raised hover:[--avatar-ring:var(--color-raised)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
+          "cursor-pointer outline-none transition-colors motion-hover hover:bg-raised hover:[--avatar-ring:var(--color-raised)]",
         className,
       )}
     >
@@ -181,6 +211,7 @@ export const AvatarTile = memo(function AvatarTile({
       )}
 
       <SpeakingGlow on={participant.speaking} />
+      {interactive && <TileFocusRing />}
     </div>
   );
 

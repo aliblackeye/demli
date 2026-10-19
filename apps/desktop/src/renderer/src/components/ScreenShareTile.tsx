@@ -31,6 +31,7 @@ import { useScreenShareVolumes } from "../stores/screen-share-volume-store";
 import { useAutoHideOverlay } from "../hooks/useAutoHideOverlay";
 import { VideoTileLabel } from "./VideoTileLabel";
 import { LivePill } from "./CallControls";
+import { TileFocusRing } from "./AvatarTile";
 
 export interface ScreenShareTileProps {
   share: RemoteScreenShare;
@@ -39,8 +40,6 @@ export interface ScreenShareTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
   /**
    * Show the per-share FILM-audio volume slider (task #82). On for the large
    * watching stage; off for tiny filmstrip tiles where it would just crowd.
@@ -191,7 +190,6 @@ export const ScreenShareTile = memo(function ScreenShareTile({
   sharerName,
   className,
   onSelect,
-  active = false,
   showVolume = false,
 }: ScreenShareTileProps): JSX.Element {
   const { t } = useAppTranslation();
@@ -246,11 +244,9 @@ export const ScreenShareTile = memo(function ScreenShareTile({
       data-testid="screen-share-tile"
       className={cn(
         "group/tile relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-rail",
-        // Inset rings — this tile also renders inside the scrollable camera panel,
-        // which clips on all four sides. See AvatarTile for the full reasoning.
-        interactive &&
-          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        active && "ring-2 ring-inset ring-accent",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
@@ -279,6 +275,9 @@ export const ScreenShareTile = memo(function ScreenShareTile({
           visible={controlsVisible}
         />
       )}
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 });

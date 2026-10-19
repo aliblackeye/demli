@@ -25,7 +25,7 @@ import type { RemoteCamera, VoiceParticipant } from "@demli/media";
 import { useChatStore } from "../stores/chat-store";
 import { VideoTileLabel } from "./VideoTileLabel";
 import { ParticipantVolumeMenu } from "./ParticipantVolumeMenu";
-import { SpeakingGlow } from "./AvatarTile";
+import { SpeakingGlow, TileFocusRing } from "./AvatarTile";
 
 export interface CameraTileProps {
   camera: RemoteCamera;
@@ -42,8 +42,6 @@ export interface CameraTileProps {
    * <video> attach is untouched, so click-to-focus never re-subscribes a track.
    */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
   /**
    * Show the participant NAME chip. OFF by default (e.g. the PiP overlay stays
    * clean); grid/filmstrip/stage tiles turn it on.
@@ -62,7 +60,6 @@ export const CameraTile = memo(function CameraTile({
   participant,
   className,
   onSelect,
-  active = false,
   showName = false,
 }: CameraTileProps): JSX.Element {
   const user = useChatStore((s) => s.users[camera.userId]);
@@ -115,12 +112,9 @@ export const CameraTile = memo(function CameraTile({
         // Borderless: the video sits on the page-black tone, letterboxed whole.
         "group/tile relative flex items-center justify-center overflow-hidden rounded-xl bg-rail",
         "[--avatar-ring:var(--color-rail)]",
-        // Rings are INSET: these tiles sit in scroll containers (the grid and the
-        // camera panel), and a scroll container clips on all four sides, so an
-        // outset ring is sheared off the edge tiles. See AvatarTile.
-        interactive &&
-          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        active && "ring-2 ring-inset ring-accent",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
@@ -159,6 +153,9 @@ export const CameraTile = memo(function CameraTile({
       {/* The speaking light sits ABOVE the video — an inset ring on the tile's
           own box would be painted underneath the picture. */}
       <SpeakingGlow on={speaking} />
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 

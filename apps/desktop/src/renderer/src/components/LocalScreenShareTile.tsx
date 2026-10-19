@@ -19,6 +19,7 @@ import { cn } from "@demli/ui";
 import { startLocalPreviewPlayback } from "../lib/video-playback";
 import { VideoTileLabel } from "./VideoTileLabel";
 import { ShareLiveBadges, useReceivedVideoHeight } from "./ScreenShareTile";
+import { TileFocusRing } from "./AvatarTile";
 
 export interface LocalScreenShareTileProps {
   /** The raw local screen-capture video track (same one published to LiveKit). */
@@ -27,8 +28,6 @@ export interface LocalScreenShareTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
 }
 
 export const LocalScreenShareTile = memo(function LocalScreenShareTile({
@@ -36,7 +35,6 @@ export const LocalScreenShareTile = memo(function LocalScreenShareTile({
   label,
   className,
   onSelect,
-  active = false,
 }: LocalScreenShareTileProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   // What you are SENDING, read off your own capture frames — the same measured
@@ -80,10 +78,9 @@ export const LocalScreenShareTile = memo(function LocalScreenShareTile({
       data-testid="local-screen-tile"
       className={cn(
         "group/tile relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-rail",
-        // Inset like every stage tile: it also lives in the scrolling grid/panel.
-        interactive &&
-          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        active && "ring-2 ring-inset ring-accent",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
@@ -100,6 +97,9 @@ export const LocalScreenShareTile = memo(function LocalScreenShareTile({
           camera tiles and the remote screen tile (founder #3): "Your broadcast",
           always visible so you can tell your own preview at a glance. */}
       <VideoTileLabel name={label} screenSharing />
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 });
