@@ -1532,3 +1532,40 @@ mutasyonla doğrulandı (fg-faint #737373, yay süresi, tehlike #ef4444 → kır
 **Bilinen açık:** iki `index.html` önyükleme iskeleti, pencere flaş rengi, BootSplash ve
 VideoStage gradyanları, mobil `app.json` splash/ikon renkleri hâlâ sıcak eski palet —
 token değişimi bunlara ulaşmıyor (liste tasarım dokümanı §7.3). Mobil splash APK ister.
+
+## 2026-10-20 — M16 Dalga 3 (masaüstü + web): uygulama çerçevesi ve ilk izlenim
+
+Dal `feat/m16-ui-shell`. Açılış → giriş → dört kolonlu kabuk → dar web kabuğu, komut
+menüsü, bütün kök bildirimler, boş/yükleniyor/hata durumları Koyu Masa diline taşındı.
+Yapı korundu (rail | kanallar/ana sayfa | orta | üyeler); stil landing'in "ada" dilinden.
+Mobil karşılıklar Dalga 4'te (aşağıdaki ⏳ satırlar takip kaydıdır).
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Ada çerçevesi: siyah sayfa, rail sayfada, kolonlar radius-24 adalar, aralar 8px siyah | ✅ | ⏳ Dalga 4 | kenar çizgisi/dış gölge yok |
+| Tek satır dili (`shellRow`): seçili = mercan yıkama + açık mercan yazı, hover = yüzey tonu 200ms, basılı = bir ton koyu, okunmamış = beyaz kenar pipi + kalın ad, sessize alınmış = %55 | ✅ kanal / DM / grup / üye / komut menüsü | ⏳ Dalga 4 | hover'da hiçbir şey kaymaz/büyümez |
+| Rail kenar hapı: seçili 36px mercan, okunmamış 8px beyaz, hover 20px — konum yayıyla büyür | ✅ | ⏳ Dalga 4 | eski radius-morph hover kaldırıldı |
+| Sayaç rozeti 18px (mention = mercan, düz = açık çip), değişince pop | ✅ | ⏳ Dalga 4 | |
+| Kanal kenar çubuğu: dönen daralt oku, açılınca satırlar belirir, iskelet (ilk yükleme), boş sunucu durumu (+ kanal oluştur, yetkiye göre) | ✅ | ⏳ Dalga 4 | `ShellData.serverDetailsLoading` (isteğe bağlı) |
+| Üye listesi: 48px satır, iskelet, yüklenirken sahte "— 0" sayısı yok | ✅ | ⏳ Dalga 4 | |
+| Kullanıcı çubuğu: yüzey hapı; mikrofon kapalı / sağır = pembe tehlike düğmesi + kesik ikon; ikinci satır özel durum | ✅ | ⏳ Dalga 4 | |
+| Komut menüsü: cam radius-24 kart, seçili satır = kabuk seçili dili, boş durum, klavye ipucu satırı (⌘/Ctrl) | ✅ | — (mobil komut paleti M20) | |
+| Tek bildirim kartı (`NoticeToast`): üzerine gelince/odakta süre durur, Esc/✕, tehlike = alert; kök yığın üst üste binmez, yazma alanının üstünde | ✅ 6 bildirim | ⏳ Dalga 4 | |
+| Yaş doğrulama + "uygulamayı indir" hapları: geniş kabukta kolon içinde (artık rail/mikrofonu örtmüyor), dar web'de yazma alanının üstünde | ✅ | — | |
+| Dar web kabuğu: ada orta kolon, 44px dokunma hedefleri, çekmece konum yayıyla açılır, kapalıyken `inert` (Tab'a girmez), odak içeri/geri, kaydırarak kapatma | ✅ web | — | kapalı çekmece eskiden Tab ile odaklanabiliyordu |
+| Açılış: siyah sayfa + tek mercan ışık (BootSplash, iki `index.html`, Electron pencere rengi) | ✅ | ⏳ splash APK ister | `boot-surface.test.ts` dört kaynağı token'a kilitler |
+| Çökme ekranı: sakin kart, tek eylem | ✅ | ⏳ Dalga 4 | |
+| Giriş: ışıklı sayfa, kenarsız kart, alan-düzeyi doğrulama (hata alanın altında), mod geçişinde başlık geçişi + kayıt alanları açılır, kısa pencerede güvenli ortalama | ✅ | ⏳ Dalga 4 | giriş metni "siz"den "sen"e (marka kuralı); mobil `mobile:auth.*` metinleri ayrı, Dalga 4 |
+| Hesap değiştirme örtüsü opak (eski hesabın sohbeti arkadan görünmez) | ✅ | ⏳ Dalga 4 | |
+| Güncelleme rozeti kenarsız yeşil; indirme çubuğu `progressbar` | ✅ masaüstü | — | |
+
+**Kanıt:** `apps/web/harness-shell.html?scene=…` gerçek bileşenleri gerçek store/query
+önbelleğiyle 20 durumda gösterir (ağ beklemede tutulur, canlı API'ye gidilmez);
+`apps/web/src/harness/shell/verify.mjs` sistem Chrome'uyla 48 kontrol (token, font, hover/
+basılı/odak, rail hapı, daralt, komut menüsü aç/kapa + klavye, azaltılmış hareket, çekmece,
+alan doğrulaması, bildirim yığını, TR+EN, temiz konsol).
+
+**Açık:** `apps/web/public/site.webmanifest` hâlâ eski turuncu `theme_color`/`background_color`
+(meta `theme-color` siyaha çekildi); pencere çerçevesi dışı. Seçili satırda mention rozetinin
+rengi (mercan) tasarım dokümanının §1.5'teki "okunmamış rozeti pembe" cümlesiyle çelişiyor —
+CountBadge atomuyla tutarlı olarak mercan seçildi, founder kararına açık.
