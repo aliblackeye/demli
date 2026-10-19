@@ -310,21 +310,84 @@ export function ImageCropDialog({
     // maskSize is derived from these two numbers.
   }, [natural, measured, mask.width, mask.height]);
 
-  // Live preview: one small canvas render per animation frame the crop changes.
+  // Live preview. The crop is drawn into a small canvas and encoded with the
+  // ASYNC `toBlob` (Chromium encodes off the main thread), then shown through an
+  // object URL. `toDataURL` used to encode synchronously on every frame — 35 ms
+  // for the 640×240 banner preview, 54–79 ms long tasks under a drag — which
+  // made pan and zoom judder under the pointer.
+  //
+  // At most ONE encode is in flight: while it runs, crop changes only mark the
+  // preview stale, and the newest crop is encoded as soon as it lands. So the
+  // preview keeps up during a drag at the encoder's own pace instead of queueing
+  // a backlog, and the last frame always matches where the user let go.
+  const previewJob = useRef({ busy: false, stale: false, seq: 0 });
+  const previewInput = useRef<{ img: HTMLImageElement; rect: ReturnType<typeof cropRect>; kind: CropKind } | null>(
+    null,
+  );
+  const ownedPreviewUrls = useRef<string[]>([]);
+  const renderPreview = useCallback(() => {
+    const job = previewJob.current;
+    const input = previewInput.current;
+    if (!input) return;
+    if (job.busy) {
+      job.stale = true;
+      return;
+    }
+    job.busy = true;
+    job.stale = false;
+    const seq = job.seq;
+    const canvas = renderCrop(input.img, input.rect, PREVIEW_SIZE[input.kind]);
+    canvas.toBlob(
+      (blob) => {
+        job.busy = false;
+        // A new source / unmount bumped `seq`: this result belongs to a picture
+        // that is gone.
+        if (seq !== job.seq) return;
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const owned = ownedPreviewUrls.current;
+          owned.push(url);
+          // Keep the last few alive: an <img> that switched to the newest URL
+          // may still be decoding it while the previous one stays painted.
+          while (owned.length > 3) URL.revokeObjectURL(owned.shift() as string);
+          setPreviewUrl(url);
+        }
+        if (job.stale) requestAnimationFrame(renderPreview);
+      },
+      "image/webp",
+      0.9,
+    );
+  }, []);
+
+  // A new source (or closing for good) invalidates every pending encode and
+  // frees the preview URLs it made.
+  useEffect(
+    () => () => {
+      previewJob.current.seq += 1;
+      previewJob.current.busy = false;
+      previewJob.current.stale = false;
+      for (const url of ownedPreviewUrls.current) URL.revokeObjectURL(url);
+      ownedPreviewUrls.current = [];
+    },
+    [source],
+  );
+
   useEffect(() => {
     if (!ready || !measured) return;
     if (mode === "keep") {
+      // Drop any crop encode still in flight, or it would land over the
+      // animated original a moment later.
+      previewInput.current = null;
+      previewJob.current.seq += 1;
+      previewJob.current.busy = false;
       setPreviewUrl(ready.img.src);
       return;
     }
-    const frame = requestAnimationFrame(() => {
-      const rect = cropRect(crop, ready.natural, maskSize);
-      const canvas = renderCrop(ready.img, rect, PREVIEW_SIZE[kind]);
-      setPreviewUrl(canvas.toDataURL("image/webp", 0.9));
-    });
+    previewInput.current = { img: ready.img, rect: cropRect(crop, ready.natural, maskSize), kind };
+    const frame = requestAnimationFrame(renderPreview);
     return () => cancelAnimationFrame(frame);
     // maskSize is derived from mask.width/height.
-  }, [ready, crop, mode, kind, measured, mask.width, mask.height]);
+  }, [ready, crop, mode, kind, measured, mask.width, mask.height, renderPreview]);
 
   const close = (): void => {
     if (applying) return;
@@ -437,10 +500,13 @@ export function ImageCropDialog({
     kind === "avatar" && (ready?.inspected.mime === "image/gif" || ready?.inspected.animated === true);
 
   // A preview belongs to the image it was rendered from: until the CURRENT
-  // source is ready, show none (never a stale URL whose blob is being freed).
+  // source is ready (loading, or a file that cannot be opened) the preview
+  // keeps the user's CURRENT picture — drawing the initials there would read as
+  // "your photo will be removed". The column dims to say it is not live yet.
   const livePreview = ready ? previewUrl : null;
-  const avatarPreview = kind === "avatar" ? livePreview : identity.avatarUrl;
-  const bannerPreview = kind === "banner" ? livePreview : identity.bannerUrl;
+  const avatarPreview = kind === "avatar" ? (livePreview ?? identity.avatarUrl) : identity.avatarUrl;
+  const bannerPreview = kind === "banner" ? (livePreview ?? identity.bannerUrl) : identity.bannerUrl;
+  const previewLive = livePreview !== null;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
@@ -697,7 +763,14 @@ export function ImageCropDialog({
             </div>
 
             {/* ── Preview column ─────────────────────────────────────────── */}
-            <section aria-label={t("desktop:imageEditor.previewHeading")} className="min-w-0 space-y-3">
+            <section
+              aria-label={t("desktop:imageEditor.previewHeading")}
+              data-preview-live={previewLive}
+              className={cn(
+                "min-w-0 space-y-3 transition-opacity motion-hover",
+                !previewLive && "opacity-60",
+              )}
+            >
               <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
                 {t("desktop:imageEditor.previewCard")}
               </p>
