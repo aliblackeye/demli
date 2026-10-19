@@ -66,7 +66,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, AppState, Pressable, View } from "react-native";
+import { ActivityIndicator, AppState, View } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { WebView } from "react-native-webview";
 import type { WebViewMessageEvent } from "react-native-webview";
@@ -99,6 +99,7 @@ import {
 import { useAppTranslation } from "@/lib/i18n";
 import { newId } from "@/lib/id";
 import { colors, radius, space } from "@/theme/theme";
+import { Button } from "../ui/Button";
 import { Text } from "../ui/Text";
 import {
   allowWatchNavigation,
@@ -569,8 +570,8 @@ function WatchPartyPlayerImpl({
     <View
       style={{
         flex: 1,
-        backgroundColor: "#000",
-        borderRadius: radius.md,
+        backgroundColor: colors.rail,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
         overflow: "hidden",
       }}
@@ -639,8 +640,8 @@ function WatchPartyPlayerImpl({
             androidLayerType="hardware"
             // Our document is a black shell; a white flash between mount and
             // first paint reads as a crash on a dark UI.
-            style={{ flex: 1, backgroundColor: "#000" }}
-            containerStyle={{ backgroundColor: "#000" }}
+            style={{ flex: 1, backgroundColor: colors.rail }}
+            containerStyle={{ backgroundColor: colors.rail }}
             startInLoadingState
             renderLoading={() => (
               <View
@@ -648,7 +649,7 @@ function WatchPartyPlayerImpl({
                   ...StyleSheetAbsoluteFill,
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: "#000",
+                  backgroundColor: colors.rail,
                 }}
               >
                 <ActivityIndicator size="small" color={colors.accent} />
@@ -665,40 +666,20 @@ function WatchPartyPlayerImpl({
             alignItems: "center",
             justifyContent: "center",
             gap: space.md,
-            backgroundColor: "rgba(0,0,0,0.7)",
+            backgroundColor: colors.scrim,
             paddingHorizontal: space.lg,
           }}
         >
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.85)",
-              fontSize: 13,
-              textAlign: "center",
-            }}
-          >
+          <Text style={{ color: colors.fg, fontSize: 13, lineHeight: 18, textAlign: "center" }}>
             {t("mobile:watchParty.autoplayBlocked")}
           </Text>
-          <Pressable
+          <Button
+            variant="accent"
+            icon={Play}
+            haptic="light"
+            label={t("mobile:watchParty.startPlayback")}
             onPress={onStartPlayback}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:watchParty.startPlayback")}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.sm,
-              minHeight: 44,
-              paddingHorizontal: space.lg,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              backgroundColor: colors.accent,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Play size={18} color={colors.onAccent} />
-            <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "700" }}>
-              {t("mobile:watchParty.startPlayback")}
-            </Text>
-          </Pressable>
+          />
         </View>
       ) : null}
 
@@ -707,26 +688,21 @@ function WatchPartyPlayerImpl({
           accessibilityRole="alert"
           style={{
             position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
+            left: space.sm,
+            right: space.sm,
+            bottom: space.sm,
             flexDirection: "row",
             alignItems: "flex-start",
             gap: space.sm,
-            backgroundColor: "rgba(0,0,0,0.8)",
+            borderRadius: radius.lg,
+            borderCurve: "continuous",
+            backgroundColor: colors.glassStrong,
             paddingHorizontal: space.md,
             paddingVertical: space.sm,
           }}
         >
-          <TriangleAlert size={16} color={colors.warning} style={{ marginTop: 1 }} />
-          <Text
-            style={{
-              flex: 1,
-              color: "rgba(255,255,255,0.85)",
-              fontSize: 12,
-              lineHeight: 17,
-            }}
-          >
+          <TriangleAlert size={16} color={colors.warning} strokeWidth={2} style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, color: colors.fg, fontSize: 12, lineHeight: 17 }}>
             {errorMessage}
           </Text>
         </View>

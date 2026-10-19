@@ -37,10 +37,18 @@
  * Inside the player itself the per-second readings live in refs and re-render
  * nothing, which is what keeps a WebView and a LiveKit room on the same phone
  * from fighting over the frame budget.
+ *
+ * ## Look (Koyu Masa)
+ *
+ * The band is a borderless surface strip: the coral TV glyph, the driver's face,
+ * one line of who is in control, then ghost icon discs — the stop control in the
+ * pink danger wash. A gateway refusal is the kit's danger Banner with its own
+ * dismiss. Over the film, the expand and expanded-mute controls are veil discs
+ * (muted = the pink wash, the dock's grammar).
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import {
   Eye,
@@ -58,7 +66,6 @@ import {
 import { watchControlMode, type HostControlIntent } from "@demli/client-core";
 import type { ChannelId, GroupId, UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
-import { haptics } from "@/lib/haptics";
 import { Avatar } from "@/components/Avatar";
 import { ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
 import { useServerPermissions } from "@/queries/chat-queries";
@@ -85,6 +92,9 @@ import {
   useWatchVideoTitle,
 } from "@/stores/watch-party-store";
 import { colors, radius, space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
+import { Chip } from "../ui/Chip";
+import { IconButton } from "../ui/IconButton";
 import { Text } from "../ui/Text";
 import { ParticipantTile, type ParticipantTileData } from "../voice/ParticipantTile";
 import { WatchPartyPlayer } from "./WatchPartyPlayer";
@@ -129,45 +139,6 @@ export interface WatchPartyStageProps {
    */
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
-}
-
-/** A ≥40pt icon control for the status band. */
-function BandButton({
-  Icon,
-  label,
-  danger,
-  active,
-  onPress,
-}: {
-  Icon: typeof Tv;
-  label: string;
-  danger?: boolean;
-  active?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        haptics.light();
-        onPress();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={active === undefined ? undefined : { selected: active }}
-      hitSlop={6}
-      style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: radius.sm,
-        borderCurve: "continuous",
-        backgroundColor: active ? colors.accentSurface : pressed ? colors.surfaceRaised : "transparent",
-      })}
-    >
-      <Icon size={18} color={danger ? colors.danger : active ? colors.accent : colors.fgMuted} />
-    </Pressable>
-  );
 }
 
 export function WatchPartyStage({
@@ -326,19 +297,18 @@ export function WatchPartyStage({
             flexDirection: "row",
             alignItems: "center",
             gap: space.sm,
-            marginHorizontal: space.lg,
-            paddingHorizontal: space.md,
+            marginHorizontal: space.md,
+            paddingLeft: space.md,
+            paddingRight: space.xs,
             paddingVertical: space.xs,
-            borderRadius: radius.md,
+            borderRadius: radius.xl,
             borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: colors.stroke,
             backgroundColor: colors.surface,
           }}
         >
-          <Tv size={16} color={colors.accent} />
+          <Tv size={16} color={colors.accent} strokeWidth={2} />
           <Avatar name={hostName} uri={hostAvatarUrl} size={20} />
-          <Text numberOfLines={1} style={{ flex: 1, color: colors.fgMuted, fontSize: 12 }}>
+          <Text numberOfLines={1} style={{ flex: 1, color: colors.fgMuted, fontSize: 12, fontWeight: "500" }}>
             {isHost
               ? t("mobile:watchParty.youAreHost")
               : t("mobile:watchParty.hostedBy", {
@@ -349,8 +319,10 @@ export function WatchPartyStage({
           {/* The queue control is for EVERYONE — seeing what is next is not a host
               privilege, it is the question the sheet exists to answer. Only the
               controls INSIDE it are gated. */}
-          <BandButton
-            Icon={ListVideo}
+          <IconButton
+            icon={ListVideo}
+            shape="square"
+            haptic="light"
             label={t("mobile:watchParty.queueToggle")}
             onPress={() => setQueueOpen(true)}
           />
@@ -359,23 +331,29 @@ export function WatchPartyStage({
               absence IS the message, and the line above already names the host. */}
           {isHost ? (
             <>
-              <BandButton
-                Icon={Repeat2}
+              <IconButton
+                icon={Repeat2}
+                shape="square"
+                haptic="light"
                 label={t("mobile:watchParty.changeVideo")}
                 onPress={() => setPicker("change")}
               />
               {/* Transfer is offered only when there is somebody to transfer TO —
                   an empty list is a control that does nothing (§35). */}
               {transferTargets.length > 0 ? (
-                <BandButton
-                  Icon={UserRoundCog}
+                <IconButton
+                  icon={UserRoundCog}
+                  shape="square"
+                  haptic="light"
                   label={t("mobile:watchParty.transferHost")}
                   onPress={() => setTransferOpen(true)}
                 />
               ) : null}
-              <BandButton
-                Icon={Square}
-                danger
+              <IconButton
+                icon={Square}
+                shape="square"
+                variant="danger"
+                haptic="medium"
                 label={t("mobile:watchParty.stop")}
                 onPress={() => stopWatchParty(channelId)}
               />
@@ -385,29 +363,12 @@ export function WatchPartyStage({
       )}
 
       {refusalMessage !== null ? (
-        <Pressable
-          accessibilityRole="alert"
-          accessibilityLabel={refusalMessage}
-          onPress={clearRefusal}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.sm,
-            marginHorizontal: space.lg,
-            paddingHorizontal: space.md,
-            paddingVertical: space.sm,
-            borderRadius: radius.md,
-            borderCurve: "continuous",
-            backgroundColor: colors.dangerSurface,
-          }}
-        >
-          <Text style={{ flex: 1, color: colors.fg, fontSize: 12, lineHeight: 17 }}>
-            {refusalMessage}
-          </Text>
-          <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "700" }}>
-            {t("mobile:watchParty.dismiss")}
-          </Text>
-        </Pressable>
+        <Banner
+          variant="danger"
+          title={refusalMessage}
+          onDismiss={clearRefusal}
+          style={{ marginHorizontal: space.md }}
+        />
       ) : null}
 
       {/* The player. `expanded` changes its padding and nothing structural —
@@ -417,7 +378,7 @@ export function WatchPartyStage({
         style={{
           flex: 1,
           minHeight: 0,
-          marginHorizontal: expanded ? 0 : space.lg,
+          marginHorizontal: expanded ? 0 : space.md,
           marginBottom: expanded ? 0 : space.sm,
         }}
       >
@@ -449,61 +410,26 @@ export function WatchPartyStage({
               collapse the video first would fail the founder's standing bar that
               the voice experience is the best part of every surface. */}
           {expanded ? (
-            <Pressable
-              onPress={() => {
-                haptics.light();
-                toggleMic();
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: !micEnabled }}
-              accessibilityLabel={
+            <IconButton
+              icon={micEnabled ? Mic : MicOff}
+              variant={micEnabled ? "veil" : "danger"}
+              shape="square"
+              haptic="light"
+              label={
                 micEnabled ? t("mobile:voice.a11yMuteMic") : t("mobile:voice.a11yUnmuteMic")
               }
-              hitSlop={8}
-              style={({ pressed }) => ({
-                width: 40,
-                height: 40,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: radius.sm,
-                borderCurve: "continuous",
-                backgroundColor: pressed ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.55)",
-              })}
-            >
-              {micEnabled ? (
-                <Mic size={18} color="#fff" />
-              ) : (
-                <MicOff size={18} color={colors.danger} />
-              )}
-            </Pressable>
+              onPress={toggleMic}
+            />
           ) : null}
 
-          <Pressable
-            onPress={() => {
-              haptics.light();
-              onExpandedChange(!expanded);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              expanded ? t("mobile:watchParty.collapse") : t("mobile:watchParty.expand")
-            }
-            hitSlop={8}
-            style={({ pressed }) => ({
-              width: 40,
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radius.sm,
-              borderCurve: "continuous",
-              backgroundColor: pressed ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.55)",
-            })}
-          >
-            {expanded ? (
-              <Minimize2 size={18} color="#fff" />
-            ) : (
-              <Maximize2 size={18} color="#fff" />
-            )}
-          </Pressable>
+          <IconButton
+            icon={expanded ? Minimize2 : Maximize2}
+            variant="veil"
+            shape="square"
+            haptic="light"
+            label={expanded ? t("mobile:watchParty.collapse") : t("mobile:watchParty.expand")}
+            onPress={() => onExpandedChange(!expanded)}
+          />
         </View>
       </View>
 
@@ -511,33 +437,22 @@ export function WatchPartyStage({
           precisely to give the film the whole glass. */}
       {!expanded && participantTiles.length > 0 ? (
         <View style={{ gap: space.xs, paddingBottom: space.xs }}>
-          <Pressable
+          <Chip
             onPress={() => setStripCollapsed((collapsed) => !collapsed)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: !stripCollapsed }}
-            style={({ pressed }) => ({
-              alignSelf: "center",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.xs,
-              paddingHorizontal: space.md,
-              paddingVertical: space.xs,
-              borderRadius: radius.pill,
-              backgroundColor: colors.surfaceRaised,
-              opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            {stripCollapsed ? (
-              <Eye size={15} color={colors.fgMuted} />
-            ) : (
-              <EyeOff size={15} color={colors.fgMuted} />
-            )}
-            <Text style={{ color: colors.fgMuted, fontSize: 12, fontWeight: "600" }}>
-              {stripCollapsed
+            leading={
+              stripCollapsed ? (
+                <Eye size={15} color={colors.fgMuted} strokeWidth={2} />
+              ) : (
+                <EyeOff size={15} color={colors.fgMuted} strokeWidth={2} />
+              )
+            }
+            label={
+              stripCollapsed
                 ? t("mobile:voice.showCamerasCount", { n: participantTiles.length })
-                : t("mobile:voice.hideCameras")}
-            </Text>
-          </Pressable>
+                : t("mobile:voice.hideCameras")
+            }
+            style={{ alignSelf: "center" }}
+          />
 
           {!stripCollapsed ? (
             <ScrollView
@@ -545,7 +460,7 @@ export function WatchPartyStage({
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{
                 gap: space.md,
-                paddingHorizontal: space.lg,
+                paddingHorizontal: space.md,
                 alignItems: "center",
               }}
             >

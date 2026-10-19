@@ -40,16 +40,26 @@
  * RN `<Text>` child and never as markdown, a link, or anything that could become
  * markup. A queued row is not a place where somebody else's string gets to be
  * anything but a string.
+ *
+ * ## Look
+ *
+ * The kit's draggable Sheet; the count as a neutral badge and the host's "+" as a
+ * ghost disc in the header; "now playing" as the coral selected-row wash; the
+ * film volume as radio chips; queue rows on the surface tone with ghost discs,
+ * remove in the pink danger wash. An empty queue is the kit's empty block, worded
+ * for whoever is looking (host: how to add; viewer: who decides).
  */
 
 import { memo } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
 import { ArrowDown, ArrowUp, ListVideo, Play, Plus, Trash2, Volume2 } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { haptics } from "@/lib/haptics";
-import { ChipSelect } from "@/components/ChipSelect";
+import { EmptyState } from "@/components/EmptyState";
 import { colors, radius, space } from "@/theme/theme";
+import { Badge } from "../ui/Badge";
+import { Chip } from "../ui/Chip";
+import { IconButton } from "../ui/IconButton";
+import { Sheet } from "../ui/Sheet";
 import { Text } from "../ui/Text";
 import { canMoveQueueItem, formatWatchDuration, moveQueueItem } from "./watch-queue";
 
@@ -107,41 +117,6 @@ export interface WatchQueueSheetProps {
   onVolumeChange: (volumePercent: number) => void;
 }
 
-/** A ≥44pt icon control for a queue row. */
-function RowButton({
-  Icon,
-  label,
-  danger,
-  onPress,
-}: {
-  Icon: typeof Play;
-  label: string;
-  danger?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        haptics.light();
-        onPress();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: radius.sm,
-        borderCurve: "continuous",
-        backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-      })}
-    >
-      <Icon size={18} color={danger ? colors.danger : colors.fgMuted} />
-    </Pressable>
-  );
-}
-
 function WatchQueueSheetImpl({
   visible,
   onClose,
@@ -156,7 +131,6 @@ function WatchQueueSheetImpl({
   onVolumeChange,
 }: WatchQueueSheetProps) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
 
   const ids = items.map((item) => item.itemId);
 
@@ -166,228 +140,183 @@ function WatchQueueSheetImpl({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-      >
-        <Pressable
-          onPress={() => {}}
-          accessibilityLabel={t("mobile:watchParty.queueTitle")}
-          style={{
-            maxHeight: "82%",
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingTop: space.md,
-            paddingBottom: space.md + insets.bottom,
-            paddingHorizontal: space.lg,
-            gap: space.md,
-          }}
-        >
-          {/* Grab handle. */}
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={t("mobile:watchParty.queueTitle")}
+      snapPoints={["60%", "90%"]}
+      headerAccessory={
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+          <Badge label={String(items.length)} />
+          {/* Adding is host-only. A viewer gets no disabled twin of this. */}
+          {canControl ? (
+            <IconButton
+              icon={Plus}
+              haptic="light"
+              label={t("mobile:watchParty.queueAdd")}
+              onPress={onAdd}
+            />
+          ) : null}
+        </View>
+      }
+    >
+      <View style={{ paddingHorizontal: space.xs, gap: space.lg }}>
+        {nowPlaying !== null ? (
           <View
             style={{
-              alignSelf: "center",
-              width: 36,
-              height: 4,
-              borderRadius: radius.pill,
-              backgroundColor: colors.strokeStrong,
+              borderRadius: radius.lg,
+              borderCurve: "continuous",
+              backgroundColor: colors.accentSurface,
+              paddingHorizontal: space.md,
+              paddingVertical: space.sm + 2,
+              gap: 2,
             }}
-          />
-
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-            <ListVideo size={18} color={colors.accent} />
+          >
             <Text
-              variant="display"
-              style={{ flex: 1, color: colors.fg, fontSize: 17, fontWeight: "800" }}
-            >
-              {t("mobile:watchParty.queueTitle")}
-            </Text>
-            <View
               style={{
-                paddingHorizontal: space.sm,
-                paddingVertical: 2,
-                borderRadius: radius.pill,
-                backgroundColor: colors.surfaceRaised,
+                color: colors.accent,
+                fontSize: 11,
+                fontWeight: "600",
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
               }}
             >
-              <Text style={{ color: colors.fgMuted, fontSize: 12, fontVariant: ["tabular-nums"] }}>
-                {String(items.length)}
-              </Text>
-            </View>
-            {/* Adding is host-only. A viewer gets no disabled twin of this. */}
-            {canControl ? (
-              <RowButton
-                Icon={Plus}
-                label={t("mobile:watchParty.queueAdd")}
-                onPress={onAdd}
+              {t("mobile:watchParty.queueNowPlaying")}
+            </Text>
+            <Text numberOfLines={2} style={{ color: colors.fg, fontSize: 14, lineHeight: 19 }}>
+              {nowPlaying.title ?? t("mobile:watchParty.queueUntitled")}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Film volume — everyone's own, never broadcast, never the audio
+            session. See this file's header. */}
+        <View style={{ gap: space.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+            <Volume2 size={16} color={colors.fgMuted} strokeWidth={2} />
+            <Text type="label" tone="default">
+              {t("mobile:watchParty.filmVolume")}
+            </Text>
+          </View>
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+            {WATCH_VOLUME_STEPS.map((step) => (
+              <Chip
+                key={step}
+                role="radio"
+                haptic="light"
+                selected={step === volumePercent}
+                label={step === 0 ? t("mobile:watchParty.filmVolumeMuted") : `${String(step)}%`}
+                onPress={() => onVolumeChange(step)}
               />
-            ) : null}
+            ))}
           </View>
+          <Text type="caption" tone="faint" style={{ lineHeight: 16 }}>
+            {t("mobile:watchParty.filmVolumeHint")}
+          </Text>
+        </View>
 
-          {nowPlaying !== null ? (
-            <View
-              style={{
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                borderWidth: 1,
-                borderColor: colors.accent,
-                backgroundColor: colors.accentSurface,
-                paddingHorizontal: space.md,
-                paddingVertical: space.sm,
-                gap: 2,
-              }}
-            >
-              <Text
-                style={{
-                  color: colors.accent,
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 0.6,
-                  textTransform: "uppercase",
-                }}
-              >
-                {t("mobile:watchParty.queueNowPlaying")}
-              </Text>
-              <Text numberOfLines={2} style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}>
-                {nowPlaying.title ?? t("mobile:watchParty.queueUntitled")}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Film volume — everyone's own, never broadcast, never the audio
-              session. See this file's header. */}
-          <View style={{ gap: space.sm }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-              <Volume2 size={16} color={colors.fgMuted} />
-              <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-                {t("mobile:watchParty.filmVolume")}
-              </Text>
-            </View>
-            <ChipSelect
-              options={WATCH_VOLUME_STEPS.map((step) => ({
-                key: String(step),
-                label:
-                  step === 0 ? t("mobile:watchParty.filmVolumeMuted") : `${String(step)}%`,
-              }))}
-              selectedKey={String(volumePercent)}
-              onSelect={(key) => onVolumeChange(Number(key))}
-            />
-            <Text style={{ color: colors.fgFaint, fontSize: 11, lineHeight: 16 }}>
-              {t("mobile:watchParty.filmVolumeHint")}
-            </Text>
-          </View>
-
-          {items.length === 0 ? (
-            <View style={{ alignItems: "center", gap: space.sm, paddingVertical: space.xl }}>
-              <ListVideo size={26} color={colors.fgFaint} />
-              <Text
-                style={{
-                  color: colors.fgMuted,
-                  fontSize: 12,
-                  lineHeight: 17,
-                  textAlign: "center",
-                }}
-              >
-                {canControl
-                  ? t("mobile:watchParty.queueEmptyHost")
-                  : t("mobile:watchParty.queueEmptyViewer")}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={{ flexGrow: 0 }}
-              contentContainerStyle={{ gap: space.xs, paddingBottom: space.sm }}
-            >
-              {items.map((item, index) => {
-                const duration = formatWatchDuration(item.durationSeconds);
-                const title = item.title ?? t("mobile:watchParty.queueUntitled");
-                return (
-                  <View
-                    key={item.itemId}
+        {items.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<ListVideo size={22} color={colors.fgMuted} strokeWidth={2} />}
+            title={
+              canControl
+                ? t("mobile:watchParty.queueEmptyHost")
+                : t("mobile:watchParty.queueEmptyViewer")
+            }
+          />
+        ) : (
+          <View style={{ gap: space.xs }}>
+            {items.map((item, index) => {
+              const duration = formatWatchDuration(item.durationSeconds);
+              const title = item.title ?? t("mobile:watchParty.queueUntitled");
+              return (
+                <View
+                  key={item.itemId}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.sm,
+                    minHeight: 56,
+                    borderRadius: radius.lg,
+                    borderCurve: "continuous",
+                    backgroundColor: colors.surface,
+                    paddingLeft: space.sm,
+                    paddingRight: space.xs,
+                    paddingVertical: space.xs,
+                  }}
+                >
+                  <Text
                     style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: space.sm,
-                      borderRadius: radius.md,
-                      borderCurve: "continuous",
-                      backgroundColor: colors.surfaceRaised,
-                      paddingHorizontal: space.sm,
-                      paddingVertical: space.sm,
+                      width: 18,
+                      textAlign: "right",
+                      color: colors.fgFaint,
+                      fontSize: 11,
+                      fontVariant: ["tabular-nums"],
                     }}
                   >
-                    <Text
-                      style={{
-                        width: 18,
-                        textAlign: "right",
-                        color: colors.fgFaint,
-                        fontSize: 11,
-                        fontVariant: ["tabular-nums"],
-                      }}
-                    >
-                      {String(index + 1)}
+                    {String(index + 1)}
+                  </Text>
+
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <Text numberOfLines={2} style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}>
+                      {title}
                     </Text>
-
-                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                      <Text
-                        numberOfLines={2}
-                        style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}
-                      >
-                        {title}
-                      </Text>
-                      <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 11 }}>
-                        {duration === null
-                          ? t("mobile:watchParty.queueAddedBy", { name: item.addedByName })
-                          : `${duration} · ${t("mobile:watchParty.queueAddedBy", {
-                              name: item.addedByName,
-                            })}`}
-                      </Text>
-                    </View>
-
-                    {/* Host-only controls, omitted at the ends rather than
-                        disabled — a viewer sees none of this column at all. */}
-                    {canControl ? (
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        {canMoveQueueItem(ids, item.itemId, -1) ? (
-                          <RowButton
-                            Icon={ArrowUp}
-                            label={t("mobile:watchParty.queueMoveUp", { title })}
-                            onPress={() => move(item.itemId, -1)}
-                          />
-                        ) : null}
-                        {canMoveQueueItem(ids, item.itemId, 1) ? (
-                          <RowButton
-                            Icon={ArrowDown}
-                            label={t("mobile:watchParty.queueMoveDown", { title })}
-                            onPress={() => move(item.itemId, 1)}
-                          />
-                        ) : null}
-                        <RowButton
-                          Icon={Play}
-                          label={t("mobile:watchParty.queuePlayNow", { title })}
-                          onPress={() => onPlayNow(item.itemId)}
-                        />
-                        <RowButton
-                          Icon={Trash2}
-                          danger
-                          label={t("mobile:watchParty.queueRemove", { title })}
-                          onPress={() => onRemove(item.itemId)}
-                        />
-                      </View>
-                    ) : null}
+                    <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 11 }}>
+                      {duration === null
+                        ? t("mobile:watchParty.queueAddedBy", { name: item.addedByName })
+                        : `${duration} · ${t("mobile:watchParty.queueAddedBy", {
+                            name: item.addedByName,
+                          })}`}
+                    </Text>
                   </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+
+                  {/* Host-only controls, omitted at the ends rather than
+                      disabled — a viewer sees none of this column at all. */}
+                  {canControl ? (
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      {canMoveQueueItem(ids, item.itemId, -1) ? (
+                        <IconButton
+                          icon={ArrowUp}
+                          shape="square"
+                          haptic="light"
+                          label={t("mobile:watchParty.queueMoveUp", { title })}
+                          onPress={() => move(item.itemId, -1)}
+                        />
+                      ) : null}
+                      {canMoveQueueItem(ids, item.itemId, 1) ? (
+                        <IconButton
+                          icon={ArrowDown}
+                          shape="square"
+                          haptic="light"
+                          label={t("mobile:watchParty.queueMoveDown", { title })}
+                          onPress={() => move(item.itemId, 1)}
+                        />
+                      ) : null}
+                      <IconButton
+                        icon={Play}
+                        shape="square"
+                        haptic="light"
+                        label={t("mobile:watchParty.queuePlayNow", { title })}
+                        onPress={() => onPlayNow(item.itemId)}
+                      />
+                      <IconButton
+                        icon={Trash2}
+                        shape="square"
+                        variant="danger"
+                        haptic="light"
+                        label={t("mobile:watchParty.queueRemove", { title })}
+                        onPress={() => onRemove(item.itemId)}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    </Sheet>
   );
 }
 
