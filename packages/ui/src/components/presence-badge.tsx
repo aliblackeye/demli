@@ -63,8 +63,19 @@ export interface PresenceBadgeProps {
 }
 
 /**
+ * The cut-out ring colour. It follows the same `--avatar-ring` custom property
+ * {@link UserAvatar} draws its own 2px ring with, so a surface that re-tones
+ * the avatar ring (the profile card, a raised popover) re-tones the dot's cut-out
+ * with it and the two never disagree. Unset, it is the sidebar tone as before.
+ * The `color:` hint makes tailwind-merge treat it as a ring COLOUR, so a
+ * caller's `ring-transparent` / `ring-overlay` still replaces it.
+ */
+const RING_CLASS = "ring-2 ring-[color:var(--avatar-ring,var(--color-sidebar))]";
+
+/**
  * Presence dot with a 2px cut-out ring in the surface colour behind it, so it
- * reads as sitting IN the avatar's edge rather than on top of it.
+ * reads as sitting IN the avatar's edge rather than on top of it. A status
+ * change cross-fades the dot colour (fast step) rather than snapping.
  */
 export function PresenceBadge({
   status,
@@ -85,7 +96,8 @@ export function PresenceBadge({
         role="img"
         aria-label={label ?? MOBILE_LABEL[status]}
         className={cn(
-          "flex items-center justify-center rounded-[3px] bg-sidebar ring-2 ring-sidebar",
+          "flex items-center justify-center rounded-[3px] bg-[color:var(--avatar-ring,var(--color-sidebar))]",
+          RING_CLASS,
           className,
         )}
         style={glyph === undefined ? undefined : { width: glyph, height: glyph }}
@@ -105,7 +117,8 @@ export function PresenceBadge({
       role="img"
       aria-label={label ?? LABEL[status]}
       className={cn(
-        "relative block size-[10px] rounded-full ring-2 ring-sidebar",
+        "relative block size-[10px] rounded-full transition-colors motion-fast",
+        RING_CLASS,
         DOT_CLASS[status],
         className,
       )}
