@@ -489,7 +489,11 @@ function ProfileCardBody({
   })();
 
   return (
-    <div style={CARD_RING_STYLE}>
+    // Column layout so the card can never outgrow the window (the popover caps
+    // it at Radix's available height): banner and avatar stay put, the middle
+    // scrolls, and the footer — the DM composer, the card's main action — is
+    // pinned at the bottom where it is always reachable.
+    <div style={CARD_RING_STYLE} className="flex min-h-0 flex-1 flex-col">
       <AvatarLightbox
         open={avatarOpen}
         onOpenChange={setAvatarOpen}
@@ -501,7 +505,7 @@ function ProfileCardBody({
       {/* Banner — top-right carries the relationship action and the ⋯ menu
           (founder's reference); on the viewer's OWN card, a pencil to
           settings instead. */}
-      <ProfileBanner url={bannerUrl} seed={profile.user.id}>
+      <ProfileBanner url={bannerUrl} seed={profile.user.id} className="shrink-0">
         <div className="absolute right-2 top-2 flex items-center gap-1.5">
           {relationshipActions}
           {isSelf && (
@@ -544,9 +548,16 @@ function ProfileCardBody({
 
       {/* Content settles in as a short sequence over the popover's own pop-in
           (app-ui stagger presets; reduced motion is honoured by MotionConfig). */}
-      <m.div className="px-4 pb-4" variants={staggerContainer} initial="initial" animate="animate">
-        {/* Identity: overhanging avatar (with a presence dot) + name / handle */}
-        <m.div variants={staggerItem}>
+      <m.div
+        className="flex min-h-0 flex-1 flex-col"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+      >
+        {/* Identity: overhanging avatar (with a presence dot). Outside the
+            scroll region — a scroller clips, and the avatar overlaps the
+            banner by half its height. */}
+        <m.div variants={staggerItem} className="shrink-0 px-4">
           <div className="relative -mt-10 mb-3 w-fit rounded-full shadow-[0_0_0_4px_var(--color-surface)]">
             {/* Founder: pressing the avatar opens it big, and you can move around
                 inside it. Always a button, even without a photo, so the gesture
@@ -568,122 +579,137 @@ function ProfileCardBody({
               />
             </button>
           </div>
-          {/* Name + the viewer's private note in parentheses. The note is a
-              quiet, smaller aside so the NAME still reads as the heading, is
-              clipped to one short line, and carries the full text plus its
-              privacy label in a tooltip — the long-note case must not push the
-              card's identity block around. */}
-          <div className="flex min-w-0 items-baseline space-x-1.5">
-            <p className="min-w-0 truncate font-display text-lg font-semibold leading-tight text-fg-display">
-              {name}
-            </p>
-            {noteBadge && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* Capped at 45% so the NAME always keeps the majority of the
-                      row — the note is an aside, never the headline. */}
-                  <span className="max-w-[45%] shrink-0 truncate text-label font-medium text-fg-faint">
-                    ({noteBadge})
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-64">
-                  <span className="block whitespace-pre-wrap break-words">{note?.body}</span>
-                  <span className="mt-1 block text-2xs text-fg-faint">
-                    {t("desktop:userMenu.onlyVisibleToYou")}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-          {/* When a nickname is in force, the real name sits under it — a renamed
-              person must stay identifiable (ADR 0019 §2). */}
-          {realName && realName !== name && (
-            <p className="truncate text-label text-fg-muted">{realName}</p>
-          )}
-          <p className="truncate text-label text-fg-muted">@{profile.user.username}</p>
-          {/* Custom status (M18). PLAIN TEXT as a JSX child — React escapes it —
-              and deliberately NOT run through the markdown renderer: a status line
-              must not be able to inject formatting or links (§28). */}
-          {customStatus && (
-            <p className="mt-1.5 whitespace-pre-wrap break-words text-label leading-snug text-fg">
-              {customStatus}
-            </p>
-          )}
-          {/* Blocked state is stated plainly on the card, because every action
-              below behaves differently while it holds. Only the viewer→target
-              direction is ever known here; the reverse is unknowable by design. */}
-          {profile.blocked && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-pill bg-danger-surface px-2.5 py-1 text-2xs font-medium text-danger">
-              <ShieldBan className="size-3" aria-hidden />
-              {t("desktop:block.blockedNote")}
-            </p>
-          )}
         </m.div>
 
-        {/* Inset panel — the darker base tone on the surface card. */}
-        {hasSections && (
-          <m.div variants={staggerItem} className="mt-3 space-y-3 rounded-xl bg-app p-3">
-            {hasBio && (
-              <ProfileSection heading={t("desktop:profileCard.aboutHeading")}>
-                <p className="whitespace-pre-wrap break-words text-label leading-relaxed text-fg">
-                  {profile.user.bio}
-                </p>
-              </ProfileSection>
+        {/* The middle scrolls when the card is taller than the space it has
+            (a low window, a long bio, many roles). overscroll-contain keeps a
+            wheel at the end of it from scrolling the chat behind the card. The
+            bottom edge fades out over the last 12px — which is the region's
+            own bottom padding when nothing overflows, so the fade only ever
+            shows on content that continues below. */}
+        <div
+          data-testid="profile-card-scroll"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 [mask-image:linear-gradient(to_bottom,black_calc(100%-0.75rem),transparent)]"
+        >
+          <m.div variants={staggerItem}>
+            {/* Name + the viewer's private note in parentheses. The note is a
+                quiet, smaller aside so the NAME still reads as the heading, is
+                clipped to one short line, and carries the full text plus its
+                privacy label in a tooltip — the long-note case must not push the
+                card's identity block around. */}
+            <div className="flex min-w-0 items-baseline space-x-1.5">
+              <p className="min-w-0 truncate font-display text-lg font-semibold leading-tight text-fg-display">
+                {name}
+              </p>
+              {noteBadge && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* Capped at 45% so the NAME always keeps the majority of the
+                        row — the note is an aside, never the headline. */}
+                    <span className="max-w-[45%] shrink-0 truncate text-label font-medium text-fg-faint">
+                      ({noteBadge})
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-64">
+                    <span className="block whitespace-pre-wrap break-words">{note?.body}</span>
+                    <span className="mt-1 block text-2xs text-fg-faint">
+                      {t("desktop:userMenu.onlyVisibleToYou")}
+                    </span>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {/* When a nickname is in force, the real name sits under it — a renamed
+                person must stay identifiable (ADR 0019 §2). */}
+            {realName && realName !== name && (
+              <p className="truncate text-label text-fg-muted">{realName}</p>
             )}
-
-            {/* NB: the viewer's private note is NOT a section here — it renders
-                inline beside the name above (founder's call). One place only, so
-                a long note cannot be shown in full on a card a screen-share is
-                pointed at (ADR 0019 §1). */}
-            {memberSince && (
-              <ProfileSection heading={t("desktop:profileCard.memberSinceHeading")}>
-                <p className="text-label text-fg">{memberSince}</p>
-              </ProfileSection>
+            <p className="truncate text-label text-fg-muted">@{profile.user.username}</p>
+            {/* Custom status (M18). PLAIN TEXT as a JSX child — React escapes it —
+                and deliberately NOT run through the markdown renderer: a status line
+                must not be able to inject formatting or links (§28). */}
+            {customStatus && (
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-label leading-snug text-fg">
+                {customStatus}
+              </p>
             )}
-
-            {hasRoles && (
-              <ProfileSection heading={t("desktop:profileCard.rolesHeading")}>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.roles?.map((role) => (
-                    <RoleChip key={role.id} name={role.name} color={role.color} />
-                  ))}
-                </div>
-              </ProfileSection>
-            )}
-
-            {hasMutual && (
-              <ProfileSection heading={t("desktop:profileCard.mutualServersHeading")}>
-                <ul className="space-y-1.5" style={{ "--avatar-ring": "var(--color-app)" } as CSSProperties}>
-                  {profile.mutualServers?.map((srv) => (
-                    <li key={srv.id} className="flex items-center gap-2">
-                      <UserAvatar name={srv.name} colorSeed={srv.id} src={srv.iconUrl} size="xs" />
-                      <span className="min-w-0 flex-1 truncate text-label text-fg">{srv.name}</span>
-                    </li>
-                  ))}
-                </ul>
-              </ProfileSection>
+            {/* Blocked state is stated plainly on the card, because every action
+                below behaves differently while it holds. Only the viewer→target
+                direction is ever known here; the reverse is unknowable by design. */}
+            {profile.blocked && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-pill bg-danger-surface px-2.5 py-1 text-2xs font-medium text-danger">
+                <ShieldBan className="size-3" aria-hidden />
+                {t("desktop:block.blockedNote")}
+              </p>
             )}
           </m.div>
-        )}
 
-        {actionErrorMessage && (
-          <p role="alert" className="mt-3 text-label text-danger">
-            {actionErrorMessage}
-          </p>
-        )}
+          {/* Inset panel — the darker base tone on the surface card. */}
+          {hasSections && (
+            <m.div variants={staggerItem} className="mt-3 space-y-3 rounded-xl bg-app p-3">
+              {hasBio && (
+                <ProfileSection heading={t("desktop:profileCard.aboutHeading")}>
+                  <p className="whitespace-pre-wrap break-words text-label leading-relaxed text-fg">
+                    {profile.user.bio}
+                  </p>
+                </ProfileSection>
+              )}
+
+              {/* NB: the viewer's private note is NOT a section here — it renders
+                  inline beside the name above (founder's call). One place only, so
+                  a long note cannot be shown in full on a card a screen-share is
+                  pointed at (ADR 0019 §1). */}
+              {memberSince && (
+                <ProfileSection heading={t("desktop:profileCard.memberSinceHeading")}>
+                  <p className="text-label text-fg">{memberSince}</p>
+                </ProfileSection>
+              )}
+
+              {hasRoles && (
+                <ProfileSection heading={t("desktop:profileCard.rolesHeading")}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.roles?.map((role) => (
+                      <RoleChip key={role.id} name={role.name} color={role.color} />
+                    ))}
+                  </div>
+                </ProfileSection>
+              )}
+
+              {hasMutual && (
+                <ProfileSection heading={t("desktop:profileCard.mutualServersHeading")}>
+                  <ul className="space-y-1.5" style={{ "--avatar-ring": "var(--color-app)" } as CSSProperties}>
+                    {profile.mutualServers?.map((srv) => (
+                      <li key={srv.id} className="flex items-center gap-2">
+                        <UserAvatar name={srv.name} colorSeed={srv.id} src={srv.iconUrl} size="xs" />
+                        <span className="min-w-0 flex-1 truncate text-label text-fg">{srv.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </ProfileSection>
+              )}
+            </m.div>
+          )}
+
+          {actionErrorMessage && (
+            <p role="alert" className="mt-3 text-label text-danger">
+              {actionErrorMessage}
+            </p>
+          )}
+        </div>
 
         {/* Footer: your own card offers "Edit profile"; anyone else's offers a
-            message box that sends straight into the DM without navigating. */}
-        <m.div variants={staggerItem}>
+            message box that sends straight into the DM without navigating.
+            Pinned below the scroll region. */}
+        <m.div variants={staggerItem} className="shrink-0 px-4 pb-4">
           {isSelf ? (
-            <Button variant="secondary" className="mt-4 w-full" onClick={goEditProfile}>
+            <Button variant="secondary" className="mt-1 w-full" onClick={goEditProfile}>
               <Pencil className="size-4" aria-hidden />
               {t("desktop:profileCard.editProfile")}
             </Button>
           ) : profile.blocked ? (
             // A block refuses sends server-side, so no composer here — the way
             // back is the ⋯ menu's "Unblock" (§35).
-            <p className="mt-4 text-center text-label text-fg-faint">
+            <p className="mt-1 text-center text-label text-fg-faint">
               {t("desktop:profileCard.blockedNoMessage")}
             </p>
           ) : (
@@ -801,7 +827,7 @@ function ProfileCardComposer({
   };
 
   return (
-    <div className="mt-4">
+    <div className="mt-1">
       {sendDm.error != null && (
         <p role="alert" className="mb-2 text-label text-danger">
           {localizeBlockedError(sendDm.error, t, "message")}
@@ -894,7 +920,10 @@ export function ProfileCard({ userId, groupId, children }: ProfileCardProps): JS
       <PopoverContent
         align="start"
         collisionPadding={12}
-        className="w-[20rem] rounded-card p-0"
+        // Never taller than the space Radix measured on the chosen side (minus
+        // the collision padding it already subtracts), and never absurdly tall
+        // on a big monitor. The body scrolls inside; nothing is cut off.
+        className="flex max-h-[min(var(--radix-popover-content-available-height),40rem)] w-[20rem] flex-col rounded-card p-0"
       >
         {open && (
           <ProfileCardBody userId={userId} groupId={groupId} onClose={() => setOpen(false)} />
