@@ -74,7 +74,7 @@ function StageControl({
         "size-9 rounded-full border border-white/10 bg-black/45 text-white",
         "hover:bg-black/65 hover:text-white",
         active && !danger && "bg-accent/25 text-accent hover:bg-accent/35",
-        danger && "bg-danger/85 text-white hover:bg-danger",
+        danger && "bg-danger/85 text-on-accent hover:bg-danger hover:text-on-accent",
       )}
     >
       <Icon className="size-4" />

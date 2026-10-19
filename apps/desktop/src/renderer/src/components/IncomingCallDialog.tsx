@@ -144,9 +144,9 @@ function CallCircleButton({
 }): JSX.Element {
   const tone =
     variant === "accept"
-      ? "bg-online text-white hover:bg-online/90"
+      ? "bg-online text-on-accent hover:bg-online/90"
       : variant === "danger"
-        ? "bg-danger text-white hover:bg-danger/90"
+        ? "bg-danger text-on-accent hover:bg-danger/90"
         : "bg-raised text-fg hover:bg-overlay";
   return (
     <Button

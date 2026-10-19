@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -192,6 +193,19 @@ const c = (name: string): string => {
   return value;
 };
 
+/** Bright fills whose content takes the dark `on-accent` ink. */
+const LIGHT_FILLS = [
+  "accent",
+  "accent-hover",
+  "accent-pressed",
+  "danger",
+  "success",
+  "warning",
+  "online",
+  "idle",
+  "dnd",
+] as const;
+
 /** Opaque surfaces text sits on, darkest to lightest. */
 const TEXT_SURFACES = ["rail", "sidebar", "app", "surface", "raised"] as const;
 
@@ -228,16 +242,19 @@ describe("contrast (WCAG 2.x)", () => {
     expect(contrastRatio(c("fg-muted"), c("hover"))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(["accent", "accent-hover", "accent-pressed", "danger", "success", "warning", "online", "idle", "dnd"])(
+  it.each(LIGHT_FILLS)(
     "dark ink reads on the %s fill",
     (fill) => {
       expect(contrastRatio(c("on-accent"), c(fill))).toBeGreaterThanOrEqual(4.5);
     },
   );
 
-  it("white is NOT used on the light fills — that is why on-accent exists", () => {
-    expect(contrastRatio("#ffffff", c("accent"))).toBeLessThan(3);
-    expect(contrastRatio("#ffffff", c("danger"))).toBeLessThan(3);
+  it("white fails AA on every light fill — that is why on-accent exists", () => {
+    for (const fill of LIGHT_FILLS) {
+      expect(contrastRatio("#ffffff", c(fill)), fill).toBeLessThan(4.5);
+    }
+    expect(contrastRatio("#ffffff", c("danger")), "danger: below the 3:1 icon bar too").toBeLessThan(3);
+    expect(contrastRatio("#ffffff", c("online")), "online: below the 3:1 icon bar too").toBeLessThan(3);
   });
 
   it("primary (inverse) button ink reads in every state", () => {
@@ -285,4 +302,95 @@ describe("danger stays recognisable next to the coral accent", () => {
       expect(visionDistance(c("dnd"), c("online"), vision)).toBeGreaterThanOrEqual(20);
     },
   );
+});
+
+/**
+ * The rule above, enforced where it is actually broken: product code that
+ * paints a light fill through className and pairs it with light ink (a white
+ * hang-up glyph on the pink fill, a white badge count). Checking only the
+ * Button `danger` variant missed every call site that overrides it.
+ *
+ * Scope is one string literal at a time — a fill and its ink written in the
+ * same class string, per state (`hover:bg-online hover:text-white` is a hover
+ * conflict; a rest ink also applies in any state that does not set its own).
+ * A fill below 50% alpha is a wash, not a fill, and is not checked here (the
+ * wash rules are in the contrast suite above).
+ */
+describe("no light ink on a light fill, anywhere in the web/desktop source", () => {
+  const ROOT = new URL("../../../../../../", import.meta.url);
+  const SCANNED = ["apps/desktop/src", "apps/web/src", "packages/app-ui/src", "packages/ui/src"];
+  const FILLS = new Set<string>([...LIGHT_FILLS, "inverse", "inverse-hover", "inverse-pressed"]);
+
+  function sources(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules" && entry.name !== "__tests__") out.push(...sources(path));
+      } else if (/\.(tsx?|jsx?)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+        out.push(path);
+      }
+    }
+    return out;
+  }
+
+  /** `hover:bg-danger/90` → ["hover:", "bg-danger/90"]. */
+  function splitState(cls: string): [string, string] {
+    const at = cls.lastIndexOf(":");
+    return at === -1 ? ["", cls] : [cls.slice(0, at + 1), cls.slice(at + 1)];
+  }
+
+  function inkValue(name: string): string | null {
+    if (name === "white") return "#ffffff";
+    const value = desktopColors[name];
+    return value && /^#/.test(value) ? value : null;
+  }
+
+  function conflicts(literal: string): string[] {
+    const fills = new Map<string, string>();
+    const inks = new Map<string, string>();
+    for (const cls of literal.split(/\s+/)) {
+      const [state, utility] = splitState(cls);
+      const fill = /^bg-([a-z-]+)(?:\/(\d+))?$/.exec(utility);
+      if (fill && FILLS.has(fill[1] as string) && (fill[2] === undefined || Number(fill[2]) >= 50)) {
+        fills.set(state, fill[1] as string);
+        continue;
+      }
+      const ink = /^text-([a-z-]+)(?:\/\d+)?$/.exec(utility);
+      if (ink && inkValue(ink[1] as string)) inks.set(state, ink[1] as string);
+    }
+    const found: string[] = [];
+    for (const state of new Set(["", ...fills.keys(), ...inks.keys()])) {
+      const fill = fills.get(state) ?? fills.get("");
+      const ink = inks.get(state) ?? inks.get("");
+      if (!fill || !ink) continue;
+      const ratio = contrastRatio(inkValue(ink) as string, c(fill));
+      if (ratio < 4.5) found.push(`${state || "rest:"} text-${ink} on bg-${fill} = ${ratio.toFixed(2)}:1`);
+    }
+    return found;
+  }
+
+  it("the scanner catches the shapes it is meant to catch", () => {
+    expect(conflicts("size-9 rounded-full bg-danger p-0 text-white hover:bg-danger/90")).toHaveLength(2);
+    expect(conflicts("bg-danger/85 text-white hover:bg-danger")).toHaveLength(2);
+    expect(conflicts("bg-raised text-online hover:bg-online hover:text-white")).toHaveLength(1);
+    expect(conflicts("bg-danger text-on-accent hover:bg-danger/90")).toEqual([]);
+    expect(conflicts("bg-danger/12 text-danger hover:bg-danger/20")).toEqual([]);
+  });
+
+  it("finds no conflict in any scanned file", () => {
+    const files = SCANNED.flatMap((dir) => sources(fileURLToPath(new URL(dir, ROOT))));
+    expect(files.length).toBeGreaterThan(200);
+    const violations: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      for (const match of text.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
+        for (const conflict of conflicts(match[0].slice(1, -1))) {
+          const line = text.slice(0, match.index).split("\n").length;
+          violations.push(`${relative(fileURLToPath(ROOT), file).replace(/\\/g, "/")}:${line} ${conflict}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });

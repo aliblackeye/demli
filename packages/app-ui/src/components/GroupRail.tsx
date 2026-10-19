@@ -844,7 +844,7 @@ export function GroupRail({
                   className={cn(
                     "flex size-10 cursor-pointer items-center justify-center rounded-[20px] bg-raised text-online",
                     "transition-[border-radius,background-color,color] motion-instant",
-                    "hover:rounded-[13px] hover:bg-online hover:text-white",
+                    "hover:rounded-[13px] hover:bg-online hover:text-on-accent",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
                   )}
                 >

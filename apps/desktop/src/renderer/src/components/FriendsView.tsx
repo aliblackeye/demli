@@ -487,7 +487,7 @@ function TabButton({
     >
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-badge font-bold text-white">
+        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-badge font-bold text-on-accent">
           {badge}
         </span>
       )}

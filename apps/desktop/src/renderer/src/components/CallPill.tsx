@@ -95,7 +95,7 @@ export function CallPill({
                   size="sm"
                 />
               ) : (
-                <span className="flex size-8 items-center justify-center rounded-full bg-online text-white">
+                <span className="flex size-8 items-center justify-center rounded-full bg-online text-on-accent">
                   <Maximize2 className="size-4" />
                 </span>
               )}
@@ -149,7 +149,7 @@ export function CallPill({
                   seatedHere ? t("desktop:call.leaveRoom") : t("desktop:call.hangUp")
                 }
                 onClick={seatedHere ? leave : hangup}
-                className="size-8 rounded-full bg-danger p-0 text-white hover:bg-danger/90"
+                className="size-8 rounded-full bg-danger p-0 text-on-accent hover:bg-danger/90"
               >
                 {seatedHere ? <LogOut className="size-4" /> : <PhoneOff className="size-4" />}
               </Button>
