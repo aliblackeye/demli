@@ -98,6 +98,8 @@ interface World {
   livekitRooms: Map<ChannelId, string>;
   /** Delay applied to `listForGroup` — the DB latency behind the race. */
   listForGroupDelayMs: number;
+  /** Delay applied to `findWithMembership` — voice.join's authority read. */
+  findWithMembershipDelayMs: number;
 }
 
 function makeWorld(): World {
@@ -106,6 +108,7 @@ function makeWorld(): World {
     channels: [{ id: LOBBY, groupId: SERVER, kind: "voice", name: "lobby" } as Channel],
     livekitRooms: new Map(),
     listForGroupDelayMs: 0,
+    findWithMembershipDelayMs: 0,
   };
 }
 
@@ -129,6 +132,7 @@ function makeRepos(world: World): Repositories {
         return world.channels.filter((c) => c.groupId === groupId);
       },
       findWithMembership: async (channelId: ChannelId, userId: UserId) => {
+        if (world.findWithMembershipDelayMs > 0) await sleep(world.findWithMembershipDelayMs);
         const channel = channelsOf(userId).find((c) => c.id === channelId);
         return channel
           ? {
@@ -289,6 +293,53 @@ describe("gateway voice occupancy is per connection", () => {
     await phone.close();
     await observer.waitFor(SERVER_EVENT.voiceParticipantLeft);
     expect(leftEvents(observer, ALI)).toHaveLength(1);
+  });
+
+  it("a socket that closes while its voice.join is in flight is never counted", async () => {
+    const world = makeWorld();
+    world.findWithMembershipDelayMs = 300;
+    const port = await start(world);
+    const observer = await Client.connect(port, BURAK);
+
+    const dying = await Client.connect(port, ALI);
+    dying.send(clientEvent.voiceJoin({ channelId: LOBBY }));
+    await sleep(20);
+    dying.socket.terminate();
+    await sleep(world.findWithMembershipDelayMs * 2);
+    expect(observer.events(SERVER_EVENT.voiceParticipantJoined)).toHaveLength(0);
+
+    world.findWithMembershipDelayMs = 0;
+    const fresh = await Client.connect(port, ALI);
+    fresh.send(clientEvent.voiceJoin({ channelId: LOBBY }));
+    await observer.waitFor(SERVER_EVENT.voiceParticipantJoined);
+    fresh.send(clientEvent.voiceLeave({ channelId: LOBBY }));
+    await observer.waitFor(SERVER_EVENT.voiceParticipantLeft);
+    expect(leftEvents(observer, ALI)).toHaveLength(1);
+
+    await fresh.close();
+    await sleep(100);
+    const late = await Client.connect(port, CAN);
+    const auth = late.events(SERVER_EVENT.authSucceeded)[0]!;
+    expect((auth.payload as { voiceOccupancy: unknown }).voiceOccupancy).toEqual([]);
+  });
+
+  it("two in-flight voice.join frames for one room count the socket once", async () => {
+    const world = makeWorld();
+    world.findWithMembershipDelayMs = 150;
+    const port = await start(world);
+    const observer = await Client.connect(port, BURAK);
+    const ali = await Client.connect(port, ALI);
+    ali.send(clientEvent.voiceJoin({ channelId: LOBBY }));
+    ali.send(clientEvent.voiceJoin({ channelId: LOBBY }));
+    await sleep(world.findWithMembershipDelayMs * 3);
+    expect(observer.events(SERVER_EVENT.voiceParticipantJoined)).toHaveLength(1);
+    expect(leftEvents(observer, ALI)).toHaveLength(0);
+
+    ali.send(clientEvent.voiceLeave({ channelId: LOBBY }));
+    await observer.waitFor(SERVER_EVENT.voiceParticipantLeft);
+    const late = await Client.connect(port, CAN);
+    const auth = late.events(SERVER_EVENT.authSucceeded)[0]!;
+    expect((auth.payload as { voiceOccupancy: unknown }).voiceOccupancy).toEqual([]);
   });
 });
 

@@ -1062,6 +1062,12 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           });
           return;
         }
+        // The lookups above yield, so re-check what they may have raced:
+        // occupancy is counted per connection, and a socket that closed while
+        // its join was in flight has already run `handleClose` — counting it now
+        // would leave a count nothing ever removes. A second frame for the same
+        // room that landed first has already counted this socket.
+        if (conn.closed || conn.voiceChannelId === channelId) return;
         leaveVoice(conn); // implicit leave of any previous room
         conn.voiceChannelId = channelId;
         addVoiceOccupant(channelId, conn.userId);
