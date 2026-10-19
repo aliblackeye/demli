@@ -102,7 +102,7 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
         ref={cardRef}
         tabIndex={-1}
         variants={popIn}
-        className="relative w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-card bg-app px-6 pb-6 pt-9 text-center outline-none"
+        className="relative w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-card bg-app px-6 pb-6 pt-9 text-center outline-none"
       >
         {/* The coral glow band — the room's warm light, held at the top edge. */}
         <span

@@ -880,9 +880,7 @@
     "speakerN": "Speaker {{number}}",
     "cameraN": "Camera {{number}}",
     "cameraNote": "Camera names appear once you grant camera access.",
-    "note": "Device names appear once you grant microphone access. Output switching depends on your system — if a selection has no effect, audio stays on the system default.",
-    "inputEmpty": "No microphone found. Plug one in and it shows up here.",
-    "outputEmpty": "No audio output found. Plug in speakers or headphones and they show up here."
+    "note": "Device names appear once you grant microphone access. Output switching depends on your system — if a selection has no effect, audio stays on the system default."
   },
   "sound": {
     "heading": "Interface sounds",

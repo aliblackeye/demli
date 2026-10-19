@@ -32,8 +32,12 @@ function DeviceGroup({
   devices: MediaDevice[];
   selectedId: string;
   onSelect: (deviceId: string) => void;
-  /** Shown instead of the radio list when no device is enumerated. */
-  emptyHint: string;
+  /**
+   * Shown instead of the radio list when no device is enumerated. Only the
+   * camera can be empty: audio lists always carry the system-default entry
+   * (lib/media-devices `toDevices`).
+   */
+  emptyHint?: string;
 }): JSX.Element {
   const { t } = useAppTranslation();
   const headingId = `device-group-${kind}`;
@@ -46,10 +50,9 @@ function DeviceGroup({
         <Icon aria-hidden className="size-3.5" />
         {label}
       </h3>
-      {devices.length === 0 ? (
-        // Nothing enumerated (camera before permission, no microphone plugged
-        // in): say so in the group's own space instead of an empty box. The list
-        // refreshes itself on hot-plug (devicechange), so the hint is true.
+      {devices.length === 0 && emptyHint ? (
+        // Nothing enumerated (a camera before permission is granted): say so in
+        // the group's own space instead of an empty box.
         <p className="px-2 pb-2 text-label leading-relaxed text-fg-faint">{emptyHint}</p>
       ) : (
         <RadioGroup
@@ -103,7 +106,6 @@ export function DeviceSettingsForm(): JSX.Element {
         devices={inputs}
         selectedId={selectedInput}
         onSelect={setInputDevice}
-        emptyHint={t("desktop:devices.inputEmpty")}
       />
       <DeviceGroup
         label={t("desktop:devices.output")}
@@ -112,7 +114,6 @@ export function DeviceSettingsForm(): JSX.Element {
         devices={outputs}
         selectedId={selectedOutput}
         onSelect={setOutputDevice}
-        emptyHint={t("desktop:devices.outputEmpty")}
       />
       <DeviceGroup
         label={t("desktop:devices.camera")}

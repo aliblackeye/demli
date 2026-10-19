@@ -178,7 +178,9 @@ export function ShareAudioStatusView({
               variant="secondary"
               size="sm"
               data-testid="share-audio-send-system"
-              className="mt-2 w-full"
+              // The label is a full sentence in a 220px card: let it wrap
+              // instead of overflowing the box (Button is nowrap by default).
+              className="mt-2 h-auto min-h-7.25 w-full whitespace-normal py-1.5 text-center leading-snug"
               disabled={switching}
               loading={switching}
               onClick={onSendSystemSound}

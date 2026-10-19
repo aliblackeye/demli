@@ -193,7 +193,7 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
         <div className="flex min-w-0 items-center gap-2.5 pl-0.5">
           <LiveDot tone={ringing || !connected ? "pending" : "live"} />
           <div className="min-w-0">
-            <p role="status" className={cn("truncate text-label font-semibold", statusClass)}>
+            <p role="status" title={statusText} className={cn("truncate text-label font-semibold", statusClass)}>
               {statusText}
             </p>
             <p className="truncate text-2xs text-fg-faint">{peerName}</p>

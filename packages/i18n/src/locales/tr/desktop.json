@@ -880,9 +880,7 @@
     "speakerN": "Hoparlör {{number}}",
     "cameraN": "Kamera {{number}}",
     "cameraNote": "Kamera adları kamera erişimi verdiğinde görünür.",
-    "note": "Aygıt adları mikrofon erişimi verdiğinde görünür. Çıkış değiştirme sisteme bağlıdır — seçim etki etmezse ses sistem varsayılanında kalır.",
-    "inputEmpty": "Mikrofon bulunamadı. Bir mikrofon taktığında burada görünür.",
-    "outputEmpty": "Ses çıkışı bulunamadı. Hoparlör ya da kulaklık taktığında burada görünür."
+    "note": "Aygıt adları mikrofon erişimi verdiğinde görünür. Çıkış değiştirme sisteme bağlıdır — seçim etki etmezse ses sistem varsayılanında kalır."
   },
   "sound": {
     "heading": "Arayüz sesleri",
