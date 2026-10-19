@@ -1074,14 +1074,18 @@
     "noiseStandard": "Standard",
     "noiseOff": "Off",
     "echoCancellation": "Echo cancellation",
+    "echoOffWarning": "Only turn this off if you're wearing headphones. Without them, sound from the speaker reaches the mic and everyone in the room hears their own voice echo.",
+    "echoOffConfirm": "I'm on headphones, turn off",
+    "echoOffCancel": "Keep it on",
+    "echoOffActive": "Echo cancellation is off. Turn it back on if you switch to the speaker.",
     "autoGainControl": "Automatic gain",
     "musicMode": "Music mode",
-    "musicModeDesc": "Turns off audio processing and raises quality so instruments come through clean.",
+    "musicModeDesc": "Turns off noise suppression and automatic gain and raises the quality, so instruments come through clean. Echo cancellation stays on.",
     "quality": "Audio quality",
     "qualityStandard": "Standard",
     "qualityHigh": "High",
     "qualityMusic": "Music",
-    "note": "Applies to your mic the next time you speak. Music mode also applies live in a call."
+    "note": "Audio processing changes made during a call take full effect on your next join — the phone's built-in echo and noise cancellers may not switch while a call is running. Audio quality changes apply right away."
   },
   "audioProfile": {
     "section": "Audio profile",
