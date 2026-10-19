@@ -27,7 +27,15 @@
  * Authenticity: the request is signed by the SFU with the API secret (JWT in
  * `Authorization` carrying the body's sha256) and verified with
  * `WebhookReceiver` over the RAW body — anything else is a 401. The SFU only
- * calls this endpoint when `webhook:` is configured in its livekit.yaml.
+ * calls this endpoint when `webhook:` is configured in its livekit.yaml
+ * (deploy/livekit.yaml → `http://api:4000/hooks/livekit`, see deploy.md).
+ *
+ * Timing (measured on LiveKit 1.9.12): `participant_joined` is sent when the
+ * participant becomes ACTIVE — its media transport is up — not at signal join;
+ * one whose transport never connects yields `participant_connection_aborted`
+ * and was never in the room. A removal therefore lands within milliseconds of
+ * the participant becoming able to hear anything, often before the client's
+ * own `connect()` has resolved.
  */
 
 import type { FastifyInstance } from "fastify";
