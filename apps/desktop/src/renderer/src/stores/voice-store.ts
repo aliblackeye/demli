@@ -18,6 +18,7 @@ import { create } from "zustand";
 import {
   BANDWIDTH_SOURCE_WATCH_PARTY,
   createVoiceEngine,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   initialVoiceState,
   InvalidVoiceCommandError,
   voiceEndedReasonFromEvent,
@@ -231,7 +232,11 @@ const engine = createVoiceEngine({
   // SAME capture constraints + RNNoise worklet the publish uses, so the user can
   // hear what the Gürültü Engelleme tier actually sends. Web/Electron only.
   createMicMonitor: createWebMicMonitor,
-  // Restore the per-user volumes (userId → 0..2) so a saved level
+  // Remote audio plays through <audio> elements here, which cannot go above 100%;
+  // the engine clamps every level to that so the slider never shows a boost that
+  // is not playing.
+  maxParticipantVolume: ELEMENT_PLAYBACK_MAX_VOLUME,
+  // Restore the per-user volumes (userId → 0..1) so a saved level
   // re-applies the instant that user is next in voice. Read synchronously from
   // the persist store (localStorage rehydrates sync), so the engine has them
   // before the first join. The engine remains the runtime source of truth (§11).

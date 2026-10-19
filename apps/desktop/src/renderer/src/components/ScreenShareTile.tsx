@@ -20,7 +20,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { cn } from "@demli/ui";
 import {
   DEFAULT_PARTICIPANT_VOLUME,
-  MAX_PARTICIPANT_VOLUME,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   MIN_PARTICIPANT_VOLUME,
   type RemoteScreenShare,
 } from "@demli/media";
@@ -46,7 +46,7 @@ export interface ScreenShareTileProps {
   showVolume?: boolean;
 }
 
-/** 5% slider increments over the 0..2 range — matches the per-user volume menu. */
+/** 5% slider increments up to 100% — matches the per-user volume menu. */
 const VOLUME_STEP = 0.05;
 
 /**
@@ -106,7 +106,7 @@ function ScreenShareVolumeControl({
       <input
         type="range"
         min={MIN_PARTICIPANT_VOLUME}
-        max={MAX_PARTICIPANT_VOLUME}
+        max={ELEMENT_PLAYBACK_MAX_VOLUME}
         step={VOLUME_STEP}
         value={value}
         disabled={deafened}

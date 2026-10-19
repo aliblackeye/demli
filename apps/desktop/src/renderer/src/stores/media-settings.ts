@@ -9,21 +9,25 @@
  *
  * Persistence: zustand `persist` (localStorage) — renderer-only user prefs, the
  * same home as sound-settings. A corrupt/legacy blob is normalized on load via
- * the media package's guards so we never trust storage blindly.
+ * the media package's guards so we never trust storage blindly, and a blob from
+ * before the echo policy is migrated once (`version` = AUDIO_SETTINGS_SCHEMA_VERSION).
  */
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
+  AUDIO_SETTINGS_SCHEMA_VERSION,
   DEFAULT_AUDIO_SETTINGS,
   DEFAULT_VIDEO_SETTINGS,
+  migrateAudioSettings,
   normalizeAudioSettings,
   normalizeVideoSettings,
-  type AudioProcessing,
+  withEchoCancellation,
   type AudioQuality,
   type AudioSettings,
   type CameraFrameRate,
   type CameraQuality,
+  type EchoCancellationChoice,
   type InputMode,
   type NoiseSuppressionTier,
   type ScreenShareQuality,
@@ -42,7 +46,9 @@ interface MediaSettingsState {
   setInputMode: (mode: InputMode) => void;
   setVadThreshold: (value: number) => void;
   setNoiseSuppression: (tier: NoiseSuppressionTier) => void;
-  setProcessing: (patch: Partial<AudioProcessing>) => void;
+  setAutoGainControl: (on: boolean) => void;
+  /** AEC off only as `"off_headphones"`, after the user confirmed headphones in the UI. */
+  setEchoCancellation: (choice: EchoCancellationChoice) => void;
   setMusicMode: (on: boolean) => void;
   setAudioQuality: (quality: AudioQuality) => void;
   setCameraQuality: (quality: CameraQuality) => void;
@@ -62,8 +68,12 @@ export const useMediaSettings = create<MediaSettingsState>()(
       setVadThreshold: (vadThreshold) => set((s) => ({ audio: { ...s.audio, vadThreshold } })),
       setNoiseSuppression: (noiseSuppression) =>
         set((s) => ({ audio: { ...s.audio, noiseSuppression } })),
-      setProcessing: (patch) =>
-        set((s) => ({ audio: { ...s.audio, processing: { ...s.audio.processing, ...patch } } })),
+      setAutoGainControl: (autoGainControl) =>
+        set((s) => ({
+          audio: { ...s.audio, processing: { ...s.audio.processing, autoGainControl } },
+        })),
+      setEchoCancellation: (choice) =>
+        set((s) => ({ audio: withEchoCancellation(s.audio, choice) })),
       setMusicMode: (musicMode) => set((s) => ({ audio: { ...s.audio, musicMode } })),
       setAudioQuality: (quality) => set((s) => ({ audio: { ...s.audio, quality } })),
       setCameraQuality: (cameraQuality) => set((s) => ({ video: { ...s.video, cameraQuality } })),
@@ -75,6 +85,13 @@ export const useMediaSettings = create<MediaSettingsState>()(
     }),
     {
       name: "demli.media-settings",
+      version: AUDIO_SETTINGS_SCHEMA_VERSION,
+      // Runs once per install when the stored version is older (a store written
+      // before `version` existed reads as 0).
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as { audio?: unknown };
+        return { ...p, audio: migrateAudioSettings(p.audio, version) };
+      },
       partialize: (s) => ({ audio: s.audio, video: s.video, pttKey: s.pttKey }),
       // Normalize untrusted persisted values through the media package's guards.
       merge: (persisted, current) => {

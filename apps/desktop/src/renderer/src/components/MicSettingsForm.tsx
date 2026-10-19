@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Gauge, Headphones, Keyboard, Mic, Music, Sparkles, Waves } from "lucide-react";
+import {
+  Gauge,
+  Headphones,
+  Keyboard,
+  Mic,
+  Music,
+  Sparkles,
+  TriangleAlert,
+  Waves,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@demli/ui";
 import {
   AUDIO_QUALITY_BITRATE_KBPS,
   INPUT_MODES,
+  isEchoCancellationOn,
   NOISE_SUPPRESSION_TIERS,
   type AudioQuality,
   type InputMode,
@@ -138,6 +148,83 @@ function PttKeyCapture(): JSX.Element {
   );
 }
 
+const SMALL_BUTTON =
+  "cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-instant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
+
+/**
+ * Yankı Engelleme. Turning it OFF is a two-step action: the switch opens an inline
+ * warning and only the explicit "I'm on headphones" button turns it off (and records
+ * that confirmation). With speakers and AEC off, the room hears itself through this
+ * mic. Music mode keeps AEC on, so the row is locked there.
+ */
+function EchoCancellationRow({ music }: { music: boolean }): JSX.Element {
+  const { t } = useAppTranslation();
+  const audio = useMediaSettings((s) => s.audio);
+  const setEchoCancellation = useMediaSettings((s) => s.setEchoCancellation);
+  const [confirming, setConfirming] = useState(false);
+  const on = isEchoCancellationOn(audio);
+
+  const onToggle = (next: boolean): void => {
+    if (next) {
+      setConfirming(false);
+      setEchoCancellation("on");
+    } else {
+      setConfirming(true);
+    }
+  };
+
+  return (
+    <div>
+      <ToggleRow
+        icon={Sparkles}
+        title={t("desktop:micSettings.echoCancellation")}
+        description={t("desktop:micSettings.echoCancellationDesc")}
+        checked={on}
+        disabled={music}
+        onChange={onToggle}
+      />
+      {confirming && on && !music && (
+        <div
+          role="status"
+          className="mx-4 mb-3.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5"
+        >
+          <div className="flex gap-2">
+            <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
+            <p className="text-xs leading-relaxed text-fg">
+              {t("desktop:micSettings.echoOffWarning")}
+            </p>
+          </div>
+          <div className="mt-2.5 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className={cn(SMALL_BUTTON, "border-stroke bg-raised text-fg-muted hover:text-fg")}
+            >
+              {t("desktop:micSettings.echoOffCancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEchoCancellation("off_headphones");
+                setConfirming(false);
+              }}
+              className={cn(SMALL_BUTTON, "border-warning/50 bg-warning/15 text-fg hover:bg-warning/25")}
+            >
+              {t("desktop:micSettings.echoOffConfirm")}
+            </button>
+          </div>
+        </div>
+      )}
+      {!on && !music && (
+        <p className="flex gap-2 px-4 pb-3 text-xs leading-relaxed text-warning">
+          <Headphones className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          {t("desktop:micSettings.echoOffActive")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * "Mikrofon" settings (Ayarlar → Mikrofon): input mode (push-to-talk / voice
  * activity / always-on), the audio-processing toggles + music mode, and the audio
@@ -150,7 +237,7 @@ export function MicSettingsForm(): JSX.Element {
   const audio = useMediaSettings((s) => s.audio);
   const setInputMode = useMediaSettings((s) => s.setInputMode);
   const setVadThreshold = useMediaSettings((s) => s.setVadThreshold);
-  const setProcessing = useMediaSettings((s) => s.setProcessing);
+  const setAutoGainControl = useMediaSettings((s) => s.setAutoGainControl);
   const setNoiseSuppression = useMediaSettings((s) => s.setNoiseSuppression);
   const setMusicMode = useMediaSettings((s) => s.setMusicMode);
   const setAudioQuality = useMediaSettings((s) => s.setAudioQuality);
@@ -302,21 +389,14 @@ export function MicSettingsForm(): JSX.Element {
               })}
             </div>
           </div>
-          <ToggleRow
-            icon={Sparkles}
-            title={t("desktop:micSettings.echoCancellation")}
-            description={t("desktop:micSettings.echoCancellationDesc")}
-            checked={music || audio.processing.echoCancellation}
-            disabled={music}
-            onChange={(next) => setProcessing({ echoCancellation: next })}
-          />
+          <EchoCancellationRow music={music} />
           <ToggleRow
             icon={Gauge}
             title={t("desktop:micSettings.autoGainControl")}
             description={t("desktop:micSettings.autoGainControlDesc")}
             checked={!music && audio.processing.autoGainControl}
             disabled={music}
-            onChange={(next) => setProcessing({ autoGainControl: next })}
+            onChange={setAutoGainControl}
           />
         </div>
         {music && (

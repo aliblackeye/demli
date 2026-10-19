@@ -17,6 +17,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   clampParticipantVolume,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   isDefaultParticipantVolume,
   normalizeParticipantVolumes,
   PARTICIPANT_VOLUME_STORAGE_KEY,
@@ -24,7 +25,7 @@ import {
 } from "@demli/media";
 
 interface ParticipantVolumeState {
-  /** userId → 0..2; only NON-default (≠ 100%) levels are kept. */
+  /** userId → 0..1 (element playback ceiling); only non-default levels are kept. */
   volumes: ParticipantVolumeMap;
   /** Write-through a new level (clamped; a 100% level prunes the entry). */
   setVolume: (userId: string, volume: number) => void;
@@ -36,7 +37,7 @@ export const useParticipantVolumes = create<ParticipantVolumeState>()(
       volumes: {},
       setVolume: (userId, volume) =>
         set((s) => {
-          const clamped = clampParticipantVolume(volume);
+          const clamped = clampParticipantVolume(volume, ELEMENT_PLAYBACK_MAX_VOLUME);
           const next = { ...s.volumes };
           if (isDefaultParticipantVolume(clamped)) delete next[userId];
           else next[userId] = clamped;
@@ -50,7 +51,10 @@ export const useParticipantVolumes = create<ParticipantVolumeState>()(
       // the media package's guard (clamps, drops junk + redundant 100% entries).
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ParticipantVolumeState>;
-        return { ...current, volumes: normalizeParticipantVolumes(p.volumes) };
+        return {
+          ...current,
+          volumes: normalizeParticipantVolumes(p.volumes, ELEMENT_PLAYBACK_MAX_VOLUME),
+        };
       },
     },
   ),

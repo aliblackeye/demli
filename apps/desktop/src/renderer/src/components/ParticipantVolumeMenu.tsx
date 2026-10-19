@@ -2,7 +2,7 @@
  * Per-user playback volume control (kişi-başı ses seviyesi).
  *
  * Wraps any participant surface (roster row, camera tile, avatar tile) so a
- * RIGHT-CLICK opens a context menu with a 0–200% volume slider + reset. The level
+ * RIGHT-CLICK opens a context menu with a 0–100% volume slider + reset. The level
  * is a LISTENER-side, client-only offset — it scales that remote's own audio
  * playout, never the sender or SFU (no media over WebSocket, §10/§35). Engine-
  * owned (`voice-store.setParticipantVolume`), so it composes with deafen: while
@@ -23,8 +23,8 @@ import { ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "@demli/
 import { ActionMenu } from "@demli/app-ui";
 import {
   DEFAULT_PARTICIPANT_VOLUME,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   isDefaultParticipantVolume,
-  MAX_PARTICIPANT_VOLUME,
   MIN_PARTICIPANT_VOLUME,
   type VoiceParticipant as VoiceParticipantData,
 } from "@demli/media";
@@ -34,7 +34,10 @@ import { useVoiceStore } from "../stores/voice-store";
 import { useChatStore } from "../stores/chat-store";
 import { ParticipantActionItems } from "./ParticipantActionItems";
 
-/** 5% slider increments (0.05 of the 0..2 range). */
+/**
+ * 5% slider increments. The slider stops at 100%: remote voices play through
+ * `<audio>` elements here, which cannot go louder (see ELEMENT_PLAYBACK_MAX_VOLUME).
+ */
 const VOLUME_STEP = 0.05;
 
 export interface ParticipantVolumeMenuProps {
@@ -112,7 +115,7 @@ export const ParticipantVolumeMenu = memo(function ParticipantVolumeMenu({
             <input
               type="range"
               min={MIN_PARTICIPANT_VOLUME}
-              max={MAX_PARTICIPANT_VOLUME}
+              max={ELEMENT_PLAYBACK_MAX_VOLUME}
               step={VOLUME_STEP}
               value={value}
               disabled={deafened}
