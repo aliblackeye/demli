@@ -1,9 +1,14 @@
 /**
  * MessageRow — the SINGLE-SOURCE message row (CLAUDE.md §8), shared by the desktop
- * renderer and (Phase 4) the web app. It renders one message in the virtualized
- * thread: author/avatar/timestamp, markdown body, reply quote, attachments,
- * embeds, reactions, the outbox/queue states, the hover action toolbar (react /
- * reply / more → copy/pin/edit/delete) and the in-place editor.
+ * renderer and the web app. It renders one message in the virtualized thread:
+ * author/avatar/timestamp, markdown body, reply quote, attachments, embeds,
+ * reactions, the outbox/queue states, the hover action toolbar (react / reply /
+ * edit / more → copy/pin/edit/delete) and the in-place editor.
+ *
+ * Koyu Masa (M16): no bubbles. A message is text on the base tone; hovering a
+ * row lifts it one surface step (200ms, tone only — rows never move), and the
+ * toolbar fades in on the raised tone above it. Coral is spent only on what is
+ * about the viewer: a mention of you, your own reactions, the unread line.
  *
  * Everything store- or REST-coupled (display names, the current user, reactions,
  * edit/pin/delete, retry/discard, the profile card, attachment grid, embeds and
@@ -12,17 +17,14 @@
  * stable reference that never enters this component's prop list and the `memo`
  * below still holds across data/outbox ticks.
  *
- * Per-row props (message/isContinuation/authorColor/… ) are the list's derived
- * per-row context; the surface's `renderMessage` closure adds its own surface
- * data (author color, profile group, permission) around them.
- *
- * Safari-12 notes: this file predates `flex gap` / `:has()` support on the oldest
- * target (the web surface). Non-wrapping gaps are reproduced with `space-x-*`; the
- * wrapping reactions row uses per-child `mr-1 mb-1` + a `-mb-1` container; and the
- * hover toolbar's two `:has()` visibility rules are driven from JS state instead.
+ * VIRTUALIZATION CONTRACT: nothing here may change a row's measured height on
+ * hover or focus. The toolbar is absolutely positioned and toggles opacity +
+ * visibility (never `display`), the continuation timestamp is absolute, and the
+ * add-reaction pill is always laid out (only its opacity changes).
  */
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
+  AlertCircle,
   ArrowRight,
   Clock,
   Copy,
@@ -42,6 +44,7 @@ import {
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DropdownMenu,
@@ -49,9 +52,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+  IconButton,
+  ReactionChip,
   UserAvatar,
   cn,
 } from "@demli/ui";
@@ -60,6 +62,7 @@ import { contentMentionsUser } from "@demli/protocol";
 import type { GroupId, MessageId, MessageReplyPreview } from "@demli/types";
 import { useMessageRowServices } from "../data/message-row-data";
 import type { ChatMessageView } from "../data/chat-data";
+import { onMessageEditRequest, requestComposerFocus } from "../data/edit-request";
 import { MessageEditor } from "./MessageEditor";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { TimeoutBadge } from "./TimeoutBadge";
@@ -73,6 +76,15 @@ const dateFormat = new Intl.DateTimeFormat(undefined, {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+});
+/** Full date + time for a timestamp's hover title ("19 Ekim 2026 Pazartesi 14:32"). */
+const fullFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 function startOfDay(date: Date): number {
@@ -128,6 +140,13 @@ function canPinMessage(
   return currentUserId !== undefined && authorId === currentUserId;
 }
 
+/** Shared look of the small text actions under a failed send (retry / discard). */
+const INLINE_ACTION_CLASS = cn(
+  "ml-1 inline-flex h-6 cursor-pointer items-center rounded-md px-2 font-medium",
+  "transition-colors motion-hover hover:bg-wash active:bg-wash-strong",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+);
+
 /** Compact "pinned" marker drawn on a pinned message row in the scrollback. */
 function PinnedMarker(): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
@@ -137,7 +156,7 @@ function PinnedMarker(): JSX.Element {
       className="mb-0.5 flex items-center space-x-1 text-2xs font-medium text-fg-faint"
       aria-label={t("desktop:pins.title")}
     >
-      <Pin className="size-3 shrink-0" aria-hidden />
+      <Pin className="size-3 shrink-0 text-accent" aria-hidden />
       <span>{t("desktop:pins.title")}</span>
     </span>
   );
@@ -195,7 +214,7 @@ function SystemMessageRow({
   return (
     // Safari 12: no flex `gap` → `space-x-2` reproduces the icon/text gutter.
     <div className="flex items-center justify-center space-x-2 px-4 py-1 text-xs text-fg-faint">
-      <ArrowRight className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
+      <ArrowRight className="size-3.5 shrink-0 text-online" aria-hidden />
       <span className="min-w-0 truncate text-fg-muted">{text}</span>
       <span className="shrink-0 tabular-nums text-fg-faint">{formatTime(message.createdAt)}</span>
     </div>
@@ -203,7 +222,8 @@ function SystemMessageRow({
 }
 
 /**
- * The dimmed quote line above a reply's content (ADR 0011 §2). Resolves the
+ * The quote line above a reply's content (ADR 0011 §2): a small curved "spine"
+ * reaching from the avatar column into the quoted author + text. Resolves the
  * quoted author's name from the users directory by id (the preview carries only
  * `authorId`). Clicking scrolls to the target; a soft-deleted target renders the
  * "deleted" stub and is not clickable.
@@ -233,20 +253,20 @@ function ReplyPreviewLine({
       className={cn(
         // Safari 12: no flex `gap` → `space-x-1` reproduces the icon/name gutter.
         "group/reply mb-0.5 flex max-w-full items-center space-x-1 text-left text-xs text-fg-faint",
-        "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        "rounded-sm transition-colors motion-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         clickable && "cursor-pointer hover:text-fg-muted",
         !clickable && "cursor-default",
       )}
     >
-      <CornerUpRight className="size-3 shrink-0 text-fg-faint" aria-hidden />
+      <CornerUpRight className="size-3 shrink-0 text-fg-subtle" aria-hidden />
       {replyTo.deleted ? (
         <span className="truncate italic">{t("desktop:chat.replyDeleted")}</span>
       ) : (
         <>
-          <span className="shrink-0 font-medium text-fg-muted group-hover/reply:text-fg">
+          <span className="shrink-0 font-medium text-fg-muted transition-colors motion-hover group-hover/reply:text-fg">
             {name}
           </span>
-          <span className="min-w-0 truncate opacity-90">{replyTo.content}</span>
+          <span className="min-w-0 truncate">{replyTo.content}</span>
         </>
       )}
     </button>
@@ -283,6 +303,18 @@ export const MessageRow = memo(function MessageRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [toolbarFocus, setToolbarFocus] = useState(false);
 
+  const isOwn = currentUserId !== undefined && message.authorId === currentUserId;
+  const isConfirmed = message.deliveryState === "sent";
+  const editable = isOwn && isConfirmed && message.kind !== "system" && message.content.length > 0;
+
+  // ↑ in an empty composer opens THIS row's editor when it is the viewer's
+  // newest message (MessageList finds it and routes the command here). Only
+  // editable rows register, so the emitter map never holds other people's rows.
+  useEffect(() => {
+    if (!editable) return undefined;
+    return onMessageEditRequest(message.id, () => setIsEditing(true));
+  }, [editable, message.id]);
+
   if (message.kind === "system") {
     return <SystemMessageRow message={message} authorName={name} />;
   }
@@ -295,11 +327,8 @@ export const MessageRow = memo(function MessageRow({
   const failed = message.deliveryState === "failed";
   // Only a confirmed, server-persisted message can be reacted to / replied to /
   // quoted — an optimistic (sending) or failed row has no real id yet.
-  const isConfirmed = message.deliveryState === "sent";
   const reactions = message.reactions ?? [];
-  // Edit/delete affordances are author-only (the server enforces the same); the
-  // "(edited)" marker keys off the row's `updatedAt` (null until first edit).
-  const isOwn = currentUserId !== undefined && message.authorId === currentUserId;
+  // The "(edited)" marker keys off the row's `updatedAt` (null until first edit).
   const isEdited = message.updatedAt !== null;
   // Pin gating mirrors the server rule (author ∨ MANAGE_MESSAGES ∨ owner; anyone
   // in a DM / flat group chat, which is what `canManageMessages` resolves to
@@ -326,11 +355,18 @@ export const MessageRow = memo(function MessageRow({
     if (message.content) void navigator.clipboard?.writeText(message.content);
   };
 
+  // Leaving the editor hands the keyboard back to the composer (Discord parity):
+  // after ↑ → edit → Enter/Esc the user keeps typing without reaching for the mouse.
+  const closeEditor = (): void => {
+    setIsEditing(false);
+    requestComposerFocus(message.channelId);
+  };
+
   // Edit is committed over REST; the `message.updated` broadcast reconciles the
   // cache (adds the "(edited)" marker), so on success we just leave edit mode.
   const saveEdit = async (content: string): Promise<void> => {
     await services.editMessage(message.id, content);
-    setIsEditing(false);
+    closeEditor();
   };
 
   /**
@@ -374,10 +410,17 @@ export const MessageRow = memo(function MessageRow({
     );
   };
 
+  const timestampTitle = fullFormat.format(new Date(message.createdAt));
+  const toolbarOpen = pickerOpen || menuOpen || toolbarFocus;
+
   return (
     <div
+      data-message-id={message.id}
       className={cn(
-        "group relative border-l-2 border-transparent px-4 py-0.5 transition-colors motion-instant hover:bg-white/[0.025]",
+        // Tone-only hover (Koyu Masa): the row lifts one surface step in 200ms.
+        // `border-l-2` is ALWAYS laid out (transparent at rest) so the mention
+        // trace never changes the row's measured width or height.
+        "group relative border-l-2 border-transparent px-4 py-0.5 transition-colors motion-hover hover:bg-hover",
         // UI overhaul spec: 18px rhythm between message groups (was 10px) —
         // now the shared `4.5` spacing step rather than an arbitrary literal.
         !isContinuation && "mt-4.5",
@@ -387,8 +430,10 @@ export const MessageRow = memo(function MessageRow({
         // lingering filter, and therefore no lingering containing block for the
         // absolutely positioned hover toolbar below.
         isArriving && "animate-arrival",
-        mentionsMe && "border-accent bg-accent/[0.06]",
-        isHighlighted && "bg-accent/10",
+        (isEditing || toolbarOpen) && "bg-hover",
+        mentionsMe && "border-accent bg-accent/[0.06] hover:bg-accent/[0.09]",
+        // The jump flash: coral wash that fades back out over the standard step.
+        isHighlighted && "bg-accent-surface",
       )}
     >
       {/* Safari 12: no flex `gap` → `space-x-3` reproduces the avatar/content gutter. */}
@@ -402,16 +447,20 @@ export const MessageRow = memo(function MessageRow({
             // with a ResizeObserver (measureElement), re-measures, and shifts
             // every row below (founder: "hover edince yukarı aşağı kayıyor").
             // Absolute + opacity keeps offsetHeight constant → no re-measure.
-            <span className="pointer-events-none absolute inset-x-0 top-0.5 flex h-5 items-center justify-end text-badge tabular-nums text-fg-faint opacity-0 transition-opacity motion-instant group-hover:opacity-100">
+            <time
+              dateTime={message.createdAt}
+              title={timestampTitle}
+              className="absolute inset-x-0 top-0.5 flex h-5 items-center justify-end text-badge tabular-nums text-fg-faint opacity-0 transition-opacity motion-hover group-hover:opacity-100"
+            >
               {formatTime(message.createdAt)}
-            </span>
+            </time>
           ) : (
             services.renderProfileCard(
               message.authorId,
               <button
                 type="button"
                 aria-label={name}
-                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                className="rounded-full transition-opacity motion-hover hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app"
               >
                 <UserAvatar
                   src={avatarUrl ?? undefined}
@@ -450,11 +499,11 @@ export const MessageRow = memo(function MessageRow({
                   un-wired surface just renders the name. */}
               {services.renderAuthorName?.(
                 message.authorId,
-                <span className="text-sm font-semibold text-fg" style={{ color: authorColor }}>
+                <span className="text-sm font-semibold text-fg-display" style={{ color: authorColor }}>
                   {name}
                 </span>,
               ) ?? (
-                <span className="text-sm font-semibold text-fg" style={{ color: authorColor }}>
+                <span className="text-sm font-semibold text-fg-display" style={{ color: authorColor }}>
                   {name}
                 </span>
               )}
@@ -464,16 +513,20 @@ export const MessageRow = memo(function MessageRow({
               {authorTimedOutUntil && (
                 <TimeoutBadge timedOutUntil={authorTimedOutUntil} className="ml-2" />
               )}
-              <span className="ml-2 text-2xs text-fg-faint">
+              <time
+                dateTime={message.createdAt}
+                title={timestampTitle}
+                className="ml-2 text-2xs tabular-nums text-fg-faint"
+              >
                 {formatMessageTimestamp(message.createdAt, t)}
-              </span>
+              </time>
             </div>
           )}
           {isEditing ? (
             <MessageEditor
               initialValue={message.content}
               onSave={saveEdit}
-              onCancel={() => setIsEditing(false)}
+              onCancel={closeEditor}
               resolveMentionName={services.resolveMentionName}
             />
           ) : (
@@ -481,10 +534,23 @@ export const MessageRow = memo(function MessageRow({
               <MessageMarkdown
                 content={message.content}
                 groupId={profileGroupId}
-                className={cn("text-fg/90", sending && "text-fg-faint", failed && "text-danger/90")}
+                className={cn(
+                  "text-fg transition-colors motion-fast",
+                  sending && "text-fg-faint",
+                  failed && "text-danger/90",
+                )}
                 append={
                   isEdited ? (
-                    <span className="ml-1 select-none align-baseline text-badge text-fg-faint">
+                    <span
+                      title={
+                        message.updatedAt
+                          ? t("desktop:chat.editedAt", {
+                              time: fullFormat.format(new Date(message.updatedAt)),
+                            })
+                          : undefined
+                      }
+                      className="ml-1 select-none align-baseline text-badge text-fg-faint"
+                    >
                       {t("desktop:chat.edited")}
                     </span>
                   ) : undefined
@@ -492,6 +558,7 @@ export const MessageRow = memo(function MessageRow({
               />
             )
           )}
+          {sending && !queued && <span className="sr-only">{t("desktop:chat.sending")}</span>}
           {message.attachments && message.attachments.length > 0 &&
             services.renderAttachments(
               message.channelId,
@@ -510,34 +577,22 @@ export const MessageRow = memo(function MessageRow({
             services.renderInviteEmbeds(message.content)}
 
           {isConfirmed && reactions.length > 0 && (
-            // Safari 12: a WRAPPING flex has no `gap` substitute in `space-x-*`, so
-            // the gutter is per-child `mr-1 mb-1` with a `-mb-1` container to cancel
-            // the last row's bottom margin (identical spacing, no extra DOM).
-            <div className="mt-1 -mb-1 flex flex-wrap items-center">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
               {reactions.map((r) => (
-                <button
+                <ReactionChip
                   key={r.emoji}
-                  type="button"
-                  aria-pressed={r.reactedByMe}
-                  aria-label={t("desktop:chat.reactionToggle", { emoji: r.emoji, count: r.count })}
+                  emoji={services.renderReactionEmoji(r.emoji)}
+                  count={r.count}
+                  mine={r.reactedByMe}
+                  label={t("desktop:chat.reactionToggle", { emoji: r.emoji, count: r.count })}
+                  // Others' pills take the white wash instead of the primitive's
+                  // surface tone: the hovered row IS the surface tone, and a
+                  // same-tone pill would vanish exactly when the user aims at it.
+                  className={r.reactedByMe ? undefined : "bg-wash hover:bg-wash-strong"}
                   onClick={() =>
                     services.toggleReaction(message.channelId, message.id, r.emoji, r.reactedByMe)
                   }
-                  className={cn(
-                    // Safari 12: no flex `gap` → `space-x-1` for the emoji/count gutter.
-                    "mr-1 mb-1 inline-flex items-center space-x-1 rounded-full border px-1.5 py-0.5",
-                    "transition-colors motion-instant focus-visible:outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-accent/70",
-                    r.reactedByMe
-                      ? "border-accent/60 bg-accent/15 text-fg"
-                      : "border-stroke bg-raised/60 text-fg-muted hover:border-stroke-strong hover:bg-raised",
-                  )}
-                >
-                  <span aria-hidden className="flex items-center text-sm leading-none">
-                    {services.renderReactionEmoji(r.emoji)}
-                  </span>
-                  <span className="text-xs font-medium tabular-nums">{r.count}</span>
-                </button>
+                />
               ))}
               {services.renderReactionPicker({
                 onSelect: pickReaction,
@@ -547,12 +602,16 @@ export const MessageRow = memo(function MessageRow({
                     type="button"
                     aria-label={t("desktop:chat.addReaction")}
                     className={cn(
-                      "mr-1 mb-1 inline-flex h-[22px] items-center justify-center rounded-full border border-stroke px-1.5",
-                      "text-fg-faint transition-colors motion-instant hover:border-stroke-strong hover:text-fg-muted",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+                      // Always laid out, only faded: the reactions line keeps its
+                      // height whether or not the row is hovered (§27 measure).
+                      "inline-flex h-7 cursor-pointer items-center justify-center rounded-pill bg-wash px-2.5",
+                      "text-fg-muted opacity-0 transition-[opacity,color,background-color] motion-hover",
+                      "hover:bg-wash-strong hover:text-fg group-hover:opacity-100",
+                      "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                      "data-[state=open]:bg-wash-strong data-[state=open]:text-fg data-[state=open]:opacity-100",
                     )}
                   >
-                    <SmilePlus className="size-3.5" />
+                    <SmilePlus className="size-4" aria-hidden />
                   </button>
                 ),
               })}
@@ -580,16 +639,16 @@ export const MessageRow = memo(function MessageRow({
           )}
 
           {failed && message.nonce !== null && (
-            // Safari 12: no flex `gap` → `space-x-2` reproduces the control gutter.
-            <div className="mt-1 flex items-center space-x-2 text-xs">
-              <span className="text-danger">{outboxErrorText(message.errorKey, t)}</span>
+            <div role="status" className="mt-1 flex flex-wrap items-center text-xs animate-fade-in">
+              <AlertCircle className="mr-1.5 size-3.5 shrink-0 text-danger" aria-hidden />
+              <span className="mr-1 text-danger">{outboxErrorText(message.errorKey, t)}</span>
               {/* §35: a message whose channel is gone can never be delivered —
                   offering "retry" there would be a button that cannot work. */}
               {message.errorKey !== "channel_gone" && (
                 <button
                   type="button"
                   onClick={() => services.retryOutbox(message.channelId, message.nonce ?? "")}
-                  className="cursor-pointer font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm"
+                  className={cn(INLINE_ACTION_CLASS, "text-fg")}
                 >
                   {t("desktop:chat.retry")}
                 </button>
@@ -597,7 +656,7 @@ export const MessageRow = memo(function MessageRow({
               <button
                 type="button"
                 onClick={() => services.discardOutbox(message.channelId, message.nonce ?? "")}
-                className="cursor-pointer font-medium text-fg-muted hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm"
+                className={cn(INLINE_ACTION_CLASS, "text-fg-muted hover:text-fg")}
               >
                 {t("desktop:chat.discard")}
               </button>
@@ -607,12 +666,12 @@ export const MessageRow = memo(function MessageRow({
       </div>
 
       {/* Hover actions — live only on confirmed messages (ADR 0011). */}
-      {isConfirmed && (
+      {isConfirmed && !isEditing && (
         <div
           // JS mirror of the former `has-[:focus-visible]` + `:has([data-state=open])`
           // CSS: a data attribute the variant selector keys off, so it wins over
-          // `hidden` exactly like `group-hover:flex` does (and works on Safari 12).
-          data-open={pickerOpen || menuOpen || toolbarFocus ? "true" : undefined}
+          // the resting `invisible` exactly like `group-hover:visible` does.
+          data-open={toolbarOpen ? "true" : undefined}
           onFocus={(event) => {
             // Only keyboard focus keeps the toolbar open (mirrors `:focus-visible`);
             // `.matches` throws on browsers without the pseudo — treat focus as
@@ -629,42 +688,55 @@ export const MessageRow = memo(function MessageRow({
             }
           }}
           className={cn(
-            // Safari 12: no flex `gap` → `space-x-0.5` for the toolbar button gutter.
-            "absolute -top-3 right-4 hidden items-center space-x-0.5 rounded-lg border border-stroke",
-            "bg-overlay p-0.5 shadow-md group-hover:flex data-[open]:flex",
+            // Raised tone over the hovered row's surface tone — separation by
+            // tone, no border, no outer shadow. `invisible` (not `hidden`) so it
+            // can fade: visibility flips at the END of the fade-out, and an
+            // invisible toolbar is neither clickable nor in the tab order.
+            "absolute -top-4 right-4 z-10 flex items-center space-x-0.5 rounded-lg bg-raised p-0.5",
+            "invisible opacity-0 transition-[opacity,visibility] motion-fast",
+            "group-hover:visible group-hover:opacity-100 data-[open]:visible data-[open]:opacity-100",
+            // Keyboard path: tabbing onto the avatar / name reveals the toolbar,
+            // so the next Tab lands on its first button instead of skipping it.
+            "group-focus-within:visible group-focus-within:opacity-100",
           )}
         >
           {services.renderReactionPicker({
             onSelect: pickReaction,
             onOpenChange: setPickerOpen,
             children: (
-              <Button variant="ghost" size="icon-sm" aria-label={t("desktop:chat.addReaction")}>
-                <SmilePlus className="size-4" />
-              </Button>
+              <IconButton variant="ghost" size="sm" label={t("desktop:chat.addReaction")}>
+                <SmilePlus />
+              </IconButton>
             ),
           })}
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("desktop:chat.reply")}
-                onClick={startReply}
-              >
-                <Reply className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{t("desktop:chat.reply")}</TooltipContent>
-          </Tooltip>
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={t("desktop:chat.reply")}
+            onClick={startReply}
+          >
+            <Reply />
+          </IconButton>
+
+          {editable && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label={t("desktop:chat.edit")}
+              onClick={() => setIsEditing(true)}
+            >
+              <Pencil />
+            </IconButton>
+          )}
 
           <DropdownMenu onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t("desktop:chat.more")}>
-                <MoreHorizontal className="size-4" />
-              </Button>
+              <IconButton variant="ghost" size="sm" label={t("desktop:chat.more")}>
+                <MoreHorizontal />
+              </IconButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuContent align="end" className="min-w-44">
               <DropdownMenuItem onSelect={startReply}>
                 <Reply className="size-4" />
                 {t("desktop:chat.reply")}
@@ -681,7 +753,7 @@ export const MessageRow = memo(function MessageRow({
                   {isPinned ? t("desktop:pins.unpin") : t("desktop:pins.pin")}
                 </DropdownMenuItem>
               )}
-              {isOwn && message.content && (
+              {editable && (
                 <DropdownMenuItem onSelect={() => setIsEditing(true)}>
                   <Pencil className="size-4" />
                   {t("desktop:chat.edit")}
@@ -709,38 +781,36 @@ export const MessageRow = memo(function MessageRow({
             if (!open) setDeleteError(null);
           }}
         >
-          <DialogContent>
+          <DialogContent closeLabel={t("buttons.close")}>
             <DialogHeader>
               <DialogTitle>{t("desktop:chat.deleteConfirmTitle")}</DialogTitle>
               <DialogDescription>{t("desktop:chat.deleteConfirmBody")}</DialogDescription>
             </DialogHeader>
             <DialogBody>
               {message.content && (
-                <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-stroke bg-raised/50 p-2.5 text-sm text-fg-muted">
+                <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-surface p-3 text-sm text-fg-muted">
                   {message.content}
                 </div>
               )}
-              {deleteError && <p className="mt-2 text-sm text-danger">{deleteError}</p>}
-              {/* Safari 12: no flex `gap` → `space-x-2` reproduces the button gutter. */}
-              <div className="mt-5 flex space-x-2">
-                <Button
-                  variant="danger"
-                  disabled={deletePending}
-                  onClick={confirmDelete}
-                  className="flex-1"
-                >
-                  {t("buttons.delete")}
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={deletePending}
-                  onClick={() => setConfirmingDelete(false)}
-                  className="flex-1"
-                >
-                  {t("buttons.cancel")}
-                </Button>
-              </div>
+              {deleteError && (
+                <p role="alert" className="mt-2 text-label text-danger">
+                  {deleteError}
+                </p>
+              )}
             </DialogBody>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                disabled={deletePending}
+                onClick={() => setConfirmingDelete(false)}
+              >
+                {t("buttons.cancel")}
+              </Button>
+              <Button variant="danger" loading={deletePending} onClick={confirmDelete}>
+                <Trash2 className="size-4" aria-hidden />
+                {t("buttons.delete")}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

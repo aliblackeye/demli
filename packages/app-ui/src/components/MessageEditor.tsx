@@ -13,11 +13,11 @@
  * `resolveMentionName` so this stays presentational; new mentions are added from
  * the composer, not here.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { MESSAGE_MAX_LENGTH } from "@demli/config";
 import { deserializeMentions, friendlyErrorMessage, serializeMentions } from "@demli/client-core";
 import { useTranslation } from "@demli/i18n";
-import { cn } from "@demli/ui";
+import { Kbd, cn } from "@demli/ui";
 
 const MAX_HEIGHT_PX = 320;
 
@@ -43,6 +43,7 @@ export function MessageEditor({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const hintId = useId();
   /** The edit as it would be stored (mentions rewritten to `<@id>`). */
   const serialized = serializeMentions(value, seed.mentions);
 
@@ -91,7 +92,7 @@ export function MessageEditor({
   };
 
   return (
-    <div className="mt-0.5">
+    <div className="mt-1 animate-fade-in">
       <textarea
         ref={ref}
         value={value}
@@ -99,7 +100,12 @@ export function MessageEditor({
         maxLength={MESSAGE_MAX_LENGTH}
         disabled={pending}
         aria-label={t("desktop:chat.editingAria")}
-        onChange={(e) => setValue(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={hintId}
+        onChange={(e) => {
+          setValue(e.target.value);
+          if (error) setError(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -110,34 +116,47 @@ export function MessageEditor({
           }
         }}
         className={cn(
-          "w-full resize-none rounded-md border border-stroke bg-raised px-3 py-2 text-sm leading-[1.45] text-fg",
-          "placeholder:text-fg-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          // The composer's field recipe, so editing in place reads as the same
+          // input: raised tone (it is focused from the first frame), coral caret,
+          // a faint coral inner trace; the danger wash replaces it on an error.
+          "w-full resize-none rounded-lg bg-raised px-3.5 py-2.5 text-sm leading-[1.45] text-fg caret-accent",
+          "shadow-[inset_0_0_0_1px_var(--color-accent-glow)] transition-[background-color,box-shadow] motion-hover",
+          "placeholder:text-fg-faint focus:outline-none",
+          "aria-[invalid=true]:bg-danger/12 aria-[invalid=true]:shadow-none",
+          "disabled:opacity-60",
           "max-h-80 overflow-y-auto",
         )}
       />
-      {/* Safari 12 has no flex `gap`; `space-x-2` reproduces the control gutter. */}
-      <div className="mt-1 flex items-center space-x-2 text-2xs text-fg-faint">
+      <div id={hintId} className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-2xs text-fg-faint">
         {error ? (
-          <span className="text-danger">{error}</span>
+          <span role="alert" className="text-label text-danger">
+            {error}
+          </span>
         ) : (
           <>
+            <Kbd>Esc</Kbd>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-sm text-fg-muted hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+              className="rounded-sm font-medium text-fg-muted transition-colors motion-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {t("buttons.cancel")}
             </button>
-            <span aria-hidden>·</span>
+            <span aria-hidden className="text-fg-subtle">
+              ·
+            </span>
+            <Kbd>Enter</Kbd>
             <button
               type="button"
               onClick={save}
               disabled={!canSave}
-              className="rounded-sm font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 disabled:opacity-40 disabled:hover:no-underline"
+              className="rounded-sm font-medium text-accent transition-colors motion-hover hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-40"
             >
               {t("buttons.save")}
             </button>
-            <span aria-hidden>·</span>
+            <span aria-hidden className="text-fg-subtle">
+              ·
+            </span>
             <span>{t("desktop:chat.editHint")}</span>
           </>
         )}

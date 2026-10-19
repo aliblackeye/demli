@@ -87,11 +87,13 @@ export {
   type MarkdownSlots,
 } from "./MessageMarkdown";
 export { MessageList } from "./MessageList";
+export { TypingDots } from "./TypingDots";
 export {
   buildRows,
   firstUnreadMessageId,
   tailSentinel,
   toggleIgnoredRun,
+  localDayStart,
   GROUP_WINDOW_MS,
   IGNORED_RUN_KEY_PREFIX,
   type BuildRowsOptions,
