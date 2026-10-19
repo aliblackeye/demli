@@ -122,6 +122,10 @@
     "channelDescription": "Yeni mesajlar ve arkadaşlık istekleri"
   },
   "home": {
+    "friendsWithRequestsA11y": "Arkadaşlar — bekleyen istek var",
+    "dmLoadErrorTitle": "Mesajlar yüklenemedi",
+    "longPressOptionsA11y": "Seçenekler için basılı tut",
+    "storyOpenA11y": "{{name}} ile mesajlaş",
     "newServer": "Yeni sunucu",
     "newGroup": "Yeni grup",
     "settings": "Ayarlar",
@@ -220,6 +224,8 @@
     }
   },
   "friends": {
+    "requestsBadgeA11y_one": "{{count}} bekleyen arkadaşlık isteği",
+    "requestsBadgeA11y_other": "{{count}} bekleyen arkadaşlık isteği",
     "title": "Arkadaşlar",
     "tabFriends": "Arkadaşlar",
     "tabRequests": "İstekler",
@@ -301,6 +307,7 @@
     "messageSent": "Gönderildi — sohbete gitmeden burada kalabilirsin."
   },
   "group": {
+    "loadErrorTitle": "Kanallar yüklenemedi",
     "channelsTitle": "Kanallar",
     "serverSettings": "Sunucu ayarları",
     "inviteFriends": "Arkadaşları davet et",
@@ -321,6 +328,7 @@
     "hasDraftA11y": "Gönderilmemiş taslak"
   },
   "channel": {
+    "connectedA11y": "Bağlısın",
     "fallbackTitle": "Kanal",
     "nsfw": "Yaşa uygun (18+) kanal",
     "openChatWithoutJoining": "Sohbeti aç (katılmadan)",

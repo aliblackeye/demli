@@ -3,10 +3,9 @@
  * right-click menu.
  *
  * Desktop reveals a close button when the pointer enters the row and offers the
- * full user menu on right-click. A phone has no hover and no swipe (the app
- * ships neither react-native-gesture-handler nor reanimated, and adding one
- * would break OTA-safety, CLAUDE.md §32), so the affordance is a long press —
- * the pattern the app already uses for message actions (ADR 0011).
+ * full user menu on right-click. A phone has no hover, so the affordance is a
+ * long press — the pattern the app already uses for message actions (ADR 0011)
+ * — and the row announces it as its accessibility hint.
  *
  * The menu itself is the SHARED user menu ({@link MemberActionSheet}), so a DM
  * row offers exactly what a roster row or a message author offers: profile,

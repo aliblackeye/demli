@@ -1,19 +1,27 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, RefreshControl, ScrollView, View } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { Text } from "../ui/Text";
 import { router } from "expo-router";
 import {
+  AlertCircle,
   BellOff,
   ChevronDown,
-  ChevronRight,
   FolderPlus,
   Hash,
   MessageSquare,
-  MoreVertical,
+  MoreHorizontal,
   Pencil,
   Plus,
   Volume2,
+  type LucideIcon,
 } from "lucide-react-native";
 import {
   buildSidebarBuckets,
@@ -54,8 +62,11 @@ import { MemberActionSheet, type MemberSheetTarget } from "@/components/member/M
 import { EmptyState } from "@/components/EmptyState";
 import { localizeError } from "@/lib/errors";
 import { NotificationMuteSheet, type MuteTarget } from "@/components/NotificationMuteSheet";
-import { Row } from "@/components/Row";
-import { SkeletonChannelRows } from "@/components/Skeleton";
+import { Skeleton } from "@/components/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Touchable } from "@/components/ui/Touchable";
 import {
   VOICE_READ_INTENT,
   voiceRowTapIntent,
@@ -80,7 +91,16 @@ import { effectiveChannelMuteMode, useChatStore } from "@/stores/chat-store";
 import { hasDraft } from "@/stores/draft-model";
 import { useDraftStore } from "@/stores/draft-store";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, radius, space } from "@/theme/theme";
+import { motionTo, useReducedMotion } from "@/theme/motion";
+import { colors, motion, radius, space, typography } from "@/theme/theme";
+import {
+  ShellRow,
+  UnreadPip,
+  shellRowIconInk,
+  shellRowInk,
+  shellRowOpacity,
+  shellRowTones,
+} from "./ShellRow";
 
 /* Layout constants — one compact rhythm for every row in this list.
    A channel is ONE line (icon + name + indicators) at a 44px tap
@@ -88,30 +108,37 @@ import { colors, radius, space } from "@/theme/theme";
    occupants read as a tight cluster under their channel (founder finding,
    2026-07-21). */
 
-/** Outer gutter of the list body. */
+/** Outer gutter of the list body — also where a row's unread pip peeks out. */
 const LIST_GUTTER = space.md;
-/** Inner horizontal padding of a row card. Must stay in lockstep with
+/** Inner horizontal padding of a row. Must stay in lockstep with
  *  `OCCUPANT_INDENT` in VoiceChannelOccupants so occupants line up under the
  *  channel title. */
 const ROW_INSET = space.lg;
 /** Section labels + member rows start where the row CONTENT starts, not where
- *  the card starts — otherwise every heading sits 16px left of its own list. */
+ *  the row starts — otherwise every heading sits 16px left of its own list. */
 const CONTENT_INSET = LIST_GUTTER + ROW_INSET;
 /** Minimum row height — the a11y tap target and the list's visual rhythm. */
 const ROW_HEIGHT = 44;
 
+/**
+ * The label above each group of channels — the shell's section heading (13px,
+ * sentence case, faint ink; the desktop `SectionHeading`), aligned with the
+ * row content.
+ */
 function SectionLabel({ children }: { children: string }) {
   return (
     <Text
+      accessibilityRole="header"
+      numberOfLines={1}
       style={{
-        color: colors.fgMuted,
-        fontSize: 12,
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
+        color: colors.fgFaint,
+        fontSize: typography.size.label,
+        lineHeight: 18,
+        fontWeight: "500",
+        letterSpacing: -0.13,
         paddingHorizontal: CONTENT_INSET,
         paddingTop: space.lg,
-        paddingBottom: space.xs,
+        paddingBottom: space.xs + 2,
       }}
     >
       {children}
@@ -120,32 +147,63 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 /**
- * Channel row with independent trailing targets (each its own Pressable): the
+ * A category's collapse chevron: points down when open and turns a quarter to
+ * point right when collapsed, on the `fast` step (reduced motion: no turn).
+ */
+function CategoryChevron({ collapsed }: { collapsed: boolean }) {
+  const reduced = useReducedMotion();
+  const turn = useSharedValue(collapsed ? 1 : 0);
+  useEffect(() => {
+    turn.value = motionTo(collapsed ? 1 : 0, "fast", { reduced });
+  }, [collapsed, reduced, turn]);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * -90}deg` }] }));
+  return (
+    <Animated.View style={style}>
+      <ChevronDown size={14} color={colors.fgFaint} strokeWidth={2.2} />
+    </Animated.View>
+  );
+}
+
+/** Press tone of a trailing control on a channel row (read-without-joining, edit). */
+const TRAILING_PRESSED = colors.washStrong;
+
+/**
+ * Channel row with independent trailing targets (each its own Touchable): the
  * M20 "read this voice channel without joining" control and the owner-only edit
  * target. Single-line by design: no description/subtitle, so text and voice
  * channels are the same {@link ROW_HEIGHT}, so the list scans as one column.
+ *
+ * Drawn in the shell's one row language (ShellRow): no fill at rest, a tone on
+ * press, the white edge pip + full-ink label when unread, 55% when muted, and
+ * the coral wash for the voice room you are sitting in right now.
  */
 function ChannelRow({
-  leading,
+  icon: Icon,
   title,
   nsfw,
   unread,
+  mention = false,
   unreadCount = 0,
   muted,
+  connected = false,
   hasDraft: hasDraftIndicator,
   onOpen,
   onLongPress,
   onOpenChat,
   onEdit,
 }: {
-  leading: ReactNode;
+  icon: LucideIcon;
   title: string;
   /** Age-restricted (18+) text channel — shows an "18+" pill (M15). */
   nsfw?: boolean;
   unread?: boolean;
+  /** The unread includes a direct @mention (coral pip). */
+  mention?: boolean;
   /** Counted unread total (#110); 0/absent with `unread` falls back to "1+". */
   unreadCount?: number;
   muted?: boolean;
+  /** This is the voice room you are connected to — the row wears the coral wash. */
+  connected?: boolean;
   hasDraft?: boolean;
   onOpen: () => void;
   onLongPress?: () => void;
@@ -160,89 +218,143 @@ function ChannelRow({
 }) {
   const { t } = useAppTranslation();
   const badgeText = unread ? unreadBadgeText(unreadCount, true) : null;
+  const state = { selected: connected, unread: !!unread, muted: !!muted };
+  const tones = shellRowTones(state);
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        minHeight: ROW_HEIGHT,
-        backgroundColor: colors.surface,
-        borderRadius: radius.md,
-        borderCurve: "continuous",
-        opacity: muted ? 0.55 : 1,
-      }}
-    >
-      <Pressable
-        onPress={onOpen}
-        onLongPress={onLongPress}
-        style={({ pressed }) => ({
-          flex: 1,
+    <View style={{ opacity: shellRowOpacity(state) }}>
+      {unread && !connected ? <UnreadPip mention={mention} /> : null}
+      <View
+        style={{
           flexDirection: "row",
           alignItems: "center",
           minHeight: ROW_HEIGHT,
-          gap: space.md,
-          paddingHorizontal: ROW_INSET,
-          paddingVertical: space.sm,
-          opacity: pressed ? 0.7 : 1,
-        })}
+          borderRadius: radius.lg,
+          borderCurve: "continuous",
+          backgroundColor: connected ? colors.selected : undefined,
+        }}
       >
-        {leading}
-        <Text
-          numberOfLines={1}
-          style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: unread ? "800" : "600" }}
+        <Touchable
+          onPress={onOpen}
+          onLongPress={onLongPress}
+          pressedTone={tones.pressed}
+          accessibilityRole="button"
+          accessibilityState={{ selected: connected }}
+          accessibilityValue={connected ? { text: t("mobile:channel.connectedA11y") } : undefined}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            minHeight: ROW_HEIGHT,
+            gap: space.md,
+            paddingHorizontal: ROW_INSET,
+            paddingVertical: space.sm,
+            borderRadius: radius.lg,
+            borderCurve: "continuous",
+          }}
         >
-          {title}
-        </Text>
-        {nsfw ? (
-          <View
-            accessibilityLabel={t("mobile:channel.nsfw")}
+          <Icon size={18} color={shellRowIconInk(state)} strokeWidth={2} />
+          <Text
+            numberOfLines={1}
             style={{
-              paddingHorizontal: space.xs,
-              paddingVertical: 1,
-              borderRadius: radius.sm,
-              backgroundColor: colors.dangerSurface,
+              flex: 1,
+              color: shellRowInk(state),
+              fontSize: 15,
+              lineHeight: 20,
+              fontWeight: unread || connected ? "600" : "500",
             }}
           >
-            <Text style={{ color: colors.danger, fontSize: 10, fontWeight: "800" }}>18+</Text>
-          </View>
+            {title}
+          </Text>
+          {nsfw ? <Badge label="18+" variant="danger" /> : null}
+          {hasDraftIndicator ? (
+            <Pencil size={13} color={colors.fgFaint} accessibilityLabel={t("mobile:group.hasDraftA11y")} />
+          ) : null}
+          {muted ? (
+            <BellOff size={15} color={colors.fgFaint} accessibilityLabel={t("mobile:mute.muted")} />
+          ) : null}
+          {badgeText ? (
+            <UnreadCountBadge text={badgeText} a11yLabel={t("mobile:group.unreadA11y")} />
+          ) : null}
+        </Touchable>
+        {onOpenChat ? (
+          <Touchable
+            onPress={onOpenChat}
+            hitSlop={4}
+            pressedTone={TRAILING_PRESSED}
+            accessibilityRole="button"
+            accessibilityLabel={t("mobile:channel.openChatWithoutJoining")}
+            style={{
+              minWidth: 44,
+              minHeight: ROW_HEIGHT,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radius.lg,
+              borderCurve: "continuous",
+            }}
+          >
+            <MessageSquare size={18} color={connected ? colors.accent : colors.fgFaint} />
+          </Touchable>
         ) : null}
-        {hasDraftIndicator ? (
-          <Pencil size={13} color={colors.fgFaint} accessibilityLabel={t("mobile:group.hasDraftA11y")} />
+        {onEdit ? (
+          <Touchable
+            onPress={onEdit}
+            hitSlop={4}
+            pressedTone={TRAILING_PRESSED}
+            accessibilityRole="button"
+            accessibilityLabel={t("mobile:group.editChannel", { name: title })}
+            style={{
+              minWidth: 44,
+              minHeight: ROW_HEIGHT,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radius.lg,
+              borderCurve: "continuous",
+            }}
+          >
+            <Pencil size={16} color={colors.fgFaint} />
+          </Touchable>
         ) : null}
-        {muted ? (
-          <BellOff size={15} color={colors.fgFaint} accessibilityLabel={t("mobile:mute.muted")} />
-        ) : null}
-        {badgeText ? (
-          <UnreadCountBadge text={badgeText} a11yLabel={t("mobile:group.unreadA11y")} />
-        ) : null}
-      </Pressable>
-      {onOpenChat ? (
-        <Pressable
-          onPress={onOpenChat}
-          hitSlop={4}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:channel.openChatWithoutJoining")}
-          style={({ pressed }) => ({
-            minWidth: 44,
-            minHeight: ROW_HEIGHT,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <MessageSquare size={18} color={colors.fgMuted} />
-        </Pressable>
-      ) : null}
-      {onEdit ? (
-        <Pressable
-          onPress={onEdit}
-          hitSlop={8}
-          accessibilityLabel={t("mobile:group.editChannel", { name: title })}
-          style={{ paddingHorizontal: space.md, paddingVertical: space.md }}
-        >
-          <Pencil size={18} color={colors.fgMuted} />
-        </Pressable>
-      ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** First-load placeholder: two short groups of glyph + name lines, on the column. */
+function ChannelListSkeleton() {
+  const { t } = useAppTranslation();
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={t("mobile:ui.loading")}
+      accessibilityState={{ busy: true }}
+      style={{ paddingHorizontal: LIST_GUTTER, paddingTop: space.lg }}
+    >
+      {[0, 1].map((group) => (
+        <View key={group} style={{ gap: space.xs, paddingBottom: space.lg }}>
+          <Skeleton
+            width={96}
+            height={10}
+            radius={radius.sm}
+            style={{ marginLeft: ROW_INSET, marginBottom: space.sm }}
+          />
+          {Array.from({ length: group === 0 ? 4 : 2 }).map((_, i) => (
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.md,
+                minHeight: ROW_HEIGHT,
+                paddingHorizontal: ROW_INSET,
+              }}
+            >
+              <Skeleton width={18} height={18} radius={radius.sm} />
+              <Skeleton width={`${38 + ((i * 17 + group * 11) % 34)}%`} height={12} radius={radius.sm} />
+            </View>
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
@@ -269,7 +381,7 @@ export function ServerChannelList({
   contentBottomPadding: number;
 }) {
   const { t } = useAppTranslation();
-  const { data, isLoading, refetch, isRefetching } = useGroupDetails(groupId);
+  const { data, isLoading, isError, error, refetch, isRefetching } = useGroupDetails(groupId);
   const { data: roles } = useRoles(groupId);
   const presence = useChatStore((s) => s.presence);
   // Custom status lines (M18), live off the presence stream. Same whole-map slice
@@ -282,6 +394,12 @@ export function ServerChannelList({
   const notificationMutes = useChatStore((s) => s.notificationMutes);
   const drafts = useDraftStore((s) => s.drafts);
   const me = useAuthStore((s) => s.user);
+  // The voice room you are sitting in, if any — its row wears the coral wash.
+  // A scalar selector: it changes on join/leave only, never on a speaking or
+  // participant tick, so the list does not repaint with the room (§27).
+  const connectedVoiceId = useVoiceStore((s) =>
+    s.status === "connected" || s.status === "reconnecting" ? s.roomId : null,
+  );
 
   /** The channel row whose long-press menu is open, or null. */
   const [channelTarget, setChannelTarget] = useState<ChannelSheetTarget | null>(null);
@@ -522,18 +640,14 @@ export function ServerChannelList({
     return (
       <View key={channel.id} style={{ gap: space.xs }}>
         <ChannelRow
-          leading={
-            isVoice ? (
-              <Volume2 size={20} color={colors.fgMuted} />
-            ) : (
-              <Hash size={20} color={colors.fgMuted} />
-            )
-          }
+          icon={isVoice ? Volume2 : Hash}
           title={channel.name}
           nsfw={channel.nsfw}
           unread={showUnread}
+          mention={!!mentionUnreadChannelIds[channel.id]}
           unreadCount={unreadCounts[channel.id] ?? 0}
           muted={muteMode !== null}
+          connected={isVoice && connectedVoiceId === channel.id}
           hasDraft={hasDraft(drafts, channel.id)}
           onOpen={
             isVoice ? () => activateVoiceChannel(channel) : () => openTextChannel(channel)
@@ -553,7 +667,8 @@ export function ServerChannelList({
    * A category heading: the collapse toggle takes the whole width so the easiest
    * thing to hit is the harmless one, and the manage menu is its own ≥44pt target
    * beside it — rendered only for someone who may actually manage channels, so a
-   * plain member sees a heading and nothing else (§35).
+   * plain member sees a heading and nothing else (§35). Both are tone-on-press;
+   * the chevron turns as the section folds.
    */
   const renderCategoryHeader = (bucket: SidebarBucket): ReactNode => {
     const category = bucket.category;
@@ -566,10 +681,10 @@ export function ServerChannelList({
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: LIST_GUTTER,
-          paddingTop: space.lg,
+          paddingTop: space.sm,
         }}
       >
-        <Pressable
+        <Touchable
           onPress={() => toggleCollapsed(groupId, category.id)}
           accessibilityRole="button"
           accessibilityState={{ expanded: !collapsed }}
@@ -578,61 +693,82 @@ export function ServerChannelList({
               ? t("mobile:category.expandA11y", { name: category.name })
               : t("mobile:category.collapseA11y", { name: category.name })
           }
-          style={({ pressed }) => ({
+          pressedTone={colors.raisedPressed}
+          style={{
             flex: 1,
             flexDirection: "row",
             alignItems: "center",
-            gap: space.xs,
+            gap: space.xs + 2,
             minHeight: 44,
+            paddingLeft: space.sm,
             paddingRight: space.sm,
-            opacity: pressed ? 0.6 : 1,
-          })}
+            borderRadius: radius.lg,
+            borderCurve: "continuous",
+          }}
         >
-          {collapsed ? (
-            <ChevronRight size={14} color={colors.fgFaint} />
-          ) : (
-            <ChevronDown size={14} color={colors.fgFaint} />
-          )}
+          <CategoryChevron collapsed={collapsed} />
           <Text
             numberOfLines={1}
             style={{
               flex: 1,
-              color: colors.fgMuted,
-              fontSize: 12,
-              fontWeight: "700",
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
+              color: colors.fgFaint,
+              fontSize: typography.size.label,
+              lineHeight: 18,
+              fontWeight: "500",
+              letterSpacing: -0.13,
             }}
           >
             {category.name}
           </Text>
-        </Pressable>
+        </Touchable>
 
         {canManageChannels ? (
-          <Pressable
+          <Touchable
             onPress={() => openCategoryMenu(bucket)}
             accessibilityRole="button"
             accessibilityLabel={t("mobile:category.manageA11y", { name: category.name })}
             hitSlop={4}
-            style={({ pressed }) => ({
+            pressedTone={colors.washStrong}
+            style={{
               minWidth: 44,
               minHeight: 44,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.6 : 1,
-            })}
+              borderRadius: radius.lg,
+              borderCurve: "continuous",
+            }}
           >
-            <MoreVertical size={18} color={colors.fgMuted} />
-          </Pressable>
+            <MoreHorizontal size={18} color={colors.fgFaint} />
+          </Touchable>
         ) : null}
       </View>
     );
   };
 
   if (isLoading && !data) {
+    return <ChannelListSkeleton />;
+  }
+
+  // The first load failed and nothing is cached: say so, instead of drawing an
+  // empty server ("no text channels") that is not true.
+  if (isError && !data) {
     return (
-      <View style={{ paddingTop: space.md }}>
-        <SkeletonChannelRows count={6} />
+      <View style={{ paddingTop: space.xxl, paddingHorizontal: space.lg }}>
+        <EmptyState
+          tone="error"
+          icon={<AlertCircle size={22} color={colors.danger} />}
+          title={t("mobile:group.loadErrorTitle")}
+          subtitle={localizeError(error, t)}
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              label={t("buttons.retry")}
+              loading={isRefetching}
+              onPress={() => void refetch()}
+            />
+          }
+        />
       </View>
     );
   }
@@ -641,31 +777,26 @@ export function ServerChannelList({
     <>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: contentBottomPadding, gap: space.xs }}
+        contentContainerStyle={{ paddingBottom: contentBottomPadding, gap: 2 }}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
             tintColor={colors.fgMuted}
             colors={[colors.accent]}
+            progressBackgroundColor={colors.surfaceRaised}
           />
         }
       >
         {/* A reorder the server refused. The list already snapped back, so this
             is the only thing telling the user the tap did not take. */}
         {reorderFailed ? (
-          <Text
-            accessibilityRole="alert"
-            style={{
-              color: colors.danger,
-              fontSize: 12,
-              lineHeight: 16,
-              paddingHorizontal: CONTENT_INSET,
-              paddingTop: space.sm,
-            }}
-          >
-            {t("mobile:category.reorderFailed")}
-          </Text>
+          <Banner
+            variant="danger"
+            title={t("mobile:category.reorderFailed")}
+            onDismiss={() => setReorderFailed(false)}
+            style={{ marginHorizontal: LIST_GUTTER, marginTop: space.sm }}
+          />
         ) : null}
 
         {/* The UNCATEGORIZED bucket, always first — a pre-M18 server is entirely
@@ -674,12 +805,13 @@ export function ServerChannelList({
         <SectionLabel>{t("mobile:group.textChannels")}</SectionLabel>
         {textChannels.length === 0 ? (
           <EmptyState
+            compact
             icon={<Hash size={22} color={colors.fgMuted} />}
             title={t("mobile:group.noTextChannelsTitle")}
             subtitle={t("mobile:group.noTextChannelsSubtitle")}
           />
         ) : (
-          <View style={{ paddingHorizontal: LIST_GUTTER, gap: space.xs }}>
+          <View style={{ paddingHorizontal: LIST_GUTTER, gap: 2 }}>
             {textChannels.map((channel) => renderChannelRow(channel))}
           </View>
         )}
@@ -687,7 +819,7 @@ export function ServerChannelList({
         {voiceChannels.length > 0 ? (
           <>
             <SectionLabel>{t("mobile:group.voiceChannels")}</SectionLabel>
-            <View style={{ paddingHorizontal: LIST_GUTTER, gap: space.xs }}>
+            <View style={{ paddingHorizontal: LIST_GUTTER, gap: 2 }}>
               {voiceChannels.map((channel) => renderChannelRow(channel))}
             </View>
           </>
@@ -695,7 +827,9 @@ export function ServerChannelList({
 
         {/* Then one collapsible section per category, in the server's order. A
             category mixes text and voice: its ORDER is the thing the owner
-            arranged, so re-splitting it by kind would throw that away. */}
+            arranged, so re-splitting it by kind would throw that away. Opening
+            a section fades its rows in; folding it takes them away on the
+            instant step. */}
         {buckets
           .filter((bucket) => bucket.category !== null)
           .map((bucket) => {
@@ -706,22 +840,24 @@ export function ServerChannelList({
               <View key={category.id}>
                 {renderCategoryHeader(bucket)}
                 {collapsed ? null : bucket.channels.length > 0 ? (
-                  <View
+                  <Animated.View
+                    entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+                    exiting={FadeOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
                     style={{
                       paddingHorizontal: LIST_GUTTER,
-                      paddingTop: space.xs,
-                      gap: space.xs,
+                      gap: 2,
                     }}
                   >
                     {bucket.channels.map((channel) => renderChannelRow(channel))}
-                  </View>
+                  </Animated.View>
                 ) : (
                   <Text
                     style={{
                       color: colors.fgFaint,
-                      fontSize: 12,
+                      fontSize: typography.size.label,
+                      lineHeight: 18,
                       paddingHorizontal: CONTENT_INSET,
-                      paddingTop: space.xs,
+                      paddingVertical: space.xs,
                     }}
                   >
                     {t("mobile:category.empty")}
@@ -732,27 +868,26 @@ export function ServerChannelList({
           })}
 
         {canManageChannels ? (
-          <View style={{ paddingHorizontal: LIST_GUTTER, paddingTop: space.sm, gap: space.xs }}>
-            <Row
-              title={t("mobile:group.newChannel")}
-              accent
-              leading={<Plus size={20} color={colors.accent} />}
-              showChevron={false}
-              onPress={() => openNewChannel()}
-            />
-            <Row
-              title={t("mobile:category.createCategory")}
-              leading={<FolderPlus size={20} color={colors.fgMuted} />}
-              showChevron={false}
-              onPress={() => openCategoryEditor()}
-            />
+          <View style={{ paddingHorizontal: LIST_GUTTER, paddingTop: space.md, gap: 2 }}>
+            <ShellRow onPress={() => openNewChannel()} style={{ paddingHorizontal: ROW_INSET }}>
+              <Plus size={18} color={colors.accent} strokeWidth={2.2} />
+              <Text style={{ flex: 1, color: colors.accent, fontSize: 15, lineHeight: 20, fontWeight: "500" }}>
+                {t("mobile:group.newChannel")}
+              </Text>
+            </ShellRow>
+            <ShellRow onPress={() => openCategoryEditor()} style={{ paddingHorizontal: ROW_INSET }}>
+              <FolderPlus size={18} color={colors.fgFaint} />
+              <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 15, lineHeight: 20, fontWeight: "500" }}>
+                {t("mobile:category.createCategory")}
+              </Text>
+            </ShellRow>
           </View>
         ) : null}
 
         <SectionLabel>{t("mobile:group.membersCount", { n: members.length })}</SectionLabel>
-        <View style={{ paddingHorizontal: CONTENT_INSET, paddingTop: space.xs }}>
+        <View style={{ paddingHorizontal: LIST_GUTTER, gap: 2 }}>
           {members.map((member) => (
-            <Pressable
+            <ShellRow
               key={member.userId}
               onPress={() =>
                 router.push({
@@ -777,16 +912,10 @@ export function ServerChannelList({
                   isGuest: member.role === "guest",
                 })
               }
-              accessibilityRole="button"
               accessibilityLabel={t("mobile:userProfile.openA11y")}
               accessibilityHint={t("mobile:userMenu.moreActions")}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space.md,
-                paddingVertical: space.xs,
-                opacity: pressed ? 0.6 : 1,
-              })}
+              minHeight={52}
+              style={{ paddingHorizontal: space.sm, paddingVertical: space.xs }}
             >
               <Avatar
                 name={member.user.displayName || member.user.username}
@@ -800,7 +929,8 @@ export function ServerChannelList({
                   style={{
                     color: memberColors.get(member.userId) ?? colors.fg,
                     fontSize: 14,
-                    fontWeight: "600",
+                    lineHeight: 19,
+                    fontWeight: "500",
                   }}
                 >
                   {member.user.displayName || member.user.username}
@@ -809,7 +939,7 @@ export function ServerChannelList({
                     exactly as on the desktop roster — PLAIN TEXT, one line, so
                     the row height never changes. The role label falls back to
                     it only when there is no status. */}
-                <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12 }}>
+                <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16 }}>
                   {customStatuses[member.userId] ??
                     visibleCustomStatus(member.user) ??
                     (member.role === "owner"
@@ -819,10 +949,11 @@ export function ServerChannelList({
                         : t("mobile:role.member"))}
                 </Text>
               </View>
-            </Pressable>
+            </ShellRow>
           ))}
         </View>
       </ScrollView>
+
 
       {/* Long-press menu — mobile's parity of the desktop channel context menu.
           Both kinds get "mark as read" + the mute entry; a voice channel also

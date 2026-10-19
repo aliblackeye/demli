@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Text } from "../ui/Text";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronDown, MoreVertical, Search, UserPlus } from "lucide-react-native";
+import { ChevronDown, MoreHorizontal, Search, UserPlus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
 import { useGroups } from "@/queries/chat-queries";
 import { useHomeShellStore } from "@/stores/home-shell-store";
-import { colors, space } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
+import { IconButton } from "../ui/IconButton";
+import { Touchable } from "../ui/Touchable";
 import { ServerActionsSheet } from "./ServerActionsSheet";
 import { ServerChannelList } from "./ServerChannelList";
 
@@ -18,10 +20,12 @@ import { ServerChannelList } from "./ServerChannelList";
  * is selected in the rail.
  *
  * The header model: the name itself is the menu handle (tap or long-press
- * → {@link ServerActionsSheet}), a "…" button offers the same menu explicitly,
- * and only the high-frequency invite action keeps a dedicated icon. Server
+ * → {@link ServerActionsSheet}; its press is a tone change on the name pill), a
+ * "…" button offers the same menu explicitly, and only the high-frequency invite
+ * action keeps a dedicated icon (coral — the warm call to action). Server
  * settings and the destructive "leave" both live inside that menu, so nothing
  * one-tap-destructive sits on the panel. Leaving deselects back to Home/DMs.
+ * Borderless: the header and the list share the panel's one tone.
  */
 export function ServerPanel({ groupId }: { groupId: string }) {
   const { t } = useAppTranslation();
@@ -43,64 +47,61 @@ export function ServerPanel({ groupId }: { groupId: string }) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: space.md,
-          paddingHorizontal: space.md,
-          paddingTop: space.sm,
-          paddingBottom: space.sm,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.stroke,
+          gap: space.xs,
+          paddingLeft: space.sm,
+          paddingRight: space.sm,
+          paddingTop: space.md,
+          paddingBottom: space.xs,
         }}
       >
-        <Pressable
+        <Touchable
           onPress={openActions}
           onLongPress={openActions}
-          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={t("mobile:group.serverActionsA11y", { name: serverName })}
-          style={({ pressed }) => ({
+          pressedTone={colors.raisedPressed}
+          style={{
             flex: 1,
             flexDirection: "row",
             alignItems: "center",
             gap: space.xs,
-            opacity: pressed ? 0.7 : 1,
-          })}
+            minHeight: 44,
+            paddingHorizontal: space.sm,
+            borderRadius: radius.lg,
+            borderCurve: "continuous",
+          }}
         >
-          <Text variant="display"
+          <Text
+            variant="display"
             numberOfLines={1}
-            style={{ flexShrink: 1, color: colors.fg, fontSize: 18, fontWeight: "800" }}
+            style={{ flexShrink: 1, color: colors.fgDisplay, fontSize: 20, lineHeight: 26, fontWeight: "600", letterSpacing: -0.2 }}
           >
             {serverName}
           </Text>
-          <ChevronDown size={18} color={colors.fgMuted} />
-        </Pressable>
+          <ChevronDown size={18} color={colors.fgFaint} />
+        </Touchable>
 
         {/* Command palette (M20/W5) — same entry point as the Home panel header,
             so the palette is one tap away on either surface. Opened here it also
             offers this server's channels and its server-scoped actions. */}
-        <Pressable
+        <IconButton
+          icon={Search}
+          label={t("mobile:commandMenu.openA11y")}
           onPress={() => router.push("/command-palette")}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:commandMenu.openA11y")}
-        >
-          <Search size={22} color={colors.fgMuted} />
-        </Pressable>
-        <Pressable
+        />
+        <IconButton
+          icon={UserPlus}
+          variant="accent"
+          size="sm"
+          label={t("mobile:group.inviteFriends")}
           onPress={() => router.push({ pathname: "/invite", params: { groupId, name: serverName } })}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:group.inviteFriends")}
-        >
-          <UserPlus size={22} color={colors.accent} />
-        </Pressable>
-        <Pressable
+          style={{ marginHorizontal: space.xs }}
+        />
+        <IconButton
+          icon={MoreHorizontal}
+          label={t("mobile:group.serverActionsA11y", { name: serverName })}
           onPress={openActions}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:group.serverActionsA11y", { name: serverName })}
-        >
-          <MoreVertical size={22} color={colors.fgMuted} />
-        </Pressable>
+        />
       </View>
 
       <ServerChannelList
