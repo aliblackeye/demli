@@ -21,7 +21,7 @@
  * size is NOT constrainable from JS — see the header of ../screen-capture.ts for the
  * verification — so the panel size is the input, not a choice.
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeAll, beforeEach } from "vitest";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -161,6 +161,12 @@ function resolvePublishUtils(): string {
 const publishUtilsPath = pathToFileURL(resolvePublishUtils()).href;
 
 describe("livekit-client encoding math for the mobile screen share", () => {
+  // The first import transforms livekit-client's TS source, which can exceed the
+  // 5 s per-test budget on a loaded machine; pay that cost outside the assertions.
+  beforeAll(async () => {
+    await import(publishUtilsPath);
+  }, 60_000);
+
   it("collapses to ONE full-resolution encoding at the tier's full bitrate", async () => {
     const { computeVideoEncodings } = await import(publishUtilsPath);
     const profile = SCREEN_SHARE_QUALITY_PROFILES[TIER];
