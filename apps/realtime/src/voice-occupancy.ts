@@ -43,8 +43,16 @@ export interface VoiceOccupancyReader {
    * {@link VoiceOccupancyUnavailableError} when the media plane itself is
    * unreachable, so the caller can SKIP the resync rather than push a false
    * "everyone left"; a single room's participant lookup failing is best-effort.
+   *
+   * `roomOverrides` maps a channel to the LiveKit room it actually runs in when
+   * that is not its own id â€” an upgraded group's voice channel lives in the
+   * `dmcall:<id>` room of its call (ADR 0012 §6). Without it that channel would
+   * always read as empty, and a resync REPLACES the client's map.
    */
-  read(voiceChannelIds: ChannelId[]): Promise<Map<ChannelId, VoiceOccupant[]>>;
+  read(
+    voiceChannelIds: ChannelId[],
+    roomOverrides?: ReadonlyMap<ChannelId, string>,
+  ): Promise<Map<ChannelId, VoiceOccupant[]>>;
 }
 
 /**
@@ -90,13 +98,17 @@ export function createLiveKitVoiceOccupancyReader(
 ): VoiceOccupancyReader {
   const log = deps.log ?? (() => undefined);
   return {
-    async read(voiceChannelIds: ChannelId[]): Promise<Map<ChannelId, VoiceOccupant[]>> {
+    async read(
+      voiceChannelIds: ChannelId[],
+      roomOverrides?: ReadonlyMap<ChannelId, string>,
+    ): Promise<Map<ChannelId, VoiceOccupant[]>> {
       const result = new Map<ChannelId, VoiceOccupant[]>();
       if (voiceChannelIds.length === 0) return result;
+      const channelsByRoom = roomToChannels(voiceChannelIds, roomOverrides);
 
       let rooms;
       try {
-        rooms = await deps.roomService.listRooms(voiceChannelIds);
+        rooms = await deps.roomService.listRooms([...channelsByRoom.keys()]);
       } catch (err) {
         log(`voice occupancy listRooms failed: ${errText(err)}`);
         throw new VoiceOccupancyUnavailableError(err);
@@ -113,12 +125,30 @@ export function createLiveKitVoiceOccupancyReader(
             return;
           }
           const occupants = participantsToOccupants(participants);
-          if (occupants.length > 0) result.set(room.name as ChannelId, occupants);
+          if (occupants.length === 0) return;
+          for (const channelId of channelsByRoom.get(room.name) ?? []) {
+            result.set(channelId, occupants);
+          }
         }),
       );
       return result;
     },
   };
+}
+
+/** Group the requested channels by the LiveKit room each one runs in. */
+export function roomToChannels(
+  voiceChannelIds: readonly ChannelId[],
+  roomOverrides?: ReadonlyMap<ChannelId, string>,
+): Map<string, ChannelId[]> {
+  const byRoom = new Map<string, ChannelId[]>();
+  for (const channelId of voiceChannelIds) {
+    const room = roomOverrides?.get(channelId) ?? channelId;
+    const list = byRoom.get(room);
+    if (list) list.push(channelId);
+    else byRoom.set(room, [channelId]);
+  }
+  return byRoom;
 }
 
 /**

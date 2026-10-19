@@ -86,9 +86,12 @@ export async function registerVoiceModule(
       const visibleVoiceIds = await visibleVoiceChannelIds(server, user.id);
       if (visibleVoiceIds.length === 0) return { channels: [] };
 
+      // An upgraded call's voice channel runs in the call's room, not its id.
+      const roomOverrides = await server.repos.channels.livekitRoomOverrides(visibleVoiceIds);
+
       let occupancy;
       try {
-        occupancy = await reader.read(visibleVoiceIds);
+        occupancy = await reader.read(visibleVoiceIds, roomOverrides);
       } catch (err) {
         if (err instanceof VoiceOccupancyUnavailableError) {
           // Honest failure: do NOT fabricate an empty snapshot (that would wipe the

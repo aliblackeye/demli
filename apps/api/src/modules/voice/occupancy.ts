@@ -22,13 +22,11 @@
  *    processes and cannot drift from reality, which is what heals the desync at
  *    its root.
  *
- * Scope note: rooms are 1:1 with voice channels (`room name === channelId`) for
- * ordinary channels. A DM-call-upgraded group's voice channel uses a `dmcall:<id>`
- * room override (ADR 0012 §6); resolving that override in a batch needs an additive
- * repo method (handed to the database agent), so this reader keys by channel id and
- * such upgraded channels simply report no occupancy here — DM-call occupancy is
- * already carried by the call signaling events. The founder's case (group voice
- * channels) is fully covered.
+ * Rooms: an ordinary voice channel's room is its id. A DM-call-upgraded group's
+ * voice channel runs in the `dmcall:<id>` room of its call (ADR 0012 §6), so the
+ * caller passes those overrides (`channels.livekitRoomOverrides`) and the reader
+ * asks LiveKit for the right room — otherwise every resync reported an upgraded
+ * call's channel as empty while three people were talking in it.
  */
 
 import {
@@ -58,8 +56,14 @@ export interface VoiceOccupancyReader {
    * could not be reached (so a resync can be SKIPPED rather than falsely
    * reporting "everyone left"). A single room's participant lookup failing is
    * best-effort — that room is skipped, the rest still return.
+   *
+   * `roomOverrides` maps a channel to the room it runs in when that is not its
+   * own id (the upgraded-call case above).
    */
-  read(voiceChannelIds: ChannelId[]): Promise<Map<ChannelId, VoiceOccupant[]>>;
+  read(
+    voiceChannelIds: ChannelId[],
+    roomOverrides?: ReadonlyMap<ChannelId, string>,
+  ): Promise<Map<ChannelId, VoiceOccupant[]>>;
 }
 
 /**
@@ -101,16 +105,20 @@ export function createLiveKitVoiceOccupancyReader(
 ): VoiceOccupancyReader {
   const log = deps.log ?? (() => undefined);
   return {
-    async read(voiceChannelIds: ChannelId[]): Promise<Map<ChannelId, VoiceOccupant[]>> {
+    async read(
+      voiceChannelIds: ChannelId[],
+      roomOverrides?: ReadonlyMap<ChannelId, string>,
+    ): Promise<Map<ChannelId, VoiceOccupant[]>> {
       const result = new Map<ChannelId, VoiceOccupant[]>();
       if (voiceChannelIds.length === 0) return result;
+      const channelsByRoom = roomToChannels(voiceChannelIds, roomOverrides);
 
-      // Room name === channel id for ordinary voice channels, so we ask LiveKit
-      // for exactly those rooms. A hard failure here means we have NO authoritative
-      // answer — surface it so the caller skips (never fabricate "empty").
+      // Ask LiveKit for exactly the rooms these channels run in. A hard failure
+      // here means we have NO authoritative answer — surface it so the caller
+      // skips (never fabricate "empty").
       let rooms;
       try {
-        rooms = await deps.roomService.listRooms(voiceChannelIds);
+        rooms = await deps.roomService.listRooms([...channelsByRoom.keys()]);
       } catch (err) {
         log(`voice occupancy listRooms failed: ${errText(err)}`);
         throw new VoiceOccupancyUnavailableError(err);
@@ -128,12 +136,30 @@ export function createLiveKitVoiceOccupancyReader(
             return;
           }
           const occupants = participantsToOccupants(participants);
-          if (occupants.length > 0) result.set(room.name as ChannelId, occupants);
+          if (occupants.length === 0) return;
+          for (const channelId of channelsByRoom.get(room.name) ?? []) {
+            result.set(channelId, occupants);
+          }
         }),
       );
       return result;
     },
   };
+}
+
+/** Group the requested channels by the LiveKit room each one runs in. */
+export function roomToChannels(
+  voiceChannelIds: readonly ChannelId[],
+  roomOverrides?: ReadonlyMap<ChannelId, string>,
+): Map<string, ChannelId[]> {
+  const byRoom = new Map<string, ChannelId[]>();
+  for (const channelId of voiceChannelIds) {
+    const room = roomOverrides?.get(channelId) ?? channelId;
+    const list = byRoom.get(room);
+    if (list) list.push(channelId);
+    else byRoom.set(room, [channelId]);
+  }
+  return byRoom;
 }
 
 function errText(err: unknown): string {
