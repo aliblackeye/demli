@@ -178,7 +178,8 @@ Decision now in code:
    `restrictOwnAudio: true` (Option B) and `selfBrowserSurface: "exclude"`;
    window audio (Option C, `windowAudio: "window"`) is sent as a hint only.
 
-Still open: Option B/C on desktop once Electron reaches Chromium ≥141; a
-browser launched BY Demli (e.g. `shell.openExternal` starting Chrome) becomes a
-descendant of Demli and is therefore excluded from "system" sound — "app" mode
-on its window still works.
+Still open: Option B/C on desktop once Electron reaches Chromium ≥141. Unverified
+risk: a browser that Demli itself starts (`shell.openExternal` when no browser is
+running) may become a descendant of Demli's main process and would then be left
+out of "system" sound; "app" mode on its window is unaffected. Needs a device
+check before it is called a bug or ruled out.
