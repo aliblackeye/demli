@@ -100,10 +100,15 @@ const PROBLEM_KEY = {
   animatedTooLarge: "desktop:imageEditor.errorAnimatedTooLarge",
 } as const satisfies Record<ImageFileProblem, string>;
 
+/**
+ * Where the editor is for ONE file. Error and ready carry the file they were
+ * produced from, so a stale phase (the previous pick, whose object URL is
+ * already freed) can never paint for a newly picked file.
+ */
 type Phase =
   | { kind: "loading" }
-  | { kind: "error"; problem: ImageFileProblem }
-  | { kind: "ready"; inspected: InspectedImage; img: HTMLImageElement; natural: Size };
+  | { kind: "error"; source: File; problem: ImageFileProblem }
+  | { kind: "ready"; source: File; inspected: InspectedImage; img: HTMLImageElement; natural: Size };
 
 /** How a change should travel on screen: direct manipulation never animates. */
 type Travel = "none" | "nudge" | "spring";
@@ -158,7 +163,7 @@ function maskFor(kind: CropKind, stage: Size): Size & { left: number; top: numbe
  * refuses GIF avatars on purpose), and the editor says that too.
  */
 export function ImageCropDialog({
-  kind,
+  kind: kindProp,
   file,
   onCancel,
   onApply,
@@ -167,10 +172,22 @@ export function ImageCropDialog({
   const { t, i18n } = useAppTranslation();
   const open = file !== null;
   const percent = new Intl.NumberFormat(i18n.language, { style: "percent", maximumFractionDigits: 0 });
-  // The file being edited. Starts as the picked one; "Choose another" swaps it
-  // without closing the editor.
-  const [current, setCurrent] = useState<File | null>(file);
-  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  // The file being edited: the picked one, or what "Choose another" swapped in
+  // for it (without closing the editor). While the dialog animates closed the
+  // last file stays the source, so the exit plays over the same picture.
+  const lastFile = useRef<File | null>(file);
+  if (file) lastFile.current = file;
+  // Same for the kind: a caller that resets it on close ("avatar" by default)
+  // must not reload — or re-shape — the editor while it animates out.
+  const lastKind = useRef<CropKind>(kindProp);
+  if (file) lastKind.current = kindProp;
+  const kind = file ? kindProp : lastKind.current;
+  const baseFile = file ?? lastFile.current;
+  const [replacement, setReplacement] = useState<{ for: File; file: File } | null>(null);
+  const source = replacement !== null && replacement.for === baseFile ? replacement.file : baseFile;
+  const [loaded, setPhase] = useState<Phase>({ kind: "loading" });
+  // Only a phase produced from THIS source counts; anything else is "loading".
+  const phase: Phase = loaded.kind !== "loading" && loaded.source === source ? loaded : { kind: "loading" };
   const [crop, setCrop] = useState<CropState>({ zoom: 1, center: { x: 0, y: 0 } });
   const [travel, setTravel] = useState<Travel>("none");
   const [dragging, setDragging] = useState(false);
@@ -186,29 +203,26 @@ export function ImageCropDialog({
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
   const helpId = useId();
 
+  // Load pipeline: inspect → decode, once per source. Each run owns its image
+  // and frees it when the source changes or the editor unmounts — NOT on close,
+  // so the closing animation never shows a freed (broken) picture.
   useEffect(() => {
-    if (file) setCurrent(file);
-  }, [file]);
-
-  // Load pipeline: inspect → decode. Each run owns its image and frees it.
-  useEffect(() => {
-    if (!open || !current) return;
+    if (!source) return;
     let cancelled = false;
     let decoded: HTMLImageElement | null = null;
-    setPhase({ kind: "loading" });
     setApplyProblem(null);
     setPreviewUrl(null);
     void (async () => {
-      const inspected = await inspectImageFile(current);
+      const inspected = await inspectImageFile(source);
       if (cancelled) return;
       if (!inspected.ok) {
-        setPhase({ kind: "error", problem: inspected.problem });
+        setPhase({ kind: "error", source, problem: inspected.problem });
         return;
       }
       try {
         decoded = await decodeImage(inspected.image.bytes, inspected.image.mime);
       } catch {
-        if (!cancelled) setPhase({ kind: "error", problem: "decode" });
+        if (!cancelled) setPhase({ kind: "error", source, problem: "decode" });
         return;
       }
       if (cancelled) {
@@ -227,13 +241,13 @@ export function ImageCropDialog({
           ? "keep"
           : "crop",
       );
-      setPhase({ kind: "ready", inspected: inspected.image, img: decoded, natural });
+      setPhase({ kind: "ready", source, inspected: inspected.image, img: decoded, natural });
     })();
     return () => {
       cancelled = true;
       releaseImage(decoded);
     };
-  }, [open, current, kind]);
+  }, [source, kind]);
 
   // Measure the stage (dialog resize, narrow-viewport sheet).
   useLayoutEffect(() => {
@@ -422,8 +436,11 @@ export function ImageCropDialog({
   const stillAvatarFromGif =
     kind === "avatar" && (ready?.inspected.mime === "image/gif" || ready?.inspected.animated === true);
 
-  const avatarPreview = kind === "avatar" ? previewUrl : identity.avatarUrl;
-  const bannerPreview = kind === "banner" ? previewUrl : identity.bannerUrl;
+  // A preview belongs to the image it was rendered from: until the CURRENT
+  // source is ready, show none (never a stale URL whose blob is being freed).
+  const livePreview = ready ? previewUrl : null;
+  const avatarPreview = kind === "avatar" ? livePreview : identity.avatarUrl;
+  const bannerPreview = kind === "banner" ? livePreview : identity.bannerUrl;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
@@ -458,7 +475,7 @@ export function ImageCropDialog({
             onChange={(event) => {
               const next = event.target.files?.[0];
               event.target.value = "";
-              if (next) setCurrent(next);
+              if (next && baseFile) setReplacement({ for: baseFile, file: next });
             }}
           />
 
@@ -641,7 +658,16 @@ export function ImageCropDialog({
                       {t("desktop:imageEditor.reset")}
                     </Button>
                   </div>
-                  <p id={helpId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-fg-faint">
+                  {mode === "keep" && ready && (
+                    <p className="text-label text-fg-faint">{t("desktop:imageEditor.animatedKept")}</p>
+                  )}
+                  <p
+                    id={helpId}
+                    className={cn(
+                      "flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-fg-faint",
+                      mode === "keep" && "sr-only",
+                    )}
+                  >
                     <span className="sr-only">{t("desktop:imageEditor.stageHelp")}</span>
                     <span aria-hidden className="inline-flex items-center gap-1">
                       <Move className="size-3" />

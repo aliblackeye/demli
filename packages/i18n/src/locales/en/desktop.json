@@ -492,10 +492,7 @@
     "avatarLabel": "Profile photo",
     "optional": "(optional)",
     "avatarNote": "PNG, JPEG or WebP · up to 2 MB.",
-    "avatarChange": "Change photo",
     "avatarUploadAria": "Upload a new profile photo",
-    "avatarUploading": "Uploading…",
-    "avatarChecking": "Checking…",
     "avatarDisabled": "Photo uploads aren't turned on for this server yet.",
     "bioLabel": "About me",
     "bioPlaceholder": "Tell people a bit about yourself",
@@ -509,18 +506,13 @@
     "saved": "Saved",
     "discard": "Discard",
     "imagePending": "Not saved yet",
-    "savePartial": "Some changes couldn't be saved. See the errors above and try again.",
     "unsavedTitle": "Unsaved changes",
     "unsavedBody": "Your profile changes haven't been saved yet. Discard them?",
     "unsavedDiscard": "Discard changes",
     "unsavedKeepEditing": "Keep editing",
     "usernameNote": "Your username (@{{username}}) is fixed and can be up to {{max}} characters.",
-    "imagesNote": "Photo: PNG, JPEG or WebP up to 2 MB. Banner: also GIF, up to 5 MB.",
     "bannerUploadAria": "Upload a new profile banner",
-    "bannerChange": "Change banner",
     "bannerAdd": "Add banner",
-    "bannerUploading": "Uploading banner…",
-    "bannerChecking": "Checking…",
     "bannerTooLarge": "That banner is too large. Pick one under 5 MB.",
     "bannerInvalid": "That file isn't a supported image. Use a PNG, JPEG, WebP or GIF.",
     "bannerDisabled": "Banner uploads aren't turned on for this server yet.",
@@ -540,9 +532,8 @@
     "avatarHelp": "PNG, JPEG, WebP or GIF. Cropped and uploaded at 512×512.",
     "bannerHelp": "PNG, JPEG, WebP or GIF. An animated GIF can stay as it is (up to 5 MB).",
     "removePending": "Removed when you save",
-    "bioCount": "{{count}}/{{max}}",
+    "charCount": "{{count}}/{{max}}",
     "unsavedBar": "You have unsaved changes.",
-    "unsavedBarNudge": "Save or discard them first.",
     "saveChanges": "Save changes",
     "savingAvatar": "Uploading avatar…",
     "savingBanner": "Uploading banner…",
@@ -551,7 +542,8 @@
     "saveFailed": "Some changes didn't save.",
     "saveFailedHint": "What saved is kept — Try again sends only the rest.",
     "editAvatar": "Change avatar",
-    "editBanner": "Change banner"
+    "editBanner": "Change banner",
+    "undoRemove": "Keep it"
   },
   "imageEditor": {
     "avatarTitle": "Edit your avatar",
@@ -565,7 +557,6 @@
     "zoomOut": "Zoom out",
     "reset": "Reset",
     "apply": "Apply",
-    "applying": "Preparing…",
     "chooseAnother": "Choose another image",
     "loading": "Opening image…",
     "hintMove": "move",
@@ -662,7 +653,6 @@
     "messagePlaceholder": "Message @{{name}}",
     "sendMessage": "Send",
     "blockedNoMessage": "You cannot message this user while they are blocked.",
-    "closeCard": "Close profile card",
     "presenceOnMobile": "{{status}}, on mobile"
   },
   "rail": {
@@ -1356,8 +1346,7 @@
     "settingsEmpty": "You haven't blocked anyone.",
     "settingsCount_one": "{{count}} blocked user",
     "settingsCount_other": "{{count}} blocked users",
-    "blockedSince": "Blocked {{date}}",
-    "consequencesHeading": "When you block"
+    "blockedSince": "Blocked {{date}}"
   },
   "customStatus": {
     "set": "Set a custom status",
@@ -1494,7 +1483,6 @@
     "banConsequence1": "They're removed right away; if they're in voice, they're disconnected.",
     "banConsequence2": "No invite link brings them back.",
     "banConsequence3": "The ban and its reason go into the moderation log.",
-    "banReasonCount": "{{count}}/{{max}}",
     "dangerZoneLabel": "Moderation"
   },
   "ignore": {

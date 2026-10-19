@@ -492,10 +492,7 @@
     "avatarLabel": "Profil fotoğrafı",
     "optional": "(isteğe bağlı)",
     "avatarNote": "PNG, JPEG veya WebP · en fazla 2 MB.",
-    "avatarChange": "Fotoğrafı değiştir",
     "avatarUploadAria": "Yeni profil fotoğrafı yükle",
-    "avatarUploading": "Yükleniyor…",
-    "avatarChecking": "Kontrol ediliyor…",
     "avatarDisabled": "Fotoğraf yükleme bu sunucuda henüz açık değil.",
     "bioLabel": "Hakkımda",
     "bioPlaceholder": "Kendinden biraz bahset",
@@ -509,18 +506,13 @@
     "saved": "Kaydedildi",
     "discard": "Vazgeç",
     "imagePending": "Henüz kaydedilmedi",
-    "savePartial": "Bazı değişiklikler kaydedilemedi. Yukarıdaki hatalara bakıp tekrar dene.",
     "unsavedTitle": "Kaydedilmemiş değişiklikler",
     "unsavedBody": "Profil değişikliklerin henüz kaydedilmedi. Vazgeçmek istiyor musun?",
     "unsavedDiscard": "Değişikliklerden vazgeç",
     "unsavedKeepEditing": "Düzenlemeye devam et",
     "usernameNote": "Kullanıcı adın (@{{username}}) sabittir ve en fazla {{max}} karakter olabilir.",
-    "imagesNote": "Fotoğraf: PNG, JPEG veya WebP, en fazla 2 MB. Banner: GIF de olur, en fazla 5 MB.",
     "bannerUploadAria": "Yeni profil banner'ı yükle",
-    "bannerChange": "Banner'ı değiştir",
     "bannerAdd": "Banner ekle",
-    "bannerUploading": "Banner yükleniyor…",
-    "bannerChecking": "Kontrol ediliyor…",
     "bannerTooLarge": "Bu banner çok büyük. 5 MB altında bir görsel seç.",
     "bannerInvalid": "Bu dosya desteklenen bir görsel değil. PNG, JPEG, WebP veya GIF kullan.",
     "bannerDisabled": "Banner yükleme bu sunucuda henüz açık değil.",
@@ -540,9 +532,8 @@
     "avatarHelp": "PNG, JPEG, WebP ya da GIF. Kırpıp 512×512 olarak yüklenir.",
     "bannerHelp": "PNG, JPEG, WebP ya da GIF. Hareketli GIF olduğu gibi kalabilir (en fazla 5 MB).",
     "removePending": "Kaydedince kaldırılacak",
-    "bioCount": "{{count}}/{{max}}",
+    "charCount": "{{count}}/{{max}}",
     "unsavedBar": "Kaydedilmemiş değişikliklerin var.",
-    "unsavedBarNudge": "Önce kaydet ya da vazgeç.",
     "saveChanges": "Değişiklikleri kaydet",
     "savingAvatar": "Avatar yükleniyor…",
     "savingBanner": "Banner yükleniyor…",
@@ -551,7 +542,8 @@
     "saveFailed": "Bazı değişiklikler kaydedilemedi.",
     "saveFailedHint": "Kaydedilenler yerinde; Tekrar dene yalnız kalanları gönderir.",
     "editAvatar": "Avatarı değiştir",
-    "editBanner": "Banner'ı değiştir"
+    "editBanner": "Banner'ı değiştir",
+    "undoRemove": "Kaldırmaktan vazgeç"
   },
   "imageEditor": {
     "avatarTitle": "Avatarını düzenle",
@@ -565,7 +557,6 @@
     "zoomOut": "Uzaklaştır",
     "reset": "Sıfırla",
     "apply": "Uygula",
-    "applying": "Hazırlanıyor…",
     "chooseAnother": "Başka görsel seç",
     "loading": "Görsel açılıyor…",
     "hintMove": "kaydır",
@@ -662,7 +653,6 @@
     "messagePlaceholder": "@{{name}} kullanıcısına mesaj gönder",
     "sendMessage": "Gönder",
     "blockedNoMessage": "Bu kullanıcıyı engellediğin için mesaj gönderemezsin.",
-    "closeCard": "Profil kartını kapat",
     "presenceOnMobile": "{{status}}, telefonda"
   },
   "rail": {
@@ -1356,8 +1346,7 @@
     "settingsEmpty": "Kimseyi engellemedin.",
     "settingsCount_one": "{{count}} engellenen kullanıcı",
     "settingsCount_other": "{{count}} engellenen kullanıcı",
-    "blockedSince": "{{date}} tarihinde engellendi",
-    "consequencesHeading": "Engellediğinde"
+    "blockedSince": "{{date}} tarihinde engellendi"
   },
   "customStatus": {
     "set": "Özel durum belirle",
@@ -1494,7 +1483,6 @@
     "banConsequence1": "Sunucudan hemen çıkarılır; sesli odadaysa bağlantısı kesilir.",
     "banConsequence2": "Hiçbir davet bağlantısıyla geri katılamaz.",
     "banConsequence3": "Yasak ve sebebi denetim kaydına yazılır.",
-    "banReasonCount": "{{count}}/{{max}}",
     "dangerZoneLabel": "Moderasyon"
   },
   "ignore": {

@@ -543,7 +543,7 @@ export function ProfileSettings(): JSX.Element {
           <Field
             label={t("desktop:profile.displayName")}
             error={error === "desktop:profile.nameRequired" ? t(error) : undefined}
-            help={t("desktop:profile.bioCount", {
+            help={t("desktop:profile.charCount", {
               count: displayName.length,
               max: DISPLAY_NAME_MAX_LENGTH,
             })}
@@ -563,6 +563,9 @@ export function ProfileSettings(): JSX.Element {
             changeLabel={t("desktop:profile.editAvatar")}
             removeLabel={t("desktop:profile.avatarRemove")}
             canRemove={hasAvatar}
+            removing={avatarDraft === "remove"}
+            undoRemoveLabel={t("desktop:profile.undoRemove")}
+            onUndoRemove={() => setAvatarDraft(null)}
             pending={avatarDraft !== null}
             pendingLabel={
               avatarDraft === "remove" ? t("desktop:profile.removePending") : t("desktop:profile.imagePending")
@@ -580,6 +583,9 @@ export function ProfileSettings(): JSX.Element {
             changeLabel={hasBanner ? t("desktop:profile.editBanner") : t("desktop:profile.bannerAdd")}
             removeLabel={t("desktop:profile.bannerRemove")}
             canRemove={hasBanner}
+            removing={bannerDraft === "remove"}
+            undoRemoveLabel={t("desktop:profile.undoRemove")}
+            onUndoRemove={() => setBannerDraft(null)}
             pending={bannerDraft !== null}
             pendingLabel={
               bannerDraft === "remove" ? t("desktop:profile.removePending") : t("desktop:profile.imagePending")
@@ -598,7 +604,7 @@ export function ProfileSettings(): JSX.Element {
                 <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
               </>
             }
-            help={`${t("desktop:profile.bioNote", { max: BIO_MAX_LENGTH })} · ${t("desktop:profile.bioCount", {
+            help={`${t("desktop:profile.bioNote", { max: BIO_MAX_LENGTH })} · ${t("desktop:profile.charCount", {
               count: bio.length,
               max: BIO_MAX_LENGTH,
             })}`}
@@ -777,6 +783,9 @@ function ImageField({
   changeLabel,
   removeLabel,
   canRemove,
+  removing,
+  undoRemoveLabel,
+  onUndoRemove,
   pending,
   pendingLabel,
   busyLabel,
@@ -790,6 +799,10 @@ function ImageField({
   changeLabel: string;
   removeLabel: string;
   canRemove: boolean;
+  /** A removal is pending: the same button becomes "undo", so focus never drops. */
+  removing: boolean;
+  undoRemoveLabel: string;
+  onUndoRemove: () => void;
   pending: boolean;
   pendingLabel: string;
   busyLabel: string | null;
@@ -809,9 +822,9 @@ function ImageField({
           <ImagePlus className="size-4" aria-hidden />
           {changeLabel}
         </Button>
-        {canRemove && (
-          <Button variant="ghost" size="sm" disabled={disabled} onClick={onRemove}>
-            {removeLabel}
+        {(canRemove || removing) && (
+          <Button variant="ghost" size="sm" disabled={disabled} onClick={removing ? onUndoRemove : onRemove}>
+            {removing ? undoRemoveLabel : removeLabel}
           </Button>
         )}
         {busyLabel ? (
@@ -865,13 +878,15 @@ function SaveBar({
       role="region"
       aria-label={t("desktop:profile.unsavedBar")}
       className={cn(
-        "pointer-events-auto relative flex w-full max-w-xl items-center gap-3 overflow-hidden rounded-cta py-2.5 pl-4 pr-2.5 surface-glass-strong",
+        // Wraps on a phone-width web window: the message keeps a full line and
+        // the two buttons drop under it, right-aligned, instead of crushing it.
+        "pointer-events-auto relative flex w-full max-w-xl flex-wrap items-center gap-x-3 gap-y-2 overflow-hidden rounded-cta py-2.5 pl-4 pr-2.5 surface-glass-strong",
       )}
     >
       {/* Failed: a pink wash under the content, so the pill reads as a problem
           before a word of it is read (never a solid fill — §1.5). */}
       {state === "failed" && <span aria-hidden className="pointer-events-none absolute inset-0 bg-danger/12" />}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5" aria-live="polite">
+      <div className="flex min-w-[12rem] flex-1 items-center gap-2.5" aria-live="polite">
         {state === "saving" && progress ? (
           <>
             <Loader2 className="size-4 shrink-0 animate-spin text-accent" aria-hidden />
@@ -898,7 +913,7 @@ function SaveBar({
         )}
       </div>
       {state !== "saved" && (
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button variant="ghost" size="sm" disabled={state === "saving"} onClick={onDiscard}>
             {t("desktop:profile.discard")}
           </Button>
