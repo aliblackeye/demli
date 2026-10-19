@@ -16,7 +16,8 @@ export interface Rgba {
 
 /**
  * Parse `#rgb`, `#rrggbb`, `rgba(r, g, b, a)`, `rgb(r g b / a)` — the forms the
- * token files use. Throws on anything else so a typo cannot pass as black.
+ * token files use — and `hsl(h s% l%)` / `hsla(h, s%, l%, a)`, the form the
+ * avatar seed colours use. Throws on anything else so a typo cannot pass as black.
  */
 export function parseColor(input: string): Rgba {
   const value = input.trim().toLowerCase();
@@ -49,7 +50,27 @@ export function parseColor(input: string): Rgba {
       return { r, g, b, a };
     }
   }
+  const hsl = /^hsla?\(([^)]+)\)$/.exec(value);
+  if (hsl) {
+    const parts = (hsl[1] as string)
+      .replace("/", " ")
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map((part) => Number.parseFloat(part));
+    if (parts.length >= 3 && parts.every((n) => Number.isFinite(n))) {
+      const [h, s, l, a = 1] = parts as [number, number, number, number?];
+      return { ...hslToRgb(h, s / 100, l / 100), a };
+    }
+  }
   throw new Error(`unsupported colour: ${input}`);
+}
+
+function hslToRgb(h: number, s: number, l: number): Omit<Rgba, "a"> {
+  const k = (n: number): number => (n + h / 30) % 12;
+  const chroma = s * Math.min(l, 1 - l);
+  const channel = (n: number): number =>
+    Math.round(255 * (l - chroma * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return { r: channel(0), g: channel(8), b: channel(4) };
 }
 
 /** Flatten a translucent colour onto an opaque backdrop (source-over). */

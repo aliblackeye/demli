@@ -47,6 +47,8 @@
   --tc-scrim: rgba(0, 0, 0, 0.55); /* + blur(4px): dialog backdrop */
   --tc-selected: rgba(255, 132, 100, 0.12);
   --tc-hover: #171717;
+  --tc-wash: rgba(255, 255, 255, 0.06); /* hover on fill-less controls */
+  --tc-wash-strong: rgba(255, 255, 255, 0.1); /* their press; skeleton blocks */
 
   /* ── Hairlines (functional only) ────────────────────────────────────────── */
   --tc-stroke: rgba(255, 255, 255, 0.08);

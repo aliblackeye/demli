@@ -12,7 +12,8 @@ import { cn } from "../lib/cn";
  *   accent    coral fill, dark ink — the warm call to action (join, invite)
  *   danger    pink wash + pink ink — destructive; never a solid fill, so the
  *             label keeps ≥4.5:1 (white on the pink fill is 2.6:1)
- *   ghost     no fill until hovered
+ *   ghost     no fill until hovered; the hover/press wash is translucent white,
+ *             so it shows on whatever it sits on (a toolbar, a popover, a card)
  *
  * `default` (= accent) and `outline` stay as aliases so the ~175 existing call
  * sites keep compiling and keep their meaning; new code names the variant.
@@ -31,10 +32,10 @@ export const buttonVariants = cva(
         secondary: "bg-raised text-fg hover:bg-raised-hover active:bg-raised-pressed",
         accent: "bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-pressed",
         danger: "bg-danger/12 text-danger hover:bg-danger/20 active:bg-danger/28",
-        ghost: "bg-transparent text-fg-muted hover:bg-surface hover:text-fg active:bg-app",
+        ghost: "bg-transparent text-fg-muted hover:bg-wash hover:text-fg active:bg-wash-strong",
         default: "bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-pressed",
         outline:
-          "bg-transparent text-fg shadow-[inset_0_0_0_1px_var(--color-stroke-strong)] hover:bg-surface active:bg-app",
+          "bg-transparent text-fg shadow-[inset_0_0_0_1px_var(--color-stroke-strong)] hover:bg-wash active:bg-wash-strong",
       },
       size: {
         lg: "h-11 rounded-[14px] px-5 text-[15px] leading-5",

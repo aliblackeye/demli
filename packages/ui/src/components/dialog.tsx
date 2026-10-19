@@ -92,7 +92,7 @@ export const DialogContent = React.forwardRef<
         aria-label={closeLabel}
         className={cn(
           "absolute right-4 top-4 z-10 cursor-pointer rounded-md p-1.5 text-fg-faint transition-colors motion-hover",
-          "hover:bg-surface hover:text-fg",
+          "hover:bg-wash hover:text-fg",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
           // Grows to a 44px thumb target and clears the landscape notch on a
           // phone; inert above 900px.

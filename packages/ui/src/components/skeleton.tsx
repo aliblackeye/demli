@@ -34,8 +34,11 @@ const toDim = (value: number | string | undefined): string | undefined =>
  *
  * Decorative by default (`aria-hidden`); wrap a skeleton group in an element with
  * `role="status"` + an aria-label so screen readers announce "loading" once,
- * not per shape. Uses the shared `bg-surface` token + Tailwind's `animate-pulse`
- * so it renders identically on desktop and web (Safari 12 safe — opacity only).
+ * not per shape. Paints the translucent `bg-wash-strong` token, not a surface
+ * tone: a skeleton sits on popovers, cards and columns of every tone, and a
+ * surface-toned block is invisible on a surface-toned popover (the profile
+ * card). Tailwind's `animate-pulse` keeps it identical on desktop and web
+ * (Safari 12 safe — opacity only).
  */
 export function Skeleton({
   shape = "rect",
@@ -60,7 +63,7 @@ export function Skeleton({
     <div
       aria-hidden
       className={cn(
-        "shrink-0 bg-surface",
+        "shrink-0 bg-wash-strong",
         animated && "animate-pulse",
         SHAPE_RADIUS[shape],
         // Sensible text-line defaults when the caller gives no dimensions.

@@ -49,6 +49,10 @@ export const colors = {
   selected: "rgba(255,132,100,0.12)",
   /** Row press wash. Same value as `surface` by design. */
   hover: "#171717",
+  /** Hover/press wash for controls without a fill of their own; lifts any surface. */
+  wash: "rgba(255,255,255,0.06)",
+  /** Their pressed state, and skeleton blocks. */
+  washStrong: "rgba(255,255,255,0.1)",
 
   // ── Hairlines (functional only — Koyu Masa is borderless) ────────────────
   stroke: "rgba(255,255,255,0.08)",

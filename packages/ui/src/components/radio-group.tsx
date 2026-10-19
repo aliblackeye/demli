@@ -162,7 +162,7 @@ export function RadioItem({
       className={cn(
         "flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-3 py-2.5 text-left",
         "transition-colors motion-hover",
-        checked ? "bg-accent-surface" : "hover:bg-surface",
+        checked ? "bg-accent-surface" : "hover:bg-wash",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         "disabled:pointer-events-none disabled:opacity-40",
         className,

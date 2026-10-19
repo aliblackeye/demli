@@ -119,6 +119,13 @@
   /* Selected row (channel/DM lists) = accent wash; row hover = surface tone. */
   --color-selected: rgb(255 132 100 / 0.12);
   --color-hover: #171717;
+  /* State washes for controls that have no fill of their own (ghost and
+     outline buttons, close buttons, option rows) and for skeleton blocks.
+     Relative, not a surface tone: surface, overlay and hover share #171717,
+     so a surface-toned hover vanishes on a surface-toned toolbar or popover.
+     A white wash lifts whatever it sits on, rail to raised. */
+  --color-wash: rgb(255 255 255 / 0.06);
+  --color-wash-strong: rgb(255 255 255 / 0.1);
 
   /* Hairlines — only where a line is functional (focus trace, drop target). */
   --color-stroke: rgb(255 255 255 / 0.08);
@@ -155,7 +162,9 @@
      candidate that stays apart from coral AND from online-green under red-green
      colour blindness (measured, see the design doc §1.4). Recognition does not
      rest on colour alone — every danger control also carries its icon/label.
-     As a fill it takes dark ink (7.0:1); white on it is 2.6:1 and is not used. */
+     As a fill (hang-up, decline, unread badge) it takes dark `on-accent` ink
+     (7.0:1); white on it is 2.6:1. design-tokens.test.ts scans the renderer
+     source and fails on light ink over any light fill. */
   --color-danger: #ff6fb5;
   --color-danger-surface: rgb(255 111 181 / 0.12);
   --color-success: #22c55e;

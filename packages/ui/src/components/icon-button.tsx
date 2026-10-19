@@ -16,8 +16,8 @@ export const iconButtonVariants = cva(
       variant: {
         /** Surface box that lifts to the raised tone on hover. */
         solid: "bg-surface text-fg hover:bg-raised active:bg-raised-pressed",
-        /** Bare glyph until hovered. */
-        ghost: "bg-transparent text-fg-muted hover:bg-surface hover:text-fg active:bg-app",
+        /** Bare glyph until hovered; the wash shows on any container. */
+        ghost: "bg-transparent text-fg-muted hover:bg-wash hover:text-fg active:bg-wash-strong",
         /** Destructive glyph (leave call, remove). */
         danger: "bg-danger/12 text-danger hover:bg-danger/20 active:bg-danger/28",
       },

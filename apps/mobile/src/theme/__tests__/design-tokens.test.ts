@@ -72,6 +72,8 @@ const PARITY: ReadonlyArray<readonly [keyof typeof colors, string]> = [
   ["scrim", "scrim"],
   ["selected", "selected"],
   ["hover", "hover"],
+  ["wash", "wash"],
+  ["washStrong", "wash-strong"],
   ["stroke", "stroke"],
   ["strokeStrong", "stroke-strong"],
   ["fgDisplay", "fg-display"],

@@ -15,7 +15,12 @@ export const USER_AVATAR_PX = { xs: 20, sm: 32, md: 40, lg: 80 } as const;
 
 export type UserAvatarSize = keyof typeof SIZE_CLASS;
 
-/** Deterministic, muted background color derived from a seed (user/group id). */
+/**
+ * Deterministic, muted background color derived from a seed (user/group id).
+ * Initials on it are pure white (`fg-display`): at 36% lightness that is
+ * ≥ 4.6:1 for every hue, where the softer `fg` ink drops to 3.7:1 on the
+ * yellow-greens. The UI-tones test sweeps all 360 hues.
+ */
 export function seedColor(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
@@ -99,7 +104,7 @@ export function UserAvatar({
       <span
         aria-hidden
         className={cn(
-          "relative flex items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-fg",
+          "relative flex items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-fg-display",
           "transition-shadow motion-hover",
           SIZE_CLASS[size],
           speaking

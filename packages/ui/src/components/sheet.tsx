@@ -63,7 +63,7 @@ export const SheetContent = React.forwardRef<
         aria-label={closeLabel}
         className={cn(
           "absolute right-4 top-4 z-10 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-md",
-          "text-fg-faint transition-colors motion-hover hover:bg-surface hover:text-fg",
+          "text-fg-faint transition-colors motion-hover hover:bg-wash hover:text-fg",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         )}
       >
