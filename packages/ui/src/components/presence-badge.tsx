@@ -1,4 +1,5 @@
 import { Smartphone } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { PresencePlatform, PresenceStatus } from "@demli/types";
 import { cn } from "../lib/cn";
 
@@ -51,31 +52,50 @@ export interface PresenceBadgeProps {
   platform?: PresencePlatform;
   /** Override the a11y label (e.g. a translated string). */
   label?: string;
-  /** Override the cut-out ring color to match the surface behind the badge. */
+  /**
+   * Dot diameter in px. Koyu Masa sizes it to 30% of the avatar (min 10);
+   * UserAvatar passes that through. Without it the badge is 10px and a
+   * `size-*` class may override that.
+   */
+  size?: number;
+  /** Positioning / ring overrides (e.g. `ring-app` on a conversation surface). */
   className?: string;
 }
 
+/**
+ * Presence dot with a 2px cut-out ring in the surface colour behind it, so it
+ * reads as sitting IN the avatar's edge rather than on top of it.
+ */
 export function PresenceBadge({
   status,
   platform,
   label,
+  size,
   className,
 }: PresenceBadgeProps): JSX.Element {
   // Mobile + connected (online/idle) → phone indicator. Offline stays a dot: an
   // offline user is not "on mobile", and a desktop presence is a plain dot too.
   const showPhone = platform === "mobile" && status !== "offline";
+  const box: CSSProperties | undefined = size === undefined ? undefined : { width: size, height: size };
 
   if (showPhone) {
+    const glyph = size === undefined ? undefined : Math.max(10, Math.round(size * 1.15));
     return (
       <span
         role="img"
         aria-label={label ?? MOBILE_LABEL[status]}
         className={cn(
-          "flex items-center justify-center rounded-[3px] bg-sidebar ring-[2px] ring-sidebar",
+          "flex items-center justify-center rounded-[3px] bg-sidebar ring-2 ring-sidebar",
           className,
         )}
+        style={glyph === undefined ? undefined : { width: glyph, height: glyph }}
       >
-        <Smartphone aria-hidden className={cn("size-3", PHONE_CLASS[status])} strokeWidth={2.75} />
+        <Smartphone
+          aria-hidden
+          className={cn(glyph === undefined && "size-3", PHONE_CLASS[status])}
+          style={glyph === undefined ? undefined : { width: glyph * 0.85, height: glyph * 0.85 }}
+          strokeWidth={2.75}
+        />
       </span>
     );
   }
@@ -85,16 +105,18 @@ export function PresenceBadge({
       role="img"
       aria-label={label ?? LABEL[status]}
       className={cn(
-        "relative block size-[10px] rounded-full ring-[2.5px] ring-sidebar",
+        "relative block size-[10px] rounded-full ring-2 ring-sidebar",
         DOT_CLASS[status],
         className,
       )}
+      style={box}
     >
-      {/* Do Not Disturb: a white dash centered on the red dot. */}
+      {/* Do Not Disturb: a dark dash centred on the dot (dark ink on the light
+          pink fill, 7:1 — white would be 2.6:1). */}
       {status === "dnd" && (
         <span
           aria-hidden
-          className="absolute left-1/2 top-1/2 h-[2px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+          className="absolute left-1/2 top-1/2 h-[max(2px,18%)] w-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent"
         />
       )}
     </span>

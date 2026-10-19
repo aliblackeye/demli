@@ -1,150 +1,129 @@
 /*
- * @demli/app-ui — SINGLE-SOURCE design tokens.
+ * @demli/app-ui — "Koyu Masa" design tokens as `--tc-*` custom properties.
  * ============================================================================
- * These `--tc-*` custom properties are the ONE place the Demli product-UI
- * palette, radius scale, micro-typography, motion ramp and elevation live.
- * Both surfaces derive from here:
+ * WHO READS THIS FILE
  *
- *   - Desktop (Electron renderer): today reads its OWN Tailwind v4 `@theme`
- *     block in apps/desktop/.../styles/globals.css. Phase 1 re-points it here;
- *     Phase 0 leaves it untouched (values are byte-for-byte identical, so the
- *     desktop look does not move).
- *   - Web (apps/web): `@import`s this file and its Tailwind v3 config binds to
- *     these vars — see apps/web/tailwind.config.ts + src/styles/globals.css.
+ *   - Desktop + web do NOT import it. Their live token seam is the Tailwind v4
+ *     `@theme` block in apps/desktop/src/renderer/src/styles/globals.css (web
+ *     @imports that same file), because every semantic utility (`bg-app`,
+ *     `text-fg-muted`, …) compiles to `var(--color-*)` from there.
+ *   - apps/mobile/src/theme/theme.ts is a hand-kept React Native mirror of the
+ *     values below.
  *
- * The values mirror the desktop `@theme` block (Catppuccin Macchiato). Only the
- * NAMES differ (`--tc-*` vs `--color-*`) so a single import can feed both a
- * Tailwind v3 (web) and a Tailwind v4 (desktop) pipeline without collision.
+ * This file is the NEUTRAL, framework-free statement of the system that both
+ * sides are checked against:
  *
- * ── SAFARI 12 / iOS 12 SAFE (hard target, apps/web browserslist) ────────────
- *  - Translucent values are PRE-COMPUTED `rgba(r, g, b, a)` with the LEGACY
- *    COMMA syntax. NEVER `color-mix()`, NEVER `rgb(r g b / a)` space-slash,
- *    NEVER `oklch()`/`@property` — none of those parse on Safari 12.
- *  - `calc()` and CSS custom properties are Safari 9.1+ — safe.
+ *   globals.css @theme  ⇄  tokens.css  ⇄  mobile theme.ts
+ *   (apps/desktop/.../styles/design-tokens.test.ts)  (apps/mobile/.../design-tokens.test.ts)
  *
- * The desktop `globals.css` expresses four translucent values with
- * `color-mix(in oklab, <color> N%, transparent)`. Mixing an opaque colour with
- * `transparent` yields that exact colour at N% alpha regardless of the mixing
- * space (the transparent endpoint contributes zero pre-multiplied colour), so
- * each is reproduced EXACTLY as a comma `rgba()` below. Conversions:
+ * so a palette, radius or motion edit has to land in all three at once or a
+ * test fails. Names: `--tc-<name>` here == `--color-<name>` / `--radius-<name>`
+ * / `--motion-<name>` in globals.css.
  *
- *   desktop globals.css:238  color-mix(in oklab, var(--color-fg) 14%, transparent)
- *                            fg   #cad3f5 = 202,211,245  ->  rgba(202, 211, 245, 0.14)
- *   desktop globals.css:242  color-mix(in oklab, var(--color-fg) 30%, transparent)
- *                            fg   #cad3f5 = 202,211,245  ->  rgba(202, 211, 245, 0.30)
- *   desktop globals.css:283  color-mix(in oklab, var(--color-stroke) 45%, transparent)
- *                            strk #494d64 = 73,77,100    ->  rgba(73, 77, 100, 0.45)
- *   desktop globals.css:293  color-mix(in oklab, var(--color-stroke) 80%, transparent)
- *                            strk #494d64 = 73,77,100    ->  rgba(73, 77, 100, 0.80)
+ * Syntax: comma `rgba()` (globals.css writes the same colours as
+ * `rgb(r g b / a)`; the tests compare parsed channels, not strings).
+ *
+ * Source of the values: docs/design-system/demli-design-system.md. Two
+ * deliberate departures from the doc, both forced by WCAG and measured in the
+ * tests: `fg-faint` #8f8f8f (doc #737373 was 4.10:1 on #0d0d0d) and `fg-subtle`
+ * #666666 (doc #404040 was ≈2:1).
  * ============================================================================
  */
 :root {
   color-scheme: dark;
 
-  /* ── Surfaces — darkest (group rail) to lightest (popovers) ──────────────
-     "Demli Voice v2" sıcak koyu kırmızı-turuncu rampa (founder tasarımı).
-     Gradient zemin #2A0F07→#180806→#0C0304'ün opak katman karşılıkları. */
-  --tc-rail: #0c0403; /* en koyu — group rail */
-  --tc-sidebar: #140705; /* mantle */
-  --tc-app: #1a0806; /* base */
-  --tc-surface: #241009;
-  --tc-raised: #2e130b; /* popover/menu */
-  --tc-overlay: #3a1710;
-  /* Selected rows (channel/DM lists) — sıcak vurgu. */
-  --tc-selected: #3a241b;
-  /* Row hover. */
-  --tc-hover: #241009;
+  /* ── Surfaces — neutral black, depth by tone ────────────────────────────── */
+  --tc-rail: #000000; /* page / window */
+  --tc-sidebar: #0d0d0d; /* base: channel + member columns */
+  --tc-app: #0d0d0d; /* base: conversation column, dialog cards */
+  --tc-surface: #171717; /* inputs at rest, icon boxes, list hover */
+  --tc-raised: #262626; /* secondary buttons, focused inputs, menu hover */
+  --tc-raised-hover: #303030;
+  --tc-raised-pressed: #1f1f1f;
+  --tc-overlay: #171717; /* opaque stand-in for glass */
+  --tc-glass: rgba(23, 23, 23, 0.72); /* + blur(10px): nav pill, panels */
+  --tc-glass-strong: rgba(23, 23, 23, 0.92); /* + blur(10px): menus, tooltips */
+  --tc-veil: rgba(0, 0, 0, 0.24); /* pill over media */
+  --tc-scrim: rgba(0, 0, 0, 0.55); /* + blur(4px): dialog backdrop */
+  --tc-selected: rgba(255, 132, 100, 0.12);
+  --tc-hover: #171717;
+  --tc-wash: rgba(255, 255, 255, 0.06); /* hover on fill-less controls */
+  --tc-wash-strong: rgba(255, 255, 255, 0.1); /* their press; skeleton blocks */
 
-  /* ── Hairlines — cream düşük-alfa (tasarım rgba(248,238,212,.07/.16)) ──── */
-  --tc-stroke: rgba(248, 238, 212, 0.09);
-  --tc-stroke-strong: rgba(248, 238, 212, 0.16);
+  /* ── Hairlines (functional only) ────────────────────────────────────────── */
+  --tc-stroke: rgba(255, 255, 255, 0.08);
+  --tc-stroke-strong: rgba(255, 255, 255, 0.16);
 
-  /* ── Text — cream / muted / faint (tasarım #F8EED4 / #B9A48E / #8A7361) ── */
-  --tc-fg: #f8eed4;
-  --tc-fg-muted: #b9a48e;
-  --tc-fg-faint: #8a7361;
+  /* ── Text ───────────────────────────────────────────────────────────────── */
+  --tc-fg-display: #ffffff;
+  --tc-fg: #e5e5e5;
+  --tc-fg-muted: #a3a3a3;
+  --tc-fg-faint: #8f8f8f; /* meta text — AA 4.5:1 up to `raised` */
+  --tc-fg-subtle: #666666; /* NON-TEXT only — 3:1 on rail/app/surface */
 
-  /* ── Brand + semantic — Demli accent turuncusu (tasarım --ac) ─────────────
-     Marka (colors.json): primary #F55416 / accent #FF8C1A / kırmızı #D90429.
-     NOTE: #FF8C1A açık-turuncu → accent ÜZERİNDEKİ metin KOYU (--tc-on-accent
-     #120B08, tasarım "ODAKTA" rozeti gibi), asla beyaz. rgba PRE-COMPUTED. */
-  --tc-accent: #ff8c1a;
-  --tc-accent-hover: #ffb65c;
-  --tc-on-accent: #120b08;
-  --tc-accent-surface: rgba(255, 140, 26, 0.16);
-  --tc-danger: #ff7366;
-  --tc-danger-surface: rgba(255, 115, 102, 0.16);
-  --tc-success: #a6da95;
-  --tc-warning: #e8c34a;
-  /* ::selection wash — accent %35. */
-  --tc-selection: rgba(255, 140, 26, 0.35);
+  /* ── Inverse (white primary button) ─────────────────────────────────────── */
+  --tc-inverse: #ffffff;
+  --tc-inverse-hover: #e5e5e5;
+  --tc-inverse-pressed: #d4d4d4;
+  --tc-on-inverse: #171717;
 
-  /* ── Presence — green / yellow / red / warm-overlay ───────────────────── */
-  --tc-online: #a6da95;
-  --tc-idle: #e8c34a;
-  --tc-dnd: #ee5a5a; /* Do Not Disturb */
-  --tc-offline: #6e5d4f;
+  /* ── Brand — Demli coral (light fill → dark ink on it) ─────────────────── */
+  --tc-accent: #ff8464;
+  --tc-accent-hover: #ffa48c;
+  --tc-accent-pressed: #e8624a;
+  --tc-on-accent: #171717;
+  --tc-accent-surface: rgba(255, 132, 100, 0.12);
+  --tc-accent-glow: rgba(255, 132, 100, 0.24);
+  --tc-selection: rgba(255, 132, 100, 0.35);
 
-  /* ── Micro-typography ramp ──────────────────────────────────────────────
-     Everything BELOW Tailwind's text-xs (12px): timestamps, section headings,
-     badges, tiny glyphs. In rem so they scale with app zoom. Deliberately no
-     paired line-height (matches the desktop ramp — a pure size rename). */
-  --tc-text-2xs: 0.6875rem; /* 11px — timestamps / meta / section headings */
-  --tc-text-badge: 0.625rem; /* 10px — badges, pills, counters */
-  --tc-text-3xs: 0.5rem; /* 8px  — tiny glyphs inside 20px avatars */
+  /* ── Semantic ───────────────────────────────────────────────────────────── */
+  --tc-danger: #ff6fb5;
+  --tc-danger-surface: rgba(255, 111, 181, 0.12);
+  --tc-success: #22c55e;
+  --tc-warning: #eab30a;
 
-  /* ── Radius, derived from ONE source ────────────────────────────────────
-     `--tc-radius` is the single knob for roundness; steps stay 2px apart,
-     reproducing 6/8/10/12 exactly. calc() is Safari 12 safe. */
-  --tc-radius: 10px;
-  --tc-radius-sm: calc(var(--tc-radius) - 4px); /* 6px  */
-  --tc-radius-md: calc(var(--tc-radius) - 2px); /* 8px  */
-  --tc-radius-lg: var(--tc-radius); /* 10px */
-  --tc-radius-xl: calc(var(--tc-radius) + 2px); /* 12px */
+  /* ── Presence ───────────────────────────────────────────────────────────── */
+  --tc-online: #22c55e;
+  --tc-idle: #eab30a;
+  --tc-dnd: #ff6fb5;
+  --tc-offline: #666666;
 
-  /* ── Motion scale — four steps, each with a job ─────────────────────────
-     Nothing in the app should invent a duration outside this ramp. */
-  --tc-motion-duration-instant: 120ms; /* tactile feedback: hover, press, focus */
-  --tc-motion-duration-fast: 180ms; /* state change: scrim, tooltip, badge   */
-  --tc-motion-duration-standard: 240ms; /* panel, popover, dialog, menu          */
-  --tc-motion-duration-arrival: 500ms; /* new content settling in               */
+  /* ── Micro-typography (px at default zoom: 11 / 10 / 8 / 13) ───────────── */
+  --tc-text-2xs: 0.6875rem;
+  --tc-text-badge: 0.625rem;
+  --tc-text-3xs: 0.5rem;
+  --tc-text-label: 0.8125rem;
 
-  /* Decelerating curves — motion enters quickly and lands softly, never
-     bounces. `arrival` is the flatter tail of the two. */
+  /* ── Radius: 8 · 10 · 12 · 16 · 18 · 24 · 32 · pill ────────────────────── */
+  --tc-radius: 12px;
+  --tc-radius-sm: 8px;
+  --tc-radius-md: 10px;
+  --tc-radius-lg: 12px;
+  --tc-radius-xl: 16px;
+  --tc-radius-cta: 18px;
+  --tc-radius-card: 24px;
+  --tc-radius-panel: 32px;
+  --tc-radius-pill: 50px;
+
+  /* ── Motion ─────────────────────────────────────────────────────────────── */
+  --tc-motion-duration-instant: 120ms; /* press, focus */
+  --tc-motion-duration-fast: 180ms; /* scrim, tooltip, badge */
+  --tc-motion-duration-hover: 200ms; /* hover = tone only */
+  --tc-motion-duration-standard: 240ms; /* panel, popover, dialog, menu */
+  --tc-motion-duration-arrival: 500ms; /* new content settling in */
   --tc-motion-ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
   --tc-motion-ease-arrival: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Position spring (framer / RN Animated take these three numbers as-is). */
+  --tc-motion-spring-stiffness: 500;
+  --tc-motion-spring-damping: 60;
+  --tc-motion-spring-mass: 1;
+  /* Hover spring, framer duration form `{ bounce, duration }`. */
+  --tc-motion-spring-hover-bounce: 0.2;
+  --tc-motion-spring-hover-duration: 400ms;
 
-  /* Arrival geometry (translateY + blur of a row settling into place). */
-  --tc-motion-distance-arrival: 0.75rem;
-  --tc-motion-blur-arrival: 2px;
-
-  /* ── Elevation / edges ──────────────────────────────────────────────────
-     Soft drop used by lifted, side-anchored surfaces. Redesign-skill "colored,
-     tinted shadows": a warm near-black hue (not pure black) so a lifted panel
-     reads as sitting over the Demli surface. Mirrors the desktop
-     --shadow-lift-color; kept as a comma rgba() (Safari-12 legacy syntax). */
-  --tc-shadow-lift-color: rgba(8, 3, 1, 0.5);
-
-  /* Scrollbar thumb colours (desktop color-mix -> pre-computed rgba). */
-  --tc-scrollbar-thumb: rgba(248, 238, 212, 0.14); /* resting hover reveal (cream) */
-  --tc-scrollbar-thumb-hover: rgba(248, 238, 212, 0.3); /* pointer on the thumb   */
-
-  /* Composite box-shadows for the edge/panel utilities (color-mix -> rgba).
-     A right-anchored panel: crisp inner hairline + wide, soft lift. A content
-     area meeting chrome: a 1px top-left seam. */
-  --tc-shadow-content-edge-color: rgba(248, 238, 212, 0.08);
-  --tc-shadow-panel-left-color: rgba(248, 238, 212, 0.12);
-  --tc-shadow-content-edge: -1px -1px 0 0 var(--tc-shadow-content-edge-color);
-  --tc-shadow-panel-left: -1px 0 0 0 var(--tc-shadow-panel-left-color),
-    -16px 0 32px -12px var(--tc-shadow-lift-color);
-
-  /* ── Font stack ─────────────────────────────────────────────────────────
-     "Demli Voice v2" tipografisi (founder tasarımı): gövde = Instrument Sans,
-     başlıklar = Space Grotesk. woff2 dosyaları SELF-HOST — @font-face tanımları
-     tek kaynak globals.css'te (apps/desktop/.../styles/globals.css), web onu
-     @import eder. Google Fonts KULLANILMAZ (CSP `font-src 'self' data:`). */
-  --tc-font-sans: "Instrument Sans", "Segoe UI Variable Text", "Segoe UI",
+  /* ── Font stacks (faces are declared once, in globals.css) ─────────────── */
+  --tc-font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui,
+    -apple-system, sans-serif;
+  --tc-font-display: "Onest", "Inter", "Segoe UI Variable Text", "Segoe UI",
     system-ui, -apple-system, sans-serif;
-  --tc-font-display: "Space Grotesk", "Instrument Sans", "Segoe UI Variable Text",
-    "Segoe UI", system-ui, -apple-system, sans-serif;
 }

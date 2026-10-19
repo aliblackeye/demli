@@ -1,19 +1,64 @@
 /**
  * React Native bindings for the shared motion ramp.
  *
- * `theme.ts` holds the raw numbers (durations + cubic-bezier control points) so
- * it stays importable from the node-environment unit tests. This module is the
- * RN half: it turns those control points into real `Easing` functions and
- * exposes the reduced-motion gate every animation in the app must pass through.
+ * `theme.ts` holds the raw numbers (durations, cubic-bezier control points,
+ * springs) so it stays importable from the node-environment unit tests. This
+ * module is the RN half: it turns them into real `Easing` functions and
+ * `Animated` animations, and exposes the reduced-motion gate every animation in
+ * the app must pass through.
+ *
+ * Engine-neutral presets: `MOTION_PRESETS` (in motion-presets.ts) describes
+ * each named motion as plain data. `animate()` below is the RN `Animated`
+ * adapter used today; a Reanimated adapter (`withSpring` / `withTiming`) maps
+ * the very same presets when Wave 4 brings Reanimated into the native build, so
+ * call sites name a preset ("position", "tone") rather than an engine.
  */
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing } from "react-native";
+import { MOTION_PRESETS, type MotionPresetName } from "./motion-presets";
 import { motion } from "./theme";
 
 /** The shared decelerating curve — panels, state changes, presses. */
 export const easeStandard = Easing.bezier(...motion.easing.standard);
 /** Flatter tail, used only for content arriving on screen. */
 export const easeArrival = Easing.bezier(...motion.easing.arrival);
+
+const EASINGS = { standard: easeStandard, arrival: easeArrival } as const;
+
+/**
+ * Run a named motion preset on an `Animated.Value`.
+ *
+ * Reduced motion collapses every preset to an instant jump to `toValue` (a
+ * zero-duration timing, so `.start(callback)` still fires and chained logic
+ * keeps working). `useNativeDriver` defaults to true — presets are meant for
+ * transform/opacity; pass false only for a colour or layout value.
+ */
+export function animate(
+  value: Animated.Value,
+  toValue: number,
+  preset: MotionPresetName,
+  { reduced, useNativeDriver = true }: { reduced: boolean; useNativeDriver?: boolean },
+): Animated.CompositeAnimation {
+  if (reduced) {
+    return Animated.timing(value, { toValue, duration: 0, useNativeDriver });
+  }
+  const spec = MOTION_PRESETS[preset];
+  if (spec.type === "spring") {
+    return Animated.spring(value, {
+      toValue,
+      stiffness: spec.stiffness,
+      damping: spec.damping,
+      mass: spec.mass,
+      useNativeDriver,
+    });
+  }
+  return Animated.timing(value, {
+    toValue,
+    duration: spec.duration,
+    easing: EASINGS[spec.easing],
+    useNativeDriver,
+  });
+}
 
 /**
  * True when the OS "reduce motion" switch is on. Mirrors the desktop's global

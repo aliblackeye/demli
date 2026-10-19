@@ -43,17 +43,30 @@ rather than quietly.
 
 ## Fonts
 
-**Where:** `apps/desktop/src/renderer/src/assets/fonts/` (the desktop renderer, the
-web app and the landing page all load these same files) and
-`apps/mobile/assets/fonts/`.
+**Where:** `apps/desktop/src/renderer/src/assets/fonts/` (the desktop renderer and
+the web app load these same files) and `apps/mobile/assets/fonts/`.
 
-- **Instrument Sans** — SIL Open Font License 1.1. Full text:
-  [`OFL-InstrumentSans.txt`](apps/desktop/src/renderer/src/assets/fonts/OFL-InstrumentSans.txt)
-- **Space Grotesk** — SIL Open Font License 1.1. Full text:
-  [`OFL-SpaceGrotesk.txt`](apps/desktop/src/renderer/src/assets/fonts/OFL-SpaceGrotesk.txt)
+- **Inter** — © The Inter Project Authors (https://github.com/rsms/inter), SIL Open
+  Font License 1.1. Full text:
+  [`OFL-Inter.txt`](apps/desktop/src/renderer/src/assets/fonts/OFL-Inter.txt)
+  (copy beside the mobile files too).
+- **Onest** — © The Onest Project Authors (https://github.com/simpals/onest), SIL
+  Open Font License 1.1. Full text:
+  [`OFL-Onest.txt`](apps/desktop/src/renderer/src/assets/fonts/OFL-Onest.txt).
+
+Provenance: the desktop/web `.woff2` files are the latin and latin-ext variable-font
+subsets served by Google Fonts (`fonts.gstatic.com`, Inter v20 = Inter 4.001, Onest
+v11 = 2.001), committed unmodified. The mobile `.ttf` files are Google Fonts' static
+instances of the same versions (Inter 400/500/600, Onest 500/600/700), unwrapped from
+WOFF to TTF and subset to latin + latin-ext with fontTools. Neither family declares a
+Reserved Font Name, so the subset files keep their names. The licence texts are
+`ofl/inter/OFL.txt` and `ofl/onest/OFL.txt` from github.com/google/fonts.
 
 The OFL permits bundling and redistribution; it forbids selling the fonts on their
 own and requires the licence to accompany them, which is what these files are for.
+
+Instrument Sans and Space Grotesk (the previous product faces) were removed with the
+M16 "Koyu Masa" design system.
 
 ## Patched npm packages
 

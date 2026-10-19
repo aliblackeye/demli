@@ -24,7 +24,7 @@ export const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/60",
+      "fixed inset-0 z-50 surface-scrim",
       // Radix awaits the data-[state=closed] animation before unmount → real
       // fade-in AND fade-out for the scrim (single source: globals.css keyframes).
       "data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
@@ -58,17 +58,25 @@ DialogOverlay.displayName = "DialogOverlay";
  * it relies on being unlayered so it can override both these base utilities and
  * whatever width a call site passes.
  */
+export interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Accessible name of the corner close button — pass the translated "Kapat". */
+  closeLabel?: string;
+}
+
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, closeLabel = "Close", ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
         "fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col",
-        "overflow-hidden rounded-xl border border-stroke-strong bg-overlay shadow-elevated",
+        // Koyu Masa card: base tone on the blurred scrim, radius 24, no border
+        // and no outer shadow — the scrim alone separates it from the app.
+        "overflow-hidden rounded-card bg-app",
         "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
         "focus:outline-none",
         // Consumer className stays BEFORE the responsive hook so a call-site
@@ -81,11 +89,11 @@ export const DialogContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close
-        aria-label="Close"
+        aria-label={closeLabel}
         className={cn(
-          "absolute right-3.5 top-3.5 z-10 cursor-pointer rounded-md p-1 text-fg-faint transition-colors",
-          "hover:bg-white/[0.06] hover:text-fg",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          "absolute right-4 top-4 z-10 cursor-pointer rounded-md p-1.5 text-fg-faint transition-colors motion-hover",
+          "hover:bg-wash hover:text-fg",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
           // Grows to a 44px thumb target and clears the landscape notch on a
           // phone; inert above 900px.
           "dialog-sheet-close",
@@ -120,7 +128,7 @@ export function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div
-      className={cn("flex shrink-0 flex-col gap-1.5 px-5 pb-4 pr-10 pt-5", className)}
+      className={cn("flex shrink-0 flex-col gap-1.5 px-6 pb-4 pr-12 pt-6", className)}
       {...props}
     />
   );
@@ -144,7 +152,7 @@ export function DialogBody({
   return (
     <div
       className={cn(
-        "dialog-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5",
+        "dialog-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6",
         className,
       )}
       {...props}
@@ -159,7 +167,7 @@ export function DialogFooter({
   return (
     <div
       className={cn(
-        "flex shrink-0 justify-end gap-2 border-t border-stroke px-5 py-4",
+        "flex shrink-0 justify-end gap-2 px-6 pb-6 pt-2",
         className,
       )}
       {...props}
@@ -173,7 +181,7 @@ export const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-base font-semibold text-fg", className)}
+    className={cn("font-display text-xl font-medium leading-tight text-fg-display", className)}
     {...props}
   />
 ));

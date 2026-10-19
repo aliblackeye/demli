@@ -56,7 +56,8 @@
     "tr": "Türkçe"
   },
   "a11y": {
-    "moreActions": "Diğer eylemler"
+    "moreActions": "Diğer eylemler",
+    "notifications": "Bildirimler"
   },
   "validation": {
     "required": "Bu alan zorunlu.",

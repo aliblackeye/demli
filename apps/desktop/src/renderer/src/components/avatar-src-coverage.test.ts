@@ -61,6 +61,18 @@ const JUSTIFIED_NULL: Record<string, { count: number; reason: string }> = {
       "the `url == null` arm of the lightbox ternary — the user has no avatar image, " +
       "which is the only reason the lightbox is drawing initials at all",
   },
+  "packages/app-ui/src/__tests__/ui-primitives.test.tsx": {
+    count: 1,
+    reason:
+      "a test fixture asserting the speaking ring and the 30% presence dot on the " +
+      "INITIALS avatar — no user record and no photo are involved",
+  },
+  "packages/app-ui/src/__tests__/ui-tones.test.tsx": {
+    count: 1,
+    reason:
+      "a test fixture measuring the INITIALS ink against every seed colour — the " +
+      "photo would cover the very thing under test",
+  },
 };
 
 function walk(dir: string, out: string[] = []): string[] {

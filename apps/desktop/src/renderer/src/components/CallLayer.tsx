@@ -298,7 +298,7 @@ function BusyCallBanner({ invite }: { invite: PendingInvite }): JSX.Element {
             aria-label={t("desktop:call.decline")}
             title={t("desktop:call.decline")}
             onClick={decline}
-            className="size-9 rounded-full bg-danger p-0 text-white hover:bg-danger/90"
+            className="size-9 rounded-full bg-danger p-0 text-on-accent hover:bg-danger/90"
           >
             <PhoneOff className="size-4" />
           </Button>
@@ -306,7 +306,7 @@ function BusyCallBanner({ invite }: { invite: PendingInvite }): JSX.Element {
             aria-label={t("desktop:call.accept")}
             title={t("desktop:call.accept")}
             onClick={accept}
-            className="size-9 rounded-full bg-online p-0 text-white hover:bg-online/90"
+            className="size-9 rounded-full bg-online p-0 text-on-accent hover:bg-online/90"
           >
             <Phone className="size-4" />
           </Button>
@@ -373,7 +373,7 @@ function QuietIncomingCallBanner({ state }: { state: CallState }): JSX.Element {
             aria-label={t("desktop:call.decline")}
             title={t("desktop:call.decline")}
             onClick={decline}
-            className="size-9 rounded-full bg-danger p-0 text-white hover:bg-danger/90"
+            className="size-9 rounded-full bg-danger p-0 text-on-accent hover:bg-danger/90"
           >
             <PhoneOff className="size-4" />
           </Button>
@@ -381,7 +381,7 @@ function QuietIncomingCallBanner({ state }: { state: CallState }): JSX.Element {
             aria-label={t("desktop:call.accept")}
             title={t("desktop:call.accept")}
             onClick={accept}
-            className="size-9 rounded-full bg-online p-0 text-white hover:bg-online/90"
+            className="size-9 rounded-full bg-online p-0 text-on-accent hover:bg-online/90"
           >
             <Phone className="size-4" />
           </Button>

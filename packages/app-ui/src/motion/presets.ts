@@ -7,10 +7,20 @@
  * curves so a framer-animated surface and a CSS-animated one feel like the same
  * system:
  *
- *   instant  120ms  tactile feedback (hover / press / focus)
- *   fast     180ms  state changes (scrims, tooltips, toasts)
+ *   instant  120ms  tactile feedback (press / focus)
+ *   fast     180ms  state changes (scrims, tooltips)
+ *   hover    200ms  hover = tone change only (Koyu Masa: no slide, no scale)
  *   standard 240ms  panels, popovers, dialogs, menus
  *   arrival  500ms  new content settling in
+ *
+ * Anything that MOVES uses the authored position spring
+ * `{ stiffness 500, damping 60, mass 1 }` (`springs.position`, from
+ * @demli/ui's spring module — the same numbers the CSS `linear()` curve and the
+ * React Native theme are generated from).
+ *
+ * LazyMotion: the renderer root is `<LazyMotion features={domAnimation} strict>`,
+ * where a `motion.*` element THROWS. Everything here is plain data for `m.*`
+ * elements; the helpers in ./components.tsx are `m.*` only.
  *
  * Accessibility: the whole tree is wrapped in `<MotionConfig reducedMotion="user">`
  * (see the renderer App), so framer automatically drops transform/opacity motion
@@ -21,11 +31,13 @@
  * width/height/top/left on a hot surface.
  */
 import type { Transition, Variants } from "framer-motion";
+import { SPRING_HOVER, SPRING_POSITION } from "@demli/ui";
 
 /** Duration ramp in SECONDS (framer's unit), matching the CSS `--*-duration-*`. */
 export const MOTION_DURATION = {
   instant: 0.12,
   fast: 0.18,
+  hover: 0.2,
   standard: 0.24,
   arrival: 0.5,
 } as const;
@@ -44,9 +56,28 @@ export const MOTION_EASE = {
 export const transitions = {
   instant: { duration: MOTION_DURATION.instant, ease: MOTION_EASE.standard },
   fast: { duration: MOTION_DURATION.fast, ease: MOTION_EASE.standard },
+  hover: { duration: MOTION_DURATION.hover, ease: MOTION_EASE.standard },
   standard: { duration: MOTION_DURATION.standard, ease: MOTION_EASE.standard },
   arrival: { duration: MOTION_DURATION.arrival, ease: MOTION_EASE.arrival },
 } satisfies Record<string, Transition>;
+
+/**
+ * Springs. `position` is the authored Koyu Masa spring for anything that changes
+ * place (ζ ≈ 1.34: settles without overshoot). `hover` is the landing's
+ * duration-form spring (a hair of bounce) — for a pointer-driven nudge, never
+ * for text sliding (the product does not slide text on hover).
+ */
+export const springs = {
+  position: { type: "spring", ...SPRING_POSITION },
+  hover: { type: "spring", bounce: SPRING_HOVER.bounce, duration: SPRING_HOVER.durationMs / 1000 },
+} satisfies Record<string, Transition>;
+
+/**
+ * Transition to use when the viewer asked for reduced motion and a component
+ * drives motion by hand (framer's `useReducedMotion()`); `<MotionConfig
+ * reducedMotion="user">` already covers transform/opacity animations.
+ */
+export const reducedTransition: Transition = { duration: 0 };
 
 /**
  * Overlay scrim (dialog / command-menu backdrop) — opacity only, fast step. The
@@ -69,12 +100,31 @@ export const popIn: Variants = {
   exit: { opacity: 0, scale: 0.98, transition: transitions.fast },
 };
 
-/** Bottom-anchored toast/pill: lift + fade in, sink + fade out. */
+/** Bottom-anchored toast/pill: lift + fade in on the position spring, sink + fade out. */
 export const toastPop: Variants = {
   initial: { opacity: 0, y: 12, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1, transition: transitions.standard },
+  animate: { opacity: 1, y: 0, scale: 1, transition: springs.position },
   exit: { opacity: 0, y: 8, scale: 0.98, transition: transitions.fast },
 };
+
+/** Edge sheets: travel in on the position spring, leave on the fast step. */
+export const sheetSlide = {
+  right: {
+    initial: { opacity: 0, x: 32 },
+    animate: { opacity: 1, x: 0, transition: springs.position },
+    exit: { opacity: 0, x: 32, transition: transitions.fast },
+  },
+  left: {
+    initial: { opacity: 0, x: -32 },
+    animate: { opacity: 1, x: 0, transition: springs.position },
+    exit: { opacity: 0, x: -32, transition: transitions.fast },
+  },
+  bottom: {
+    initial: { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0, transition: springs.position },
+    exit: { opacity: 0, y: 24, transition: transitions.fast },
+  },
+} satisfies Record<string, Variants>;
 
 /** Top-anchored banner: drop in from above, retract on exit. */
 export const bannerDrop: Variants = {
@@ -114,13 +164,12 @@ export const staggerItem: Variants = {
 };
 
 /**
- * Tactile press for interactive chrome (rail icons, tiles). A gentle scale-down
- * on press with an instant spring back — the physical "give" CSS `:active`
- * can't express as smoothly. Hover is intentionally light so it never competes
- * with existing CSS hover washes.
+ * Tactile press for interactive chrome (rail icons, tiles): a gentle scale-down
+ * on press with a spring back — the physical "give" CSS `:active` can't express
+ * as smoothly. NO hover scale: Koyu Masa's product hover is a tone change only
+ * (the CSS base layer does it in 200ms).
  */
 export const pressable = {
-  whileHover: { scale: 1.04 },
   whileTap: { scale: 0.92 },
   transition: { type: "spring", stiffness: 520, damping: 30, mass: 0.6 },
 } as const;
