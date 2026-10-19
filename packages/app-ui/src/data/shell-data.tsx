@@ -228,6 +228,13 @@ export interface ShellData {
    * ABSENT (§35, founder's reference screenshots).
    */
   canCreateInvite: boolean;
+  /**
+   * The active server's details (channels + roster) are still on their first
+   * fetch. Optional and additive: a surface that never sets it simply never shows
+   * the skeleton state, and an empty `channels` / `members` then reads as the
+   * honest "nothing here" state instead of a loading one.
+   */
+  serverDetailsLoading?: boolean;
 
   // ── home sidebar ──────────────────────────────────────────────────────────
   dms: ShellDmRow[];

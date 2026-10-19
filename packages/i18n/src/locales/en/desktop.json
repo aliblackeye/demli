@@ -132,7 +132,10 @@
     "joinWithCode": "Join a server with a code",
     "toggleMembers": "Toggle member list",
     "openSettings": "Open settings",
-    "channels": "Channels"
+    "channels": "Channels",
+    "hintNavigate": "move",
+    "hintSelect": "open",
+    "hintToggle": "toggle"
   },
   "search": {
     "title": "Search",
@@ -177,7 +180,11 @@
     "expandSection": "Expand {{name}}",
     "hideMutedChannels": "Hide muted channels",
     "inviteToServer": "Invite to server",
-    "listActions": "Channel list actions"
+    "listActions": "Channel list actions",
+    "loadingChannels": "Loading channels",
+    "emptyTitle": "No channels yet",
+    "emptyBodyManage": "Open a text or voice channel — that's where the table gets set.",
+    "emptyBodyMember": "Channels show up here once someone allowed to create them opens one."
   },
   "channel": {
     "connectedToVoice": "Connected to voice",
@@ -646,7 +653,8 @@
     "removeMember": "Remove {{name}}",
     "manageRoles": "Manage roles",
     "timedOut": "Timed out",
-    "timedOutUntil": "Muted until {{date}}"
+    "timedOutUntil": "Muted until {{date}}",
+    "loading": "Loading members"
   },
   "footer": {
     "userMenu": "User menu",
@@ -970,7 +978,7 @@
     "remove": "Remove account",
     "switching": "Switching account…",
     "addHeading": "Add another account",
-    "addSubtitle": "Sign in to a second account — you can switch between them anytime.",
+    "addSubtitle": "Sign in to a second account and switch between them whenever you like.",
     "addCancel": "Back",
     "reauthNotice": "@{{username}} was signed out on the server. Enter your password to reconnect.",
     "switchOffline": "Couldn't switch account — you appear to be offline."
@@ -993,22 +1001,22 @@
   },
   "auth": {
     "welcomeBack": "Welcome back",
-    "createAccountHeading": "Create your account",
-    "signInSubtitle": "Sign in to your Demli account.",
-    "registerSubtitle": "Join your friends on Demli.",
+    "createAccountHeading": "Make your account",
+    "signInSubtitle": "Sign in with your username and password.",
+    "registerSubtitle": "Make your account, then take your seat with a friend's invite.",
     "usernameLabel": "Username",
     "usernamePlaceholder": "Your username",
     "displayNameLabel": "Display name — optional",
-    "displayNamePlaceholder": "How friends see you",
+    "displayNamePlaceholder": "The name your friends see",
     "passwordLabel": "Password",
     "passwordPlaceholderRegister": "At least 8 characters",
     "passwordPlaceholderLogin": "Your password",
     "signIn": "Sign in",
     "createAccount": "Create account",
-    "newToDemli": "New to Demli?",
-    "alreadyHaveAccount": "Already have an account?",
-    "switchToRegister": "Create an account",
-    "switchToLogin": "Sign in instead",
+    "newToDemli": "No account yet?",
+    "alreadyHaveAccount": "Already have one?",
+    "switchToRegister": "Make one",
+    "switchToLogin": "Sign in",
     "birthdateLabel": "Date of birth",
     "birthdateHint": "Required for 18+ content.",
     "orDivider": "or",
@@ -1018,8 +1026,8 @@
       "usernamePattern": "Username must be 3–32 characters — letters, numbers and underscores only.",
       "passwordTooShort": "Password must be at least 8 characters.",
       "passwordRequired": "Enter your password.",
-      "birthdateRequired": "Please enter your date of birth.",
-      "birthdateInvalid": "Please enter a valid date of birth."
+      "birthdateRequired": "Enter your date of birth.",
+      "birthdateInvalid": "Enter a valid date of birth."
     },
     "showPassword": "Show password",
     "hidePassword": "Hide password"

@@ -132,7 +132,10 @@
     "joinWithCode": "Kodla bir sunucuya katıl",
     "toggleMembers": "Üye listesini aç/kapat",
     "openSettings": "Ayarları aç",
-    "channels": "Kanallar"
+    "channels": "Kanallar",
+    "hintNavigate": "gezin",
+    "hintSelect": "aç",
+    "hintToggle": "aç/kapat"
   },
   "search": {
     "title": "Ara",
@@ -177,7 +180,11 @@
     "expandSection": "{{name}} bölümünü genişlet",
     "hideMutedChannels": "Sust. kanalları gizle",
     "inviteToServer": "Sunucuya davet et",
-    "listActions": "Kanal listesi işlemleri"
+    "listActions": "Kanal listesi işlemleri",
+    "loadingChannels": "Kanallar yükleniyor",
+    "emptyTitle": "Henüz kanal yok",
+    "emptyBodyManage": "Bir yazı ya da ses kanalı aç; masa oradan kurulur.",
+    "emptyBodyMember": "Kanal açma yetkisi olan biri kanal açınca burada görünür."
   },
   "channel": {
     "connectedToVoice": "Sese bağlı",
@@ -646,7 +653,8 @@
     "removeMember": "{{name}} adlı üyeyi çıkar",
     "manageRoles": "Rolleri yönet",
     "timedOut": "Zaman aşımında",
-    "timedOutUntil": "{{date}} tarihine kadar susturuldu"
+    "timedOutUntil": "{{date}} tarihine kadar susturuldu",
+    "loading": "Üyeler yükleniyor"
   },
   "footer": {
     "userMenu": "Kullanıcı menüsü",
@@ -970,7 +978,7 @@
     "remove": "Hesabı kaldır",
     "switching": "Hesap değiştiriliyor…",
     "addHeading": "Başka hesap ekle",
-    "addSubtitle": "İkinci bir hesaba giriş yapın — istediğiniz zaman geçiş yapabilirsiniz.",
+    "addSubtitle": "İkinci hesabınla gir; ikisi arasında istediğin an geçersin.",
     "addCancel": "Geri",
     "reauthNotice": "@{{username}} hesabının oturumu kapanmış. Yeniden bağlanmak için şifreni gir.",
     "switchOffline": "Hesap değiştirilemedi — bağlantı yok gibi görünüyor."
@@ -992,23 +1000,23 @@
     "unknownMobile": "Mobil cihaz"
   },
   "auth": {
-    "welcomeBack": "Tekrar hoş geldiniz",
-    "createAccountHeading": "Hesabınızı oluşturun",
-    "signInSubtitle": "Demli hesabınıza giriş yapın.",
-    "registerSubtitle": "Arkadaşlarınıza Demli'de katılın.",
+    "welcomeBack": "Tekrar hoş geldin",
+    "createAccountHeading": "Hesabını aç",
+    "signInSubtitle": "Kullanıcı adın ve parolanla gir.",
+    "registerSubtitle": "Hesabını aç, sonra arkadaşının davetiyle masaya otur.",
     "usernameLabel": "Kullanıcı adı",
     "usernamePlaceholder": "Kullanıcı adın",
     "displayNameLabel": "Görünen ad — isteğe bağlı",
-    "displayNamePlaceholder": "Arkadaşlarınızın sizi göreceği ad",
+    "displayNamePlaceholder": "Arkadaşlarının göreceği ad",
     "passwordLabel": "Parola",
     "passwordPlaceholderRegister": "En az 8 karakter",
-    "passwordPlaceholderLogin": "Parolanız",
+    "passwordPlaceholderLogin": "Parolan",
     "signIn": "Giriş yap",
     "createAccount": "Hesap oluştur",
-    "newToDemli": "Demli'de yeni misiniz?",
-    "alreadyHaveAccount": "Zaten hesabınız var mı?",
-    "switchToRegister": "Hesap oluştur",
-    "switchToLogin": "Bunun yerine giriş yap",
+    "newToDemli": "Hesabın yok mu?",
+    "alreadyHaveAccount": "Hesabın var mı?",
+    "switchToRegister": "Hesap aç",
+    "switchToLogin": "Giriş yap",
     "birthdateLabel": "Doğum tarihi",
     "birthdateHint": "+18 içerik için gerekli.",
     "orDivider": "ya da",
@@ -1017,9 +1025,9 @@
     "errors": {
       "usernamePattern": "Kullanıcı adı 3–32 karakter olmalı — yalnızca harf, rakam ve alt çizgi.",
       "passwordTooShort": "Parola en az 8 karakter olmalı.",
-      "passwordRequired": "Parolanızı girin.",
-      "birthdateRequired": "Lütfen doğum tarihini gir.",
-      "birthdateInvalid": "Lütfen geçerli bir doğum tarihi gir."
+      "passwordRequired": "Parolanı gir.",
+      "birthdateRequired": "Doğum tarihini gir.",
+      "birthdateInvalid": "Geçerli bir doğum tarihi gir."
     },
     "showPassword": "Parolayı göster",
     "hidePassword": "Parolayı gizle"

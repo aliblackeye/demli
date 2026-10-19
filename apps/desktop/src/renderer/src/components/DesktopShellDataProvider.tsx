@@ -95,7 +95,8 @@ function useDesktopShellData(): ShellData {
   const { data: groups } = useGroups();
   const { data: dms } = useDms();
   const groupChatsQuery = useGroupChats();
-  const { data: details } = useGroupDetails(activeGroupId);
+  const detailsQuery = useGroupDetails(activeGroupId);
+  const details = detailsQuery.data;
   const { data: categories } = useCategories(activeGroupId);
   const { data: roles } = useRoles(activeGroupId);
   const { isOwner, can } = useServerPermissions(activeGroupId);
@@ -293,6 +294,9 @@ function useDesktopShellData(): ShellData {
     connectedVoiceChannelId,
     mutedChannelIds,
     canCreateInvite,
+    // First fetch of the active server only (no cached data yet): drives the
+    // channel-column and roster skeletons instead of an empty-looking list.
+    serverDetailsLoading: activeGroupId !== null && detailsQuery.isPending,
 
     dms: dmRows,
     groupChats: groupChatRows,

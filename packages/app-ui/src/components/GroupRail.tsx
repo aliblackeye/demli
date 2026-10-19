@@ -29,6 +29,7 @@ import { ActionMenu } from "./ActionMenu";
 import { UnreadCountBadge } from "./UnreadCountBadge";
 import { useServerFolders } from "./useServerFolders";
 import { END, type RailFolderNode } from "./serverFolders";
+import { pressable, transitions } from "../motion/presets";
 
 /**
  * Renders the group-scoped notification-mute submenu inside a server's context
@@ -85,15 +86,70 @@ export interface GroupRailProps {
 }
 
 /**
- * Signature rail press: a spring scale-down on tap — physically nicer than a CSS
- * ease, and transform-only so it never disturbs the squircle border-radius morph
- * or the accent pill that animate on these same elements via CSS. Reduced-motion
- * is honored globally by <MotionConfig reducedMotion="user"> at the app root.
+ * Rail press: the shared `pressable` give (scale .92 on press, spring back) —
+ * transform-only, so it never fights the pill indicator that animates beside the
+ * tile. There is NO hover motion: a rail tile answers hover with a tone change
+ * (brightness on a seeded tile, the raised tone on a utility tile), exactly like
+ * every row in the shell. Reduced motion is honoured by <MotionConfig
+ * reducedMotion="user"> at the app root.
  */
-const RAIL_TAP = {
-  whileTap: { scale: 0.88 },
-  transition: { type: "spring" as const, stiffness: 520, damping: 28, mass: 0.6 },
-};
+const RAIL_TAP = pressable;
+
+/** Rail tile geometry: a 44px box with the 16px radius, on the black rail. */
+const TILE = "relative flex size-11 cursor-pointer items-center justify-center overflow-hidden rounded-xl";
+
+/** Focus ring for every rail control — offset onto the black rail so it reads on any tile colour. */
+const TILE_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-rail";
+
+/** Utility tile (add server, download): surface box, tone change on hover. */
+const UTILITY_TILE = cn(
+  TILE,
+  "bg-surface text-fg-muted transition-colors motion-hover",
+  "hover:bg-raised hover:text-accent-hover active:bg-raised-pressed",
+  TILE_FOCUS,
+);
+
+/**
+ * The rail's edge indicator — one language for the whole rail:
+ *   selected  tall coral pill (36px) — the same coral as a selected sidebar row
+ *   unread    short white pill (8px) — the same white as a row's unread pip
+ *   hover     medium white pill (20px), only while the pointer is on the tile
+ * It GROWS between those heights on the authored position spring (CSS
+ * `motion-spring`, the sampled {stiffness 500, damping 60} curve — no
+ * overshoot), so a selection change reads as the pill arriving at its tile.
+ * Height on one absolutely-positioned 4px element repaints nothing else.
+ */
+function RailPill({ selected, unread }: { selected: boolean; unread: boolean }): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      data-rail-pill={selected ? "selected" : unread ? "unread" : "idle"}
+      className={cn(
+        "pointer-events-none absolute left-0 top-1/2 w-1 -translate-y-1/2 rounded-r-full",
+        "transition-[height,background-color,opacity] motion-spring",
+        selected
+          ? "h-9 bg-accent opacity-100"
+          : unread
+            ? "h-2 bg-fg opacity-100 group-hover:h-5"
+            : "h-0 bg-fg opacity-0 group-hover:h-5 group-hover:opacity-100",
+      )}
+    />
+  );
+}
+
+/** Corner dot on a tile when there is no number to show (a mention, or a nested server). */
+function TileDot({ mention, label }: { mention: boolean; label: string }): JSX.Element {
+  return (
+    <span
+      aria-label={label}
+      className={cn(
+        "pointer-events-none absolute -right-0.5 -top-0.5 size-3 animate-pop-in-fast rounded-full ring-[3px] ring-rail",
+        mention ? "bg-accent" : "bg-fg",
+      )}
+    />
+  );
+}
 
 /** A small, curated set of folder accents offered in the folder context menu. */
 const FOLDER_COLORS = [
@@ -286,16 +342,10 @@ function ServerTile({
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
-          {/* Active/hover pill indicator at the rail edge — top level only. */}
-          {isTopLevel && (
-            <span
-              aria-hidden
-              className={cn(
-                "absolute left-0 top-1/2 w-1 -translate-y-1/2 rounded-r-full bg-accent transition-all motion-instant",
-                isActive ? "h-7" : "h-0 group-hover:h-4",
-              )}
-            />
-          )}
+          {/* Selected / unread / hover pill at the rail edge — top level only
+              (a server inside an open folder sits in the folder's well; it keeps
+              its corner dot instead). */}
+          {isTopLevel && <RailPill selected={isActive} unread={unread.unread && !isActive} />}
           <Tooltip>
             <TooltipTrigger asChild>
               <m.button
@@ -305,13 +355,13 @@ function ServerTile({
                 aria-label={group.name}
                 aria-current={isActive ? "true" : undefined}
                 className={cn(
-                  "relative flex size-10 cursor-pointer items-center justify-center overflow-hidden text-xs font-bold text-white/90",
-                  "transition-[border-radius,filter,box-shadow] motion-instant hover:brightness-110",
-                  isActive ? "rounded-[13px]" : "rounded-[20px] hover:rounded-[13px]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  isActive && "ring-2 ring-accent",
-                  // A server being dragged onto → strong accent ring cue.
-                  isCombineTarget && "rounded-[13px] ring-2 ring-accent brightness-110",
+                  TILE,
+                  "text-xs font-semibold text-fg-display",
+                  // Hover = a tone change on the seeded colour (and on a photo).
+                  "transition-[filter,opacity,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
+                  TILE_FOCUS,
+                  // A server being dragged onto → the coral drop cue.
+                  isCombineTarget && "ring-2 ring-accent ring-offset-2 ring-offset-rail brightness-115",
                   muted && !isActive && "opacity-45 hover:opacity-100",
                 )}
                 style={{ backgroundColor: seedColor(group.id) }}
@@ -325,7 +375,7 @@ function ServerTile({
                     decoding="async"
                     draggable={false}
                     onError={() => setFailedIcon(iconUrl)}
-                    className="absolute inset-0 size-full rounded-[inherit] object-cover"
+                    className="absolute inset-0 size-full object-cover"
                   />
                 )}
               </m.button>
@@ -340,22 +390,23 @@ function ServerTile({
               <BellOff className="size-2.5" />
             </span>
           )}
+          {/* Corner marker: a count when there is a real number (coral when it
+              is about YOU), else a dot for a mention or a nested server. A plain
+              uncounted unread at the top level is carried by the short edge pill
+              alone — the rail's quiet signal. */}
           {unread.unread &&
             (showNumberBadge ? (
               <UnreadCountBadge
+                key={badge!}
                 text={badge!}
                 tone={unread.mention ? "accent" : "neutral"}
                 aria-label={t("desktop:channel.unread")}
-                className="pointer-events-none absolute -right-1 -top-1 border-2 border-rail"
+                className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
               />
+            ) : unread.mention || !isTopLevel ? (
+              <TileDot mention={unread.mention} label={t("desktop:channel.unread")} />
             ) : (
-              <span
-                aria-label={t("desktop:channel.unread")}
-                className={cn(
-                  "pointer-events-none absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-rail",
-                  unread.mention ? "bg-accent" : "bg-fg",
-                )}
-              />
+              <span className="sr-only">{t("desktop:channel.unread")}</span>
             ))}
         </div>
     </ActionMenu>
@@ -447,7 +498,10 @@ function FolderView({
                     type="button"
                     aria-label={c}
                     onClick={() => onRecolor(c)}
-                    className="size-6 cursor-pointer rounded-full ring-1 ring-inset ring-white/20 transition-transform hover:scale-110"
+                    className={cn(
+                      "size-6 cursor-pointer rounded-full ring-1 ring-inset ring-white/20 transition-shadow motion-hover",
+                      "hover:ring-2 hover:ring-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                    )}
                     style={{ backgroundColor: c }}
                   />
                 ))}
@@ -455,7 +509,10 @@ function FolderView({
                   type="button"
                   aria-label={t("desktop:rail.folderColorDefault")}
                   onClick={() => onRecolor(null)}
-                  className="flex size-6 cursor-pointer items-center justify-center rounded-full bg-raised text-2xs font-semibold text-fg-muted ring-1 ring-inset ring-white/20 transition-transform hover:scale-110"
+                  className={cn(
+                    "flex size-6 cursor-pointer items-center justify-center rounded-full bg-raised text-2xs font-semibold text-fg-muted ring-1 ring-inset ring-white/20",
+                    "transition-shadow motion-hover hover:ring-2 hover:ring-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                  )}
                 >
                   A
                 </button>
@@ -478,12 +535,7 @@ function FolderView({
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
-          {containsActive && !folder.open && (
-            <span
-              aria-hidden
-              className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent"
-            />
-          )}
+          <RailPill selected={containsActive && !folder.open} unread={agg.unread && !folder.open} />
           <Tooltip>
             <TooltipTrigger asChild>
               <m.button
@@ -493,11 +545,11 @@ function FolderView({
                 aria-label={label}
                 aria-expanded={folder.open}
                 className={cn(
-                  "relative flex size-10 cursor-pointer items-center justify-center p-[3px]",
-                  "transition-[border-radius,filter] motion-instant hover:brightness-110",
-                  folder.open ? "rounded-[13px]" : "rounded-[16px] hover:rounded-[13px]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  canAccept && "rounded-[13px] brightness-110",
+                  TILE,
+                  "p-1",
+                  "transition-[filter,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
+                  TILE_FOCUS,
+                  canAccept && "brightness-115",
                 )}
                 style={{
                   backgroundColor: withAlpha(accent, folder.open ? 0.32 : 0.24),
@@ -507,13 +559,13 @@ function FolderView({
                 {folder.open ? (
                   <Folder className="size-5" style={{ color: accent }} />
                 ) : (
-                  <span className="grid size-full grid-cols-2 grid-rows-2 gap-[2px]">
+                  <span className="grid size-full grid-cols-2 grid-rows-2 gap-0.5">
                     {preview.map((g) => (
                       <MiniServerIcon key={g.id} group={g} />
                     ))}
                     {/* Pad to a full 2×2 so a 2- or 3-server folder stays square. */}
                     {Array.from({ length: Math.max(0, 4 - preview.length) }).map((_, i) => (
-                      <span key={`pad-${i}`} className="rounded-[5px] bg-white/5" />
+                      <span key={`pad-${i}`} className="rounded-[5px] bg-wash" />
                     ))}
                   </span>
                 )}
@@ -526,19 +578,16 @@ function FolderView({
             agg.unread &&
             (showNumberBadge ? (
               <UnreadCountBadge
+                key={badge!}
                 text={badge!}
                 tone={agg.mention ? "accent" : "neutral"}
                 aria-label={t("desktop:channel.unread")}
-                className="pointer-events-none absolute -right-1 -top-1 border-2 border-rail"
+                className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
               />
+            ) : agg.mention ? (
+              <TileDot mention label={t("desktop:channel.unread")} />
             ) : (
-              <span
-                aria-label={t("desktop:channel.unread")}
-                className={cn(
-                  "pointer-events-none absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-rail",
-                  agg.mention ? "bg-accent" : "bg-fg",
-                )}
-              />
+              <span className="sr-only">{t("desktop:channel.unread")}</span>
             ))}
         </div>
     </ActionMenu>
@@ -550,7 +599,7 @@ function FolderView({
   // expanded servers together. The members' reveal is height-animated.
   return (
     <div
-      className="flex w-full flex-col items-center gap-2 rounded-[18px] py-2"
+      className="flex w-14 flex-col items-center gap-2 rounded-cta py-1.5"
       style={{ backgroundColor: withAlpha(accent, 0.14) }}
     >
       {folderTile}
@@ -560,7 +609,7 @@ function FolderView({
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: "auto", opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
+          transition={transitions.standard}
           className="flex w-full flex-col items-center gap-2 overflow-hidden"
         >
           {folder.groups.map((g) => (
@@ -619,7 +668,7 @@ function InsertZone({ dnd, beforeKey }: { dnd: RailDnd; beforeKey: string }): JS
     >
       <span
         className={cn(
-          "h-1 rounded-full bg-accent transition-all motion-instant",
+          "h-1 rounded-full bg-accent transition-[width,opacity] motion-fast",
           active ? "w-8 opacity-100" : "w-0 opacity-0",
         )}
       />
@@ -710,20 +759,10 @@ export function GroupRail({
   return (
     <nav
       aria-label={t("desktop:rail.groupsNav")}
-      className="flex w-[68px] shrink-0 flex-col items-center space-y-2 bg-rail pb-3 pt-3"
+      className="flex w-[72px] shrink-0 flex-col items-center space-y-2 bg-rail py-1"
     >
       <div className="group relative flex w-full justify-center">
-        <span
-          aria-hidden
-          className={cn(
-            "absolute left-0 top-1/2 w-1 -translate-y-1/2 rounded-r-full bg-fg transition-all motion-instant",
-            isHome
-              ? "h-8"
-              : showHomeUnread && !showHomeNumberBadge
-                ? "h-2 group-hover:h-4"
-                : "h-0 group-hover:h-4",
-          )}
-        />
+        <RailPill selected={isHome} unread={showHomeUnread} />
         <Tooltip>
           <TooltipTrigger asChild>
             <m.button
@@ -733,15 +772,15 @@ export function GroupRail({
               aria-current={isHome ? "true" : undefined}
               onClick={() => openHome()}
               className={cn(
-                "flex size-10 cursor-pointer items-center justify-center text-white",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+                TILE,
+                TILE_FOCUS,
                 homeLogoSrc
-                  ? "rounded-[13px] transition-[filter] motion-instant hover:brightness-110"
+                  ? "overflow-visible transition-[filter] motion-hover hover:brightness-115 active:brightness-95"
                   : cn(
-                      "transition-[border-radius,background-color] motion-instant",
+                      "transition-colors motion-hover",
                       isHome
-                        ? "rounded-[13px] bg-accent"
-                        : "rounded-[20px] bg-raised text-fg-muted hover:rounded-[13px] hover:bg-accent hover:text-on-accent",
+                        ? "bg-selected text-accent-hover"
+                        : "bg-surface text-fg-muted hover:bg-raised hover:text-fg",
                     ),
               )}
             >
@@ -756,7 +795,7 @@ export function GroupRail({
                   // too small (founder, twice). That padding is now cropped AT THE
                   // SOURCE and a coverage test keeps it out, so the plain asset
                   // already fills the tile — re-adding a scale would overshoot.
-                  className="size-full object-contain drop-shadow-sm"
+                  className="size-full object-contain"
                 />
               ) : (
                 <MessagesSquare className="size-5" />
@@ -768,20 +807,21 @@ export function GroupRail({
         </Tooltip>
         {showHomeNumberBadge && homeBadge && (
           <UnreadCountBadge
+            key={homeBadge}
             text={homeBadge}
             tone={homeUnread.mention ? "accent" : "neutral"}
             aria-label={t("desktop:channel.unread")}
-            className="pointer-events-none absolute -right-1 -top-1 border-2 border-rail"
+            className="pointer-events-none absolute -bottom-1 right-2 ring-[3px] ring-rail"
           />
         )}
       </div>
 
-      <div aria-hidden className="my-0.5 h-px w-8 bg-stroke-strong" />
+      <div aria-hidden className="my-0.5 h-0.5 w-8 shrink-0 rounded-full bg-surface" />
 
       {/* py-1: the active-server accent ring draws OUTSIDE the avatar box, so
           the scroll container needs breathing room or the first/last item's
           ring clips at the container edge (founder bug report). */}
-      <div className="flex w-full flex-col items-center space-y-2 overflow-y-auto py-1">
+      <div className="flex w-full flex-col items-center space-y-2 overflow-y-auto py-1.5">
         {railNodes.map((node) => {
           const key = node.kind === "server" ? `server:${node.group.id}` : `folder:${node.id}`;
           return (
@@ -832,7 +872,7 @@ export function GroupRail({
           server" over "download the app" — the founder's order, and it keeps the
           destructive-free utility actions together away from the server tiles. */}
       {(showCreateButton || showDownloadButton) && (
-        <div className="!mt-auto flex w-full flex-col items-center gap-2 pt-2">
+        <div className="!mt-auto flex w-full flex-col items-center gap-2 pb-1 pt-2">
           {showCreateButton && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -841,12 +881,7 @@ export function GroupRail({
                   type="button"
                   aria-label={t("desktop:rail.addServer")}
                   onClick={() => openCreateGroup()}
-                  className={cn(
-                    "flex size-10 cursor-pointer items-center justify-center rounded-[20px] bg-raised text-online",
-                    "transition-[border-radius,background-color,color] motion-instant",
-                    "hover:rounded-[13px] hover:bg-online hover:text-on-accent",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  )}
+                  className={UTILITY_TILE}
                 >
                   <Plus className="size-5" />
                 </m.button>
@@ -862,12 +897,7 @@ export function GroupRail({
                   type="button"
                   aria-label={downloadLabel ?? t("desktop:rail.downloadApp")}
                   onClick={() => openDownloadApp()}
-                  className={cn(
-                    "flex size-10 cursor-pointer items-center justify-center rounded-[20px] bg-raised text-fg-muted",
-                    "transition-[border-radius,background-color,color] motion-instant",
-                    "hover:rounded-[13px] hover:bg-accent hover:text-on-accent",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  )}
+                  className={UTILITY_TILE}
                 >
                   <Download className="size-5" />
                 </m.button>
@@ -927,7 +957,7 @@ function FolderRenameDialog({
         <DialogHeader>
           <DialogTitle>{t("desktop:rail.renameFolder")}</DialogTitle>
         </DialogHeader>
-        <div className="px-5 pb-2">
+        <div className="px-6 pb-2">
           <Input
             autoFocus
             value={value}

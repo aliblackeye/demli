@@ -9,6 +9,8 @@ import { openActionMenuAt } from "./ActionMenu";
 import { useActiveTimeouts } from "./memberTimeout";
 import { RoleChip } from "./RoleChip";
 import { SectionHeading } from "./SectionHeading";
+import { ShellListSkeleton } from "./ShellListSkeleton";
+import { shellRowFocusClass } from "./shellRow";
 import { TimeoutBadge } from "./TimeoutBadge";
 
 const SECTION_ORDER: PresenceStatus[] = ["online", "idle", "dnd", "offline"];
@@ -93,12 +95,15 @@ function MemberRow({
   const row = (
     <li
       className={cn(
-        // `group` powers the hover-revealed kebab below.
-        "group flex h-[54px] items-center space-x-2.5 rounded-md px-2 transition-colors motion-instant hover:bg-hover",
+        // `group` powers the hover-revealed kebab below. Hover is the shell's
+        // one row gesture: the surface tone, 200ms, nothing moves.
+        "group flex h-12 items-center gap-2.5 rounded-md px-2",
+        "transition-[background-color,opacity] motion-hover hover:bg-hover has-[:active]:bg-raised-pressed",
         // Roster is NOT virtualized (a friend group's member count is small but
         // the rows are avatar-heavy) — skip layout/paint for off-screen rows.
         "content-visibility-row",
-        offline && "opacity-55",
+        // Offline members recede but stay readable; hovering one brings it back.
+        offline && "opacity-55 hover:opacity-100",
       )}
     >
       {renderProfile(
@@ -106,7 +111,7 @@ function MemberRow({
         groupId,
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center space-x-2.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+          className={cn("flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-sm text-left", shellRowFocusClass)}
         >
           <UserAvatar
             src={member.avatarUrl ?? undefined}
@@ -118,7 +123,7 @@ function MemberRow({
           />
           <span className="flex min-w-0 flex-1 flex-col">
             <span
-              className="min-w-0 truncate text-sm font-medium text-fg-muted"
+              className="min-w-0 truncate text-sm font-medium text-fg-muted transition-colors motion-hover group-hover:text-fg"
               style={{ color: member.color ?? undefined }}
             >
               {member.displayName}
@@ -172,8 +177,9 @@ function MemberRow({
             openActionMenuAt(e.currentTarget, rect.left, rect.bottom);
           }}
           className={cn(
-            "hidden shrink-0 items-center justify-center self-center rounded p-0.5 text-fg-faint motion-instant",
-            "hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+            "hidden size-7 shrink-0 items-center justify-center self-center rounded-sm text-fg-faint",
+            "transition-colors motion-hover hover:bg-wash-strong hover:text-fg",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
             "pointer-coarse:inline-flex",
           )}
         >
@@ -196,7 +202,7 @@ export function MemberSidebar({
   renderMemberMenu,
 }: MemberSidebarProps): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  const { members, activeGroupId } = useShellData();
+  const { members, activeGroupId, serverDetailsLoading = false } = useShellData();
   const renderProfile: RenderMemberProfile =
     renderMemberProfile ?? ((_userId, _groupId, children) => children);
   const renderMenu: RenderMemberMenu = renderMemberMenu ?? ((_member, children) => children);
@@ -234,14 +240,17 @@ export function MemberSidebar({
       // `shadow-panel-left`, which adds a wide, very soft lift so the roster
       // reads as floating over the conversation (Y-axis shadows are invisible
       // on a column you meet from the side).
-      className="flex w-60 shrink-0 flex-col bg-sidebar shadow-panel-left"
+      className="flex w-60 shrink-0 flex-col bg-sidebar"
     >
-      <div className="flex h-16 shrink-0 items-center border-b border-stroke px-4">
-        <h2 className="font-display text-sm font-semibold text-fg">
+      <div className="flex h-16 shrink-0 items-center px-4">
+        <h2 className="font-display text-base font-semibold text-fg-display">
           {t("desktop:members.headerCount", { count: total })}
         </h2>
       </div>
       <div className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {serverDetailsLoading && members.length === 0 && (
+          <ShellListSkeleton label={t("desktop:members.loading")} variant="member" rows={7} />
+        )}
         {sections.map((section) => (
           <section
             key={section.status}

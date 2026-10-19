@@ -17,7 +17,17 @@ export {
 export { UnreadCountBadge } from "./UnreadCountBadge";
 export { SectionHeading } from "./SectionHeading";
 export { EmptyState, RetryNotice } from "./EmptyState";
-export { FormErrorAlert } from "./FormErrorAlert";
+export { FormErrorAlert, type FormAlertTone } from "./FormErrorAlert";
+export {
+  floatingPillClass,
+  floatingPillItemClass,
+  shellRowClass,
+  shellRowFocusClass,
+  shellRowIconButtonClass,
+  shellUnreadPipClass,
+  type ShellRowState,
+} from "./shellRow";
+export { ShellListSkeleton, type ShellListSkeletonProps } from "./ShellListSkeleton";
 export { RoleChip } from "./RoleChip";
 export { GroupRail, type GroupRailProps, type RenderGroupMuteMenu } from "./GroupRail";
 export {
