@@ -1,5 +1,5 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
-import { View, type DimensionValue, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { useEffect, type ReactNode } from "react";
+import { View, type DimensionValue, type ViewStyle } from "react-native";
 import Animated, {
   Easing,
   ReduceMotion,
@@ -9,83 +9,57 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useAppTranslation } from "@/lib/i18n";
 import { useReducedMotion } from "../theme/motion";
 import { colors, radius as radii, space } from "../theme/theme";
 
 /**
  * Loading placeholders: blocks in the `wash-strong` tone (the design-system
- * skeleton fill) with a soft light band sweeping across them — content taking
- * shape rather than a bare spinner.
+ * skeleton fill, so they read on every container tone) with an opacity pulse —
+ * the desktop `Skeleton`'s Tailwind `animate-pulse`, step for step: full
+ * opacity → 50% → full over 2s on cubic-bezier(0.4, 0, 0.6, 1). Content taking
+ * shape rather than a bare spinner; no gradient sweep (the system's choice is
+ * the pulse, on both platforms).
  *
  * Performance (§27): ONE module-level shared value drives every block on
  * screen, on the UI thread. It is ref-counted, so the loop runs only while at
  * least one animated skeleton is mounted and is cancelled the moment the last
  * one unmounts — any number of skeletons cost one timing animation, never a
- * per-item JS loop. Every block reads the same progress, so all bands travel
- * in step.
+ * per-item JS loop, and no block measures itself or mounts extra views.
  *
- * Reduced motion: no sweep at all — the blocks render static. The loop is not
- * even started for a viewer who asked for less motion.
+ * Reduced motion: no pulse — the blocks render static at full fill, and the
+ * loop is not even started for a viewer who asked for less motion.
  */
 
-const SWEEP_MS = 1400;
-const progress = makeMutable(0);
+/** Half of the desktop 2s pulse: one way, then reversed. */
+const PULSE_HALF_MS = 1000;
+/** The pulse's low point (Tailwind `pulse` keyframe at 50%). */
+const PULSE_LOW = 0.5;
+const pulse = makeMutable(0);
 let animatedCount = 0;
 
-function acquireSweep(): void {
+function acquirePulse(): void {
   animatedCount += 1;
   if (animatedCount === 1) {
-    progress.value = 0;
-    progress.value = withRepeat(
-      withTiming(1, { duration: SWEEP_MS, easing: Easing.inOut(Easing.ease), reduceMotion: ReduceMotion.System }),
+    pulse.value = 0;
+    pulse.value = withRepeat(
+      withTiming(1, {
+        duration: PULSE_HALF_MS,
+        easing: Easing.bezier(0.4, 0, 0.6, 1),
+        reduceMotion: ReduceMotion.System,
+      }),
       -1,
-      false,
+      true,
     );
   }
 }
 
-function releaseSweep(): void {
+function releasePulse(): void {
   animatedCount = Math.max(0, animatedCount - 1);
   if (animatedCount === 0) {
-    cancelAnimation(progress);
-    progress.value = 0;
+    cancelAnimation(pulse);
+    pulse.value = 0;
   }
-}
-
-/** The light band, as a horizontal gradient strip. */
-function Band({ width, height }: { width: number; height: number }) {
-  // Unique per instance: SVG gradient ids are document-global on some renderers.
-  const id = `sk${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  return (
-    <Svg width={width} height={height}>
-      <Defs>
-        <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={colors.inverse} stopOpacity={0} />
-          <Stop offset="0.5" stopColor={colors.inverse} stopOpacity={0.07} />
-          <Stop offset="1" stopColor={colors.inverse} stopOpacity={0} />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width={width} height={height} fill={`url(#${id})`} />
-    </Svg>
-  );
-}
-
-function Sweep({ width, height }: { width: number; height: number }) {
-  const band = Math.max(64, Math.round(width * 0.5));
-  useEffect(() => {
-    acquireSweep();
-    return releaseSweep;
-  }, []);
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateX: -band + progress.value * (width + band) }],
-  }));
-  return (
-    <Animated.View pointerEvents="none" style={[{ position: "absolute", top: 0, left: 0, bottom: 0 }, style]}>
-      <Band width={band} height={height} />
-    </Animated.View>
-  );
 }
 
 /** A single placeholder block. */
@@ -101,14 +75,16 @@ export function Skeleton({
   style?: ViewStyle;
 }) {
   const reduced = useReducedMotion();
-  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
-  const measure = (e: LayoutChangeEvent) => {
-    const { width: w, height: h } = e.nativeEvent.layout;
-    if (!box || box.w !== w || box.h !== h) setBox({ w, h });
-  };
+  useEffect(() => {
+    if (reduced) return;
+    acquirePulse();
+    return releasePulse;
+  }, [reduced]);
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: reduced ? 1 : 1 - (1 - PULSE_LOW) * pulse.value,
+  }));
   return (
-    <View
-      onLayout={measure}
+    <Animated.View
       style={[
         {
           width,
@@ -116,13 +92,11 @@ export function Skeleton({
           borderRadius: radius,
           borderCurve: "continuous",
           backgroundColor: colors.washStrong,
-          overflow: "hidden",
         },
         style,
+        pulseStyle,
       ]}
-    >
-      {!reduced && box && box.w > 0 ? <Sweep width={box.w} height={box.h} /> : null}
-    </View>
+    />
   );
 }
 
