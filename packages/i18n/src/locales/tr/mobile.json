@@ -125,6 +125,8 @@
     "bannerSwipeHintA11y": "Kapatmak için yukarı kaydır",
     "friendsWithRequestsA11y": "Arkadaşlar — bekleyen istek var",
     "dmLoadErrorTitle": "Mesajlar yüklenemedi",
+    "directLoadErrorTitle": "Direkt mesajlar yüklenemedi",
+    "groupChatsLoadErrorTitle": "Grup sohbetleri yüklenemedi",
     "longPressOptionsA11y": "Seçenekler için basılı tut",
     "storyOpenA11y": "{{name}} ile mesajlaş",
     "newServer": "Yeni sunucu",

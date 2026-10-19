@@ -7,9 +7,10 @@ import { CountPill } from "../ui/Badge";
  * produced upstream by `unreadBadgeText` (the "no fake number" rule lives there);
  * this component is presentation only, drawn by the kit's {@link CountPill}.
  *
- * Two tones: `accent` (Demli coral, the default — mentions and every row badge)
- * and `neutral` (a white chip with dark ink, used for the rail's plain-unread
- * badge so a mention still reads as stronger). Both fills are LIGHT, so both
+ * Two tones, one meaning each (the desktop rule): `accent` (Demli coral, the
+ * default) means "spoken to" — a mention, or a DM; `neutral` (a white chip with
+ * dark ink) is a plain unread — the rail tile's and a channel row's (see
+ * home-list-rules `channelRowBadge`), so a mention still reads as stronger. Both fills are LIGHT, so both
  * take dark ink — white on the coral reads at ~2.4:1.
  */
 export function UnreadCountBadge({

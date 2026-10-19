@@ -3,7 +3,6 @@ import { FlatList, View } from "react-native";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { Text } from "../ui/Text";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertCircle, MessageCircle, MessageSquarePlus, PenSquare, Search, UserPlus, Users } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import type { Dm, Group } from "@demli/types";
@@ -14,13 +13,15 @@ import { SkeletonList } from "@/components/Skeleton";
 import { DmActionsSheet } from "@/components/home/DmActionsSheet";
 import { DmRow } from "@/components/social/DmRow";
 import { FriendStoryStrip } from "@/components/social/FriendStoryStrip";
+import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Dot } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/IconButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import type { DmWithPreview } from "@/lib/dm-preview";
 import { localizeError } from "@/lib/errors";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { floatingBottom } from "@/lib/bottom-chrome";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import { useGroupChats } from "@/queries/group-chat-queries";
 import { useDms, useFriendRequests } from "@/queries/social-queries";
 import { useAuthStore } from "@/stores/auth-store";
@@ -28,6 +29,7 @@ import { useChatStore } from "@/stores/chat-store";
 import { PRESS } from "@/theme/motion-presets";
 import { colors, motion, radius, space } from "@/theme/theme";
 import { Touchable } from "../ui/Touchable";
+import { dmListStates } from "./home-list-rules";
 import { ShellRow, shellRowIconInk, shellRowInk } from "./ShellRow";
 
 /** Best-known activity time for ordering a DM: its last message, else its open time. */
@@ -50,8 +52,9 @@ const FAB = 56;
  * button — under a panel header (the Demli mark + title, the command palette,
  * and a friends shortcut that wears a coral dot while requests wait).
  *
- * Every state is drawn: a skeleton on first load, an honest error with a retry
- * when the DM list cannot load, a welcoming empty state that points at the one
+ * Every state is drawn: a skeleton until the DMs land, an honest error with a
+ * retry when nothing could load, a danger band with a retry when one of the two
+ * sources (DMs, group chats) failed but rows are still shown, a welcoming empty state that points at the one
  * thing to do (find a friend), and the ideal list. The list is a virtualized
  * FlatList; rows are memoized so a presence tick or one row's unread change
  * repaints that row only (§27).
@@ -60,7 +63,6 @@ const FAB = 56;
  */
 export function DmListPanel() {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const meId = useAuthStore((s) => s.user?.id ?? null);
 
   // Long-pressed DM whose action menu is open (mobile's hover-✕ equivalent).
@@ -91,8 +93,25 @@ export function DmListPanel() {
     ];
   }, [dms.data, groupChats.data]);
 
-  const isLoading = dms.isLoading && groupChats.isLoading;
-  const bottomClearance = insets.bottom + TAB_BAR_CONTENT_HEIGHT;
+  const states = dmListStates({
+    dmsPending: dms.isPending,
+    dmsFailed: dms.isError,
+    groupsPending: groupChats.isPending,
+    groupsFailed: groupChats.isError,
+    rowCount: rows.length,
+  });
+  const retryBoth = () => {
+    if (dms.isError) void dms.refetch();
+    if (groupChats.isError) void groupChats.refetch();
+  };
+  const bandTitle =
+    states.band === "both"
+      ? t("mobile:home.dmLoadErrorTitle")
+      : states.band === "dms"
+        ? t("mobile:home.directLoadErrorTitle")
+        : t("mobile:home.groupChatsLoadErrorTitle");
+  // Tab bar + (during a call) the voice bar: the FAB and the last row stay above both.
+  const bottomClearance = useTabScreenBottomClearance();
 
   const renderItem = ({ item }: { item: HomeRow }) => {
     if (item.kind === "dm") {
@@ -197,8 +216,22 @@ export function DmListPanel() {
         />
       </View>
 
+      {/* Partial failure: something is cached or the other list loaded, so the
+          list stays — but what is missing is said, never left to read as "none".
+          Outside the virtualized list on purpose (the Banner animates its exit). */}
+      {states.band ? (
+        <Banner
+          variant="danger"
+          title={bandTitle}
+          action={{ label: t("buttons.retry"), onPress: retryBoth }}
+          style={{ marginHorizontal: space.md, marginTop: space.xs }}
+        />
+      ) : null}
+
       <FlatList<HomeRow>
-        data={rows}
+        // While DMs are still in flight the list shows the skeleton, not a half
+        // list of group chats that the DMs would then shove down.
+        data={states.skeleton ? [] : rows}
         keyExtractor={(r) => r.key}
         contentContainerStyle={{
           paddingHorizontal: space.md,
@@ -214,24 +247,24 @@ export function DmListPanel() {
         ListHeaderComponent={<FriendStoryStrip />}
         renderItem={renderItem}
         ListEmptyComponent={
-          isLoading ? (
+          states.skeleton ? (
             <View style={{ paddingTop: space.sm }}>
               <SkeletonList count={8} />
             </View>
-          ) : dms.isError ? (
+          ) : states.empty === "error" ? (
             <View style={{ paddingTop: space.xl }}>
               <EmptyState
                 tone="error"
                 icon={<AlertCircle size={22} color={colors.danger} />}
                 title={t("mobile:home.dmLoadErrorTitle")}
-                subtitle={localizeError(dms.error, t)}
+                subtitle={localizeError(dms.error ?? groupChats.error, t)}
                 action={
                   <Button
                     variant="secondary"
                     size="sm"
                     label={t("buttons.retry")}
-                    loading={dms.isRefetching}
-                    onPress={() => void dms.refetch()}
+                    loading={dms.isRefetching || groupChats.isRefetching}
+                    onPress={retryBoth}
                   />
                 }
               />
@@ -258,10 +291,10 @@ export function DmListPanel() {
       />
 
       {/* New-DM button — picks a friend to message. Sits just above the
-          floating tab bar. */}
+          floating tab bar, and above the voice bar while a call is up. */}
       <Animated.View
         entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
-        style={{ position: "absolute", right: space.lg, bottom: bottomClearance + space.md }}
+        style={{ position: "absolute", right: space.lg, bottom: floatingBottom(bottomClearance) }}
       >
         <Touchable
           accessibilityRole="button"

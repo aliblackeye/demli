@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, RefreshControl, ScrollView, View } from "react-native";
 import Animated, {
   FadeIn,
-  FadeOut,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
@@ -32,7 +31,6 @@ import {
   nudgeCategory,
   nudgeChannel,
   toReorderPayload,
-  unreadBadgeText,
   visibleCustomStatus,
   type SidebarBucket,
 } from "@demli/client-core";
@@ -43,6 +41,7 @@ import {
   type Channel,
   type ChannelId,
   type GroupId,
+  type NotificationMuteMode,
 } from "@demli/types";
 import { UnreadCountBadge } from "@/components/home/UnreadCountBadge";
 import { Avatar } from "@/components/Avatar";
@@ -101,6 +100,7 @@ import {
   shellRowOpacity,
   shellRowTones,
 } from "./ShellRow";
+import { channelRowBadge, uncategorizedTextSection } from "./home-list-rules";
 
 /* Layout constants — one compact rhythm for every row in this list.
    A channel is ONE line (icon + name + indicators) at a 44px tap
@@ -188,6 +188,7 @@ function ChannelRow({
   mention = false,
   unreadCount = 0,
   muted,
+  muteMode = null,
   connected = false,
   hasDraft: hasDraftIndicator,
   onOpen,
@@ -202,9 +203,11 @@ function ChannelRow({
   unread?: boolean;
   /** The unread includes a direct @mention (coral pip). */
   mention?: boolean;
-  /** Counted unread total (#110); 0/absent with `unread` falls back to "1+". */
+  /** Counted unread total (#110); 0/absent shows the pip alone (no "1+" chip). */
   unreadCount?: number;
   muted?: boolean;
+  /** Effective mute mode — a "mentions" mute withholds the count (see channelRowBadge). */
+  muteMode?: NotificationMuteMode | null;
   /** This is the voice room you are connected to — coral glyph, full-ink name. */
   connected?: boolean;
   hasDraft?: boolean;
@@ -220,7 +223,7 @@ function ChannelRow({
   onEdit?: () => void;
 }) {
   const { t } = useAppTranslation();
-  const badgeText = unread ? unreadBadgeText(unreadCount, true) : null;
+  const badge = channelRowBadge({ unread: !!unread, mention, unreadCount, muteMode });
   // A connected room reads at full ink (like unread) and is never dimmed.
   const state = { unread: !!unread || connected, muted: !!muted };
   const tones = shellRowTones(state);
@@ -274,8 +277,8 @@ function ChannelRow({
           {muted ? (
             <BellOff size={15} color={colors.fgFaint} accessibilityLabel={t("mobile:mute.muted")} />
           ) : null}
-          {badgeText ? (
-            <UnreadCountBadge text={badgeText} a11yLabel={t("mobile:group.unreadA11y")} />
+          {badge ? (
+            <UnreadCountBadge text={badge.text} tone={badge.tone} a11yLabel={t("mobile:group.unreadA11y")} />
           ) : null}
         </Touchable>
         {onOpenChat ? (
@@ -448,6 +451,9 @@ export function ServerChannelList({
   const uncategorized = buckets.find((b) => b.category === null);
   const textChannels = (uncategorized?.channels ?? []).filter((c) => c.kind === "text");
   const voiceChannels = (uncategorized?.channels ?? []).filter((c) => c.kind === "voice");
+  // "No text channels" only when it is true of the whole server — not when every
+  // text channel lives inside a category (that server just has no top section).
+  const textSection = uncategorizedTextSection(textChannels.length, channels);
 
   const memberColors = useMemo(() => buildMemberColorMap(members, roles), [members, roles]);
 
@@ -649,6 +655,7 @@ export function ServerChannelList({
           mention={!!mentionUnreadChannelIds[channel.id]}
           unreadCount={unreadCounts[channel.id] ?? 0}
           muted={muteMode !== null}
+          muteMode={muteMode}
           connected={isVoice && connectedVoiceId === channel.id}
           hasDraft={hasDraft(drafts, channel.id)}
           onOpen={
@@ -804,18 +811,22 @@ export function ServerChannelList({
         {/* The UNCATEGORIZED bucket, always first — a pre-M18 server is entirely
             this, and it keeps its Text/Voice split so nothing about the familiar
             list changed for servers that never make a category. */}
-        <SectionLabel>{t("mobile:group.textChannels")}</SectionLabel>
-        {textChannels.length === 0 ? (
-          <EmptyState
-            compact
-            icon={<Hash size={22} color={colors.fgMuted} />}
-            title={t("mobile:group.noTextChannelsTitle")}
-            subtitle={t("mobile:group.noTextChannelsSubtitle")}
-          />
-        ) : (
-          <View style={{ paddingHorizontal: LIST_GUTTER, gap: 2 }}>
-            {textChannels.map((channel) => renderChannelRow(channel))}
-          </View>
+        {textSection === "omit" ? null : (
+          <>
+            <SectionLabel>{t("mobile:group.textChannels")}</SectionLabel>
+            {textSection === "empty" ? (
+              <EmptyState
+                compact
+                icon={<Hash size={22} color={colors.fgMuted} />}
+                title={t("mobile:group.noTextChannelsTitle")}
+                subtitle={t("mobile:group.noTextChannelsSubtitle")}
+              />
+            ) : (
+              <View style={{ paddingHorizontal: LIST_GUTTER, gap: 2 }}>
+                {textChannels.map((channel) => renderChannelRow(channel))}
+              </View>
+            )}
+          </>
         )}
 
         {voiceChannels.length > 0 ? (
@@ -830,8 +841,9 @@ export function ServerChannelList({
         {/* Then one collapsible section per category, in the server's order. A
             category mixes text and voice: its ORDER is the thing the owner
             arranged, so re-splitting it by kind would throw that away. Opening
-            a section fades its rows in; folding it takes them away on the
-            instant step. */}
+            a section fades its rows in; folding it removes them at once (no
+            exit animation keeping views alive past removal — the Fabric
+            reparenting P0, see ShellRow's UnreadPip). */}
         {buckets
           .filter((bucket) => bucket.category !== null)
           .map((bucket) => {
@@ -844,7 +856,6 @@ export function ServerChannelList({
                 {collapsed ? null : bucket.channels.length > 0 ? (
                   <Animated.View
                     entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
-                    exiting={FadeOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
                     style={{
                       paddingHorizontal: LIST_GUTTER,
                       gap: 2,

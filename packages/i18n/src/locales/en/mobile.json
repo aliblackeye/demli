@@ -125,6 +125,8 @@
     "bannerSwipeHintA11y": "Swipe up to dismiss",
     "friendsWithRequestsA11y": "Friends — requests waiting",
     "dmLoadErrorTitle": "Couldn't load your messages",
+    "directLoadErrorTitle": "Couldn't load your direct messages",
+    "groupChatsLoadErrorTitle": "Couldn't load your group chats",
     "longPressOptionsA11y": "Long-press for options",
     "storyOpenA11y": "Message {{name}}",
     "newServer": "New server",
