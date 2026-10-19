@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -65,15 +66,29 @@ export function MemberDialogs(): JSX.Element {
   const dialog = useUiStore((s) => s.memberDialog);
   // The LAST dialog stays rendered (closed) after the slot clears, so Radix can
   // play the card's pop-out and the scrim's fade instead of the dialog
-  // vanishing mid-frame. A new target remounts through the key below.
-  const [shown, setShown] = useState<MemberDialog | null>(dialog);
-  useEffect(() => {
-    if (dialog) setShown(dialog);
-  }, [dialog]);
-  const current = dialog ?? shown;
-  // Keyed remount per target+kind so a dialog never opens seeded with the
-  // PREVIOUS user's note or nickname still in its input.
-  const key = current ? `${current.kind}:${current.userId}` : "none";
+  // vanishing mid-frame.
+  //
+  // Every OPEN is a fresh mount, even for the same person and kind: `openSeq`
+  // counts each new dialog object the store hands us and is part of the key.
+  // Keying on target+kind alone kept the closed body alive, so reopening the
+  // nickname dialog showed the cancelled "TYPO" instead of the saved value, a
+  // failed kick's error came back, and the timeout reopened on "1 week" — the
+  // very slip that dialog exists to prevent. Derived during render (not in an
+  // effect) so the open frame already carries the new key: no double mount.
+  const [tracked, setTracked] = useState<{
+    source: MemberDialog | null;
+    shown: MemberDialog | null;
+    openSeq: number;
+  }>({ source: dialog, shown: dialog, openSeq: dialog ? 1 : 0 });
+  if (tracked.source !== dialog) {
+    setTracked({
+      source: dialog,
+      shown: dialog ?? tracked.shown,
+      openSeq: dialog ? tracked.openSeq + 1 : tracked.openSeq,
+    });
+  }
+  const current = dialog ?? tracked.shown;
+  const key = current ? `${tracked.openSeq}:${current.kind}:${current.userId}` : "none";
   return (
     <DialogOpenContext.Provider value={dialog !== null}>
       <MemberDialogBody key={key} dialog={current} />
@@ -115,8 +130,18 @@ function MemberDialogBody({ dialog }: { dialog: MemberDialog | null }): JSX.Elem
  * design system's danger pink is chosen to stay apart from coral and from the
  * online green, so it is placed and marked rather than shouted): a pink-washed
  * icon disc beside the title, a pink bullet per consequence, and the danger
- * button. Focus opens on the FIRST control of the body — Cancel, in a pure
- * confirmation — so a stray Enter can never fire a kick or a ban.
+ * button.
+ *
+ * Focus: a DANGER dialog opens with Cancel focused, always — even when the body
+ * has a field (the ban reason). Radix would otherwise focus that field, and one
+ * reflexive Enter there submits the form: a ban with no unban screen to undo it.
+ * A dialog whose first control cannot submit (the timeout's duration radios are
+ * `type="button"`, so Enter only selects) may opt into `initialFocus="first"`.
+ * Default-tone dialogs (note, nicknames) focus their field so typing just works.
+ *
+ * `layer="overSettings"` lifts the scrim and card above the settings modal
+ * (z-[55]) for the confirmations raised from inside it (delete account, the
+ * unsaved-changes guard), so there is ONE confirmation chrome in the app.
  */
 export function ConfirmDialogShell({
   open = true,
@@ -133,6 +158,9 @@ export function ConfirmDialogShell({
   onClose,
   children,
   footer,
+  cancelLabel,
+  initialFocus,
+  layer = "default",
 }: {
   /** False while the dialog animates out (the caller keeps it mounted). */
   open?: boolean;
@@ -152,16 +180,36 @@ export function ConfirmDialogShell({
   children?: ReactNode;
   /** Extra control below the action row (e.g. "Remove nickname"). */
   footer?: ReactNode;
+  /** Label of the dismiss button (default "Vazgeç" / Cancel). */
+  cancelLabel?: string;
+  /**
+   * Where focus lands on open. Defaults to `cancel` for the danger tone and to
+   * the first control otherwise — see the component doc before overriding.
+   */
+  initialFocus?: "cancel" | "first";
+  /** `overSettings` stacks above the settings modal (z-[58] > z-[55]). */
+  layer?: "default" | "overSettings";
 }): JSX.Element {
   const { t } = useAppTranslation();
   const danger = tone === "danger";
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const focusCancel = (initialFocus ?? (danger ? "cancel" : "first")) === "cancel";
   const close = (): void => {
     if (!busy) onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent closeLabel={t("buttons.close")}>
+      <DialogContent
+        closeLabel={t("buttons.close")}
+        overlayClassName={layer === "overSettings" ? "z-[58]" : undefined}
+        className={layer === "overSettings" ? "z-[58]" : undefined}
+        onOpenAutoFocus={(event) => {
+          if (!focusCancel) return;
+          event.preventDefault();
+          cancelRef.current?.focus();
+        }}
+      >
         {/* The form — not DialogContent — is the flex parent of the header/body
             here, so it has to carry the column contract itself. Without
             `min-h-0 flex-1 flex-col` the DialogBody inside it never becomes the
@@ -213,8 +261,8 @@ export function ConfirmDialogShell({
           </DialogBody>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             {footer && <div className="mr-auto">{footer}</div>}
-            <Button type="button" variant="ghost" disabled={busy} onClick={close}>
-              {t("buttons.cancel")}
+            <Button ref={cancelRef} type="button" variant="ghost" disabled={busy} onClick={close}>
+              {cancelLabel ?? t("buttons.cancel")}
             </Button>
             <Button type="submit" variant={submitVariant} loading={busy}>
               {submitLabel}
@@ -294,7 +342,10 @@ function NoteDialog({
 }): JSX.Element {
   const { t } = useAppTranslation();
   const setMemberDialog = useUiStore((s) => s.setMemberDialog);
-  const { data: note, isPending } = useUserNote(dialog.userId, true);
+  // Fetched only while THIS dialog is open: the closed body lingers for the exit
+  // animation and must not keep the private note query live (ADR 0019 §1).
+  const open = useContext(DialogOpenContext);
+  const { data: note, isPending } = useUserNote(dialog.userId, open);
   const setNote = useSetUserNote(dialog.userId);
   const [body, setBody] = useState("");
   const [seeded, setSeeded] = useState(false);
@@ -655,6 +706,9 @@ function TimeoutDialog({
       busy={timeout.isPending}
       submitLabel={t("desktop:userMenu.timeoutConfirm")}
       submitVariant="danger"
+      // The duration radios are type="button": Enter selects, never submits, so
+      // opening on the chosen duration is safe and saves a Shift+Tab.
+      initialFocus="first"
       onSubmit={() =>
         void timeout.mutate(
           { userId: dialog.userId, minutes, reason: reason.trim() || undefined },
