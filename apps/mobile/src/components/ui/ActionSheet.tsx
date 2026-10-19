@@ -33,16 +33,30 @@ export function ActionSheet({
   visible,
   title,
   onClose,
+  onClosed,
   children,
 }: {
   visible: boolean;
   /** Which object the menu acts on — a server name, a person, a channel. */
   title?: string;
+  /**
+   * The user asked to close (drag, flick, scrim, back). A caller may decline by
+   * keeping `visible` true (an editor stepping back to its menu): the card then
+   * springs back instead of leaving.
+   */
   onClose: () => void;
+  /** After the exit motion finished. */
+  onClosed?: () => void;
   children: ReactNode;
 }) {
   return (
-    <Sheet visible={visible} onClose={onClose} accessibilityLabel={title} contentPadding={space.sm}>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      onClosed={onClosed}
+      accessibilityLabel={title}
+      contentPadding={space.sm}
+    >
       {title ? (
         <Text
           numberOfLines={1}

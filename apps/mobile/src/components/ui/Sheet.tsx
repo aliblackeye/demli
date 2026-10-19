@@ -24,10 +24,17 @@
  * iOS escape gesture close it (when dismissible), the scrim and the grabber are
  * labelled close buttons, the title is a header.
  *
+ * Dismissal is a request, not a fact (ui/sheet-dismiss.ts): a drag, a flick,
+ * the scrim or back asks `onClose`, and the card only leaves once the caller
+ * flips `visible`. A caller that keeps it open (the member menu's editors step
+ * back to the menu) gets the card sprung back from the release point at once.
+ *
  * Built on RN `Modal` (not a third-party sheet) for a window above everything
- * — tabs, the call bar, the toaster — with the hardware back button wired.
- * Gesture handlers inside a Modal need their own GestureHandlerRootView on
- * Android (it is a separate window), so the sheet brings one.
+ * — tabs, the call bar — with the hardware back button wired. Gesture handlers
+ * inside a Modal need their own GestureHandlerRootView on Android (it is a
+ * separate window), so the sheet brings one. For the same reason the root
+ * toaster cannot draw over it: the sheet hosts its own <Toaster/>, which takes
+ * the shared queue while the sheet is the topmost window.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -52,7 +59,9 @@ import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { motionTo, useReducedMotion } from "@/theme/motion";
 import { colors, radius, space } from "@/theme/theme";
 import { resolveRelease, resolveSnapHeights, rubberBand, type SnapPoint } from "./kit-math";
+import { createDismissController } from "./sheet-dismiss";
 import { Text } from "./Text";
+import { Toaster } from "./Toast";
 
 export type SheetProps = {
   visible: boolean;
@@ -166,21 +175,52 @@ export function Sheet({
     onClosed?.();
   }, [onClosed]);
 
-  // Close choreography: slide out on the standard step, then unmount.
+  // Latest stop offsets, for the JS-side spring back.
+  const offsetsRef = useRef(offsets);
+  offsetsRef.current = offsets;
+  const reducedRef = useRef(reduced);
+  reducedRef.current = reduced;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const dismissal = useRef(
+    createDismissController({
+      close: () => onCloseRef.current(),
+      isVisible: () => visibleRef.current,
+      springBack: (velocity) => {
+        y.value = motionTo(offsetsRef.current[snapIndex.current] ?? 0, "position", {
+          velocity,
+          reduced: reducedRef.current,
+        });
+      },
+      later: (fn) => requestAnimationFrame(() => requestAnimationFrame(fn)),
+    }),
+  ).current;
+
+  // Close choreography: slide out, then unmount. After a drag the card leaves
+  // on the position spring with the finger's momentum; otherwise (scrim, back,
+  // the caller closing it) on the standard step.
   useEffect(() => {
     if (visible) {
       setMounted(true);
       return;
     }
+    const velocity = dismissal.takeExitVelocity();
     if (!mounted) return;
-    y.value = motionTo(closedY.value, "standard", {
-      reduced,
-      onDone: (finished) => {
-        "worklet";
-        if (finished) scheduleOnRN(finishClose);
-      },
-    });
+    const onDone = (finished?: boolean) => {
+      "worklet";
+      if (finished) scheduleOnRN(finishClose);
+    };
+    y.value =
+      velocity === null
+        ? motionTo(closedY.value, "standard", { reduced, onDone })
+        : motionTo(closedY.value, "position", { reduced, velocity, onDone });
   }, [visible]);
+
+  // Every commit answers a pending dismiss request: still visible = declined.
+  useEffect(() => {
+    dismissal.afterCommit(visible);
+  });
 
   // Once mounted AND measured: travel in to the opening stop; afterwards, a
   // geometry change (content grew, keyboard rose) re-settles at the same stop.
@@ -209,16 +249,20 @@ export function Sheet({
     [offsets.length],
   );
 
+  /** Scrim, back button, grabber tap: ask without a velocity. */
   const requestClose = useCallback(() => {
     if (!dismissible) return;
-    onClose();
-    // A caller that keeps the sheet open after the request gets it back.
-    setTimeout(() => {
-      if (visibleRef.current) {
-        y.value = motionTo(offsets[snapIndex.current] ?? 0, "position", { reduced });
-      }
-    }, 400);
-  }, [dismissible, onClose, offsets, reduced, y]);
+    dismissal.request(null);
+  }, [dismissible, dismissal]);
+
+  /** A drag released past the dismiss threshold: ask, carrying its speed. */
+  const requestDragClose = useCallback(
+    (velocity: number) => {
+      if (!dismissible) return;
+      dismissal.request(velocity);
+    },
+    [dismissible, dismissal],
+  );
 
   const pan = Gesture.Pan()
     .activeOffsetY([-8, 8])
@@ -252,8 +296,10 @@ export function Sheet({
       const list = offsetsSV.value;
       const index = resolveRelease(y.value, e.velocityY, list, closedY.value, dismissible);
       if (index === -1) {
-        y.value = motionTo(closedY.value, "position", { velocity: e.velocityY, reduced });
-        scheduleOnRN(requestClose);
+        // Hold at the release point until the caller answers (one commit,
+        // ~a frame): it either closes (the exit carries this velocity) or
+        // keeps the sheet, which then springs back from right here.
+        scheduleOnRN(requestDragClose, e.velocityY);
         return;
       }
       y.value = motionTo(list[index] ?? 0, "position", { velocity: e.velocityY, reduced });
@@ -444,6 +490,8 @@ export function Sheet({
             </Animated.View>
           </GestureDetector>
         </View>
+        {/* This window's toast host — see the header comment. */}
+        <Toaster placement="top" />
       </GestureHandlerRootView>
     </Modal>
   );
