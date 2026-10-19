@@ -1,24 +1,37 @@
+import { useMemo, useState } from "react";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LogOut, Monitor, Smartphone } from "lucide-react-native";
+import Animated, { FadeOut, LinearTransition, ReduceMotion } from "react-native-reanimated";
+import { CloudOff, LogOut, Monitor, MonitorSmartphone, Smartphone } from "lucide-react-native";
 import type { SessionSummary } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { SkeletonList } from "@/components/Skeleton";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { RowIcon, SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { getApi } from "@/lib/clients";
 import { localizeError } from "@/lib/errors";
 import { queryKeys } from "@/lib/query-client";
 import { logoutActiveAccount } from "@/lib/account-manager";
 import type { AppTFunction } from "@/lib/i18n";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 /**
  * "Oturumlar" — the active-sessions screen (M15), the mobile mirror of the
  * desktop SessionsSettings. Lists every login session (device + platform + "last
- * seen"), flags the current one, and closes another session or every OTHER
- * session (confirmed). Closing the CURRENT session logs this device out.
+ * seen") with THIS device first and marked, and closes another session or every
+ * OTHER session — each confirmed in a sheet that keeps the request's busy state
+ * and error in place. Closing the CURRENT session logs this device out.
+ *
+ * States: skeleton rows while loading, an error block with retry, an honest
+ * empty line, then the list. A closed session leaves the list on the fast fade
+ * and the rest close the gap on a layout transition.
  */
 
 /** Compact, Hermes-safe "last seen" (no Intl.RelativeTimeFormat). */
@@ -35,89 +48,64 @@ function formatLastSeen(iso: string, t: AppTFunction): string {
   return t("mobile:accounts.sessions.daysAgo", { count: day });
 }
 
-function SessionRow({
-  session,
-  onRevoke,
-  revoking,
-}: {
-  session: SessionSummary;
-  onRevoke: () => void;
-  revoking: boolean;
-}) {
-  const { t } = useAppTranslation();
-  const Icon = session.platform === "mobile" ? Smartphone : Monitor;
-  const deviceName =
-    session.deviceName ??
-    (session.platform === "mobile"
-      ? t("mobile:accounts.sessions.unknownMobile")
-      : t("mobile:accounts.sessions.unknownDevice"));
-
+function deviceNameOf(session: SessionSummary, t: AppTFunction): string {
   return (
-    <View
+    session.deviceName ??
+    (session.platform === "mobile" ? t("mobile:accounts.sessions.unknownMobile") : t("mobile:accounts.sessions.unknownDevice"))
+  );
+}
+
+function SessionRow({ session, onRevoke, revoking }: { session: SessionSummary; onRevoke: () => void; revoking: boolean }) {
+  const { t } = useAppTranslation();
+  const deviceName = deviceNameOf(session, t);
+  return (
+    <Animated.View
+      exiting={FadeOut.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+      layout={LinearTransition.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
       style={{
         flexDirection: "row",
         alignItems: "center",
         gap: space.md,
-        padding: space.lg,
-        borderRadius: radius.md,
+        paddingHorizontal: space.lg,
+        paddingVertical: space.md,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
-        backgroundColor: colors.surface,
+        backgroundColor: session.current ? colors.selected : colors.surface,
       }}
     >
-      <Icon size={22} color={colors.fgMuted} />
-      <View style={{ flex: 1 }}>
+      <RowIcon icon={session.platform === "mobile" ? Smartphone : Monitor} tone={session.current ? "accent" : "default"} />
+      <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-          <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 15, fontWeight: "600", flexShrink: 1 }}>
+          <Text type="body" tone="default" numberOfLines={1} style={{ fontWeight: "600", flexShrink: 1 }}>
             {deviceName}
           </Text>
-          {session.current ? (
-            <Text
-              style={{
-                color: colors.online,
-                fontSize: typography.size.badge,
-                fontWeight: "700",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              {t("mobile:accounts.sessions.current")}
-            </Text>
-          ) : null}
+          {session.current ? <Badge variant="success" label={t("mobile:accounts.sessions.current")} /> : null}
         </View>
-        <Text style={{ color: colors.fgFaint, fontSize: 13, marginTop: 2 }}>
+        <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
           {t("mobile:accounts.sessions.lastSeen", { when: formatLastSeen(session.lastSeenAt, t) })}
         </Text>
       </View>
-      <Pressable
+      <Button
+        label={session.current ? t("mobile:accounts.sessions.signOutThis") : t("mobile:accounts.sessions.revoke")}
+        variant="danger"
+        size="sm"
+        accessibilityLabel={`${session.current ? t("mobile:accounts.sessions.signOutThis") : t("mobile:accounts.sessions.revoke")}: ${deviceName}`}
         onPress={onRevoke}
-        disabled={revoking}
-        hitSlop={8}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          opacity: revoking ? 0.5 : pressed ? 0.6 : 1,
-        })}
-      >
-        {revoking ? (
-          <ActivityIndicator size="small" color={colors.danger} />
-        ) : (
-          <LogOut size={16} color={colors.danger} />
-        )}
-        <Text style={{ color: colors.danger, fontSize: 13, fontWeight: "600" }}>
-          {session.current
-            ? t("mobile:accounts.sessions.signOutThis")
-            : t("mobile:accounts.sessions.revoke")}
-        </Text>
-      </Pressable>
-    </View>
+        loading={revoking}
+      />
+    </Animated.View>
   );
 }
+
+type Pending = { kind: "one"; session: SessionSummary } | { kind: "others" } | null;
 
 export default function ActiveSessionsScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const [pending, setPending] = useState<Pending>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const sessionsQuery = useQuery({
     queryKey: queryKeys.sessions,
@@ -126,97 +114,164 @@ export default function ActiveSessionsScreen() {
 
   const revokeMutation = useMutation({
     mutationFn: (sessionId: string) => getApi().revokeSession(sessionId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
-    onError: (err: unknown) =>
-      Alert.alert(t("mobile:accounts.sessions.errorTitle"), localizeError(err, t)),
+    onSuccess: () => {
+      setPending(null);
+      return queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+    onError: (err: unknown) => setError(localizeError(err, t)),
   });
 
   const revokeOthersMutation = useMutation({
     mutationFn: () => getApi().revokeOtherSessions(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
-    onError: (err: unknown) =>
-      Alert.alert(t("mobile:accounts.sessions.errorTitle"), localizeError(err, t)),
+    onSuccess: () => {
+      setPending(null);
+      return queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+    onError: (err: unknown) => setError(localizeError(err, t)),
   });
 
-  const sessions = sessionsQuery.data?.sessions ?? [];
+  // This device first, then most recently seen — the one you are holding is the
+  // reference point for "which of these are not me?".
+  const sessions = useMemo(() => {
+    const list = [...(sessionsQuery.data?.sessions ?? [])];
+    return list.sort((a, b) =>
+      a.current === b.current ? b.lastSeenAt.localeCompare(a.lastSeenAt) : a.current ? -1 : 1,
+    );
+  }, [sessionsQuery.data]);
   const otherCount = sessions.filter((s) => !s.current).length;
 
-  const onRevoke = (session: SessionSummary): void => {
-    if (session.current) {
-      void logoutActiveAccount();
-      return;
-    }
-    revokeMutation.mutate(session.id);
+  const ask = (next: Pending) => {
+    setError(null);
+    setPending(next);
   };
 
-  const onRevokeOthers = (): void => {
-    Alert.alert(
-      t("mobile:accounts.sessions.revokeOthers"),
-      t("mobile:accounts.sessions.revokeOthersConfirm"),
-      [
-        { text: t("mobile:accounts.cancel"), style: "cancel" },
-        {
-          text: t("mobile:accounts.sessions.revokeOthersConfirmCta"),
-          style: "destructive",
-          onPress: () => revokeOthersMutation.mutate(),
-        },
-      ],
-    );
+  const confirm = () => {
+    if (!pending) return;
+    if (pending.kind === "others") {
+      revokeOthersMutation.mutate();
+      return;
+    }
+    if (pending.session.current) {
+      setSigningOut(true);
+      void logoutActiveAccount().finally(() => setSigningOut(false));
+      return;
+    }
+    revokeMutation.mutate(pending.session.id);
   };
+
+  const busy = revokeMutation.isPending || revokeOthersMutation.isPending || signingOut;
+  const pendingName = pending?.kind === "one" ? deviceNameOf(pending.session, t) : "";
 
   return (
     <Screen>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{
-          padding: space.md,
-          paddingBottom: space.md + insets.bottom,
-          gap: space.sm,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom, gap: space.sm }}
+        refreshControl={
+          <RefreshControl
+            refreshing={sessionsQuery.isRefetching}
+            onRefresh={() => void sessionsQuery.refetch()}
+            tintColor={colors.fgMuted}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.surfaceRaised}
+          />
+        }
       >
-        <Text style={{ color: colors.fgMuted, fontSize: 13, paddingHorizontal: space.sm }}>
+        <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20, paddingBottom: space.sm }}>
           {t("mobile:accounts.sessions.description")}
         </Text>
 
         {sessionsQuery.isLoading ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.lg }}>
-            <ActivityIndicator size="small" color={colors.fgMuted} />
-            <Text style={{ color: colors.fgFaint, fontSize: 14 }}>
-              {t("mobile:accounts.sessions.loading")}
-            </Text>
-          </View>
+          <SkeletonList count={3} lines={2} leadingSize={32} leadingRadius={radius.md} />
         ) : sessionsQuery.isError ? (
-          <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.md, padding: space.lg }}>
-            <Text style={{ color: colors.danger, fontSize: 14 }}>
-              {localizeError(sessionsQuery.error, t)}
-            </Text>
+          <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl }}>
+            <EmptyState
+              tone="error"
+              compact
+              icon={<CloudOff size={22} color={colors.danger} />}
+              title={t("mobile:accounts.sessions.loadErrorTitle")}
+              subtitle={localizeError(sessionsQuery.error, t)}
+              action={
+                <Button
+                  label={t("common:buttons.retry")}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void sessionsQuery.refetch()}
+                  loading={sessionsQuery.isFetching}
+                />
+              }
+            />
           </View>
         ) : sessions.length === 0 ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 14, padding: space.lg }}>
-            {t("mobile:accounts.sessions.empty")}
-          </Text>
+          <EmptyState
+            compact
+            icon={<MonitorSmartphone size={22} color={colors.fgMuted} />}
+            title={t("mobile:accounts.sessions.empty")}
+          />
         ) : (
-          sessions.map((session) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              onRevoke={() => onRevoke(session)}
-              revoking={revokeMutation.isPending && revokeMutation.variables === session.id}
-            />
-          ))
+          <>
+            <SectionEyebrow>{t("mobile:accounts.sessions.countLabel", { count: sessions.length })}</SectionEyebrow>
+            {sessions.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                onRevoke={() => ask({ kind: "one", session })}
+                revoking={revokeMutation.isPending && revokeMutation.variables === session.id}
+              />
+            ))}
+          </>
         )}
+
+        {error && pending === null ? (
+          <Banner variant="danger" title={t("mobile:accounts.sessions.errorTitle")} description={error} onDismiss={() => setError(null)} />
+        ) : null}
 
         {otherCount > 0 ? (
           <View style={{ paddingTop: space.md }}>
             <Button
               label={t("mobile:accounts.sessions.revokeOthers")}
-              variant="ghost"
+              icon={LogOut}
+              variant="danger"
+              size="lg"
+              block
               loading={revokeOthersMutation.isPending}
-              onPress={onRevokeOthers}
+              onPress={() => ask({ kind: "others" })}
             />
           </View>
         ) : null}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={pending !== null}
+        title={
+          pending?.kind === "others"
+            ? t("mobile:accounts.sessions.revokeOthers")
+            : pending?.session.current
+              ? t("mobile:accounts.sessions.signOutThisTitle")
+              : t("mobile:accounts.sessions.revokeTitle", { name: pendingName })
+        }
+        body={
+          pending?.kind === "others"
+            ? t("mobile:accounts.sessions.revokeOthersConfirm")
+            : pending?.session.current
+              ? t("mobile:accounts.sessions.signOutThisBody")
+              : t("mobile:accounts.sessions.revokeBody")
+        }
+        confirmLabel={
+          pending?.kind === "others"
+            ? t("mobile:accounts.sessions.revokeOthersConfirmCta")
+            : pending?.session.current
+              ? t("mobile:accounts.sessions.signOutThis")
+              : t("mobile:accounts.sessions.revoke")
+        }
+        confirmIcon={LogOut}
+        onConfirm={confirm}
+        cancelLabel={t("mobile:accounts.cancel")}
+        onCancel={() => setPending(null)}
+        busy={busy}
+        error={pending ? error : null}
+        errorTitle={t("mobile:accounts.sessions.errorTitle")}
+      />
     </Screen>
   );
 }

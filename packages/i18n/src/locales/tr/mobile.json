@@ -221,8 +221,23 @@
       "revokeOthersConfirmCta": "Diğerlerini kapat",
       "unknownDevice": "Bilinmeyen cihaz",
       "unknownMobile": "Mobil cihaz",
-      "errorTitle": "Oturumlar güncellenemedi"
-    }
+      "errorTitle": "Oturumlar güncellenemedi",
+      "loadErrorTitle": "Oturumlar yüklenemedi",
+      "countLabel_one": "{{count}} oturum",
+      "countLabel_other": "{{count}} oturum",
+      "signOutThisTitle": "Bu cihazda çıkış yapılsın mı?",
+      "signOutThisBody": "Bu cihazdaki oturumun kapanır. Başka hesabın varsa ona geçersin, yoksa giriş ekranına dönersin.",
+      "revokeTitle": "{{name}} oturumu kapatılsın mı?",
+      "revokeBody": "O cihaz hemen çıkış yapar ve yeniden girmek için şifre ister."
+    },
+    "onDevice_one": "Bu cihazda {{count}} hesap",
+    "onDevice_other": "Bu cihazda {{count}} hesap",
+    "switchA11yHint": "Bu hesaba geçer",
+    "activeBadge": "Etkin",
+    "moreA11y": "{{name}} hesabı için seçenekler",
+    "modeLabel": "Giriş ya da yeni hesap",
+    "reauthTitle": "Yeniden giriş gerekiyor",
+    "addErrorTitle": "Hesap eklenemedi"
   },
   "friends": {
     "title": "Arkadaşlar",
@@ -1333,7 +1348,8 @@
     "settingsEmpty": "Kimseyi engellemedin.",
     "settingsCount_one": "{{count}} engellenen kullanıcı",
     "settingsCount_other": "{{count}} engellenen kullanıcı",
-    "blockedSince": "{{date}} tarihinde engellendi"
+    "blockedSince": "{{date}} tarihinde engellendi",
+    "loadErrorTitle": "Engellenenler yüklenemedi"
   },
   "customStatus": {
     "set": "Özel durum belirle",
@@ -1349,7 +1365,12 @@
     "minutes30": "30 dakika",
     "hour1": "1 saat",
     "today": "Bugün",
-    "save": "Kaydet"
+    "save": "Kaydet",
+    "previewHeading": "Böyle görünecek",
+    "count": "{{count}}/{{max}}",
+    "saveErrorTitle": "Durum kaydedilemedi",
+    "clearConfirmTitle": "Özel durum temizlensin mi?",
+    "clearConfirmBody": "Adının altındaki satır herkesten kalkar. İstediğin zaman yenisini yazabilirsin."
   },
   "moderationLog": {
     "rowTitle": "Denetim kaydı",

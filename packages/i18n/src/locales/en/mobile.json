@@ -221,8 +221,23 @@
       "revokeOthersConfirmCta": "Sign out others",
       "unknownDevice": "Unknown device",
       "unknownMobile": "Mobile device",
-      "errorTitle": "Couldn't update sessions"
-    }
+      "errorTitle": "Couldn't update sessions",
+      "loadErrorTitle": "Couldn't load your sessions",
+      "countLabel_one": "{{count}} session",
+      "countLabel_other": "{{count}} sessions",
+      "signOutThisTitle": "Sign out on this device?",
+      "signOutThisBody": "This device's session ends. If you have another account here you'll switch to it; otherwise you'll go back to sign-in.",
+      "revokeTitle": "Sign out {{name}}?",
+      "revokeBody": "That device is signed out right away and needs the password to get back in."
+    },
+    "onDevice_one": "{{count}} account on this device",
+    "onDevice_other": "{{count}} accounts on this device",
+    "switchA11yHint": "Switches to this account",
+    "activeBadge": "Active",
+    "moreA11y": "Options for {{name}}",
+    "modeLabel": "Sign in or create an account",
+    "reauthTitle": "Sign in again",
+    "addErrorTitle": "Couldn't add the account"
   },
   "friends": {
     "title": "Friends",
@@ -1333,7 +1348,8 @@
     "settingsEmpty": "You haven't blocked anyone.",
     "settingsCount_one": "{{count}} blocked user",
     "settingsCount_other": "{{count}} blocked users",
-    "blockedSince": "Blocked {{date}}"
+    "blockedSince": "Blocked {{date}}",
+    "loadErrorTitle": "Couldn't load blocked users"
   },
   "customStatus": {
     "set": "Set a custom status",
@@ -1349,7 +1365,12 @@
     "minutes30": "30 minutes",
     "hour1": "1 hour",
     "today": "Today",
-    "save": "Save"
+    "save": "Save",
+    "previewHeading": "How it will look",
+    "count": "{{count}}/{{max}}",
+    "saveErrorTitle": "Couldn't save your status",
+    "clearConfirmTitle": "Clear your custom status?",
+    "clearConfirmBody": "The line under your name goes away for everyone. You can write a new one any time."
   },
   "moderationLog": {
     "rowTitle": "Audit log",
