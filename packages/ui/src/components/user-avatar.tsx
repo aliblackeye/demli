@@ -38,6 +38,36 @@ export function seedColor(seed: string): string {
   return `hsl(${hue} 30% 36%)`;
 }
 
+/**
+ * URLs whose photo has finished decoding in this renderer — the "is it cached?"
+ * answer that does NOT depend on render/transition timing.
+ *
+ * Why a module set and not `img.complete` alone: a virtualized list measures
+ * each new row in its ref (`measureElement` → `offsetHeight`), and parent refs
+ * run AFTER child refs. Flipping opacity from the img's own ref therefore lands
+ * one render late — the layout read has already computed the photo at
+ * opacity 0, so the flip to 1 TRANSITIONS, and every cached avatar in the
+ * message list blinked on each channel switch. With this set, a known URL
+ * renders at full opacity, without a transition, on its very first frame.
+ *
+ * Bounded (an hour of scrolling past hundreds of members must not grow it
+ * forever) and `data:` URLs are never stored — they are one-off, and some are
+ * hundreds of KB long.
+ */
+const decodedUrls = new Set<string>();
+const DECODED_URLS_MAX = 2_000;
+
+function rememberDecoded(url: string): void {
+  if (url.startsWith("data:")) return;
+  if (decodedUrls.size >= DECODED_URLS_MAX) decodedUrls.clear();
+  decodedUrls.add(url);
+}
+
+/** Test seam: forget every decoded URL (a fresh renderer). */
+export function resetDecodedAvatarCache(): void {
+  decodedUrls.clear();
+}
+
 function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const first = words[0]?.charAt(0) ?? "?";
@@ -107,18 +137,36 @@ export function UserAvatar({
   // Track the exact URL that failed rather than a boolean, so a NEW `src` (e.g.
   // right after an upload) is retried instead of staying stuck on the fallback.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const showImage = src != null && src.length > 0 && failedSrc !== src;
-  // A photo fades in over the initials once it has decoded, instead of popping
-  // in half-painted. An image that is ALREADY decoded when it mounts (the
-  // browser cache — every virtualized message row scrolling back into view)
-  // is marked loaded synchronously by the ref, so it never replays the fade.
-  const imageRef = useCallback(
-    (node: HTMLImageElement | null) => {
-      if (node && src && node.complete && node.naturalWidth > 0) setLoadedSrc(src);
-    },
-    [src],
-  );
+  // Photo visibility, decided without racing a transition:
+  //  - a URL already decoded in this renderer is opaque from the first frame;
+  //  - once THIS avatar has shown a photo, a new `src` swaps in place at full
+  //    opacity — the <img> keeps painting the old picture until the new one
+  //    decodes, so there is never an initials flash between two photos (the
+  //    crop editor's live preview changes `src` on every zoom step);
+  //  - only a genuinely first load fades in over the initials.
+  const [shown, setShown] = useState(false);
+  const [fade, setFade] = useState(false);
+  if (!showImage && shown) {
+    // The <img> is gone (no URL / failed): the next photo is a first load again.
+    setShown(false);
+    setFade(false);
+  }
+  const visible = showImage && (shown || decodedUrls.has(src));
+  // An image that is already complete when it mounts (HTTP cache, not yet in
+  // the set) snaps to opaque in the same commit, before paint — no fade.
+  const imageRef = useCallback((node: HTMLImageElement | null) => {
+    const url = node?.getAttribute("src");
+    if (node && url && node.complete && node.naturalWidth > 0) {
+      rememberDecoded(url);
+      setShown(true);
+    }
+  }, []);
+  const onLoad = (): void => {
+    if (src) rememberDecoded(src);
+    if (!visible) setFade(true);
+    setShown(true);
+  };
 
   const dot = Math.max(10, Math.round(USER_AVATAR_PX[size] * 0.3));
 
@@ -149,11 +197,15 @@ export function UserAvatar({
             loading="lazy"
             decoding="async"
             draggable={false}
-            onLoad={() => setLoadedSrc(src)}
+            onLoad={onLoad}
             onError={() => setFailedSrc(src)}
+            data-avatar-fade={fade || undefined}
             className={cn(
-              "absolute inset-0 size-full rounded-full object-cover transition-opacity motion-fast",
-              loadedSrc === src ? "opacity-100" : "opacity-0",
+              "absolute inset-0 size-full rounded-full object-cover",
+              // The transition class exists ONLY for a real first load, so no
+              // other path (cache, src swap, a parent's layout read) can animate.
+              fade && "transition-opacity motion-fast",
+              visible ? "opacity-100" : "opacity-0",
             )}
           />
         )}
