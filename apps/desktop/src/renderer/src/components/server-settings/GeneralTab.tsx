@@ -384,7 +384,7 @@ export function GeneralTab({
             disabled={!isOwner}
             spellCheck={false}
             placeholder="https://…"
-            className="font-mono text-[13px]"
+            className="font-mono text-label"
           />
         </Field>
 

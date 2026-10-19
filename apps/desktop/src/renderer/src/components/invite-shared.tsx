@@ -101,7 +101,7 @@ export function CopyField({
           aria-label={label}
           onFocus={(event) => event.target.select()}
           className={cn(
-            "select-text font-mono text-[13px] transition-[background-color,box-shadow] motion-fast",
+            "select-text font-mono text-label transition-[background-color,box-shadow] motion-fast",
             inputClassName,
             copied && "bg-accent-surface shadow-[inset_0_0_0_1px_rgb(255_132_100/0.35)]",
           )}

@@ -279,7 +279,7 @@ export function EmojiTab({
               spellCheck={false}
               // A field inside the surface card sits one step DARKER (a well),
               // or it would vanish into the card's own tone.
-              className="bg-app font-mono text-[13px] hover:bg-app/70"
+              className="bg-app font-mono text-label hover:bg-app/70"
             />
           </Field>
           <Button type="submit" variant="accent" disabled={!canSubmit} loading={create.isPending} className="mt-[22px]">
@@ -356,7 +356,7 @@ function EmojiRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-mono text-[13px] text-fg">:{emoji.name}:</p>
+        <p className="truncate font-mono text-label text-fg">:{emoji.name}:</p>
         <p className="truncate text-2xs text-fg-faint">
           {uploader?.displayName ?? t("desktop:chat.unknownUser")} · {Math.max(1, Math.round(emoji.sizeBytes / 1024))} KB
         </p>

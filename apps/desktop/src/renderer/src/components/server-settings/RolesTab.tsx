@@ -149,7 +149,7 @@ function RoleColorPicker({
               if (HEX_COLOR.test(next)) onChange(next.toLowerCase());
               if (next.length === 0) onChange(null);
             }}
-            className="font-mono text-[13px]"
+            className="font-mono text-label"
           />
         </Field>
       </div>
