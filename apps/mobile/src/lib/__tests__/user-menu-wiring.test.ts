@@ -154,3 +154,42 @@ describe("Profile opens for real", () => {
     expect(SHEET).toMatch(/pathname: "\/user\/\[userId\]"/);
   });
 });
+
+describe("a destructive confirm keeps its busy and error state in place", () => {
+  // The regression: the confirm closed the sheet BEFORE the request ran, so a
+  // kick/ban showed no spinner and a failure surfaced only as a toast on the
+  // screen behind it. These pin the in-place shape.
+  it("every confirmed action reports back through the confirm's callbacks", () => {
+    for (const call of [
+      "(cb) => unfriend.mutate(target.userId, cb)",
+      "(cb) => unblockUser.mutate(target.userId, cb)",
+      "(cb) => blockUser.mutate(target.userId, cb)",
+      "(cb) => disconnectFromVoice.mutate(target.userId, cb)",
+      "(cb) => kickMember.mutate(target.userId, cb)",
+      "(cb) => banMember.mutate({ userId: target.userId }, cb)",
+    ]) {
+      expect(SHEET).toContain(call);
+    }
+    // None of them may fall back to the dismiss-then-toast path.
+    for (const mutation of ["unfriend", "unblockUser", "blockUser", "disconnectFromVoice", "kickMember", "banMember"]) {
+      expect(SHEET).not.toContain(`${mutation}.mutate(target.userId, { onError: fail })`);
+      expect(SHEET).not.toContain(`${mutation}.mutate({ userId: target.userId }, { onError: fail })`);
+    }
+  });
+
+  it("the danger button spins and the sheet refuses dismissal while it runs", () => {
+    expect(SHEET).toContain("loading={confirmBusy}");
+    expect(SHEET).toContain("dismissible={!confirmBusy}");
+    expect(SHEET).toMatch(/disabled=\{confirmBusy\}\s*onPress=\{leaveConfirm\}/);
+  });
+
+  it("closes only on success and shows a failure inside the sheet", () => {
+    const run = SHEET.slice(SHEET.indexOf("const runConfirmed"), SHEET.indexOf("const openDmThen"));
+    const success = run.slice(run.indexOf("onSuccess:"), run.indexOf("onError:"));
+    const failure = run.slice(run.indexOf("onError:"));
+    expect(success).toContain("onClose();");
+    expect(failure).not.toContain("onClose();");
+    expect(failure).toContain("setConfirmError(localizeError(err, t));");
+    expect(SHEET).toContain('<Banner variant="danger" title={t("mobile:userMenu.actionFailed")} description={confirmError} />');
+  });
+});
