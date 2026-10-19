@@ -87,7 +87,20 @@ export async function registerVoiceModule(
       if (visibleVoiceIds.length === 0) return { channels: [] };
 
       // An upgraded call's voice channel runs in the call's room, not its id.
-      const roomOverrides = await server.repos.channels.livekitRoomOverrides(visibleVoiceIds);
+      // Without the overrides an upgraded room would read as empty, so a failed
+      // lookup is the same honest 503 as an unreachable media plane — never a
+      // snapshot that wipes the client's view, never a 500 on every app focus.
+      let roomOverrides;
+      try {
+        roomOverrides = await server.repos.channels.livekitRoomOverrides(visibleVoiceIds);
+      } catch (err) {
+        request.log.warn({ err }, "voice occupancy: room override lookup failed");
+        throw new ApiError(
+          503,
+          "VOICE_OCCUPANCY_UNAVAILABLE",
+          "Voice occupancy is temporarily unavailable.",
+        );
+      }
 
       let occupancy;
       try {

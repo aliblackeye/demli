@@ -58,6 +58,8 @@ function makeChannel(id: string, kind: Channel["kind"]): Channel {
 
 /** Channel → LiveKit room overrides the repo reports (an upgraded call's channel). */
 let roomOverrides = new Map<ChannelId, string>();
+/** Set to make the repo's override lookup fail (a broken query, a DB blip). */
+let overridesError: Error | null = null;
 
 /** Only the methods this endpoint touches; any other repo call fails loudly. */
 const repos = {
@@ -76,8 +78,10 @@ const repos = {
             makeChannel(textChannelId, "text"),
           ]
         : [],
-    livekitRoomOverrides: async (ids: readonly ChannelId[]) =>
-      new Map([...roomOverrides].filter(([id]) => ids.includes(id))),
+    livekitRoomOverrides: async (ids: readonly ChannelId[]) => {
+      if (overridesError) throw overridesError;
+      return new Map([...roomOverrides].filter(([id]) => ids.includes(id)));
+    },
   },
   channelAccess: {
     // The restricted voice channel is NOT visible to this user.
@@ -108,6 +112,7 @@ describe("GET /voice/occupancy", () => {
     readCalls.length = 0;
     overrideCalls.length = 0;
     roomOverrides = new Map();
+    overridesError = null;
     readImpl = async () => new Map();
   });
 
@@ -229,6 +234,15 @@ describe("GET /voice/occupancy", () => {
     const res = await inject(app);
     expect(res.statusCode).toBe(503);
     expect(res.json().error.code).toBe("VOICE_OCCUPANCY_UNAVAILABLE");
+  });
+
+  it("answers 503 (not a 500, not an empty snapshot) when the room-override lookup fails", async () => {
+    app = await makeApp(fakeReader);
+    overridesError = new Error('relation "channels" does not exist');
+    const res = await inject(app);
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe("VOICE_OCCUPANCY_UNAVAILABLE");
+    expect(readCalls).toHaveLength(0);
   });
 
   it("answers 503 when the occupancy feature is disabled (no reader)", async () => {
