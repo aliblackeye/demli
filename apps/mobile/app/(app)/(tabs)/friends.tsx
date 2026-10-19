@@ -329,6 +329,16 @@ function RequestsTab() {
       }}
       refreshControl={refreshControl}
     >
+      {/* One direction loaded, the other did not: keep what we have, and say
+          the rest is missing instead of letting it read as "none". */}
+      {failed ? (
+        <Banner
+          variant="danger"
+          title={t("mobile:friends.requestsLoadErrorTitle")}
+          action={{ label: t("buttons.retry"), onPress: refetchBoth }}
+          style={{ marginTop: space.md }}
+        />
+      ) : null}
       {inc.length > 0 ? (
         <>
           <SectionHeading tone="muted" style={{ paddingHorizontal: space.md }}>

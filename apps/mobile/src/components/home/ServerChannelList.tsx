@@ -174,8 +174,11 @@ const TRAILING_PRESSED = colors.washStrong;
  * channels are the same {@link ROW_HEIGHT}, so the list scans as one column.
  *
  * Drawn in the shell's one row language (ShellRow): no fill at rest, a tone on
- * press, the white edge pip + full-ink label when unread, 55% when muted, and
- * the coral wash for the voice room you are sitting in right now.
+ * press, the white edge pip + full-ink label when unread, 55% when muted. The
+ * voice room you are sitting in right now gets a CORAL GLYPH and full-ink name —
+ * the desktop ChannelItem's rule: the coral wash means "your chat is reading
+ * this channel", the glyph means "your mic is in this room"; two independent
+ * states, two independent signals (and a phone list has no "reading" row).
  */
 function ChannelRow({
   icon: Icon,
@@ -202,7 +205,7 @@ function ChannelRow({
   /** Counted unread total (#110); 0/absent with `unread` falls back to "1+". */
   unreadCount?: number;
   muted?: boolean;
-  /** This is the voice room you are connected to — the row wears the coral wash. */
+  /** This is the voice room you are connected to — coral glyph, full-ink name. */
   connected?: boolean;
   hasDraft?: boolean;
   onOpen: () => void;
@@ -218,11 +221,12 @@ function ChannelRow({
 }) {
   const { t } = useAppTranslation();
   const badgeText = unread ? unreadBadgeText(unreadCount, true) : null;
-  const state = { selected: connected, unread: !!unread, muted: !!muted };
+  // A connected room reads at full ink (like unread) and is never dimmed.
+  const state = { unread: !!unread || connected, muted: !!muted };
   const tones = shellRowTones(state);
   return (
     <View style={{ opacity: shellRowOpacity(state) }}>
-      {unread && !connected ? <UnreadPip mention={mention} /> : null}
+      {unread ? <UnreadPip mention={mention} /> : null}
       <View
         style={{
           flexDirection: "row",
@@ -230,7 +234,6 @@ function ChannelRow({
           minHeight: ROW_HEIGHT,
           borderRadius: radius.lg,
           borderCurve: "continuous",
-          backgroundColor: connected ? colors.selected : undefined,
         }}
       >
         <Touchable
@@ -238,7 +241,6 @@ function ChannelRow({
           onLongPress={onLongPress}
           pressedTone={tones.pressed}
           accessibilityRole="button"
-          accessibilityState={{ selected: connected }}
           accessibilityValue={connected ? { text: t("mobile:channel.connectedA11y") } : undefined}
           style={{
             flex: 1,
@@ -252,7 +254,7 @@ function ChannelRow({
             borderCurve: "continuous",
           }}
         >
-          <Icon size={18} color={shellRowIconInk(state)} strokeWidth={2} />
+          <Icon size={18} color={connected ? colors.accent : shellRowIconInk(state)} strokeWidth={2} />
           <Text
             numberOfLines={1}
             style={{
@@ -260,7 +262,7 @@ function ChannelRow({
               color: shellRowInk(state),
               fontSize: 15,
               lineHeight: 20,
-              fontWeight: unread || connected ? "600" : "500",
+              fontWeight: unread ? "600" : "500",
             }}
           >
             {title}
@@ -292,7 +294,7 @@ function ChannelRow({
               borderCurve: "continuous",
             }}
           >
-            <MessageSquare size={18} color={connected ? colors.accent : colors.fgFaint} />
+            <MessageSquare size={18} color={colors.fgFaint} />
           </Touchable>
         ) : null}
         {onEdit ? (
@@ -394,7 +396,7 @@ export function ServerChannelList({
   const notificationMutes = useChatStore((s) => s.notificationMutes);
   const drafts = useDraftStore((s) => s.drafts);
   const me = useAuthStore((s) => s.user);
-  // The voice room you are sitting in, if any — its row wears the coral wash.
+  // The voice room you are sitting in, if any — its row's glyph turns coral.
   // A scalar selector: it changes on join/leave only, never on a speaking or
   // participant tick, so the list does not repaint with the room (§27).
   const connectedVoiceId = useVoiceStore((s) =>
