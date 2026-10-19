@@ -18,11 +18,13 @@ import { NsfwToggle } from "@/components/NsfwToggle";
 import { Skeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
 import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { LoadErrorState } from "@/components/settings/LoadErrorState";
 import { DangerZone, SectionEyebrow } from "@/components/settings/SettingsSection";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { resolveEntityLoadState } from "@/lib/load-state";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { SLOWMODE_PRESETS, snapToPreset } from "@/lib/slowmode";
 import { useGroupDetails, useServerPermissions } from "@/queries/chat-queries";
@@ -77,7 +79,8 @@ function ChipField({ label, hint, children }: { label: string; hint?: string; ch
  *
  * Koyu Masa: fields on the page, chip groups with their consequence under each,
  * visibility as its own card, deletion in the danger zone behind a sheet that
- * names the channel. Loading draws the form's shape; a vanished channel says so.
+ * names the channel. Loading draws the form's shape; a failed load says so with a
+ * retry, and only a load that SUCCEEDED without the channel says it is gone.
  */
 export default function ChannelSettings() {
   const { t } = useAppTranslation();
@@ -96,11 +99,13 @@ export default function ChannelSettings() {
     label: p.value === 0 ? t("mobile:slowmode.off") : p.label,
   }));
 
-  const { data, isLoading } = useGroupDetails(groupId);
+  const detailsQuery = useGroupDetails(groupId);
+  const { data } = detailsQuery;
   const { isOwner, can } = useServerPermissions(groupId);
   const canManageChannels = isOwner || can(PERMISSIONS.MANAGE_CHANNELS);
   const channel = data?.channels.find((c) => c.id === channelId) ?? null;
   const isVoice = channel?.kind === "voice";
+  const loadState = resolveEntityLoadState(detailsQuery, channel !== null);
 
   const updateChannel = useUpdateChannel(groupId);
   const deleteChannel = useDeleteChannel(groupId);
@@ -244,7 +249,7 @@ export default function ChannelSettings() {
           }}
         />
 
-        {isLoading && !channel ? (
+        {loadState === "loading" ? (
           <View style={{ gap: space.lg }}>
             <Skeleton width="100%" height={44} radius={radius.lg} />
             <Skeleton width="100%" height={88} radius={radius.lg} />
@@ -252,7 +257,16 @@ export default function ChannelSettings() {
           </View>
         ) : null}
 
-        {!isLoading && !channel ? (
+        {loadState === "error" ? (
+          <LoadErrorState
+            title={t("mobile:channelSettings.loadErrorTitle")}
+            error={detailsQuery.error}
+            onRetry={() => void detailsQuery.refetch()}
+            retrying={detailsQuery.isFetching}
+          />
+        ) : null}
+
+        {loadState === "missing" ? (
           <EmptyState
             icon={<Hash size={22} color={colors.fgMuted} />}
             title={t("mobile:channelSettings.notFound")}

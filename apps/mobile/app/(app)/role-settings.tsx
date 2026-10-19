@@ -11,11 +11,13 @@ import { Skeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
 import { ToggleRow } from "@/components/ToggleRow";
 import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { LoadErrorState } from "@/components/settings/LoadErrorState";
 import { DangerZone, SectionEyebrow } from "@/components/settings/SettingsSection";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { resolveEntityLoadState } from "@/lib/load-state";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { PERMISSION_ROWS, ROLE_DOT_FALLBACK, ROLE_NAME_MAX } from "@/lib/roles";
 import { useDeleteRole, useRoles, useServerPermissions, useUpdateRole } from "@/queries/chat-queries";
@@ -42,8 +44,9 @@ export default function RoleSettings() {
   const keyboard = useKeyboardHeight();
   const me = useAuthStore((s) => s.user);
 
-  const { data: roles, isLoading } = useRoles(groupId);
-  const role = roles?.find((r) => r.id === roleId) ?? null;
+  const rolesQuery = useRoles(groupId);
+  const role = rolesQuery.data?.find((r) => r.id === roleId) ?? null;
+  const loadState = resolveEntityLoadState(rolesQuery, role !== null);
   const { isOwner, can } = useServerPermissions(groupId);
   const canManage = isOwner || can(PERMISSIONS.MANAGE_ROLES);
 
@@ -113,7 +116,7 @@ export default function RoleSettings() {
       >
         <Stack.Screen options={{ title: t("mobile:roleEditor.title") }} />
 
-        {isLoading && !role ? (
+        {loadState === "loading" ? (
           <View style={{ gap: space.lg }}>
             <Skeleton width="100%" height={72} radius={radius.xl} />
             <Skeleton width="100%" height={44} radius={radius.lg} />
@@ -121,7 +124,16 @@ export default function RoleSettings() {
           </View>
         ) : null}
 
-        {!isLoading && !role ? (
+        {loadState === "error" ? (
+          <LoadErrorState
+            title={t("mobile:roleEditor.loadErrorTitle")}
+            error={rolesQuery.error}
+            onRetry={() => void rolesQuery.refetch()}
+            retrying={rolesQuery.isFetching}
+          />
+        ) : null}
+
+        {loadState === "missing" ? (
           <EmptyState
             icon={<ShieldQuestion size={22} color={colors.fgMuted} />}
             title={t("mobile:roleEditor.notFound")}

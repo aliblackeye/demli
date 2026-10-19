@@ -10,11 +10,13 @@ import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton, SkeletonList } from "@/components/Skeleton";
 import { ToggleRow } from "@/components/ToggleRow";
+import { LoadErrorState } from "@/components/settings/LoadErrorState";
 import { SectionEyebrow } from "@/components/settings/SettingsSection";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { resolveEntityLoadState } from "@/lib/load-state";
 import { ROLE_DOT_FALLBACK } from "@/lib/roles";
 import { useGroupDetails, useRoles, useSetMemberRoles } from "@/queries/chat-queries";
 import { colors, motion, radius, space } from "@/theme/theme";
@@ -36,11 +38,15 @@ export default function MemberRoles() {
   const userId = params.userId ?? null;
   const insets = useSafeAreaInsets();
 
-  const { data: details, isLoading } = useGroupDetails(groupId);
-  const { data: roles } = useRoles(groupId);
+  const detailsQuery = useGroupDetails(groupId);
+  const rolesQuery = useRoles(groupId);
   const setMemberRoles = useSetMemberRoles(groupId);
 
-  const member = details?.members.find((m) => m.userId === userId) ?? null;
+  const member = detailsQuery.data?.members.find((m) => m.userId === userId) ?? null;
+  const memberState = resolveEntityLoadState(detailsQuery, member !== null);
+  // The checklist has its own query: "no roles yet" is only true once the role
+  // list has actually ARRIVED empty — not while it loads, and not when it failed.
+  const rolesState = resolveEntityLoadState(rolesQuery, rolesQuery.data !== undefined);
   const isGuest = member?.role === "guest";
 
   const [assigned, setAssigned] = useState<Set<RoleId>>(new Set());
@@ -83,7 +89,7 @@ export default function MemberRoles() {
     );
   };
 
-  const roleList = roles ?? [];
+  const roleList = rolesQuery.data ?? [];
   const memberName = member ? member.user.displayName || member.user.username : "";
 
   return (
@@ -94,7 +100,7 @@ export default function MemberRoles() {
     >
       <Stack.Screen options={{ title: t("mobile:memberRoles.title") }} />
 
-      {isLoading && !details ? (
+      {memberState === "loading" ? (
         <View style={{ gap: space.lg }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
             <Skeleton width={48} height={48} radius={radius.pill} />
@@ -104,7 +110,16 @@ export default function MemberRoles() {
         </View>
       ) : null}
 
-      {!isLoading && !member ? (
+      {memberState === "error" ? (
+        <LoadErrorState
+          title={t("mobile:memberRoles.loadErrorTitle")}
+          error={detailsQuery.error}
+          onRetry={() => void detailsQuery.refetch()}
+          retrying={detailsQuery.isFetching}
+        />
+      ) : null}
+
+      {memberState === "missing" ? (
         <EmptyState
           icon={<UserX size={22} color={colors.fgMuted} />}
           title={t("mobile:memberRoles.notFound")}
@@ -134,6 +149,21 @@ export default function MemberRoles() {
 
           {isGuest ? (
             <Banner variant="info" icon={Shield} title={t("mobile:memberRoles.guestNote")} />
+          ) : rolesState === "loading" ? (
+            <View style={{ gap: space.sm }}>
+              <Skeleton width="30%" height={12} />
+              <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl, borderCurve: "continuous", padding: space.md }}>
+                <SkeletonList count={3} lines={1} leadingSize={20} leadingRadius={6} />
+              </View>
+            </View>
+          ) : rolesState === "error" ? (
+            <LoadErrorState
+              compact
+              title={t("mobile:memberRoles.rolesLoadErrorTitle")}
+              error={rolesQuery.error}
+              onRetry={() => void rolesQuery.refetch()}
+              retrying={rolesQuery.isFetching}
+            />
           ) : roleList.length === 0 ? (
             <EmptyState compact icon={<Shield size={22} color={colors.fgMuted} />} title={t("mobile:memberRoles.noRoles")} />
           ) : (
