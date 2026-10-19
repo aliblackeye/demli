@@ -517,6 +517,7 @@
     "unlimitedUses": "Unlimited uses"
   },
   "join": {
+    "errorTitle": "Couldn't join the server",
     "title": "Join server",
     "invalidTitle": "Invalid invite link",
     "invalidBody": "This link is missing an invite code.",

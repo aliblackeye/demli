@@ -517,6 +517,7 @@
     "unlimitedUses": "Sınırsız kullanım"
   },
   "join": {
+    "errorTitle": "Sunucuya katılınamadı",
     "title": "Sunucuya katıl",
     "invalidTitle": "Geçersiz davet bağlantısı",
     "invalidBody": "Bu bağlantıda davet kodu eksik.",

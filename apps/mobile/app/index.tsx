@@ -18,7 +18,7 @@ export default function Index() {
   const status = useAuthStore((s) => s.status);
 
   if (status === "initializing") {
-    return <View style={{ flex: 1, backgroundColor: colors.app }} />;
+    return <View style={{ flex: 1, backgroundColor: colors.rail }} />;
   }
 
   if (status === "authenticated") return <Redirect href="/groups" />;

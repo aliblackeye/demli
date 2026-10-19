@@ -52,8 +52,10 @@ export default function AppLayout() {
       <>
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.surface },
-          // Space Grotesk on every native title. The root Stack already sets
+          // Borderless (Koyu Masa): the header sits on the page's own tone, no
+          // hairline — the title and the content read as one surface.
+          headerStyle: { backgroundColor: colors.app },
+          // The display face (Onest) on every native title. The root Stack already sets
           // this, but nested navigators do NOT inherit screenOptions — a
           // color-only style here silently reset ~every authed header to
           // Roboto, which is most of why mobile read as "a different app".

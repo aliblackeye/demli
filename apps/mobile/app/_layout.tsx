@@ -61,8 +61,8 @@ const I18N_STORAGE_TIMEOUT_MS = 6_000;
 export default function RootLayout() {
   const status = useAuthStore((s) => s.status);
 
-  // Brand typography ("Demli Voice v2"): Instrument Sans + Space Grotesk, loaded
-  // from bundled .ttf via expo-font. `ready` also flips on failure/timeout, so a
+  // Brand typography (Koyu Masa): Inter body + Onest display, loaded from
+  // bundled .ttf via expo-font. `ready` also flips on failure/timeout, so a
   // bad asset degrades to the system face instead of trapping the boot splash.
   const { ready: fontsReady } = useAppFonts();
 
@@ -167,7 +167,7 @@ export default function RootLayout() {
   // provider yet at this point, hence `translationsReady={false}`.
   if (!i18n || !fontsReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.app }}>
+      <View style={{ flex: 1, backgroundColor: colors.rail }}>
         <BootSplash translationsReady={false} />
       </View>
     );
@@ -206,7 +206,9 @@ export default function RootLayout() {
             <NativeUpdateGate>
               <Stack
                 screenOptions={{
-                  headerStyle: { backgroundColor: colors.surface },
+                  // Borderless (Koyu Masa): the header sits on the page's own
+                  // tone, no hairline — the title and the content are one surface.
+                  headerStyle: { backgroundColor: colors.app },
                   // Native header titles are chrome, so they take the display
                   // face — same call desktop makes for its panel headings.
                   headerTitleStyle: {
