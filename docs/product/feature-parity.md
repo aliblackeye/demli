@@ -29,7 +29,7 @@ Durumlar: ✅ çalışıyor · 🚧 yapım aşamasında · ⛔ yok (görev no zo
 | Konuşma göstergesi — kendi halkan ANLIK (lokal ölçüm) | ✅ | ⛔ | #45 (M12, RN audio-level adaptörü; mobil sunucu yolundan ~0.5s ile çalışmaya devam eder) |
 | Ekran paylaşımı — YAYINLAMA | ✅ | ✅ | #45 KAPANDI (native APK dalgası). Mobil: `apps/mobile/src/media/screen-capture.ts` → `mediaDevices.getDisplayMedia()` MediaProjection onay diyaloğunu açar, `MediaProjectionService` foreground service'ini `LiveKitReactNative.setup()` başlatır (`plugins/with-livekit-setup.js`, bildirim rebrand'ı `plugins/with-media-projection-notification.js`); izin `app.json:57` `FOREGROUND_SERVICE_MEDIA_PROJECTION`. Yayınlamayı ortak motor sürüyor (`engine.startScreenShare(acquire, { quality })` — `stores/voice-store.ts:347`), UI girişleri `VoiceRoomScreen.tsx:650` + `call/InCallView.tsx:478`. SİSTEM SESİ dahil DEĞİL (ayrı satır). **Founder bulgusu (2026-07-30): "açtığı yayın bayağı grenleniyor, bulanık, net değil — 1080p 30hz seçmişti." Yayın tarafı düzeltildi (2026-07-31).** Kök neden ENCODER bütçesinin çarçur edilmesiydi: mobil `RoomOptions`'ta `publishDefaults` HİÇ yoktu, dolayısıyla livekit'in varsayılan `simulcast: true`'su ekran track'ine de uygulanıyor ve `computeDefaultScreenShareSimulcastPresets` yarı-çözünürlüklü bir KOPYA katman ekliyordu. Founder'ın 1080p30'unda (tavan 4,5 Mbps) 1080×2400 panelde gerçekte istenen: `q` 540×1200 @ 1,125 Mbps + `h` 1080×2400 @ 4,5 Mbps = **5,625 Mbps**, yani tier'ın kendi tavanının **%25 üstü**, üstelik kimsenin izlemediği bir katman için — ve kare başına ~%25 fazla encoder yükü (3,24 MP yerine 2,59 MP olması gerekirken). Sıkışmada GCC önce taban katmanı besleyip üst katmanı aç bırakıyor; CPU sıkışmasında da motorun `maintain-framerate` tercihi ÇÖZÜNÜRLÜK feda ediyor — "akıcı ama grenli" tam olarak bu ikisinin imzası. Düzeltme tek anahtar: `publishDefaults: { screenShareSimulcastLayers: [] }` (`livekit-room.ts`), tek encoding + tam tier bitrate. livekit'in KENDİ birim testi bu davranışı pinliyor ("returns one encoding if an empty array is provided for custom screen share layers") ve `sortPresets([])`'in `undefined` değil `[]` döndürmesine dayanıyor. `publishDefaults` Room kurucusunda SDK varsayılanlarının üzerine spread-MERGE edildiği için mik ayarları (audioPreset music, dtx, red, `stopMicTrackOnMute: false`) ve KAMERA simulcast'i dokunulmadan kalıyor. Koruma: `src/media/__tests__/screen-share-encoding.test.ts` — seçenekleri sahte `Room` kurucusuyla YAKALAR, sonra kurulu livekit-client'ın GERÇEK `computeVideoEncodings`'ini çağırıp encoding sayısını/bitrate'i ölçer (kendi literal'imizi tekrar okumaz); 5,625 Mbps → 4,5 Mbps ve 3,24 MP → 2,59 MP sayıları testte pinli, 2 mutasyonla kırmızıya döndüğü doğrulandı. **YAKALAMA (capture) hâlâ kısıtlanamıyor — JS'ten İMKÂNSIZ, kurulu pakette doğrulandı:** `@livekit/react-native-webrtc`'nin `getDisplayMedia()`'sı ARGÜMAN ALMIYOR ve native'e hiçbir şey geçirmiyor (`src/getDisplayMedia.ts`), Android'de yakalama boyutu `GetUserMediaImpl.createScreenTrack()` içinde `DisplayMetrics`'e, kare hızı `ScreenCaptureController.DEFAULT_FPS = 30`'a SABİT, ve `ScreenCaptureController` `applyConstraints`'i override etmediği için taban sınıf `UnsupportedOperationException` ile reddediyor. Sonuç: mobilde kullanıcının seçtiği kademe yalnız ENCODER'a ulaşır, capturer'a asla — telefon her zaman tüm fiziksel panelini (~2,6 MP) kodlar ve **60fps kademeleri mobilde onurlandırılamaz** (capture 30'a sabit). Bunu gerçekten çözmek capture controller'ın native patch/fork'unu gerektirir → ayrı iş. Gerekçe `screen-capture.ts` başlığında yazılı. **60 FPS kademesi mobilden KALDIRILDI (2026-07-31, §35):** capture 30'a sabit olduğu için 60 seçmek fazladan kare üretmiyor, yalnız encoder'ın bitrate tavanını yükseltiyordu (1080p'de 4,5 → 6,5 Mbps) — kullanıcı var olmayan kareler için uplink ödüyordu ve seçici çalışıyormuş gibi görünüyordu. `ANDROID_SCREEN_CAPTURE_MAX_FPS` + `screenShareFrameRatesUpTo()` (`packages/media/src/quality.ts`) iki mobil seçiciyi de filtreliyor; kalıcı kaydedilmiş bir `…60` değeri store'un merge'ünde `clampScreenShareQualityToFps` ile aşağı çekiliyor (yoksa hiçbir çip seçili görünmezken yayın 60'ın tavanına göre yapılırdı). 15 kalıyor — encoder'ı capture hızının ALTINA kapamak gerçek bir azaltma; yalnız capture'ın ÜSTÜNDEKİ kademe kurguydu. Masaüstü etkilenmedi (Electron `desktopCapturer` istenen hızı uyguluyor), 15/30/60 orada duruyor. Koruma: `packages/media/src/__tests__/capture-limited-tiers.test.ts` + `apps/mobile/src/components/__tests__/screen-share-fps-offer.test.ts` (kaynak-değişmez: seçiciler filtrelenmemiş listeye dönerse kırmızı; mutasyonla doğrulandı). |
 | Ekran paylaşımı — İZLEME | ✅ | ✅ | mobil: karesine dokun → tam ekran + landscape doldurma (OTA-safe) |
-| Sistem sesi paylaşımı + toggle | ✅ | ⛔ | #45 (M12, ekranla birlikte). Web: Chromium'da `getDisplayMedia` sekme/sistem sesi (tarayıcı diyaloğundaki "Sesi de paylaş" kutusu; DSP kapalı + `systemAudio:"include"` ipucu); Firefox/Safari veremez — picker dürüstçe söyler, ses gelmezse mevcut sessiz-yayın uyarısı web'e özel ipucuyla çıkar. |
+| Paylaşım sesi: Ses yok / Yalnız bu uygulama / Sistem sesi (Demli hariç) | ◑ (aramada uçtan uca ton kontrolü yapılmadı) | ⛔ | **M16 Dalga 1A/1B (2026-10-19) — eski tek "Sesi paylaş" düğmesinin yerini aldı.** Masaüstü: yalnız süreç yakalama (`demli-audio-capture.exe`: pencere için include-ağaç, sistem için Demli'nin ana PID ağacı HARİÇ); tüm-cihaz loopback ve Stereo Mix/Voicemeeter/CABLE karışım girişleri SİLİNDİ → Demli'nin kendi çaldığı sesler paylaşıma girmez, mikrofon paylaşım sesi olarak yayınlanamaz. Sınır: Demli'nin çıkışını kendi sürecinden yeniden çalan bir mikser (Voicemeeter MME/WDM çıkışı, Sonar, "Bu cihazı dinle") o kopyayı sistem sesine geri sokabilir; Demli bunu algılamıyor, seçici metni söylüyor. "Yalnız bu uygulama" ayrılamazsa ses gitmez, panel tek tıkla "Sistem sesini gönder (Demli hariç)" sunar (kendiliğinden genişlemez). UWP/Store pencereleri ApplicationFrameHost yerine asıl uygulamaya çözülür. Windows build < 19041 → ses yok + dürüst not; 19041–20347 (Windows 10 2004–22H2) deneniyor, gerçek Windows 10 makinesinde doğrulanmadı. Web: Chromium `getDisplayMedia` (sekme paneliyle açılır, Demli sekmesi listede yok, `restrictOwnAudio`), seçilen yüzeye göre dürüst rehber (sekme / tüm ekran kutusu / pencere ses vermez). Mobil yayın hâlâ yalnız görüntü (#45 ses ayrı iş). Ayrıntı: aşağıdaki "M16 — paylaşım sesi" bölümü. |
 | Paylaşım kalite preset'leri | ✅ | ✅ | Mobil yayınlama inince birlikte geldi: `apps/mobile/src/components/voice/ScreenShareQualitySheet.tsx` (480p→2K × 15/30/60), `VoiceControls.tsx:264` ve `call/InCallView.tsx:496` üzerinden açılır, seçim `voice-store.ts:358`'de publish'e geçer. |
 | Kamera — YAYINLAMA | ✅ | ✅ | #18 yayında (mobil OTA preview 1.3.0). Mobil emülatörde doğrulandı: aç→izin→WebRTC Camera2 yakalama→kapat→ayrıl, çökme yok. 2-cihaz karşı-görüntü founder gerçek-cihaz testinde. **MOBİL-WEB P0 fix:** önizleme diyaloğu "Aç"a basıldığında kamerayı hâlâ TUTUYORDU (React effect temizliği `open=false` render'ından SONRA çalışır), livekit ikinci kez `getUserMedia` yapıyordu; masaüstü Chromium buna izin verir, mobil tarayıcılarda kamera exclusive → `NotReadableError` → eski catch-all `device_unavailable` → "Seçili SES aygıtı kullanılamıyor" mesajı. Artık önizleme publish'ten ÖNCE bırakılıyor; ayrıca `OverconstrainedError`/`NotReadableError`/`AbortError` kendi tipli hatalarını alıyor ve kısıt hatasında kamera **kısıtsız bir kez daha** denenir (telefon 1080p60 desteklemiyorsa yine açılır). Founder gerçek-cihaz doğrulaması bekliyor. |
 | Kamera — İZLEME (tile render) | ✅ | ✅ | #18; kamera+ekran aynı anda açılabilir. Karşı-kamera görüntüsü 2-cihaz founder testinde. |
@@ -182,8 +182,8 @@ call.invite push `notifyAlways`. Mobil arama matrisi S9-S10 emülatörde kapand�
 
 | Özellik | Masaüstü | Mobil |
 |---|---|---|---|
-| **Süreç-başına film sesi** (process-loopback, pencere→PID; kaynak hafızası+anında başlangıç) | ✅ 0.0.47 (tarayıcı-ağacı kanıtlı) | — (mobil dinleyici native çalar; #113 açık) |
-| Film-sesi teşhis etiketi (panelde süreç/loopback/karışım) + process-audio.log | ✅ 0.0.48 | — |
+| **Süreç-başına film sesi** (process-loopback, pencere→PID; kaynak hafızası+anında başlangıç) — M16'da kendi yardımcımız + include/exclude ile değişti, kaynak hafızası kaldırıldı | ✅ 0.0.47 (tarayıcı-ağacı kanıtlı) | — (mobil dinleyici native çalar; #113 açık) |
+| Film-sesi teşhis etiketi (panelde süreç/loopback/karışım) + process-audio.log — M16: etiket artık "yalnız uygulama / sistem sesi, Demli hariç / sekme" | ✅ 0.0.48 | — |
 | Yayın kalite matrisi 480p→2K × 15/30/60 + bitrate tavanları + motion-hint (ping-spike fix) | ✅ SourcePicker | ✅ ScreenShareQualitySheet |
 | Bildirim WhatsApp modeli (arka plan=push, ön plan=bastır) + AppState emisyonu | ✅ (focus/blur) | ✅ (AppState) — sunucu DEPLOY EDİLDİ |
 | Ön planda üstten mesaj banner'ı (mute-filtreli, dokun→sohbet) | — (native toast zaten var) | ✅ |
@@ -201,7 +201,7 @@ call.invite push `notifyAlways`. Mobil arama matrisi S9-S10 emülatörde kapand�
 
 | Özellik | Masaüstü | Mobil |
 |---|---|---|
-| **Film-sesi kaynağı yayın SÜRERKEN doğrulanır + sıcak takas** (`superviseFilmAudio` + `engine.replaceScreenShareAudio`) | ✅ | — (mobil yayınlamıyor, #45) |
+| **Film-sesi kaynağı yayın SÜRERKEN doğrulanır + sıcak takas** (`superviseFilmAudio` + `engine.replaceScreenShareAudio`) — **M16'da sıcak takas KALDIRILDI** (takas edilen karışım girişi aramanın seslerini taşıyordu); denetleyici artık yalnız izler | ✅ | — (mobil yayınlamıyor, #45) |
 | "Sesli paylaşıyorsun" iddiası artık ölçülmüş sinyale bağlı; ara durum "ses bekleniyor" (`screenShareAudioLive`) | ✅ | — |
 | Process-loopback: "henüz oynatılmadı" (0 bayt) artık ölü kabul EDİLMİYOR; yalnız helper çıkarsa düşülür | ✅ | — |
 | Otomatik-oynatma engeli kurtarma (`startAudio` + tek seferlik jest) — web dinleyici sessizliği | ✅ (web build; Electron'da no-op) | — |
@@ -216,7 +216,8 @@ doğru kaynağı atıyor, Voicemeeter uç-noktasına düşüyor (o kutuda kalıc
 
 Bilinen boşluklar: #113 mobil film-sesi dinleyici kontrolü (0.0.47 sonrası 2-cihaz testiyle),
 2K60'ta izleyici decode uyarısı (değerlendirildi, ertelendi), tek-uygulama ses
-İZOLASYONU zaten process-capture ile geldi.
+İZOLASYONU zaten process-capture ile geldi. **(M16 düzeltmesi: bu cümle eksikti — tüm ekran
+paylaşımı ve pencere düşüşleri hâlâ yankılı loopback/karışım girişine gidiyordu; M16 bölümü.)**
 
 ## 2026-07-22 — Tasarım Sistemi Derinliği (renk DIŞINDAKİ katmanlar; yayınlanmadı)
 Referans block/buzz'ın tasarım dili (Apache-2.0 — **kod kopyalanmadı**, yalnız desen ve
@@ -1387,3 +1388,54 @@ platformu aynı anda etkiler. Tek istemci değişikliği `voice.join` yeniden de
 **Açık:** arama push metinleri hâlâ İngilizce — sunucuda alıcı dili yok (cihaz kaydında
 `locale` + istemcinin göndermesi + sunucunun katalog okuması gerekir). Bu dalga yeni metin
 eklemedi.
+
+
+## 2026-10-19 — M16 Dalga 1A/1B: paylaşım sesi yankısız (masaüstü + web)
+
+Founder saha bulguları H1 (masaüstü sistem sesiyle paylaşınca karşı taraf KENDİ sesini
+duydu) ve H3 (web'den paylaşımda ses gitmiyor). Davranış DM aramasında, sunucu sesli
+kanalında ve grup aramasında aynı: üçü de tek `voice-store.startScreenShare` → tek
+`screen-share.ts` yolundan geçiyor.
+
+| Özellik | Masaüstü | Web | Mobil |
+|---|---|---|---|
+| Üç açık ses seçeneği (Ses yok · Yalnız bu uygulama · Sistem sesi — Demli hariç); pencere → uygulama, ekran → sistem varsayılanı, tür başına hatırlanır | ✅ | ✅ (Ses yok / Sesi de paylaş; ne gideceğini tarayıcı yüzeyi belirler) | ⛔ mobil yayın sessiz (#45) |
+| Kendi süreç-yakalama yardımcımız (`native/process-audio`, MS ApplicationLoopback MIT uyarlaması, statik MinGW, `--check` ile bayt-bayt tekrar üretilebilir) | ✅ | — | — |
+| Tüm-cihaz loopback + karışım-girişi (Stereo Mix/Voicemeeter/CABLE) katmanları SİLİNDİ; `getDisplayMedia` handler artık yalnız görüntü verir | ✅ | — | — |
+| "Yalnız bu uygulama" ayrılamazsa (ağacı Demli'yi içeriyor — Demli ya da Explorer gibi atası —, süreç çözülemedi, Windows reddetti) ses GİTMEZ; panel uyarır ve tek tıkla "Sistem sesini gönder (Demli hariç)" sunar. Kendiliğinden sistem sesine düşmez (seçilen "yalnız bu uygulama" sözü) | ✅ | — | — |
+| UWP/Store penceresi (ApplicationFrameWindow) → `--window-pid` asıl uygulamanın sürecini (CoreWindow sahibi) döner; küçültülmüş/askıdaki uygulama → çıkış 8 → ses yok + öneri | ✅ | — | — |
+| Windows build < 19041 → ses yok + dürüst not (loopback'e düşülmez: o yol HER konuşmada yankı yapar, kulaklık da önlemez). 19041–20347 (Windows 10 2004–22H2) deneniyor; Windows reddederse `activation_failed` → ses yok + not. Gerçek Windows 10 cihazında doğrulanmadı | ◑ | — | — |
+| Bilinen sınır: Demli'nin çıkışını kendi sürecinden yeniden çalan mikser (Voicemeeter MME/WDM, SteelSeries Sonar, "Bu cihazı dinle") "Sistem sesi"ne o kopyayı geri sokabilir; seçici metni bunu söylüyor, çare "Yalnız bu uygulama" | ◑ | — | — |
+| Lisans: statik bağlanan MinGW-w64 çalışma zamanı + winpthreads bildirimleri `resources/process-audio/LICENSE` ve THIRD-PARTY.md'de; derleme betiği eksik bildirimde başarısız | ✅ | — | — |
+| Denetleyici yalnız izler: bekleniyor / canlı / kesildi; kaynağı ASLA değiştirmez | ✅ | ✅ | — |
+| Zehirli localStorage (`film-audio-source` = loopback/mixinput, eski `system-audio`) göç ettirilip silinir | ✅ | ✅ | — |
+| Web isteği: `displaySurface:'browser'`, `selfBrowserSurface:'exclude'`, `surfaceSwitching:'include'`, `restrictOwnAudio:true`, `suppressLocalAudioPlayback:false`, `windowAudio`/`systemAudio` ipucu | — | ✅ | — |
+| Seçilen yüzeye göre dürüst rehber (sekme kutusu / tüm ekran kutusu / pencere ses vermez / tarayıcı desteklemiyor / `restrictOwnAudio` yoksa yankı uyarısı) | — | ✅ | — |
+| Paylaşım sesi durumu + ses hataları ORTAK bileşen (`ShareAudioStatus` / `VoiceErrorNotice`): VoicePanel (kanal + grup) ve CallDock (DM — eskiden hiç göstermiyordu) | ✅ | ✅ | ⛔ mobil arama ekranı ayrı görev |
+| voice-store yarışı: edinim sonucu yayın bitince yazılıyor (eski kod "izleyiciler duymuyor" uyarısını ve önizlemeyi yayın sürerken siliyordu) | ✅ | ✅ | — |
+| `replaceScreenShareAudio`: takas sırasında gelen durdurma kazanır, yeni iz yayında kalmaz | ✅ | ✅ | ✅ (ortak motor) |
+
+**Sayısal kanıt — 2. tur (denetim sonrası, `node apps/desktop/scripts/verify-process-audio.mjs --packaged`,
+ton −30 dBFS, "yok" = aynı tonun referans kayıttaki seviyesinin en az 40 dB altı; zemin
+yüksekse "kanıtsız" sayılır):** include(A) 613 Hz −30,0 dBFS / 1471 Hz −147,2 dBFS (117 dB
+reddedildi); exclude(A) 1471 Hz −30,0 dBFS / 613 Hz −80,6 dBFS (50,6 dB). UWP: Filmler ve TV
+887 Hz çalarken `--window-pid` çerçeveyi asıl uygulamaya çözdü (eski yardımcı
+ApplicationFrameHost'u dönüyordu); include(uygulama) −30,0 dBFS, include(ApplicationFrameHost)
+−152,7 dBFS. 7/7 geçti. Electron bölümü (2. kısım) bu turda koşulamadı: `<audio>` bu
+makinede ilerlemedi (`currentTime 0`) ve `electron.exe` karıştırıcıda sessizde.
+
+**Sayısal kanıt — 1. tur** (`pnpm --filter @demli/desktop verify:process-audio`, bu makinede, arka
+planda başka ses çalarken): iki süreç aynı anda 613 Hz / 1471 Hz çalarken include(A) 613 Hz
+−12,0 dBFS / 1471 Hz −143 dBFS; exclude(A) 1471 Hz −12,0 dBFS / 613 Hz komşu bantların
+üstünde tepe yok (−1 dB) — 3 koşuda 12/12. Gerçek Electron `<audio>` (ilk koşu, 1000/440 Hz):
+exclude(Electron ana PID) Electron tonu −118,8 dBFS / başka sürecin tonu −12,0 dBFS;
+include(Electron ana PID) Electron tonu −12,0 dBFS → Electron'un ses servisi ana sürecin
+ağacında. Sonraki koşularda `electron.exe` Windows ses karıştırıcısında SESSİZE alınmıştı
+(oturum `mute=1`; süreç-yakalama karıştırıcı sonrası alır) — betik bunu artık "geçti" değil
+"kanıtsız" sayıyor; karıştırıcı açıkken yeniden koşulmalı.
+
+**Açık (cihaz):** founder makinesi (Voicemeeter + SSL) ve düz Windows'ta DM/kanal/grup
+aramasında karşı taraf konuşurken tüm ekran + sistem sesi paylaşımı → karşı taraf kendini
+DUYMAMALI; bir mikser (Voicemeeter MME/WDM ya da Sonar) kurulu makinede aynı kontrol; bir
+Windows 10 22H2 makinesinde iki mod; web'de gerçek Chrome ile sekme/ekran/pencere senaryoları. Otomatik testler
+kaynak seçimini ve iletiyi kilitliyor; uçtan uca çağrıdaki tonu ölçmedi.

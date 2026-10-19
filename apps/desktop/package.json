@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "sync:process-audio-bins": "node scripts/sync-process-audio-bins.mjs",
+    "build:process-audio": "node scripts/build-process-audio.mjs",
+    "verify:process-audio": "node scripts/verify-process-audio.mjs --electron",
     "package:win": "node scripts/package.mjs --win",
     "package:mac": "node scripts/package.mjs --mac"
   },

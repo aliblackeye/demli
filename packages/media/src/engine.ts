@@ -619,20 +619,20 @@ export interface VoiceEngine {
   /** Stop the local screen share and unpublish its tracks. Cleanly returns to no-share. */
   stopScreenShare(): Promise<void>;
   /**
-   * HOT-SWAP the published film (system/loopback) audio track of a LIVE share —
-   * without touching the video, so the picture never blinks.
-   *
-   * This exists because the correct film-audio source often cannot be known at
-   * share start: the user starts sharing and only THEN presses play, so at t=0
-   * every candidate source is silent and indistinguishable from a dead one. The
-   * platform's supervisor keeps probing while the share runs and calls this when
-   * it finds a source that actually carries sound. Passing `null` drops the film
+   * Replace the published share-audio track of a LIVE share without touching
+   * the video, so the picture never blinks. Passing `null` drops the share
    * audio entirely (video-only).
    *
+   * Only for an explicit action by the sharer. The desktop share-audio
+   * supervisor must NOT call this to "find a better source": a silent source
+   * usually just means play has not been pressed yet, and the sources such a
+   * search used to find (system-mix inputs) carried the call's own voices back
+   * to the other side (M16 H1).
+   *
    * Returns true when the swap was applied. No-op (false) when no share is live,
-   * we are not connected, or the track is already the published one — so a
-   * supervisor firing late (share stopped mid-probe) can never resurrect audio
-   * into a torn-down share. Publishes with the same music profile as
+   * we are not connected, or the track is already the published one, and a
+   * stop/leave that lands while the swap is in flight wins: the new track is
+   * never left published into a torn-down share. Publishes with the same music profile as
    * {@link startScreenShare} (`SCREEN_SHARE_AUDIO_PUBLISH`), so a swapped-in
    * track is never quietly downgraded to livekit's voice defaults.
    *
@@ -3000,6 +3000,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       return false;
     }
 
+    const share = localScreenShare;
     if (previous) {
       try {
         await room.localParticipant.unpublishTrack(previous, true);
@@ -3007,6 +3008,14 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         // best-effort — a failed unpublish must not block the new source
       }
       stopTrack(previous);
+      share.audio = null;
+    }
+
+    // Stop / leave may have landed while the unpublish was in flight: never
+    // publish into a share (or room) that is gone.
+    if (localScreenShare !== share || !room || state.status !== "connected") {
+      if (track) stopTrack(track);
+      return false;
     }
 
     if (track) {
@@ -3021,19 +3030,27 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         stopTrack(track);
         // The old track is already gone, so the share continues video-only
         // rather than pretending it still has sound.
-        if (localScreenShare) localScreenShare.audio = null;
+        share.audio = null;
         setState({ screenShareHasAudio: false, screenShareAudioLive: false });
         syncParticipants();
         return false;
       }
     }
 
-    // The share may have been torn down while the publish was in flight.
-    if (!localScreenShare) {
-      if (track) stopTrack(track);
+    // The share may have been torn down while the publish was in flight: take
+    // the new track back off the SFU, not just stop it locally.
+    if (localScreenShare !== share) {
+      if (track) {
+        try {
+          await room?.localParticipant.unpublishTrack(track, true);
+        } catch {
+          // best-effort
+        }
+        stopTrack(track);
+      }
       return false;
     }
-    localScreenShare.audio = track;
+    share.audio = track;
     setState({
       screenShareHasAudio: track !== null,
       // A new source starts unproven; the supervisor confirms it.

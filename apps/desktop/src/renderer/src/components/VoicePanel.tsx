@@ -2,10 +2,8 @@ import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
-  AlertTriangle,
   Headphones,
   HeadphoneOff,
-  Loader2,
   Mic,
   MicOff,
   Monitor,
@@ -14,20 +12,18 @@ import {
   PhoneOff,
   Video,
   VideoOff,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
 import type { VoiceStatus } from "@demli/media";
 import { useGroupDetails } from "../queries/chat-queries";
-import { localizeVoiceError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { useVoiceStore } from "../stores/voice-store";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import { useHasStageVideo } from "../hooks/useHasStageVideo";
-import { isScreenCaptureAvailable, isWebPlatform } from "../lib/screen-share";
+import { isScreenCaptureAvailable } from "../lib/screen-share";
 import { AloneCountdownNotice } from "./AloneCountdownNotice";
+import { ShareAudioStatus, VoiceErrorNotice } from "./ShareAudioStatus";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 import { SourcePicker } from "./SourcePicker";
 import { CameraPreviewDialog } from "./CameraPreviewDialog";
@@ -105,11 +101,7 @@ export function VoicePanel(): JSX.Element | null {
   const micEnabled = useVoiceStore((s) => s.micEnabled);
   const deafened = useVoiceStore((s) => s.deafened);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
-  const screenShareAudioStatus = useVoiceStore((s) => s.screenShareAudioStatus);
-  const screenShareSystemAudioFailed = useVoiceStore((s) => s.screenShareSystemAudioFailed);
-  const screenShareAudioSource = useVoiceStore((s) => s.screenShareAudioSource);
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
-  const voiceError = useVoiceStore((s) => s.error);
   const leave = useVoiceStore((s) => s.leave);
   const toggleMic = useVoiceStore((s) => s.toggleMic);
   const toggleDeafen = useVoiceStore((s) => s.toggleDeafen);
@@ -212,14 +204,7 @@ export function VoicePanel(): JSX.Element | null {
         </button>
       )}
 
-      {voiceError && (
-        <p
-          role="alert"
-          className="mt-1.5 rounded-md border border-danger/30 bg-danger/10 px-2 py-1.5 text-2xs leading-snug text-danger"
-        >
-          {localizeVoiceError(voiceError, t)}
-        </p>
-      )}
+      <VoiceErrorNotice className="mt-1.5" />
 
       {/* "Odada tek kişi sensin" uyarısı — sunucunun yalnız-kalma süpürmesinin
           istemci karşılığı. Yalnız DM araması ve grup-DM sesli kanalında görünür;
@@ -231,69 +216,10 @@ export function VoicePanel(): JSX.Element | null {
           so a second copy in this panel was pure duplication (founder #1). The
           panel stays compact: status + ping + controls only. */}
 
-      {screenShareEnabled && (
-        <div className="mt-1.5 rounded-md border border-online/25 bg-online/10 px-2 py-1.5">
-          {/* HONEST film-audio state (§35). "Sesli paylaşıyorsun" is claimed ONLY
-              after the supervisor measured real signal on the published track —
-              a published-but-silent track reads "ses bekleniyor", never success.
-              The old panel claimed success as soon as a track object existed,
-              which is how a permanently-silent loopback looked like a healthy
-              share for three releases. */}
-          <p
-            className={`flex items-center gap-1.5 text-2xs ${
-              screenShareAudioStatus === "live" ? "text-online" : "text-fg-muted"
-            }`}
-          >
-            {screenShareAudioStatus === "live" ? (
-              <Volume2 className="size-3.5 shrink-0" />
-            ) : screenShareAudioStatus === "searching" ? (
-              <Loader2 className="size-3.5 shrink-0 animate-spin" />
-            ) : (
-              <VolumeX className="size-3.5 shrink-0" />
-            )}
-            {screenShareAudioStatus === "live"
-              ? t("desktop:voice.sharingWithAudio")
-              : screenShareAudioStatus === "searching"
-                ? t("desktop:voice.sharingAudioWaiting")
-                : t("desktop:voice.sharingNoAudio")}
-          </p>
-          {/* System-audio capture FAILED (the user wanted film sound but the loopback
-              track never came) — a prominent, actionable warning so the sharer knows
-              viewers hear nothing, instead of a silent fall-back to video-only (§35). */}
-          {screenShareEnabled && screenShareAudioSource && (
-            <p className="mt-1 text-badge text-fg-faint">
-              {screenShareAudioSource === "process"
-                ? t("desktop:voice.filmSourceProcess")
-                : screenShareAudioSource === "loopback"
-                  ? t("desktop:voice.filmSourceLoopback")
-                  : t("desktop:voice.filmSourceMix", {
-                      device: screenShareAudioSource.replace(/^mixinput:/, ""),
-                    })}
-            </p>
-          )}
-          {screenShareSystemAudioFailed && (
-            <div
-              role="alert"
-              className="mt-1.5 rounded-md border border-idle/40 bg-idle/10 px-2 py-1.5"
-            >
-              <p className="flex items-start gap-1.5 text-2xs font-semibold text-idle">
-                <AlertTriangle className="mt-px size-3.5 shrink-0" />
-                {t("desktop:voice.systemAudioFailedTitle")}
-              </p>
-              <p className="mt-1 text-2xs leading-snug text-fg-muted">
-                {/* Web'de kurtarma yolu bambaşka: WASAPI/Stereo Mix tavsiyesi değil,
-                    tarayıcı diyaloğundaki "sesi de paylaş" kutusu (yalnız Chromium). */}
-                {isWebPlatform()
-                  ? t("desktop:voice.systemAudioFailedHintWeb")
-                  : t("desktop:voice.systemAudioFailedHint")}
-              </p>
-            </div>
-          )}
-          {/* NB: no "show my broadcast" toggle — your own share now auto-appears as
-              a grid tile on the stage (founder #2), clickable to focus like a
-              camera. Nothing to opt into. */}
-        </div>
-      )}
+      {/* Share sound, the same component the DM call dock uses: measured state
+          (waiting / live / failed), which capture feeds it, and why there is no
+          sound when the sharer asked for some (§35). */}
+      <ShareAudioStatus className="mt-1.5" />
 
       {/* 4 kontrol kaldı (ses-ayar butonu founder isteğiyle gitti) — satırı doldur. */}
       <div className="mt-2 grid grid-cols-4 gap-1">

@@ -11,7 +11,6 @@ import { z } from "zod";
 import {
   CAPTURE_CHANNELS,
   THUMBNAIL_WIDTH_BOUNDS,
-  type CaptureAudioMode,
   type CaptureSelectionResult,
   type CaptureSource,
   type CaptureSourceKind,
@@ -24,7 +23,12 @@ import {
  * shows OUR own picker (fed by {@link enumerateSources}), arms a source via
  * {@link CAPTURE_CHANNELS.selectSource}, then calls `getDisplayMedia()`. That
  * request is served by our `setDisplayMediaRequestHandler`, which supplies the
- * chosen source plus — on Windows — loopback system audio (the film's sound).
+ * chosen source as VIDEO ONLY.
+ *
+ * Endpoint loopback (`audio: "loopback"`) is never armed: it records the whole
+ * output device, including Demli's own playback of the people in the call, so
+ * they would hear themselves (M16 H1). Share sound comes from the process
+ * capture instead (`process-audio.ts`).
  *
  * Security posture (CLAUDE.md §9, §28):
  *   - Every IPC payload is validated (zod) before use.
@@ -60,7 +64,6 @@ const listSourcesSchema = z
 const selectSourceSchema = z
   .object({
     sourceId: z.string().min(1).max(256),
-    audio: z.boolean(),
   })
   .strict();
 
@@ -73,7 +76,6 @@ let lastEnumeratedIds = new Set<string>();
 
 interface PendingSelection {
   sourceId: string;
-  audio: CaptureAudioMode;
   /** id of the webContents that armed this selection (single-shot owner). */
   webContentsId: number;
 }
@@ -152,14 +154,10 @@ export function isEnumeratedSourceId(id: string): boolean {
 // Display-media request handler
 // ---------------------------------------------------------------------------
 
-function notifyServed(
-  webContentsId: number,
-  sourceId: string,
-  audio: CaptureAudioMode,
-): void {
+function notifyServed(webContentsId: number, sourceId: string): void {
   const target = webContents.fromId(webContentsId);
   if (target && !target.isDestroyed()) {
-    target.send(CAPTURE_CHANNELS.displaySourceServed, { sourceId, audio });
+    target.send(CAPTURE_CHANNELS.displaySourceServed, { sourceId });
   }
 }
 
@@ -195,14 +193,8 @@ async function handleDisplayMediaRequest(
       return;
     }
 
-    if (selection.audio === "loopback") {
-      // Windows loopback: capture the system/film audio with the video.
-      callback({ video: source, audio: "loopback" });
-    } else {
-      callback({ video: source });
-    }
-
-    notifyServed(selection.webContentsId, selection.sourceId, selection.audio);
+    callback({ video: source });
+    notifyServed(selection.webContentsId, selection.sourceId);
   } catch {
     // Never throw across the Electron boundary — deny gracefully. The renderer
     // sees a rejected getDisplayMedia() and can retry (e.g. video-only).
@@ -251,7 +243,7 @@ function registerIpcHandlers(): void {
       if (!parsed.success) {
         throw new Error("capture: invalid selectSource request");
       }
-      const { sourceId, audio } = parsed.data;
+      const { sourceId } = parsed.data;
 
       // Only accept an id we ourselves just enumerated. Blocks arbitrary /
       // spoofed source ids from the renderer.
@@ -259,22 +251,8 @@ function registerIpcHandlers(): void {
         throw new Error("capture: unknown source id — call listSources() first");
       }
 
-      const loopbackSupported = process.platform === "win32";
-      const audioMode: CaptureAudioMode =
-        audio && loopbackSupported ? "loopback" : "none";
-
-      pendingSelection = {
-        sourceId,
-        audio: audioMode,
-        webContentsId: event.sender.id,
-      };
-
-      return {
-        ok: true,
-        sourceId,
-        audio: audioMode,
-        loopbackSupported,
-      };
+      pendingSelection = { sourceId, webContentsId: event.sender.id };
+      return { ok: true, sourceId };
     },
   );
 

@@ -72,45 +72,28 @@ export const THUMBNAIL_WIDTH_BOUNDS = {
   default: 320,
 } as const;
 
-/** What audio (if any) main will try to capture alongside the screen video. */
-export type CaptureAudioMode = "loopback" | "none";
-
 /**
  * Renderer's request to arm a source for the *next* getDisplayMedia() call.
  * The selection is single-shot: it is consumed the moment the display-media
- * handler fires, so it must be re-armed before every share.
+ * handler fires, so it must be re-armed before every share. The source is
+ * always served as VIDEO ONLY — share sound comes from the process capture
+ * (`process-audio-types.ts`), never from endpoint loopback.
  */
 export interface CaptureSelectionRequest {
   /** Must equal the id of a source returned by a prior listSources() call. */
   sourceId: string;
-  /**
-   * Whether to also capture system/loopback audio (the film's sound). Only
-   * honoured on Windows; see {@link CaptureSelectionResult.loopbackSupported}.
-   */
-  audio: boolean;
 }
 
 /** Result of arming a selection. */
 export interface CaptureSelectionResult {
   ok: true;
   sourceId: string;
-  /** The audio mode main will attempt when the handler fires. */
-  audio: CaptureAudioMode;
-  /**
-   * True only on win32 when audio was requested. When false, any requested
-   * audio was downgraded to "none" (loopback is Windows-only in this build).
-   */
-  loopbackSupported: boolean;
 }
 
 /**
  * main -> renderer notification, emitted right after the display-media handler
- * serves a source. Lets the renderer learn what audio mode was *attempted* so
- * it can reconcile against the actual MediaStream tracks it receives (loopback
- * success is only observable renderer-side — see the report's fallback note).
+ * serves a source.
  */
 export interface DisplaySourceServedEvent {
   sourceId: string;
-  /** The audio mode handed to Chromium: "loopback" or "none". */
-  audio: CaptureAudioMode;
 }
