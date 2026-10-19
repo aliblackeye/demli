@@ -5,6 +5,8 @@ import {
   applyMentionPick,
   deserializeMentions,
   detectMentionQuery,
+  foldMentionChar,
+  foldMentionText,
   rankMentionCandidates,
   serializeMentions,
   type MentionCandidate,
@@ -51,6 +53,42 @@ describe("rankMentionCandidates", () => {
 
   it("matches @everyone by keyword", () => {
     expect(rankMentionCandidates("every", ROSTER).map((c) => c.id)).toEqual(["everyone"]);
+  });
+
+  describe("Turkish I / İ / ı / i", () => {
+    const ISMAIL: MentionCandidate = { id: "u-ismail", label: "İsmail" };
+    const IRMAK: MentionCandidate = { id: "u-irmak", label: "Irmak" };
+    const ISIK: MentionCandidate = { id: "u-isik", label: "Işık" };
+    const TR = [ISMAIL, IRMAK, ISIK];
+    const ids = (q: string) => rankMentionCandidates(q, TR).map((c) => c.id);
+
+    it("finds İsmail from a lower-case query, letter by letter", () => {
+      expect(ids("i")).toContain("u-ismail");
+      expect(ids("is")).toContain("u-ismail");
+      expect(ids("ism")).toEqual(["u-ismail"]);
+      expect(ids("İs")).toContain("u-ismail");
+    });
+
+    it("finds Irmak from a dotless ı, and Işık from ış", () => {
+      expect(ids("ır")).toEqual(["u-irmak"]);
+      expect(ids("Ir")).toEqual(["u-irmak"]);
+      expect(ids("ış")).toEqual(["u-isik"]);
+      expect(ids("ışı")).toEqual(["u-isik"]);
+    });
+
+    it("matches a dotless ı inside a name as a substring", () => {
+      expect(ids("şık")).toEqual(["u-isik"]);
+      expect(ids("şik")).toEqual(["u-isik"]);
+    });
+  });
+});
+
+describe("foldMentionText", () => {
+  it("folds I / İ / ı to i and keeps the length", () => {
+    expect(foldMentionText("İsmail")).toBe("ismail");
+    expect(foldMentionText("Işık")).toBe("işik");
+    expect(foldMentionText("İsmail")).toHaveLength("İsmail".length);
+    expect(foldMentionChar("Ş")).toBe("ş");
   });
 });
 
