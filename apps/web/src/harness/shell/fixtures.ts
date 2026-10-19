@@ -189,6 +189,19 @@ export const DETAILS: Record<string, GroupDetails> = {
   // G_LOADING has NO details on purpose: its fetch never resolves (loading state).
 };
 
+/**
+ * What G_LOADING's details request returns once it SUCCEEDS — only the fetch-
+ * failed scenes serve it, on the retry after a refused first request.
+ */
+export const HEALED_DETAILS: GroupDetails = details(
+  GROUPS[6]!,
+  [
+    channel("c-yavas-genel", G_LOADING, "genel", "text", 0),
+    channel("c-yavas-ses", G_LOADING, "salon", "voice", 0),
+  ],
+  ALL_IDS,
+);
+
 export const DMS: Dm[] = [
   { id: "dm-ece", streamId: "s-dm-ece" as ChannelId, participant: userById("u-ece"), createdAt: CREATED },
   { id: "dm-baran", streamId: "s-dm-baran" as ChannelId, participant: userById("u-baran"), createdAt: CREATED },

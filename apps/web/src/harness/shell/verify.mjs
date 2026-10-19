@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, HTMLElement, process, console, setTimeout */
+/* global document, getComputedStyle, HTMLElement, process, console, setTimeout, window */
 /**
  * SHELL HARNESS DRIVER — dev-only proof script for the M16 app-frame pass.
  *
@@ -32,11 +32,15 @@ function check(name, ok, detail = "") {
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 
-async function open(scene, { width = 1440, height = 900, reducedMotion = "no-preference", lang } = {}) {
+async function open(
+  scene,
+  { width = 1440, height = 900, reducedMotion = "no-preference", lang, query = "", touch = false } = {},
+) {
   const context = await browser.newContext({
     viewport: { width, height },
     reducedMotion,
     deviceScaleFactor: 1,
+    ...(touch ? { hasTouch: true, isMobile: true } : {}),
   });
   const page = await context.newPage();
   page.on("console", (msg) => {
@@ -45,7 +49,7 @@ async function open(scene, { width = 1440, height = 900, reducedMotion = "no-pre
     }
   });
   page.on("pageerror", (err) => consoleProblems.push(`[${scene}] pageerror: ${err.message}`));
-  await page.goto(`${base}/harness-shell.html?scene=${scene}${lang ? `&lang=${lang}` : ""}`);
+  await page.goto(`${base}/harness-shell.html?scene=${scene}${lang ? `&lang=${lang}` : ""}${query}`);
   await page.waitForFunction(() => document.documentElement.dataset.ready === "1");
   await page.waitForTimeout(900);
   return { page, context };
@@ -268,8 +272,163 @@ async function shot(page, name) {
   });
   check("mention count = coral fill, dark ink", badge?.bg === "rgb(255, 132, 100)" && badge?.color === "rgb(23, 23, 23)", JSON.stringify(badge));
 
+  // Rail badges sit on the TILE corner, inside the rail — never clipped by the
+  // server scroller, and the scroller cannot be moved sideways.
+  const rail = await page.evaluate(() => {
+    const scroller = [...document.querySelectorAll("div.overflow-y-auto")].find((d) => d.querySelector("[data-rail-pill]"));
+    if (!scroller) return null;
+    const badges = [...scroller.querySelectorAll("span.tabular-nums")].map((b) => {
+      const tile = b.parentElement?.querySelector("button");
+      return {
+        text: b.textContent,
+        right: Math.round(b.getBoundingClientRect().right),
+        overhang: tile ? Math.round(b.getBoundingClientRect().right - tile.getBoundingClientRect().right) : null,
+      };
+    });
+    const before = scroller.scrollLeft;
+    scroller.scrollLeft = 10;
+    const after = scroller.scrollLeft;
+    scroller.scrollLeft = before;
+    return {
+      clientWidth: scroller.clientWidth,
+      scrollWidth: scroller.scrollWidth,
+      right: Math.round(scroller.getBoundingClientRect().right),
+      scrolledTo: after,
+      badges,
+      overflowX: getComputedStyle(scroller).overflowX,
+    };
+  });
+  check(
+    "rail: every count badge fits inside the scroller (nothing clipped)",
+    rail !== null && rail.badges.length >= 2 && rail.badges.every((b) => b.right <= rail.right),
+    JSON.stringify(rail?.badges),
+  );
+  check(
+    "rail: badges overhang their tile corner by the same 4px",
+    rail !== null && rail.badges.every((b) => b.overhang === 4),
+    JSON.stringify(rail?.badges.map((b) => b.overhang)),
+  );
+  check(
+    "rail: server column cannot scroll sideways",
+    rail !== null && rail.scrollWidth === rail.clientWidth && rail.scrolledTo === 0 && rail.overflowX === "hidden",
+    `client=${rail?.clientWidth} scroll=${rail?.scrollWidth} scrollLeft→${rail?.scrolledTo} overflow-x=${rail?.overflowX}`,
+  );
+
+  // User footer: the identity block gets real width (it was 38px).
+  const footer = await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Kullanıcı menüsü"]');
+    const spans = btn ? [...btn.querySelectorAll("span.block")] : [];
+    return btn
+      ? { block: Math.round(btn.getBoundingClientRect().width), lines: spans.map((s) => ({ text: s.textContent, width: s.clientWidth })) }
+      : null;
+  });
+  check(
+    "user footer: identity block ≥ 90px, name + status lines ≥ 80px",
+    footer !== null && footer.block >= 90 && footer.lines.length === 2 && footer.lines.every((l) => l.width >= 80),
+    JSON.stringify(footer),
+  );
+  await page.getByRole("button", { name: "Kullanıcı menüsü" }).hover();
+  const statusTip = await page.waitForSelector("[role=tooltip]", { timeout: 2000 }).catch(() => null);
+  const statusTipText = statusTip ? await statusTip.textContent() : null;
+  check(
+    "user footer: hovering the name shows the whole custom status",
+    statusTipText?.includes("Film gecesi 21:30'da") ?? false,
+    String(statusTipText),
+  );
+  await page.mouse.move(700, 450);
+
   await context.close();
 }
+
+// ── 1b. Load states: a failed / pending fetch is never shown as "empty" ─────
+{
+  // Server details refused once (server unreachable), then served on retry.
+  const { page, context } = await open("fail");
+  const failed = await page.evaluate(() => {
+    const nav = document.querySelector("nav[aria-label='Kanallar']");
+    const aside = document.querySelector("aside[aria-label]");
+    const band = nav?.querySelector("[role=alert]") ?? null;
+    return {
+      nav: nav?.textContent ?? "",
+      navAlert: band !== null,
+      h2: aside?.querySelector("h2")?.textContent ?? null,
+      aside: aside?.textContent ?? "",
+      band: band ? getComputedStyle(band).backgroundColor : null,
+    };
+  });
+  check(
+    "fetch failed: channel column shows the retry band, not 'Henüz kanal yok'",
+    failed.navAlert &&
+      failed.nav.includes("Kanallar yüklenemedi") &&
+      failed.nav.includes("Sunucuya ulaşılamıyor. Bağlantını kontrol edip tekrar dene.") &&
+      !failed.nav.includes("Henüz kanal yok") &&
+      !failed.nav.includes("Kanal oluştur"),
+    failed.nav.slice(0, 160),
+  );
+  check("fetch failed: band is the danger wash token", failed.band === "rgba(255, 111, 181, 0.12)", String(failed.band));
+  check(
+    "fetch failed: roster drops the count ('Üyeler', never 'Üyeler — 0') and offers retry",
+    failed.h2 === "Üyeler" && failed.aside.includes("Üyeler yüklenemedi"),
+    `${failed.h2} :: ${failed.aside.slice(0, 120)}`,
+  );
+  await shot(page, "verify-fetch-failed");
+  await page.locator("nav[aria-label='Kanallar']").getByRole("button", { name: "Tekrar dene" }).click();
+  await page
+    .waitForFunction(() => document.querySelector("nav[aria-label='Kanallar']")?.textContent?.includes("salon"), null, { timeout: 3000 })
+    .catch(() => null);
+  const healed = await page.evaluate(() => ({
+    nav: document.querySelector("nav[aria-label='Kanallar']")?.textContent ?? "",
+    h2: document.querySelector("aside[aria-label] h2")?.textContent ?? null,
+  }));
+  check(
+    "retry really refetches: channels + roster count arrive, band gone",
+    healed.nav.includes("genel") && healed.nav.includes("salon") && !healed.nav.includes("yüklenemedi") && /^Üyeler — \d+$/.test(healed.h2 ?? ""),
+    `${healed.h2} :: ${healed.nav.slice(0, 120)}`,
+  );
+  await context.close();
+}
+{
+  // First fetch still in flight: skeletons, no count, no empty copy.
+  const { page, context } = await open("loading");
+  const loading = await page.evaluate(() => ({
+    skeleton: document.querySelector("nav[aria-label='Kanallar'] [role=status][aria-label='Kanallar yükleniyor']") !== null,
+    nav: document.querySelector("nav[aria-label='Kanallar']")?.textContent ?? "",
+    h2: document.querySelector("aside[aria-label] h2")?.textContent ?? null,
+  }));
+  check(
+    "first fetch pending: skeleton, roster without a count, no empty copy",
+    loading.skeleton && loading.h2 === "Üyeler" && !loading.nav.includes("Henüz kanal yok"),
+    JSON.stringify(loading).slice(0, 200),
+  );
+  await context.close();
+}
+{
+  const { page, context } = await open("home-pending");
+  const pending = await page.evaluate(() => ({
+    skeleton: document.querySelector("[role=status][aria-label='Sohbetler yükleniyor']") !== null,
+    empty: document.body.textContent?.includes("Henüz sohbet yok") ?? false,
+  }));
+  check("DMs pending: skeleton, never 'Henüz sohbet yok'", pending.skeleton && !pending.empty, JSON.stringify(pending));
+  await context.close();
+}
+{
+  const { page, context } = await open("home-fail");
+  const failed = await page.evaluate(() => ({
+    band: document.body.textContent?.includes("Sohbetler yüklenemedi") ?? false,
+    empty: document.body.textContent?.includes("Henüz sohbet yok") ?? false,
+  }));
+  check("DMs fetch failed: retry band, never 'Henüz sohbet yok'", failed.band && !failed.empty, JSON.stringify(failed));
+  await shot(page, "verify-dms-failed");
+  await page.locator("[role=alert]", { hasText: "Sohbetler yüklenemedi" }).getByRole("button", { name: "Tekrar dene" }).click();
+  const healed = await page
+    .waitForFunction(() => !document.body.textContent?.includes("Sohbetler yüklenemedi"), null, { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
+  const dmRow = await page.evaluate(() => document.body.textContent?.includes("Ece") ?? false);
+  check("DM retry really refetches: the rows arrive", healed && dmRow, `healed=${healed} ece=${dmRow}`);
+  await context.close();
+}
+
 
 // ── 2. Command menu: open/close motion + keyboard ──────────────────────────
 {
@@ -379,6 +538,98 @@ async function shot(page, name) {
   await context.close();
 }
 
+// ── 4b. Narrow web shell: a REAL touch swipe closes the drawer ─────────────
+{
+  // Real CDP touch input on a touch/mobile context: Chrome claims the moving
+  // finger as a pan and fires pointercancel — exactly what broke the old
+  // pointer-based swipe. The drawer must still close.
+  const { page, context } = await open("mobile", { width: 390, height: 844, touch: true });
+  const cdp = await context.newCDPSession(page);
+  const pointer = [];
+  await page.exposeFunction("__harnessPointer", (kind) => pointer.push(kind));
+  await page.evaluate(() => {
+    for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
+      window.addEventListener(type, (e) => window.__harnessPointer(`${e.type}:${e.pointerType}`), true);
+    }
+  });
+  const point = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+  const drag = async (from, to) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(from.x, from.y) });
+    for (let i = 1; i <= 8; i += 1) {
+      const x = from.x + ((to.x - from.x) * i) / 8;
+      const y = from.y + ((to.y - from.y) * i) / 8;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x, y) });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(500);
+  };
+  const drawerState = () => page.evaluate(() => document.querySelector("[role=dialog][data-state]")?.getAttribute("data-state"));
+  await page.getByRole("button", { name: "Menüyü aç" }).tap();
+  await page.waitForTimeout(700);
+  const openState = await drawerState();
+  pointer.length = 0;
+  await drag({ x: 250, y: 420 }, { x: 90, y: 424 });
+  const closedState = await drawerState();
+  check(
+    "touch swipe left closes the nav drawer (even when Chrome cancels the pointer)",
+    openState === "open" && closedState === "closed",
+    `${openState} → ${closedState}; pointer=${pointer.join(",")}`,
+  );
+  // A vertical drag over the channel list scrolls; it must NOT close it.
+  await page.getByRole("button", { name: "Menüyü aç" }).tap();
+  await page.waitForTimeout(700);
+  await drag({ x: 200, y: 640 }, { x: 196, y: 400 });
+  const stillOpen = await drawerState();
+  check("vertical drag over the drawer keeps it open", stillOpen === "open", String(stillOpen));
+  await context.close();
+}
+
+// ── 4c. Phone: nudges in flow, notices own the bottom band, no collisions ──
+{
+  const { page, context } = await open("notices", { width: 390, height: 844, query: "&switch=1" });
+  await page.waitForTimeout(600);
+  const layout = await page.evaluate(() => {
+    const rect = (el) => {
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) };
+    };
+    const nudges = document.querySelector("[data-nudges=bar]");
+    const island = document.querySelector("[data-shell=mobile] > .rounded-card");
+    const cards = [...document.querySelectorAll("[role=region] [role=status], [role=region] [role=alert]")];
+    return {
+      nudges: nudges ? { rect: rect(nudges), position: getComputedStyle(nudges).position, kids: nudges.children.length } : null,
+      island: island ? rect(island) : null,
+      notices: cards.map(rect),
+      switchInStack: cards.some((n) => n.textContent?.includes("Hesap değiştirilemedi")),
+    };
+  });
+  const hit = (a, b) => a.top < b.bottom && b.top < a.bottom && a.left < b.right && b.left < a.right;
+  const n = layout.notices;
+  check(
+    "phone: nudges are in flow above the conversation island (cover no message)",
+    layout.nudges !== null &&
+      layout.nudges.position === "static" &&
+      layout.nudges.kids > 0 &&
+      // One line of pills (≤ 52px), not a two-row stack.
+      layout.nudges.rect.bottom - layout.nudges.rect.top <= 52 &&
+      layout.island !== null &&
+      layout.nudges.rect.bottom <= layout.island.top,
+    JSON.stringify({ nudges: layout.nudges, island: layout.island }),
+  );
+  check(
+    "phone: switch-offline notice joins the stack; no notice overlaps another or a nudge",
+    layout.switchInStack &&
+      n.length === 4 &&
+      !n.some((a, i) => n.some((b, j) => i !== j && hit(a, b))) &&
+      !n.some((a) => layout.nudges !== null && hit(a, layout.nudges.rect)),
+    JSON.stringify({ n, nudges: layout.nudges?.rect }),
+  );
+  await shot(page, "verify-notices-phone");
+  await context.close();
+}
+
+
 // ── 5. Sign-in: field-level validation, mode switch reveal ─────────────────
 {
   const { page, context } = await open("auth", { width: 1280, height: 800 });
@@ -414,6 +665,53 @@ async function shot(page, name) {
   await shot(page, "verify-auth-register");
   await context.close();
 }
+{
+  // Validation failures are announced and focused (screen-reader path).
+  const { page, context } = await open("auth", { width: 1280, height: 800 });
+  await page.locator("input[autocomplete='username']").fill("ali");
+  await page.locator("input[autocomplete='username']").press("Enter");
+  await page.waitForTimeout(150);
+  const pw = await page.evaluate(() => {
+    const el = document.activeElement;
+    const errorId = el?.getAttribute("aria-errormessage");
+    const line = errorId ? document.getElementById(errorId) : null;
+    return {
+      focused: el?.getAttribute("autocomplete"),
+      invalid: el?.getAttribute("aria-invalid"),
+      describedBy: Boolean(errorId) && (el?.getAttribute("aria-describedby") ?? "").includes(errorId),
+      role: line?.getAttribute("role") ?? null,
+      text: line?.textContent ?? null,
+    };
+  });
+  check(
+    "empty password on Enter: focus moves to the password; its error is role=alert + the description",
+    pw.focused === "current-password" && pw.invalid === "true" && pw.describedBy && pw.role === "alert" && pw.text === "Parolanı gir.",
+    JSON.stringify(pw),
+  );
+  await page.locator("input[autocomplete='username']").fill("");
+  await page.locator("input[autocomplete='current-password']").fill("dem-123456");
+  await page.getByRole("button", { name: "Giriş yap" }).click();
+  await page.waitForTimeout(150);
+  const user = await page.evaluate(() => ({
+    focused: document.activeElement?.getAttribute("autocomplete"),
+    invalid: document.activeElement?.getAttribute("aria-invalid"),
+  }));
+  check("bad username on submit: focus lands on the username field", user.focused === "username" && user.invalid === "true", JSON.stringify(user));
+  await context.close();
+}
+for (const scene of ["auth", "auth-notice", "auth-reauth"]) {
+  // Sen'li hitap on every sign-in surface (brand-system §4): no "siz", no
+  // "Lütfen", and one term for the secret (parola, never şifre).
+  const { page, context } = await open(scene, { width: 1280, height: 800 });
+  const copy = await page.evaluate(() => document.body.innerText);
+  const siz = copy.match(/Lütfen|unuz|ünüz|ınız|iniz|yapın|deneyin|girin|şifre/g);
+  check(`copy voice (${scene}): sen'li, no 'Lütfen'/'siz', one term (parola)`, siz === null, String(siz));
+  if (scene === "auth-notice") {
+    check("session-expired band reads in sen", copy.includes("Oturumunun süresi doldu. Tekrar giriş yap."), copy.slice(0, 200));
+  }
+  await context.close();
+}
+
 
 // ── 6. Notices: stack, hover pauses the clock, close works ─────────────────
 {
@@ -456,7 +754,7 @@ async function shot(page, name) {
 
 // ── 7. Every scene renders with a clean console (TR + EN) ──────────────────
 for (const scene of [
-  "home", "loading", "empty", "boot", "boot-slow", "boot-fail", "boot-update", "crash",
+  "home", "loading", "empty", "fail", "home-pending", "home-fail", "boot", "boot-slow", "boot-fail", "boot-update", "crash",
   "auth-add", "auth-reauth", "auth-notice", "birthdate", "switching", "switch-offline", "update",
 ]) {
   const { page, context } = await open(scene, { width: 1280, height: 800 });

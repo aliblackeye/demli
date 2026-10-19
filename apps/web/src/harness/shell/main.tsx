@@ -13,6 +13,7 @@
  * state. `?lang=en` switches the catalog; `?scene=` lists:
  *
  *   shell · home · loading · empty · command · mobile (narrow viewport → MobileShell)
+ *   fail (server details refused once → retry heals) · home-pending · home-fail
  *   boot · boot-slow · boot-fail · boot-update · crash
  *   auth · auth-add · auth-reauth · auth-notice · birthdate · switching · switch-offline
  *   notices · update
@@ -57,13 +58,20 @@ import { useVoiceStore } from "../../../../desktop/src/renderer/src/stores/voice
 import { notifyBlocked } from "../../../../desktop/src/renderer/src/lib/blocked-notice";
 import { saveImage } from "../../../../desktop/src/renderer/src/lib/image-actions";
 import { pushInAppNotification } from "../../../../desktop/src/renderer/src/notifications/in-app-notifications";
-import { CH_SOHBET, G_EMPTY, G_LOADING } from "./fixtures";
-import { holdNetwork, openHomeDm, seedSignedIn, seedVoice } from "./seed";
+import { CH_SOHBET, DMS, G_EMPTY, G_LOADING, HEALED_DETAILS } from "./fixtures";
+import { holdNetwork, openHomeDm, seedSignedIn, seedVoice, type FailingRoute } from "./seed";
 
 const params = new URLSearchParams(window.location.search);
 const scene = params.get("scene") ?? "shell";
 
-holdNetwork();
+/** The fetch-failed scenes: the named request is refused once, then served. */
+const failing: FailingRoute[] =
+  scene === "fail"
+    ? [{ path: new RegExp(`/groups/${G_LOADING}$`), healedBody: HEALED_DETAILS }]
+    : scene === "home-fail"
+      ? [{ path: /\/dms$/, healedBody: { dms: DMS } }]
+      : [];
+holdNetwork(failing);
 document.documentElement.dataset.scene = scene;
 
 /** Mounts the update badge on a desktop-looking bridge with a scripted status. */
@@ -104,8 +112,16 @@ function prepare(): void {
       openHomeDm();
       break;
     case "loading":
+    case "fail":
       seedSignedIn();
       useChatStore.setState({ activeGroupId: G_LOADING, activeChannelId: null });
+      break;
+    case "home-pending":
+    case "home-fail":
+      // The DM list is NOT seeded: its real query runs against the held
+      // (pending) or refused-once (fail) network.
+      seedSignedIn({ withDms: false });
+      useChatStore.setState({ activeView: "home", homeView: "friends", activeChannelId: null });
       break;
     case "empty":
       seedSignedIn();
@@ -201,6 +217,13 @@ function NoticesScene(): JSX.Element {
         1_200,
       ),
     ];
+    // `&switch=1`: an account switch cancelled offline fires WITH the others —
+    // it must take its place in the stack, not draw over it.
+    if (params.get("switch") === "1") {
+      timers.push(
+        window.setTimeout(() => useAccountsStore.getState().setSwitchError("offline"), 1_000),
+      );
+    }
     return () => timers.forEach((id) => window.clearTimeout(id));
   }, []);
   return (

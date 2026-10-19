@@ -34,19 +34,44 @@ import {
  * forever — which is also exactly what a slow first fetch looks like, so an
  * unseeded query renders its genuine loading state instead of an error.
  */
-export function holdNetwork(): void {
+export function holdNetwork(routes: FailingRoute[] = []): void {
   const original = window.fetch.bind(window);
+  const calls = new Map<FailingRoute, number>();
   window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
       window.location.href,
     );
     if (url.origin === window.location.origin) return original(input, init);
+    const route = routes.find((r) => r.path.test(url.pathname));
+    if (route) {
+      const n = (calls.get(route) ?? 0) + 1;
+      calls.set(route, n);
+      // First request: the server is unreachable — the same TypeError a real
+      // offline / DNS / refused connection gives fetch. Every later one (the
+      // user's retry) succeeds with the route's body.
+      if (n === 1) return Promise.reject(new TypeError("Failed to fetch"));
+      return Promise.resolve(
+        new Response(JSON.stringify(route.healedBody), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
     return new Promise<Response>(() => undefined);
   };
 }
 
-export function seedSignedIn(): void {
+/**
+ * A request the fetch-failed scenes refuse ONCE, then serve: proves both the
+ * error state and that its retry really refetches (no faked state flip).
+ */
+export interface FailingRoute {
+  path: RegExp;
+  healedBody: unknown;
+}
+
+export function seedSignedIn({ withDms = true }: { withDms?: boolean } = {}): void {
   queryClient.setDefaultOptions({
     queries: { staleTime: Infinity, retry: false, refetchOnWindowFocus: false, refetchOnMount: false },
   });
@@ -67,7 +92,8 @@ export function seedSignedIn(): void {
     queryClient.setQueryData(queryKeys.categories(groupId as GroupId), groupId === G_MASA ? MASA_CATEGORIES : []);
     queryClient.setQueryData(queryKeys.roles(groupId as GroupId), groupId === G_MASA ? ROLES : []);
   }
-  queryClient.setQueryData(queryKeys.dms, DMS);
+  // Left unseeded by the DM load-state scenes, so the real query runs.
+  if (withDms) queryClient.setQueryData(queryKeys.dms, DMS);
   queryClient.setQueryData(queryKeys.groupChats, GROUP_CHATS);
   queryClient.setQueryData(queryKeys.notificationMutes, MUTES);
   queryClient.setQueryData(queryKeys.userNicknames, {});
