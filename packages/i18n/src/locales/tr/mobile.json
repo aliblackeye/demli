@@ -1349,5 +1349,8 @@
       "timeout": "Zaman aşımı",
       "timeout_remove": "Zaman aşımı kaldırma"
     }
+  },
+  "ui": {
+    "loading": "Yükleniyor"
   }
 }

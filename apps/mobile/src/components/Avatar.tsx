@@ -1,11 +1,14 @@
-import { Image, View } from "react-native";
-import { Text } from "./ui/Text";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
+import { Image } from "expo-image";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Smartphone } from "lucide-react-native";
-import { colors, radius } from "../theme/theme";
-import { presenceColor } from "../theme/theme";
+import type { PresencePlatform, PresenceStatus } from "@demli/types";
+import { motionTo, useReducedMotion } from "../theme/motion";
+import { colors, motion, presenceColor, radius } from "../theme/theme";
 import { avatarTileSolid } from "../theme/avatar-color";
 import { useAppTranslation } from "../lib/i18n";
-import type { PresencePlatform, PresenceStatus } from "@demli/types";
+import { Text } from "./ui/Text";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -15,42 +18,52 @@ function initials(name: string): string {
 }
 
 /**
- * Deterministic tint per name, from the SHARED avatar-colour contract in
- * theme/avatar-color.ts — the same algorithm the voice grid and the desktop
- * renderer use, so one person is one colour everywhere.
- *
- * It replaces a private six-hex array that predated that contract and fought
- * the palette twice over: the hexes were cool/neon leftovers, and several were
- * light enough that the white initials on them sat near 2:1. The shared solid
- * is deliberately dark (HSL lightness 24%), which is what makes the cream
- * initials below legible on every hue.
- *
- * `Avatar` is given a display name rather than a user id, and the contract
- * accepts any stable string identity, so the name is the key here.
+ * Named size steps — the desktop `UserAvatar` ramp (20 / 32 / 40 / 80) plus the
+ * 56 mobile uses for profile headers and call tiles. A raw number still works
+ * for the call sites that size an avatar to a measured tile.
  */
-function tintFor(name: string): string {
-  return avatarTileSolid(name);
-}
+export const AVATAR_SIZE = { xs: 20, sm: 32, md: 40, lg: 56, xl: 80 } as const;
+export type AvatarSize = keyof typeof AVATAR_SIZE | number;
+
+/** Koyu Masa ring width: every avatar wears 2px of the surface behind it. */
+const RING = 2;
 
 /**
- * Avatar with a deterministic initials fallback. When `uri` is set, the image is
- * overlaid on top of the initials circle so a broken/slow URL degrades to the
- * initials rather than a blank hole (no extra native module — RN core Image).
+ * Avatar with a deterministic initials fallback. The photo sits over the
+ * initials, so a slow or dead URL degrades to the initials rather than a blank
+ * hole: a failed load is remembered PER URL, so a new `uri` (right after an
+ * upload) is retried instead of staying stuck on the fallback. expo-image
+ * caches to memory + disk and crossfades the photo in on the fast step (none
+ * under reduced motion).
  *
- * The presence indicator (task #47): a user connected from mobile AND currently
- * online/idle shows a green/amber PHONE glyph instead of the plain dot — the
- * founder's "connected from mobile and looking at the app" signal. Every other
- * case (desktop, unknown platform, or offline) keeps the dot.
+ * Tint: the SHARED avatar-colour contract in theme/avatar-color.ts — the same
+ * algorithm the voice grid and the desktop renderer use, so one person is one
+ * colour everywhere; the solid is dark enough that the light initials read on
+ * every hue.
+ *
+ * Rings (design system §5 "Avatarlar"):
+ *  - `ring` — 2px of `ringColor` (default the app surface) around the circle,
+ *    which is what separates overlapping avatars in a stack and the presence
+ *    dot from the photo. Drawn OUTSIDE the box, so layout size never changes.
+ *  - `speaking` — +2px of coral outside that, fading in/out on the tone step
+ *    so a voice row does not flicker as someone talks in bursts.
+ *
+ * Presence (task #47): a user connected from mobile AND online/idle shows a
+ * green/amber PHONE glyph instead of the plain dot — the founder's "connected
+ * from mobile and looking at the app" signal. Every other case keeps the dot.
  */
 export function Avatar({
   name,
-  size = 40,
+  size: sizeProp = 40,
   presence,
   platform,
   uri,
+  ring = false,
+  ringColor = colors.app,
+  speaking,
 }: {
   name: string;
-  size?: number;
+  size?: AvatarSize;
   presence?: PresenceStatus;
   /** Client kind driving the indicator — "mobile" swaps the dot for a phone. */
   platform?: PresencePlatform;
@@ -68,19 +81,50 @@ export function Avatar({
    * `avatar-uri-coverage.test.ts`.
    */
   uri: string | null | undefined;
+  /** Draw the 2px surface ring (stacks, avatars over media or tinted rows). */
+  ring?: boolean;
+  /** The surface the avatar sits on — the ring and the presence cut-out match it. */
+  ringColor?: string;
+  /**
+   * Coral speaking ring (voice). Leave UNSET outside voice surfaces: only an
+   * avatar that is given the prop mounts the animated ring, so a 200-row member
+   * list pays nothing for it (§27).
+   */
+  speaking?: boolean;
 }) {
   const { t } = useAppTranslation();
-  const dot = Math.round(size * 0.32);
+  const reduced = useReducedMotion();
+  const tracksSpeaking = speaking !== undefined;
+  const size = typeof sizeProp === "number" ? sizeProp : AVATAR_SIZE[sizeProp];
+  const dot = Math.max(10, Math.round(size * 0.3));
   const trimmedUri = uri?.trim() ? uri.trim() : null;
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  const showImage = trimmedUri !== null && failedUri !== trimmedUri;
   const showPhone = presence !== undefined && presence !== "offline" && platform === "mobile";
+
   return (
     <View style={{ width: size, height: size }}>
+      {ring || tracksSpeaking ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -RING,
+            left: -RING,
+            width: size + RING * 2,
+            height: size + RING * 2,
+            borderRadius: radius.pill,
+            backgroundColor: ringColor,
+          }}
+        />
+      ) : null}
+      {tracksSpeaking ? <SpeakingRing size={size} speaking={speaking} reduced={reduced} /> : null}
       <View
         style={{
           width: size,
           height: size,
           borderRadius: radius.pill,
-          backgroundColor: tintFor(name),
+          backgroundColor: avatarTileSolid(name),
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
@@ -88,15 +132,19 @@ export function Avatar({
       >
         <Text
           selectable={false}
-          // Space Grotesk, matching the desktop AvatarTile initials.
+          // Onest, matching the desktop AvatarTile initials.
           variant="display"
-          style={{ color: colors.fg, fontSize: size * 0.4, fontWeight: "700" }}
+          style={{ color: colors.fgDisplay, fontSize: size * 0.4, fontWeight: "600" }}
         >
           {initials(name)}
         </Text>
-        {trimmedUri ? (
+        {showImage ? (
           <Image
             source={{ uri: trimmedUri }}
+            cachePolicy="memory-disk"
+            transition={reduced ? 0 : motion.duration.fast}
+            contentFit="cover"
+            onError={() => setFailedUri(trimmedUri)}
             style={{
               position: "absolute",
               top: 0,
@@ -121,18 +169,14 @@ export function Avatar({
             position: "absolute",
             right: -3,
             bottom: -3,
-            // Dark backdrop matching the app so the colored phone reads as a
-            // cut-out badge over the avatar (mirrors the desktop treatment).
-            backgroundColor: colors.app,
+            // Cut-out in the surface colour so the coloured phone reads as a
+            // badge over the avatar (mirrors the desktop treatment).
+            backgroundColor: ringColor,
             borderRadius: 5,
             padding: 1.5,
           }}
         >
-          <Smartphone
-            size={dot + 1}
-            color={presenceColor(presence!)}
-            strokeWidth={2.5}
-          />
+          <Smartphone size={dot + 1} color={presenceColor(presence!)} strokeWidth={2.5} />
         </View>
       ) : presence ? (
         <View
@@ -145,20 +189,20 @@ export function Avatar({
             borderRadius: radius.pill,
             backgroundColor: presenceColor(presence),
             borderWidth: 2,
-            borderColor: colors.app,
+            borderColor: ringColor,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          {/* Do Not Disturb: a white dash centered on the red dot. */}
+          {/* Do Not Disturb: a dark dash centred on the pink dot. */}
           {presence === "dnd" ? (
             <View
               style={{
                 width: Math.max(4, Math.round(dot * 0.42)),
                 height: Math.max(1.5, Math.round(dot * 0.16)),
                 borderRadius: radius.pill,
-                // The dnd dot is a light red, so the dash is the dark on-accent
-                // ink (~6.5:1) rather than white (~2.7:1).
+                // The dnd dot is a light pink, so the dash is the dark on-accent
+                // ink (~7:1) rather than white (~2.6:1).
                 backgroundColor: colors.onAccent,
               }}
             />
@@ -166,5 +210,32 @@ export function Avatar({
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** The coral ring outside the surface ring, fading with the speaking state. */
+function SpeakingRing({ size, speaking, reduced }: { size: number; speaking: boolean; reduced: boolean }) {
+  const speak = useSharedValue(speaking ? 1 : 0);
+  useEffect(() => {
+    speak.value = motionTo(speaking ? 1 : 0, "tone", { reduced });
+  }, [speaking, reduced, speak]);
+  const style = useAnimatedStyle(() => ({ opacity: speak.value }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: "absolute",
+          top: -RING * 2,
+          left: -RING * 2,
+          width: size + RING * 4,
+          height: size + RING * 4,
+          borderRadius: radius.pill,
+          borderWidth: RING,
+          borderColor: colors.accent,
+        },
+        style,
+      ]}
+    />
   );
 }
