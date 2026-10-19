@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { View } from "react-native";
 import { Text } from "./ui/Text";
+import { Button } from "@/components/Button";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
 import { ToggleRow } from "@/components/ToggleRow";
@@ -7,11 +9,12 @@ import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
 import {
   AUDIO_QUALITY_BITRATE_KBPS,
+  isEchoCancellationOn,
   type AudioQuality,
   type InputMode,
   type NoiseSuppressionTier,
 } from "@demli/media";
-import { colors, space, typography } from "@/theme/theme";
+import { colors, radius, space, typography } from "@/theme/theme";
 
 /**
  * "Mikrofon" settings — the mobile counterpart of the desktop MicSettingsForm.
@@ -52,12 +55,88 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+/**
+ * Yankı Engelleme. Turning it OFF is two steps: the row opens an inline warning and
+ * only "Kulaklık takılı, kapat" turns it off (recording that confirmation). On the
+ * loudspeaker with AEC off, the room hears itself through this phone. Music mode
+ * keeps AEC on; the parent section is locked then.
+ */
+function EchoCancellationRow({ music }: { music: boolean }) {
+  const { t } = useAppTranslation();
+  const audio = useMediaSettings((s) => s.audio);
+  const setEchoCancellation = useMediaSettings((s) => s.setEchoCancellation);
+  const [confirming, setConfirming] = useState(false);
+  const on = isEchoCancellationOn(audio);
+
+  const onToggle = () => {
+    if (on) {
+      setConfirming(true);
+    } else {
+      setConfirming(false);
+      setEchoCancellation("on");
+    }
+  };
+
+  return (
+    <View>
+      <ToggleRow label={t("mobile:mic.echoCancellation")} checked={on} onToggle={onToggle} />
+      {confirming && on && !music ? (
+        <View
+          accessibilityRole="alert"
+          style={{
+            marginHorizontal: space.md,
+            marginBottom: space.sm,
+            padding: space.md,
+            gap: space.sm,
+            borderRadius: radius.md,
+            borderCurve: "continuous",
+            borderWidth: 1,
+            borderColor: colors.warning,
+            backgroundColor: colors.surfaceRaised,
+          }}
+        >
+          <Text style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}>
+            {t("mobile:mic.echoOffWarning")}
+          </Text>
+          <View style={{ flexDirection: "row", gap: space.sm, justifyContent: "flex-end" }}>
+            <Button
+              variant="ghost"
+              label={t("mobile:mic.echoOffCancel")}
+              onPress={() => setConfirming(false)}
+            />
+            <Button
+              variant="danger"
+              label={t("mobile:mic.echoOffConfirm")}
+              onPress={() => {
+                setEchoCancellation("off_headphones");
+                setConfirming(false);
+              }}
+            />
+          </View>
+        </View>
+      ) : null}
+      {!on && !music ? (
+        <Text
+          style={{
+            color: colors.warning,
+            fontSize: 12,
+            paddingHorizontal: space.md,
+            paddingBottom: space.sm,
+          }}
+        >
+          {t("mobile:mic.echoOffActive")}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function MicSettings() {
   const { t } = useAppTranslation();
   const audio = useMediaSettings((s) => s.audio);
   const setInputMode = useMediaSettings((s) => s.setInputMode);
   const setVadThreshold = useMediaSettings((s) => s.setVadThreshold);
-  const setProcessing = useMediaSettings((s) => s.setProcessing);
+  const setAutoGainControl = useMediaSettings((s) => s.setAutoGainControl);
   const setNoiseSuppression = useMediaSettings((s) => s.setNoiseSuppression);
   const setMusicMode = useMediaSettings((s) => s.setMusicMode);
   const setAudioQuality = useMediaSettings((s) => s.setAudioQuality);
@@ -141,15 +220,11 @@ export function MicSettings() {
               onSelect={(key) => setNoiseSuppression(key as NoiseSuppressionTier)}
             />
           </View>
-          <ToggleRow
-            label={t("mobile:mic.echoCancellation")}
-            checked={music || audio.processing.echoCancellation}
-            onToggle={() => setProcessing({ echoCancellation: !audio.processing.echoCancellation })}
-          />
+          <EchoCancellationRow music={music} />
           <ToggleRow
             label={t("mobile:mic.autoGainControl")}
             checked={!music && audio.processing.autoGainControl}
-            onToggle={() => setProcessing({ autoGainControl: !audio.processing.autoGainControl })}
+            onToggle={() => setAutoGainControl(!audio.processing.autoGainControl)}
           />
         </View>
       </View>
