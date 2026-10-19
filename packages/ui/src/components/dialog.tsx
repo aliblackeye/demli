@@ -62,14 +62,21 @@ export interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   /** Accessible name of the corner close button — pass the translated "Kapat". */
   closeLabel?: string;
+  /**
+   * Extra classes for the scrim. Exists for LAYERING: a dialog opened from
+   * inside a full-screen surface that sits above z-50 (the settings layer)
+   * must lift its scrim together with its card — lifting only the card
+   * (`className`) leaves the scrim underneath that surface.
+   */
+  overlayClassName?: string;
 }
 
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, closeLabel = "Close", ...props }, ref) => (
+>(({ className, children, closeLabel = "Close", overlayClassName, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
