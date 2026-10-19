@@ -474,6 +474,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       // of a moderator.
       ejector: voiceModerator,
       mutationBus: options.mutationBus,
+      notifier: options.notifier,
       log: server.log,
       ringWindowMs: RING_TIMEOUT_SECONDS * 1000,
     });

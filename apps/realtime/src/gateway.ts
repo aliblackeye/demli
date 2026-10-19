@@ -526,6 +526,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
   const callReaper = createDmCallDisconnectReaper({
     repos: deps.repos,
     mutationBus: deps.mutationBus,
+    ...(deps.notifier ? { notifier: deps.notifier } : {}),
     isOffline: async (userId) => (await deps.presence.getStatus(userId)) === "offline",
     graceMs: options.callerDropGraceMs,
     log,
