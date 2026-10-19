@@ -49,6 +49,7 @@ export function VoiceJoinGuardDialog(): JSX.Element | null {
     >
       <DialogContent
         className="max-w-sm"
+        closeLabel={t("buttons.close")}
         aria-describedby={DESC_ID}
         onOpenAutoFocus={(e) => {
           // Land focus on CANCEL, never the destructive confirm — a stray Enter
@@ -58,32 +59,32 @@ export function VoiceJoinGuardDialog(): JSX.Element | null {
         }}
       >
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle>
             {t("desktop:voice.joinGuard.title")}
           </DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <ul id={DESC_ID} className="flex flex-col gap-2.5 text-sm">
+          <ul id={DESC_ID} className="flex flex-col gap-1 rounded-xl bg-surface p-2 text-label">
             {consequences.stopsScreenShare && (
-              <li className="flex items-start gap-2.5 text-fg">
-                <MonitorX className="mt-0.5 size-4 shrink-0 text-danger" />
+              <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-fg">
+                <MonitorX aria-hidden className="mt-px size-4 shrink-0 text-danger" />
                 <span>{t("desktop:voice.joinGuard.screenShare")}</span>
               </li>
             )}
             {consequences.leavesCall && (
-              <li className="flex items-start gap-2.5 text-fg">
-                <PhoneOff className="mt-0.5 size-4 shrink-0 text-danger" />
+              <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-fg">
+                <PhoneOff aria-hidden className="mt-px size-4 shrink-0 text-danger" />
                 <span>{t("desktop:voice.joinGuard.leaveCall")}</span>
               </li>
             )}
             {consequences.leavesChannel && (
-              <li className="flex items-start gap-2.5 text-fg">
-                <LogOut className="mt-0.5 size-4 shrink-0 text-danger" />
+              <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-fg">
+                <LogOut aria-hidden className="mt-px size-4 shrink-0 text-danger" />
                 <span>{t("desktop:voice.joinGuard.leaveChannel")}</span>
               </li>
             )}
-            <li className="flex items-start gap-2.5 text-fg-muted">
-              <Volume2 className="mt-0.5 size-4 shrink-0 text-fg-faint" />
+            <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-fg-muted">
+              <Volume2 aria-hidden className="mt-px size-4 shrink-0 text-accent" />
               <span>{t("desktop:voice.joinGuard.joinTarget", { channel: channelName })}</span>
             </li>
           </ul>
@@ -92,7 +93,9 @@ export function VoiceJoinGuardDialog(): JSX.Element | null {
           <Button ref={cancelRef} variant="secondary" onClick={cancel}>
             {t("desktop:voice.joinGuard.cancel")}
           </Button>
-          <Button onClick={confirm}>{t("desktop:voice.joinGuard.confirm")}</Button>
+          <Button variant="accent" onClick={confirm} data-testid="join-guard-confirm">
+            {t("desktop:voice.joinGuard.confirm")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

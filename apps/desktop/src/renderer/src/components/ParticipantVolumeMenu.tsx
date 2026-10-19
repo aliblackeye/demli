@@ -19,7 +19,7 @@
 
 import { memo, useEffect, useRef, useState, type ReactElement } from "react";
 import { RotateCcw, Volume1, Volume2, VolumeX } from "lucide-react";
-import { ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "@demli/ui";
+import { ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, Slider } from "@demli/ui";
 import { ActionMenu } from "@demli/app-ui";
 import {
   DEFAULT_PARTICIPANT_VOLUME,
@@ -81,7 +81,6 @@ export const ParticipantVolumeMenu = memo(function ParticipantVolumeMenu({
   }, [participant.volume]);
 
   // A remote muted to 0% has no menu badge here, but the tiles/rows show it.
-  const percent = Math.round(value * 100);
   const VolumeIcon = value <= 0 ? VolumeX : value < 1 ? Volume1 : Volume2;
   const atDefault = isDefaultParticipantVolume(value);
 
@@ -104,35 +103,38 @@ export const ParticipantVolumeMenu = memo(function ParticipantVolumeMenu({
 
           {/* Slider lives in a NON-item container: right-click stays open while
               dragging, and stopping keydown keeps arrow keys on the slider (not
-              the menu's roving focus / typeahead). */}
-          <div className="px-2 pb-2 pt-1" onKeyDown={(e) => e.stopPropagation()}>
-          <div className="mb-1.5 flex items-center justify-between text-2xs text-fg-muted">
-            <span>{t("desktop:voice.userVolume")}</span>
-            <span className="font-medium tabular-nums text-fg">{percent}%</span>
+              the menu's roving focus / typeahead). The design system's volume
+              slider: 4px raised track, coral fill, white thumb, value chip. */}
+          <div
+            className="px-2 pb-2 pt-1"
+            data-testid="participant-volume"
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={() => (draggingRef.current = true)}
+            onPointerUp={() => (draggingRef.current = false)}
+            onPointerCancel={() => (draggingRef.current = false)}
+          >
+            <p className="mb-1 text-2xs font-medium text-fg-muted">{t("desktop:voice.userVolume")}</p>
+            <div className="flex items-center gap-2">
+              <VolumeIcon className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
+              <Slider
+                className="flex-1 gap-2"
+                min={MIN_PARTICIPANT_VOLUME}
+                max={ELEMENT_PLAYBACK_MAX_VOLUME}
+                step={VOLUME_STEP}
+                value={value}
+                disabled={deafened}
+                onValueChange={commit}
+                formatValue={(v) => `${Math.round(v * 100)}%`}
+                showValue
+                aria-label={t("desktop:voice.userVolumeFor", { name })}
+              />
+            </div>
+            {deafened && (
+              <p className="mt-1.5 text-badge leading-snug text-fg-faint">
+                {t("desktop:voice.userVolumeDeafened")}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <VolumeIcon className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
-            <input
-              type="range"
-              min={MIN_PARTICIPANT_VOLUME}
-              max={ELEMENT_PLAYBACK_MAX_VOLUME}
-              step={VOLUME_STEP}
-              value={value}
-              disabled={deafened}
-              aria-label={t("desktop:voice.userVolumeFor", { name })}
-              aria-valuetext={`${percent}%`}
-              onPointerDown={() => (draggingRef.current = true)}
-              onPointerUp={() => (draggingRef.current = false)}
-              onChange={(e) => commit(e.currentTarget.valueAsNumber)}
-              className="h-1.5 flex-1 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-40"
-            />
-          </div>
-          {deafened && (
-            <p className="mt-1.5 text-badge leading-snug text-fg-faint">
-              {t("desktop:voice.userVolumeDeafened")}
-            </p>
-          )}
-        </div>
 
         <ContextMenuSeparator />
         <ContextMenuItem

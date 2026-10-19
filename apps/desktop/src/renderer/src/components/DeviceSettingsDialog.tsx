@@ -17,7 +17,7 @@ export function DeviceSettingsDialog(): JSX.Element {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{t("desktop:voice.voiceSettings")}</DialogTitle>
           <DialogDescription>{t("desktop:devices.description")}</DialogDescription>
