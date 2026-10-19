@@ -14,8 +14,8 @@
  * reproduced with `space-x-*` (the two icon+text rows wrap their text in a `<span>`
  * so the margin lands on an element).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock, CornerUpRight, ImageUp, Paperclip, SmilePlus, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Ban, Clock, CornerUpRight, ImageUp, Paperclip, SmilePlus, X } from "lucide-react";
 import { useTranslation } from "@demli/i18n";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, UserAvatar, cn } from "@demli/ui";
 import { ATTACHMENT_MAX_PER_MESSAGE, MESSAGE_MAX_LENGTH } from "@demli/config";
@@ -36,10 +36,14 @@ import {
   useComposerServices,
   type ComposerReplyPayload,
   type ComposerSendAttachments,
+  type ComposerSendBlock,
 } from "../data/composer-data";
 import { onMentionInsert } from "../data/mention-insert";
+import { onComposerFocusRequest, requestEditLastMessage } from "../data/edit-request";
 
 const MAX_HEIGHT_PX = 192;
+/** Show the remaining-characters counter once the draft is this close to the cap. */
+const COUNTER_THRESHOLD = 200;
 /** How many mention suggestions to show at once. */
 const MENTION_SUGGESTION_LIMIT = 8;
 
@@ -47,6 +51,11 @@ const MENTION_SUGGESTION_LIMIT = 8;
  * Compact human duration for slow-mode intervals/countdowns: "5s", "1m",
  * "1m 30s", "2h". Inlined into the shared layer (moved from the desktop lib).
  */
+/** Stand-in for a surface that does not wire {@link ComposerServices.useSendBlock}. */
+function useNoSendBlock(): ComposerSendBlock | null {
+  return null;
+}
+
 function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.ceil(totalSeconds));
   if (seconds < 60) return `${seconds}s`;
@@ -92,10 +101,15 @@ function SlowmodeCountdown({ channelId }: { channelId: string }): JSX.Element | 
   if (remainingMs <= 0) return null;
   return (
     // Safari 12: no flex `gap` → `space-x-1.5` reproduces the icon/text gutter.
-    <div className="mb-1.5 flex items-center space-x-1.5 px-1 text-xs font-medium text-idle">
-      <Clock className="size-3.5 shrink-0" aria-hidden />
-      <span role="status">
-        {t("desktop:composer.slowmodeCountdown", { duration: formatDuration(remainingMs / 1000) })}
+    <div className="mb-2 flex">
+      <span
+        role="status"
+        className="inline-flex h-6 items-center space-x-1.5 rounded-pill bg-warning/12 px-2.5 text-2xs font-medium tabular-nums text-warning animate-fade-in"
+      >
+        <Clock className="size-3.5 shrink-0" aria-hidden />
+        <span>
+          {t("desktop:composer.slowmodeCountdown", { duration: formatDuration(remainingMs / 1000) })}
+        </span>
       </span>
     </div>
   );
@@ -165,6 +179,12 @@ export function MessageComposer({
     [mention, candidates],
   );
   const mentionOpen = mention !== null && suggestions.length > 0;
+
+  // Known-before-send refusal (the viewer blocked this DM peer). Optional seam:
+  // a surface that does not wire it simply never shows the blocked state.
+  const useSendBlock = services.useSendBlock ?? useNoSendBlock;
+  const sendBlock = useSendBlock(channel.id);
+  const listboxId = useId();
 
   const attachmentsDisabled = services.useAttachmentsDisabled();
   const { drafts, hasPending, hasDrafts, addFiles, removeDraft, retryDraft, clearDrafts } =
@@ -251,6 +271,16 @@ export function MessageComposer({
         });
       }),
     [services, channel.id],
+  );
+
+  // An in-place edit that just closed hands the keyboard back here (↑ → edit →
+  // Enter/Esc keeps the user typing without reaching for the mouse).
+  useEffect(
+    () =>
+      onComposerFocusRequest((channelId) => {
+        if (channelId === channel.id) textareaRef.current?.focus();
+      }),
+    [channel.id],
   );
 
   const resize = useCallback(() => {
@@ -393,24 +423,39 @@ export function MessageComposer({
     }
   }, [value, pendingMentions, hasPending, drafts, services, channel.id, clearDrafts]);
 
-  const showDropOverlay = dragging && !attachmentsDisabled;
+  const showDropOverlay = dragging && !attachmentsDisabled && sendBlock === null;
+  const remaining = MESSAGE_MAX_LENGTH - value.length;
+  const showCounter = sendBlock === null && remaining <= COUNTER_THRESHOLD;
+  const activeOptionId = mentionOpen ? `${listboxId}-opt-${mentionIndex}` : undefined;
 
   return (
     <div className="relative shrink-0 px-4 pb-5 pt-2">
       {mentionOpen && (
-        <div className="absolute bottom-full left-4 right-4 z-20 mb-2 overflow-hidden rounded-lg border border-stroke bg-overlay shadow-lg">
-          <p className="border-b border-stroke px-2.5 py-1.5 text-badge font-semibold uppercase tracking-wider text-fg-faint">
+        // Strong glass over the thread, borderless (Koyu Masa menu recipe):
+        // highlighted row = the raised tone, exactly like a dropdown menu row.
+        <div className="absolute bottom-full left-4 right-4 z-20 mb-2 overflow-hidden rounded-xl surface-glass-strong p-1 animate-pop-in-fast">
+          <p
+            id={`${listboxId}-heading`}
+            className="px-2.5 pb-1 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-fg-faint"
+          >
             {t("desktop:composer.mentionHeading")}
           </p>
           <ul
-            className="max-h-56 overflow-y-auto py-1"
+            id={listboxId}
+            className="max-h-56 overflow-y-auto"
             role="listbox"
-            aria-label={t("desktop:composer.mentionHeading")}
+            aria-labelledby={`${listboxId}-heading`}
           >
             {suggestions.map((candidate, i) => (
-              <li key={candidate.id} role="option" aria-selected={i === mentionIndex}>
+              <li
+                key={candidate.id}
+                id={`${listboxId}-opt-${i}`}
+                role="option"
+                aria-selected={i === mentionIndex}
+              >
                 <button
                   type="button"
+                  tabIndex={-1}
                   // mousedown (not click) fires before the textarea blurs, so the
                   // pick lands without the picker closing from a lost focus first.
                   onMouseDown={(e) => {
@@ -419,13 +464,14 @@ export function MessageComposer({
                   }}
                   onMouseEnter={() => setMentionIndex(i)}
                   className={cn(
-                    // Safari 12: no flex `gap` → `space-x-2` for the avatar/label gutter.
-                    "flex w-full items-center space-x-2 px-2.5 py-1.5 text-left text-sm",
-                    i === mentionIndex ? "bg-accent/15 text-fg" : "text-fg-muted",
+                    // Safari 12: no flex `gap` → `space-x-2.5` for the avatar/label gutter.
+                    "flex w-full cursor-pointer items-center space-x-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm",
+                    "transition-colors motion-hover",
+                    i === mentionIndex ? "bg-raised text-fg" : "text-fg-muted",
                   )}
                 >
                   {candidate.broadcast ? (
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-surface text-xs font-semibold text-accent-hover">
                       @
                     </span>
                   ) : (
@@ -470,64 +516,31 @@ export function MessageComposer({
         }}
       />
 
-      {replyTarget && (
-        // Safari 12: no flex `gap` → `space-x-2` reproduces the banner gutter.
-        <div className="flex items-center space-x-2 rounded-t-xl border border-b-0 border-stroke bg-raised/70 px-3 py-1.5 text-xs">
-          <CornerUpRight className="size-3.5 shrink-0 text-fg-faint" aria-hidden />
-          {/*
-           * Name AND the quoted text. The bar used to say only "X kişisine yanıt
-           * veriliyor", which does not answer the question the bar exists to
-           * answer: WHICH message. In a fast channel you reply, get distracted,
-           * come back, and the composer cannot tell you what you were replying to
-           * — you have to cancel and start over. The quote line above a sent
-           * reply (MessageRow's ReplyQuote) already shows name + content, so this
-           * matches the shape the user has been reading all along.
-           *
-           * `content` is rendered as PLAIN TEXT on purpose: no markdown, no
-           * mention resolution. A preview is a reminder, not a second rendering
-           * surface, and running markdown here would let a quoted message paint
-           * into the composer chrome.
-           */}
-          <span className="shrink-0 font-medium text-fg-muted">
-            {replyAuthorName ?? t("desktop:chat.unknownUser")}
-          </span>
-          <span className="min-w-0 truncate text-fg-faint">
-            {replyPreviewText(replyTarget.content, t("desktop:search.attachmentOnly"))}
-          </span>
-          <button
-            type="button"
-            onClick={cancelReply}
-            aria-label={t("desktop:composer.cancelReply")}
-            // `!ml-auto` (not `ml-auto`): the sibling `space-x-2` margin would
-            // otherwise override the auto margin and lose the right-alignment
-            // (the Safari-12 space-x/ml-auto trap, same as the ChatView header).
-            className="!ml-auto flex size-5 shrink-0 items-center justify-center rounded text-fg-faint transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      )}
-
       <div
         className={cn(
-          // Premium input frame — warm raised surface, cream hairline, soft accent
-          // focus glow. Mirrors the shared <Input> primitive (bg-raised /
-          // border-stroke / focus accent ring) so the composer reads as one system
-          // with the rest of the Demli Voice v2 theme instead of a stray box.
-          "relative border border-stroke bg-raised px-2 shadow-sm transition-colors motion-instant",
-          replyTarget ? "rounded-b-xl" : "rounded-xl",
-          "focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/30",
-          showDropOverlay && "border-accent",
+          // Koyu Masa field recipe at composer scale: borderless, the surface tone
+          // at rest, a half step up on hover, the raised tone + a faint coral
+          // inner trace while focused. The reply bar and the attachment strip
+          // live INSIDE this frame, so the whole box changes tone as one.
+          "relative rounded-xl bg-surface px-2 transition-[background-color,box-shadow] motion-hover",
+          // Hover lifts only a RESTING field: once focused the raised tone must
+          // win, or the pointer that just clicked in would hold it half-lit.
+          sendBlock === null && "[&:hover:not(:focus-within)]:bg-raised/60",
+          "focus-within:bg-raised focus-within:shadow-[inset_0_0_0_1px_var(--color-accent-glow)]",
         )}
         onDragEnter={(event) => {
-          if (attachmentsDisabled) return;
+          if (attachmentsDisabled || sendBlock) return;
           if (Array.from(event.dataTransfer.types).includes("Files")) {
             dragDepth.current += 1;
             setDragging(true);
           }
         }}
         onDragOver={(event) => {
-          if (!attachmentsDisabled && Array.from(event.dataTransfer.types).includes("Files")) {
+          if (
+            !attachmentsDisabled &&
+            !sendBlock &&
+            Array.from(event.dataTransfer.types).includes("Files")
+          ) {
             event.preventDefault();
           }
         }}
@@ -538,167 +551,262 @@ export function MessageComposer({
         onDrop={(event) => {
           dragDepth.current = 0;
           setDragging(false);
-          if (attachmentsDisabled) return;
+          if (attachmentsDisabled || sendBlock) return;
           if (event.dataTransfer.files.length > 0) {
             event.preventDefault();
             pickFiles(event.dataTransfer.files);
           }
         }}
       >
-        {hasDrafts && (
+        {replyTarget && sendBlock === null && (
+          // Safari 12: no flex `gap` → `space-x-2` reproduces the banner gutter.
+          <div className="flex items-center space-x-2 px-2 pb-0.5 pt-2.5 text-xs animate-fade-in">
+            <CornerUpRight className="size-3.5 shrink-0 text-accent" aria-hidden />
+            {/*
+             * Name AND the quoted text. The bar used to say only "X kişisine yanıt
+             * veriliyor", which does not answer the question the bar exists to
+             * answer: WHICH message. In a fast channel you reply, get distracted,
+             * come back, and the composer cannot tell you what you were replying to
+             * — you have to cancel and start over. The quote line above a sent
+             * reply (MessageRow's ReplyQuote) already shows name + content, so this
+             * matches the shape the user has been reading all along.
+             *
+             * `content` is rendered as PLAIN TEXT on purpose: no markdown, no
+             * mention resolution. A preview is a reminder, not a second rendering
+             * surface, and running markdown here would let a quoted message paint
+             * into the composer chrome.
+             */}
+            <span className="shrink-0 font-semibold text-fg">
+              {replyAuthorName ?? t("desktop:chat.unknownUser")}
+            </span>
+            <span className="min-w-0 truncate text-fg-faint">
+              {replyPreviewText(replyTarget.content, t("desktop:search.attachmentOnly"))}
+            </span>
+            <button
+              type="button"
+              onClick={cancelReply}
+              aria-label={t("desktop:composer.cancelReply")}
+              // `!ml-auto` (not `ml-auto`): the sibling `space-x-2` margin would
+              // otherwise override the auto margin and lose the right-alignment
+              // (the Safari-12 space-x/ml-auto trap, same as the ChatView header).
+              className="!ml-auto flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-faint transition-colors motion-hover hover:bg-wash hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
+        )}
+
+        {hasDrafts && sendBlock === null && (
           <div className="px-1 pt-2">
             {services.renderAttachmentPreview({ drafts, onRemove: removeDraft, onRetry: retryDraft })}
           </div>
         )}
 
-        {/*
-          The three controls each sit in an equal-height `h-11` box; with the row
-          on `items-end` they line up on ONE vertical axis on a single line, and
-          when the textarea grows the two icon boxes stay pinned to the last line.
-          No per-icon "magic margin" — the shared box height is the single knob.
-          Safari 12: no flex `gap` → `space-x-1` for the attach/textarea/emoji gutter.
-        */}
-        <div className="flex items-end space-x-1">
-          {showAttachmentButton && (
-            <div className="flex h-11 shrink-0 items-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* Wrapper span keeps the tooltip working when the button is disabled. */}
-                  <span className="inline-flex">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t("desktop:composer.attachFiles")}
-                      disabled={attachDisabled}
-                      className="text-fg-faint"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Paperclip className="size-5" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top">{attachTooltip}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={value}
-            maxLength={MESSAGE_MAX_LENGTH}
-            onChange={(event) => {
-              const next = event.target.value;
-              setValue(next);
-              resize();
-              // Debounced persist (store-side) — no storage write per keystroke (§27).
-              services.setDraft(channel.id, next);
-              refreshMention(next, event.target.selectionStart ?? next.length);
-              if (next.trim().length > 0) services.notifyTyping(channel.id);
-              else services.notifyIdle(channel.id);
-            }}
-            onKeyUp={(event) => {
-              // Arrow/click caret moves (no value change) can enter or leave an
-              // @fragment — re-evaluate unless we are navigating the open picker.
-              if (mentionOpen) return;
-              const el = event.currentTarget;
-              refreshMention(el.value, el.selectionStart ?? el.value.length);
-            }}
-            onClick={(event) => {
-              const el = event.currentTarget;
-              refreshMention(el.value, el.selectionStart ?? el.value.length);
-            }}
-            onPaste={(event) => {
-              const files = Array.from(event.clipboardData.files);
-              if (files.length > 0 && !attachmentsDisabled) {
-                event.preventDefault();
-                pickFiles(files);
-              }
-            }}
-            onKeyDown={(event) => {
-              // The mention picker takes priority over send/reply while open.
-              if (mentionOpen) {
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  setMentionIndex((i) => (i + 1) % suggestions.length);
-                  return;
-                }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setMentionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
-                  return;
-                }
-                if (event.key === "Enter" || event.key === "Tab") {
-                  event.preventDefault();
-                  const chosen = suggestions[mentionIndex] ?? suggestions[0];
-                  if (chosen) pickMention(chosen);
-                  return;
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  setMention(null);
-                  return;
-                }
-              }
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                submit();
-              } else if (event.key === "Escape" && replyTarget) {
-                event.preventDefault();
-                cancelReply();
-              }
-            }}
-            placeholder={t("desktop:composer.placeholder", { channel: channel.name })}
-            aria-label={t("desktop:composer.placeholder", { channel: channel.name })}
-            className={cn(
-              // `min-h-11` + `py-3` make the single-line height exactly h-11 (44px),
-              // matching the two icon boxes so `items-end` centres all three on one
-              // axis; `max-h-48` (= MAX_HEIGHT_PX) caps the auto-grow. `caret-accent`
-              // ties the cursor into the Demli accent.
-              "max-h-48 min-h-11 flex-1 resize-none bg-transparent py-3 text-sm leading-5 text-fg caret-accent",
-              "placeholder:text-fg-faint focus:outline-none",
-            )}
-          />
-
-          {/* Inserts a unicode glyph, or a `:name:` shortcode for a group emoji
-              (the renderer resolves the shortcode back into an image, so the
-              message itself stays plain text — §28). The h-11 box wraps the whole
-              picker (the Button stays the direct PopoverTrigger — no nested
-              interactive) so the emoji icon shares the attach button's axis. */}
-          <div className="flex h-11 shrink-0 items-center">
-            {services.renderEmojiPicker({
-              onSelect: insertEmoji,
-              align: "end",
-              side: "top",
-              children: (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("desktop:composer.addEmoji")}
-                  className="text-fg-faint"
-                >
-                  <SmilePlus className="size-5" />
-                </Button>
-              ),
-            })}
+        {sendBlock ? (
+          // Known-before-send refusal. Says what is true (YOU blocked them — the
+          // other direction is never revealed), and offers the one action that
+          // changes it, instead of a textarea whose every send would bounce.
+          <div
+            role="status"
+            className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1.5 px-2 py-2"
+          >
+            <Ban className="size-4 shrink-0 text-fg-faint" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm text-fg-muted">
+              {t("desktop:composer.blockedNotice", { name: sendBlock.name })}
+            </p>
+            <Button variant="secondary" size="sm" onClick={sendBlock.unblock}>
+              {t("desktop:composer.unblock")}
+            </Button>
           </div>
-        </div>
+        ) : (
+          /*
+            The three controls each sit in an equal-height `h-11` box; with the row
+            on `items-end` they line up on ONE vertical axis on a single line, and
+            when the textarea grows the two icon boxes stay pinned to the last line.
+            No per-icon "magic margin" — the shared box height is the single knob.
+            Safari 12: no flex `gap` → `space-x-1` for the attach/textarea/emoji gutter.
+          */
+          <div className="flex items-end space-x-1">
+            {showAttachmentButton && (
+              <div className="flex h-11 shrink-0 items-center">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* Wrapper span keeps the tooltip working when the button is disabled. */}
+                    <span className="inline-flex">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("desktop:composer.attachFiles")}
+                        disabled={attachDisabled}
+                        className="text-fg-faint"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip className="size-5" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{attachTooltip}</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={value}
+              maxLength={MESSAGE_MAX_LENGTH}
+              aria-autocomplete="list"
+              aria-controls={mentionOpen ? listboxId : undefined}
+              aria-activedescendant={activeOptionId}
+              onChange={(event) => {
+                const next = event.target.value;
+                setValue(next);
+                resize();
+                // Debounced persist (store-side) — no storage write per keystroke (§27).
+                services.setDraft(channel.id, next);
+                refreshMention(next, event.target.selectionStart ?? next.length);
+                if (next.trim().length > 0) services.notifyTyping(channel.id);
+                else services.notifyIdle(channel.id);
+              }}
+              onKeyUp={(event) => {
+                // Arrow/click caret moves (no value change) can enter or leave an
+                // @fragment — re-evaluate unless we are navigating the open picker.
+                if (mentionOpen) return;
+                const el = event.currentTarget;
+                refreshMention(el.value, el.selectionStart ?? el.value.length);
+              }}
+              onClick={(event) => {
+                const el = event.currentTarget;
+                refreshMention(el.value, el.selectionStart ?? el.value.length);
+              }}
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData.files);
+                if (files.length > 0 && !attachmentsDisabled) {
+                  event.preventDefault();
+                  pickFiles(files);
+                }
+              }}
+              onKeyDown={(event) => {
+                // The mention picker takes priority over send/reply while open.
+                if (mentionOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setMentionIndex((i) => (i + 1) % suggestions.length);
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setMentionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    const chosen = suggestions[mentionIndex] ?? suggestions[0];
+                    if (chosen) pickMention(chosen);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setMention(null);
+                    return;
+                  }
+                }
+                // ↑ in an EMPTY composer edits your last message (Discord parity).
+                // Only an empty field with nothing attached: with text in it, ↑ is
+                // caret movement and must stay that. The key is swallowed only when
+                // the thread actually had a message to open.
+                if (
+                  event.key === "ArrowUp" &&
+                  value === "" &&
+                  !hasDrafts &&
+                  !event.shiftKey &&
+                  !event.altKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  requestEditLastMessage(channel.id)
+                ) {
+                  event.preventDefault();
+                  return;
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                } else if (event.key === "Escape" && replyTarget) {
+                  event.preventDefault();
+                  cancelReply();
+                }
+              }}
+              placeholder={t("desktop:composer.placeholder", { channel: channel.name })}
+              aria-label={t("desktop:composer.placeholder", { channel: channel.name })}
+              className={cn(
+                // `min-h-11` + `py-3` make the single-line height exactly h-11 (44px),
+                // matching the two icon boxes so `items-end` centres all three on one
+                // axis; `max-h-48` (= MAX_HEIGHT_PX) caps the auto-grow. `caret-accent`
+                // ties the cursor into the Demli accent.
+                "max-h-48 min-h-11 flex-1 resize-none bg-transparent py-3 text-sm leading-5 text-fg caret-accent",
+                "placeholder:text-fg-faint focus:outline-none",
+              )}
+            />
+
+            {/* Inserts a unicode glyph, or a `:name:` shortcode for a group emoji
+                (the renderer resolves the shortcode back into an image, so the
+                message itself stays plain text — §28). The h-11 box wraps the whole
+                picker (the Button stays the direct PopoverTrigger — no nested
+                interactive) so the emoji icon shares the attach button's axis. */}
+            <div className="flex h-11 shrink-0 items-center">
+              {services.renderEmojiPicker({
+                onSelect: insertEmoji,
+                align: "end",
+                side: "top",
+                children: (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("desktop:composer.addEmoji")}
+                    className="text-fg-faint data-[state=open]:bg-wash data-[state=open]:text-fg"
+                  >
+                    <SmilePlus className="size-5" />
+                  </Button>
+                ),
+              })}
+            </div>
+          </div>
+        )}
 
         {showDropOverlay && (
           // Safari 12: no flex `gap` → `space-x-2` (text wrapped so it's an element).
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center space-x-2 rounded-xl border-2 border-dashed border-accent bg-overlay/90 text-sm font-medium text-accent">
+          // The dashed coral edge is a FUNCTIONAL line (the drop target), the one
+          // place a frame is allowed on this surface.
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center space-x-2 rounded-xl border-2 border-dashed border-accent surface-glass-strong text-sm font-medium text-accent animate-fade-in">
             <ImageUp className="size-5" aria-hidden />
             <span>{t("desktop:composer.dropToAttach")}</span>
           </div>
         )}
       </div>
 
-      {slowmodeSeconds > 0 && (
-        // Safari 12: no flex `gap` → `space-x-1.5` (text wrapped so it's an element).
-        <p className="mt-1.5 flex items-center space-x-1.5 px-1 text-2xs text-fg-faint">
-          <Clock className="size-3 shrink-0" aria-hidden />
-          <span>{t("desktop:composer.slowmodeNote", { interval: formatDuration(slowmodeSeconds) })}</span>
-        </p>
+      {(slowmodeSeconds > 0 || showCounter) && (
+        <div className="mt-1.5 flex items-center px-1 text-2xs">
+          {slowmodeSeconds > 0 && (
+            // Safari 12: no flex `gap` → `space-x-1.5` (text wrapped so it's an element).
+            <p className="flex min-w-0 items-center space-x-1.5 text-fg-faint">
+              <Clock className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">
+                {t("desktop:composer.slowmodeNote", { interval: formatDuration(slowmodeSeconds) })}
+              </span>
+            </p>
+          )}
+          {showCounter && (
+            <p
+              aria-live="polite"
+              className={cn(
+                "ml-auto shrink-0 pl-3 font-medium tabular-nums",
+                remaining <= 0 ? "text-danger" : "text-fg-faint",
+              )}
+            >
+              {t("desktop:composer.charsLeft", { count: Math.max(0, remaining) })}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
