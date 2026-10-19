@@ -53,14 +53,31 @@ describe.skipIf(!dbUp)("gateway presence.app_state (#110)", () => {
   let repos: Repositories;
   let gateway: Gateway;
   let port: number;
-  let groupId: string;
   let presence: SpyPresenceStore;
-  let observerToken: string;
 
-  async function makeGroupUser(tag: string): Promise<{ id: string; token: string }> {
-    const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const uniq = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  /**
+   * A FRESH group per test — isolation by construction. Presence fans out to
+   * co-members, so with one shared group the PREVIOUS test's actor going offline
+   * (its socket-close handler runs fire-and-forget on the server, after the test
+   * already moved on) lands in the next test's observation window and reads as a
+   * broadcast this test caused. Disjoint groups give disjoint audiences: the only
+   * presence a test's observer can receive is about its own crew.
+   */
+  async function makeCrew(): Promise<string> {
+    const owner = await repos.users.create({
+      username: `asowner_${uniq()}`,
+      displayName: "AppState Owner",
+      passwordHash: "not-used",
+    });
+    const group = await repos.groups.create({ name: "AppState Crew", ownerId: owner.id });
+    return group.id;
+  }
+
+  async function makeGroupUser(groupId: string, tag: string): Promise<{ id: string; token: string }> {
     const user = await repos.users.create({
-      username: `${tag}_${suffix}`,
+      username: `${tag}_${uniq()}`,
       displayName: tag,
       passwordHash: "not-used",
     });
@@ -79,15 +96,6 @@ describe.skipIf(!dbUp)("gateway presence.app_state (#110)", () => {
     await applyMigrations(client.db);
     repos = createRepositories(client.db);
 
-    const owner = await repos.users.create({
-      username: `asowner_${Date.now().toString(36)}`,
-      displayName: "AppState Owner",
-      passwordHash: "not-used",
-    });
-    const group = await repos.groups.create({ name: "AppState Crew", ownerId: owner.id });
-    groupId = group.id;
-    observerToken = (await makeGroupUser("observer")).token;
-
     presence = new SpyPresenceStore();
     gateway = createGateway(
       { repos, presence, mutationBus: new InMemoryMutationBus() },
@@ -102,7 +110,7 @@ describe.skipIf(!dbUp)("gateway presence.app_state (#110)", () => {
   });
 
   it("records the socket's app state with the authenticated identity", async () => {
-    const actor = await makeGroupUser("actor");
+    const actor = await makeGroupUser(await makeCrew(), "actor");
     const conn = await TestClient.connect(port, actor.token);
     await conn.waitFor(SERVER_EVENT.authSucceeded);
 
@@ -120,26 +128,39 @@ describe.skipIf(!dbUp)("gateway presence.app_state (#110)", () => {
   });
 
   it("does NOT broadcast presence on an app-state change (silent for peers)", async () => {
-    const actor = await makeGroupUser("silent");
-    const observer = await TestClient.connect(port, observerToken);
+    const crew = await makeCrew();
+    const watcher = await makeGroupUser(crew, "observer");
+    const actor = await makeGroupUser(crew, "silent");
+    const observer = await TestClient.connect(port, watcher.token);
     await observer.waitFor(SERVER_EVENT.authSucceeded);
 
     const online = await TestClient.connect(port, actor.token);
     await online.waitFor(SERVER_EVENT.authSucceeded);
     // Drain the connect-time presence.updated the observer receives for the actor.
     await observer.waitFor(SERVER_EVENT.presenceUpdated, (e) => e.payload.userId === actor.id);
-    const before = observer.envelopes.filter(
-      (e) => e.event.type === SERVER_EVENT.presenceUpdated,
-    ).length;
+    // EVERY presence.updated counts — about anyone, the observer included. Only the
+    // crew is in this observer's audience (see makeCrew), so nothing from another
+    // test can land here; a frame that does is a broadcast this gateway sent.
+    const presenceFrames = (c: TestClient) =>
+      c.envelopes.filter((e) => e.event.type === SERVER_EVENT.presenceUpdated);
+    const before = presenceFrames(observer).length;
 
     online.send(clientEvent.presenceAppState({ state: "background" }));
     online.send(clientEvent.presenceAppState({ state: "foreground" }));
     await sleep(200);
 
-    const after = observer.envelopes.filter(
-      (e) => e.event.type === SERVER_EVENT.presenceUpdated,
-    ).length;
+    const after = presenceFrames(observer).length;
     expect(after).toBe(before); // app-state changes emit no presence.updated
+
+    // And across the WHOLE run, never presence about the observer itself: it never
+    // changed its own status, and the gateway leaves the connecting socket out of
+    // its own connect-time broadcast (M16). Pre-M16 the observer was sent its own
+    // masked connect-time "online", and under load that frame could land inside
+    // the window above — one of the two reasons this test went red.
+    const aboutSelf = presenceFrames(observer).filter(
+      (e) => e.event.type === SERVER_EVENT.presenceUpdated && e.event.payload.userId === watcher.id,
+    );
+    expect(aboutSelf).toEqual([]);
 
     online.close();
     observer.close();
@@ -147,7 +168,7 @@ describe.skipIf(!dbUp)("gateway presence.app_state (#110)", () => {
   });
 
   it("rejects an invalid app-state payload with INVALID_PAYLOAD, socket stays open", async () => {
-    const actor = await makeGroupUser("bad");
+    const actor = await makeGroupUser(await makeCrew(), "bad");
     const conn = await TestClient.connect(port, actor.token);
     await conn.waitFor(SERVER_EVENT.authSucceeded);
 

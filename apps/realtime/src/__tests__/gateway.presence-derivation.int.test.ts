@@ -358,6 +358,95 @@ describe.skipIf(!dbUp || !redisUp)("gateway presence derivation (ADR 0020)", () 
     await Promise.all([desktop.closed, phone.closed, observer.closed]);
   });
 
+  // -------------------------------------------------------------------------
+  // M16 — presence about the user THEMSELVES. `expectPresence` / `presenceFrames`
+  // take any client, so here the "observer" is also the user's own device.
+  // -------------------------------------------------------------------------
+
+  it("an invisible user's OWN devices get the real status — never offline — while peers get offline", async () => {
+    const a = await makeGroupUser("selfinvis");
+    const observer = await TestClient.connect(port, observerToken);
+    await observer.waitFor(SERVER_EVENT.authSucceeded);
+
+    const desktop = await TestClient.connect(port, a.token, "desktop");
+    await desktop.waitFor(SERVER_EVENT.authSucceeded);
+    await awaitConnectBroadcast(observer, a.id);
+    const phone = await TestClient.connect(port, a.token, "mobile");
+    await phone.waitFor(SERVER_EVENT.authSucceeded);
+
+    // The desktop goes invisible: peers see offline, BOTH own devices see invisible.
+    let peerMark = observer.envelopes.length;
+    let deskMark = desktop.envelopes.length;
+    let phoneMark = phone.envelopes.length;
+    desktop.send(clientEvent.presenceUpdate({ userId: a.id, status: "invisible" }));
+    await expectPresence(observer, peerMark, a.id, "offline");
+    await expectPresence(desktop, deskMark, a.id, "invisible");
+    await expectPresence(phone, phoneMark, a.id, "invisible");
+
+    // The phone declares dnd; invisible still outranks it for the account.
+    peerMark = observer.envelopes.length;
+    phoneMark = phone.envelopes.length;
+    phone.send(clientEvent.presenceUpdate({ userId: a.id, status: "dnd" }));
+    await expectPresence(phone, phoneMark, a.id, "invisible");
+    await expectPresence(observer, peerMark, a.id, "offline");
+
+    // The desktop leaves invisible: the phone's dnd now rules the account, and the
+    // desktop — the device that just picked "online" — is told so.
+    peerMark = observer.envelopes.length;
+    deskMark = desktop.envelopes.length;
+    phoneMark = phone.envelopes.length;
+    desktop.send(clientEvent.presenceUpdate({ userId: a.id, status: "online" }));
+    await expectPresence(observer, peerMark, a.id, "dnd");
+    await expectPresence(desktop, deskMark, a.id, "dnd");
+    await expectPresence(phone, phoneMark, a.id, "dnd");
+
+    // Over the whole run, neither own device was ever told it was offline.
+    expect(presenceFrames(desktop, a.id)).not.toContain("offline");
+    expect(presenceFrames(phone, a.id)).not.toContain("offline");
+
+    desktop.close();
+    phone.close();
+    observer.close();
+    await Promise.all([desktop.closed, phone.closed, observer.closed]);
+  });
+
+  it("the handshake snapshot never carries the connecting user, although the real co-member query does", async () => {
+    const a = await makeGroupUser("selfsnap");
+    // The premise of the M16 bug, pinned against the REAL repository: the user is
+    // a member of their own group, so the co-member list includes them. The
+    // gateway, not the repository, is what keeps them out of their own audience.
+    expect(await repos.groups.listCoMemberUserIds(a.id)).toContain(a.id);
+
+    const observer = await TestClient.connect(port, observerToken);
+    await observer.waitFor(SERVER_EVENT.authSucceeded);
+    const desktop = await TestClient.connect(port, a.token, "desktop");
+    await desktop.waitFor(SERVER_EVENT.authSucceeded);
+    await awaitConnectBroadcast(observer, a.id);
+    const mark = observer.envelopes.length;
+    desktop.send(clientEvent.presenceUpdate({ userId: a.id, status: "invisible" }));
+    await expectPresence(observer, mark, a.id, "offline");
+
+    // A second device's handshake: peers only. Pre-M16 this carried `a` MASKED,
+    // i.e. told an invisible user they were offline on every (re)connect.
+    const phone = await TestClient.connect(port, a.token, "mobile");
+    const snapshot = (await phone.waitFor(SERVER_EVENT.authSucceeded)).payload.presence;
+    expect(snapshot.map((p) => p.userId)).not.toContain(a.id);
+    expect(snapshot.map((p) => p.userId)).toContain(
+      (await observer.waitFor(SERVER_EVENT.authSucceeded)).payload.userId,
+    );
+
+    // A PEER's handshake does carry `a` — masked.
+    const observer2 = await TestClient.connect(port, observerToken);
+    const peerSnapshot = (await observer2.waitFor(SERVER_EVENT.authSucceeded)).payload.presence;
+    expect(peerSnapshot.find((p) => p.userId === a.id)).toEqual({ userId: a.id, status: "offline" });
+
+    desktop.close();
+    phone.close();
+    observer.close();
+    observer2.close();
+    await Promise.all([desktop.closed, phone.closed, observer.closed, observer2.closed]);
+  });
+
   it("a leftover pre-ADR-0020 per-user status STRING neither crashes nor leaks into the broadcast", async () => {
     const a = await makeGroupUser("legacy");
     // Exactly what live Redis holds at the moment this version deploys: a TTL-less

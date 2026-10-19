@@ -644,19 +644,30 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
   }
 
   /**
-   * Who should see `userId`'s presence: everyone sharing at least one group with
-   * them (co-members) UNION every accepted friend (ADR 0010 §4) — friends see
-   * each other's status even with no shared group. Deduped, so a user in both
-   * sets is notified once. Recomputed on every call, so a just-added or just-
-   * removed friendship takes effect on the next presence event with no cache to
-   * invalidate (the same "resync/refresh" model the rest of the gateway uses).
+   * Who should see `userId`'s presence AS A PEER: everyone sharing at least one
+   * group with them (co-members) UNION every accepted friend (ADR 0010 §4) —
+   * friends see each other's status even with no shared group. Deduped, so a user
+   * in both sets is notified once. Recomputed on every call, so a just-added or
+   * just-removed friendship takes effect on the next presence event with no cache
+   * to invalidate (the same "resync/refresh" model the rest of the gateway uses).
+   *
+   * NEVER contains `userId` itself. `listCoMemberUserIds` does include the user
+   * (they are a member of their own groups), and until M16 that self id rode
+   * through here unnoticed: every broadcast sent the user their own PEER-FACING,
+   * masked presence, so someone who picked "invisible" was told by the server
+   * that they were "offline", and both clients painted it on their own dot. The
+   * subject's own sockets are a separate, deliberate recipient set with its own
+   * payload — see {@link broadcastPresence}. Removed HERE, not in the repository,
+   * so the contract holds whatever a repository (or a test stub) returns.
    */
   async function presenceAudience(userId: UserId): Promise<Set<UserId>> {
     const [coMembers, friendIds] = await Promise.all([
       deps.repos.groups.listCoMemberUserIds(userId),
       deps.repos.friendships.listAcceptedFriendIds(userId),
     ]);
-    return new Set<UserId>([...coMembers, ...friendIds]);
+    const audience = new Set<UserId>([...coMembers, ...friendIds]);
+    audience.delete(userId);
+    return audience;
   }
 
   /**
@@ -664,8 +675,10 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
    * `offline` (via `publicPresenceStatus`), and the platform is dropped once the
    * result is offline (an offline user reports no client kind). The single mask
    * the live broadcast AND the handshake snapshot both apply, so an invisible
-   * user is indistinguishable from offline to everyone else — their own client
-   * keeps the real status locally (the gateway never echoes presence to self).
+   * user is indistinguishable from offline to everyone else. It is NEVER applied
+   * to the payload the subject's OWN sockets receive — those get the real status
+   * (see {@link broadcastPresence}); masking yourself would be telling an invisible
+   * user they are offline.
    */
   function maskPresence(p: PresencePayload): PresencePayload {
     const status = publicPresenceStatus(p.status);
@@ -697,23 +710,68 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     }
   }
 
-  async function broadcastPresence(userId: UserId): Promise<void> {
-    const [status, platform, customStatus] = await Promise.all([
+  /**
+   * Fan `userId`'s presence out to the two recipient sets it has (M16 contract —
+   * the same one stated on `PresencePayload` in packages/protocol):
+   *
+   *  1. PEERS ({@link presenceAudience}) get the MASKED account status:
+   *     `invisible` reads as `offline`, and an offline user carries no platform.
+   *  2. The user's OWN live sockets get the REAL account status, unmasked —
+   *     `invisible` stays `invisible`. Multi-device is the reason this set exists
+   *     at all: the account status is derived from EVERY live connection (ADR
+   *     0020), so a status picked on the phone changes what the desktop's own dot
+   *     must show (a phone `dnd` silences the account, a phone `invisible` hides
+   *     it), and the desktop cannot know that from its own declaration. It is also
+   *     what the originating device reconciles against after a pick — its local
+   *     paint is its own declaration, the echo is the derived truth.
+   *
+   * `except` keeps ONE socket out of set 2: the socket whose handshake is causing
+   * this broadcast. It has just received `auth.succeeded`, seeded its own dot from
+   * its locally chosen status, and is about to re-assert that status — whose
+   * broadcast then reaches it. Echoing the connect-time value to it would paint a
+   * status derived from the store's DEFAULT declaration for the new socket
+   * ("online"), i.e. flash an invisible user green on every reconnect.
+   *
+   * Set 2 never receives `offline`: a socket reading about its own account is by
+   * definition a live connection, so an `offline` here can only be the store and
+   * the in-memory socket registry momentarily disagreeing (a socket registered
+   * before `presence.connect` landed). Peers still get it.
+   *
+   * ORDERING: Postgres first (audience, custom status), the Redis state LAST, and
+   * no await between that read and the sends. Two broadcasts for the same user
+   * run concurrently — `handleEvent` is not serialised per socket, and a connect
+   * re-derive races the client's own re-assert — so a broadcast that read the
+   * status BEFORE a slow audience query could deliver an older value after a newer
+   * one, leaving every recipient (now including the user) on a stale dot. Reading
+   * last means the broadcast that sends last also read last: one Redis connection
+   * answers in command order, and each answer is sent synchronously.
+   */
+  async function broadcastPresence(userId: UserId, except?: Connection): Promise<void> {
+    const [audience, customStatus] = await Promise.all([
+      presenceAudience(userId),
+      customStatusOf(userId),
+    ]);
+    const [status, platform] = await Promise.all([
       deps.presence.getStatus(userId),
       deps.presence.getPlatform(userId),
-      customStatusOf(userId),
     ]);
     // `platform` is meaningful only while connected; an offline user reports none.
     const base: PresencePayload = platform
       ? { userId, status, platform }
       : { userId, status };
-    const event = serverEvent.presenceUpdated(
-      maskPresence(customStatus ? { ...base, customStatus } : base),
-    );
-    for (const memberId of await presenceAudience(userId)) {
+    const real: PresencePayload = customStatus ? { ...base, customStatus } : base;
+
+    const peerEvent = serverEvent.presenceUpdated(maskPresence(real));
+    for (const memberId of audience) {
       for (const conn of connectionsByUser.get(memberId) ?? []) {
-        sendEvent(conn, event);
+        sendEvent(conn, peerEvent);
       }
+    }
+
+    if (status === "offline") return;
+    const selfEvent = serverEvent.presenceUpdated(real);
+    for (const conn of connectionsByUser.get(userId) ?? []) {
+      if (conn !== except) sendEvent(conn, selfEvent);
     }
   }
 
@@ -1667,6 +1725,14 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     // Handshake presence snapshot covers the same audience presence broadcasts
     // target: group co-members UNION accepted friends (ADR 0010 §4), so a friend
     // sharing no group still shows their status dot on connect.
+    //
+    // PEERS ONLY — the connecting user is not in it (`presenceAudience` excludes
+    // self). Their own status at this instant is derived with THIS socket's
+    // default declaration ("online"), which is not what the client is about to
+    // declare, so the client seeds its own dot from its locally chosen status and
+    // learns the account's real status from the echo of its re-assert (see
+    // `broadcastPresence`). Pre-M16 the snapshot did carry self — MASKED, so an
+    // invisible user was handed "offline" for themselves on every connect.
     const audience = await presenceAudience(userId);
     // Custom statuses for the whole audience in ONE batched query (M18), so the
     // handshake snapshot carries the same `customStatus` the live
@@ -1725,8 +1791,10 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
       deps.presence.getPlatform(userId),
       deps.presence.getStatus(userId),
     ]);
+    // `conn` is excluded from the self copy: see `broadcastPresence` — this socket
+    // gets the account's real status from the echo of its own re-assert instead.
     if (cameOnline || platformBefore !== platformAfter || statusBefore !== statusAfter) {
-      await broadcastPresence(userId);
+      await broadcastPresence(userId, conn);
     }
     log(`user ${userId} connected (${conn.channelKinds.size} visible channels)`);
   }
@@ -1978,8 +2046,9 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     // status dot" and "who sees your avatar" are the same population; a user sharing
     // no context is absent from that set and therefore never receives the event.
     // The subject is unioned in so their OWN other sessions repaint too (the set is
-    // co-members/friends, which excludes self). Handled first + return so the
-    // generic single-user loop below does not also deliver it.
+    // co-members/friends, which `presenceAudience` guarantees excludes self — and
+    // one payload serves both here, a profile carries no mask). Handled first +
+    // return so the generic single-user loop below does not also deliver it.
     if (event.type === SERVER_EVENT.userUpdated) {
       const audience = await presenceAudience(userId);
       audience.add(userId);
@@ -2040,7 +2109,9 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     // devices; peers learn through a presence re-broadcast, which reaches exactly
     // the audience that already sees their status dot (co-members ∪ accepted
     // friends). Reusing `broadcastPresence` means no new audience computation and
-    // no new client-side routing — the line rides `presence.updated`.
+    // no new client-side routing — the line rides `presence.updated`. (The own
+    // devices get the re-broadcast's unmasked self copy as well; it carries the
+    // same line, so the two deliveries agree.)
     if (event.type === SERVER_EVENT.customStatusUpdated) {
       await broadcastPresence(userId);
     }
