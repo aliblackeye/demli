@@ -47,9 +47,9 @@ async function loadBrandFonts(): Promise<void> {
   const fonts = document.fonts as FontFaceSet | undefined;
   if (!fonts?.load) return;
   await Promise.all([
-    fonts.load('400 1rem "Instrument Sans"'),
-    fonts.load('600 1rem "Instrument Sans"'),
-    fonts.load('600 1rem "Space Grotesk"'),
+    fonts.load('400 1rem "Inter"'),
+    fonts.load('600 1rem "Inter"'),
+    fonts.load('600 1rem "Onest"'),
   ]);
   await fonts.ready;
 }

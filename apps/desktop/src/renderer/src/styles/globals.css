@@ -10,158 +10,75 @@
 @source "../../../../../../packages/app-ui/src";
 
 /* ── Self-hosted fonts (SINGLE SOURCE — desktop + web) ──────────────────────
-   "Demli Voice v2" tipografisi: gövde = Instrument Sans, başlıklar = Space
-   Grotesk. Google Fonts KULLANILMAZ — apps/web CSP `font-src 'self' data:` ve
-   desktop CSP `default-src 'self'` fonts.gstatic.com'u bloke eder. Bu yüzden
-   woff2 dosyaları repoda (../assets/fonts/) gömülü ve same-origin servis edilir.
-   Vite url()'leri build'de hash'li asset'e çevirir (>4KB → data: değil, ayrı
-   dosya → desktop `default-src 'self'` ile uyumlu). Web bu dosyayı @import
-   ettiğinden url()'ler globals.css konumuna göre çözülür — tek kaynak.
+   "Koyu Masa" tipografisi: gövde/UI = Inter, başlık/display = Onest. İkisi de
+   SIL OFL 1.1 (metinler ../assets/fonts/OFL-*.txt, liste THIRD-PARTY.md).
+   Google Fonts'tan ÇALIŞMA ANINDA yüklenmez — apps/web CSP `font-src 'self'
+   data:` ve desktop CSP `default-src 'self'` fonts.gstatic.com'u bloke eder.
+   woff2 dosyaları Google Fonts'un resmi altkümeleridir (değiştirilmeden repoya
+   alındı) ve same-origin servis edilir. Vite url()'leri build'de hash'li ayrı
+   asset'e çevirir; web bu dosyayı @import ettiği için url()'ler bu dosyanın
+   konumuna göre çözülür — tek kaynak.
 
-   latin + latin-ext İKİ ayrı altküme: TR karakterleri ş/ğ/İ/Ş/Ğ (U+011E-015F)
-   latin-ext'te; latin-ext olmadan Türkçe başlıklar ("Şifre", "Değiştir") bozulur.
-   unicode-range değerleri Google Fonts CSS2 API'sinden birebir alındı.
-   font-display:swap → font yüklenene kadar fallback ile anında metin (FOIT yok).
-   woff2 + unicode-range Safari 12 (apps/web hard target) tarafından desteklenir. */
+   Her aile DEĞİŞKEN font (wght ekseni 100–900): tek dosya bütün ağırlıkları
+   taşır, bu yüzden font-weight bir aralıktır. latin + latin-ext iki ayrı
+   altküme: ş/ğ/İ/Ş/Ğ (U+011E-015F) latin-ext'te; o olmadan "Şifre",
+   "Değiştir" gibi Türkçe başlıklar fallback fonta düşer. unicode-range
+   değerleri Google Fonts CSS2 API'sinin aynı dosyalar için verdiği değerlerdir.
+   font-display:swap → font gelene kadar fallback ile anında metin. */
 
-/* Instrument Sans — gövde (400/500/600) */
 @font-face {
-  font-family: "Instrument Sans";
+  font-family: "Inter";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 900;
   font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-Latin-400.woff2") format("woff2");
+  src: url("../assets/fonts/Inter-Latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
     U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
     U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Instrument Sans";
+  font-family: "Inter";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 900;
   font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-LatinExt-400.woff2") format("woff2");
+  src: url("../assets/fonts/Inter-LatinExt.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
     U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
-  font-family: "Instrument Sans";
+  font-family: "Onest";
   font-style: normal;
-  font-weight: 500;
+  font-weight: 100 900;
   font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-Latin-500.woff2") format("woff2");
+  src: url("../assets/fonts/Onest-Latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
     U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
     U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Instrument Sans";
+  font-family: "Onest";
   font-style: normal;
-  font-weight: 500;
+  font-weight: 100 900;
   font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-LatinExt-500.woff2") format("woff2");
+  src: url("../assets/fonts/Onest-LatinExt.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
     U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Instrument Sans";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-Latin-600.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Instrument Sans";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../assets/fonts/InstrumentSans-LatinExt-600.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
-    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-/* Space Grotesk — başlıklar/display (500/600/700) */
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-Latin-500.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-LatinExt-500.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
-    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-Latin-600.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-LatinExt-600.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
-    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-Latin-700.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Space Grotesk";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("../assets/fonts/SpaceGrotesk-LatinExt-700.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
-    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
-    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @theme {
-  /* Gövde tipografisi. "Demli Voice v2" → Instrument Sans (self-host, @font-face
-     yukarıda). Segoe/system fallback font yüklenene kadar (swap) ve latin dışı
-     nadir glifler için. */
+  /* Gövde/UI → Inter. Segoe/system fallback font gelene kadar (swap) ve latin
+     dışı nadir glifler için. */
   --font-sans:
-    "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui,
-    -apple-system, sans-serif;
+    "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
 
-  /* Başlık/display tipografisi → Space Grotesk. `font-display` Tailwind utility'si
-     bu token'dan üretilir (AppShell/ChatView/MemberSidebar başlıkları). Instrument
-     Sans ara-fallback → başlık fontu yüklenene kadar başlıklar da markaya yakın kalır. */
+  /* Başlık/display → Onest (`font-display` utility'si). Inter ara-fallback:
+     başlık fontu gelene kadar başlıklar da markaya yakın kalır. */
   --font-display:
-    "Space Grotesk", "Instrument Sans", "Segoe UI Variable Text", "Segoe UI",
-    system-ui, -apple-system, sans-serif;
+    "Onest", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui,
+    -apple-system, sans-serif;
 
   /* Responsive breakpoint: at/above this the shell shows the four-column desktop
      layout; below it (a phone-width web viewport) it switches to the single-column
@@ -173,72 +90,109 @@
      `wide:` Tailwind variant for any purely-cosmetic responsive tweak. */
   --breakpoint-wide: 900px;
 
-  /* Surfaces — darkest (group rail) to lightest (popovers).
-     2026-07-24: "Demli Voice v2" sıcak koyu kırmızı-turuncu rampa (founder
-     tasarımı). Gradient zemin #2A0F07→#180806→#0C0304'ün opak katmanları.
-     Only the VALUES change — her bileşen semantik adı okur, re-skin tek dosyadan
-     tüm app'e iner. Web ile aynı palet (packages/app-ui/src/tokens.css). */
-  --color-rail: #0c0403;      /* en koyu — group rail */
-  --color-sidebar: #140705;   /* mantle */
-  --color-app: #1a0806;       /* base */
-  --color-surface: #241009;
-  --color-raised: #2e130b;    /* popover/menu */
-  --color-overlay: #3a1710;
-  /* Selected rows (channel/DM lists) — sıcak vurgu. */
-  --color-selected: #3a241b;
-  /* Row hover. */
-  --color-hover: #241009;
+  /* ── "Koyu Masa" palette (docs/design-system/demli-design-system.md) ─────
+     THE token seam for desktop AND web: every `bg-app` / `text-fg-muted` …
+     utility compiles to var(--color-*), so a value here re-skins the whole
+     renderer. Mirrored 1:1 by packages/app-ui/src/tokens.css (`--tc-*`) and
+     apps/mobile/src/theme/theme.ts; styles/design-tokens.test.ts and the mobile
+     design-tokens test lock all three together and compute the contrast rules
+     below, so an edit that drifts or turns text unreadable fails the build.
 
-  /* Hairlines — cream düşük-alfa (tasarım rgba(248,238,212,.07/.16)). */
-  --color-stroke: rgb(248 238 212 / 0.09);
-  --color-stroke-strong: rgb(248 238 212 / 0.16);
+     Surfaces: neutral black, depth by tone (no borders, no outer shadows). */
+  --color-rail: #000000;      /* page / window — the darkest step */
+  --color-sidebar: #0d0d0d;   /* base: channel + member columns */
+  --color-app: #0d0d0d;       /* base: the conversation column, dialog cards */
+  --color-surface: #171717;   /* inputs at rest, icon boxes, list hover */
+  --color-raised: #262626;    /* secondary buttons, focused inputs, menu hover */
+  --color-raised-hover: #303030;
+  --color-raised-pressed: #1f1f1f;
+  /* Opaque stand-in for the glass panels below, for surfaces that cannot blur. */
+  --color-overlay: #171717;
+  /* Floating glass: nav pill / panels (72%) and menus / tooltips (92%), always
+     paired with a backdrop blur (`surface-glass` utilities). */
+  --color-glass: rgb(23 23 23 / 0.72);
+  --color-glass-strong: rgb(23 23 23 / 0.92);
+  /* Translucent pill on top of media (live badge, name chip). */
+  --color-veil: rgb(0 0 0 / 0.24);
+  /* Dialog / sheet backdrop. */
+  --color-scrim: rgb(0 0 0 / 0.55);
+  /* Selected row (channel/DM lists) = accent wash; row hover = surface tone. */
+  --color-selected: rgb(255 132 100 / 0.12);
+  --color-hover: #171717;
 
-  /* Text — cream / muted / faint (tasarım #F8EED4 / #B9A48E / #8A7361). */
-  --color-fg: #f8eed4;
-  --color-fg-muted: #b9a48e;
-  --color-fg-faint: #8a7361;
+  /* Hairlines — only where a line is functional (focus trace, drop target). */
+  --color-stroke: rgb(255 255 255 / 0.08);
+  --color-stroke-strong: rgb(255 255 255 / 0.16);
 
-  /* Brand + semantic — Demli accent turuncusu (tasarım --ac #FF8C1A). NOTE:
-     açık-turuncu → accent ÜZERİNDEKİ metin KOYU (--color-on-accent #120B08,
-     tasarım "ODAKTA" rozeti gibi), asla beyaz. */
-  --color-accent: #ff8c1a;
-  --color-accent-hover: #ffb65c;
-  --color-on-accent: #120b08;
-  --color-accent-surface: rgb(255 140 26 / 0.16);
-  --color-danger: #ff7366;
-  --color-danger-surface: rgb(255 115 102 / 0.16);
-  --color-success: #a6da95;
-  --color-warning: #e8c34a;
+  /* Text ramp. `fg-faint` is the doc's "dim" step LIFTED from #737373 (4.10:1 on
+     #0d0d0d) to #8f8f8f so meta text (timestamps, hints, placeholders) passes
+     WCAG AA 4.5:1 on every surface up to `raised`. `fg-subtle` replaces the
+     doc's #404040 (≈2:1, unreadable): NON-TEXT only — idle icons, separators,
+     the offline dot — held to the 3:1 non-text bar (WCAG 1.4.11). */
+  --color-fg-display: #ffffff;
+  --color-fg: #e5e5e5;
+  --color-fg-muted: #a3a3a3;
+  --color-fg-faint: #8f8f8f;
+  --color-fg-subtle: #666666;
 
-  /* Presence — green / yellow / red / warm-overlay. */
-  --color-online: #a6da95;
-  --color-idle: #e8c34a;
-  --color-dnd: #ee5a5a; /* Do Not Disturb — clear red, distinct from coral danger */
-  --color-offline: #6e5d4f;
+  /* Inverse fill — the white primary button. */
+  --color-inverse: #ffffff;
+  --color-inverse-hover: #e5e5e5;
+  --color-inverse-pressed: #d4d4d4;
+  --color-on-inverse: #171717;
+
+  /* Demli coral. Light fill → content ON it is near-black (`on-accent`, 7.5:1),
+     never white (2.4:1). */
+  --color-accent: #ff8464;
+  --color-accent-hover: #ffa48c;
+  --color-accent-pressed: #e8624a;
+  --color-on-accent: #171717;
+  --color-accent-surface: rgb(255 132 100 / 0.12);
+  --color-accent-glow: rgb(255 132 100 / 0.24);
+  --color-selection: rgb(255 132 100 / 0.35);
+
+  /* Danger keeps the doc's pink #ff6fb5: 41.6° of hue from coral, and the only
+     candidate that stays apart from coral AND from online-green under red-green
+     colour blindness (measured, see the design doc §1.4). Recognition does not
+     rest on colour alone — every danger control also carries its icon/label.
+     As a fill it takes dark ink (7.0:1); white on it is 2.6:1 and is not used. */
+  --color-danger: #ff6fb5;
+  --color-danger-surface: rgb(255 111 181 / 0.12);
+  --color-success: #22c55e;
+  --color-warning: #eab30a;
+
+  /* Presence. */
+  --color-online: #22c55e;
+  --color-idle: #eab30a;
+  --color-dnd: #ff6fb5;
+  --color-offline: #666666;
 
   /* ── Micro-typography ramp ──────────────────────────────────────────────
-     Everything BELOW Tailwind's text-xs (12px). These three sizes carry the
-     chrome of the app — timestamps, section headings, badges, tiny glyphs —
-     and used to live as ~100 hand-written `text-[11px]` literals.
-
-     Declared in rem on purpose so they scale with the app zoom level, and
-     deliberately WITHOUT a paired `--text-*--line-height`: an arbitrary
-     `text-[11px]` never set a line-height either, so omitting it keeps the
-     conversion a pure rename with zero vertical reflow. */
+     Everything BELOW Tailwind's text-xs (12px) plus the 13px label step. The
+     sub-12 sizes carry the app's chrome — timestamps, section headings,
+     badges, tiny glyphs. Declared in rem so they scale with the app zoom
+     level. The three historic steps deliberately carry NO paired
+     line-height (they replaced arbitrary `text-[11px]` literals, which never
+     set one); `label` is new and owns its rhythm. */
   --text-2xs: 0.6875rem;  /* 11px — timestamps / meta / section headings */
   --text-badge: 0.625rem; /* 10px — badges, pills, counters */
   --text-3xs: 0.5rem;     /* 8px  — tiny glyphs inside 20px avatars */
+  --text-label: 0.8125rem; /* 13px — field labels, help + validation lines */
+  --text-label--line-height: 1.125rem;
 
-  /* ── Radius, derived from ONE source ────────────────────────────────────
-     `--radius` (see :root below) is the single knob for the app's roundness.
-     The steps stay 2px apart, which reproduces today's 6/8/10/12 exactly —
-     this is a refactor, not a restyle. Nested corners follow the usual rule
-     (outer radius − padding), e.g. a rounded-lg menu with p-1 holds
-     rounded-sm items. */
+  /* ── Radius ──────────────────────────────────────────────────────────────
+     `--radius` (see :root below) is the knob for the everyday steps; Koyu
+     Masa's scale is 8 · 10 · 12 · 16 · 18 · 24 · 32 · pill. Nested corners
+     follow outer radius − padding (a rounded-lg menu with p-1 holds rounded-sm
+     items). The named steps are fixed authored values. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-cta: 18px;
+  --radius-card: 24px;
+  --radius-panel: 32px;
+  --radius-pill: 50px;
 
   /* ── Named animations (motion primitives live in :root) ─────────────────
      instant → touch feedback (handled by the base transition below)
@@ -351,6 +305,85 @@
       transform: none;
     }
   }
+
+  /* ── Koyu Masa surfaces that MOVE (side sheets, toasts) ─────────────────
+     Entrances ride the authored position spring (`--motion-ease-spring`, the
+     sampled {stiffness 500, damping 60, mass 1} curve); exits use the fast
+     decelerating step so a dismissal never lingers. Transform + opacity only. */
+  --animate-sheet-right-in: sheet-right-in var(--motion-duration-spring) var(--motion-ease-spring);
+  --animate-sheet-right-out: sheet-right-out var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-sheet-left-in: sheet-left-in var(--motion-duration-spring) var(--motion-ease-spring);
+  --animate-sheet-left-out: sheet-left-out var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-sheet-bottom-in: sheet-in var(--motion-duration-spring) var(--motion-ease-spring);
+  --animate-sheet-bottom-out: sheet-out var(--motion-duration-fast) var(--motion-ease-standard);
+  --animate-toast-in: toast-in var(--motion-duration-spring) var(--motion-ease-spring);
+  --animate-toast-out: toast-out var(--motion-duration-fast) var(--motion-ease-standard);
+
+  @keyframes sheet-right-in {
+    from {
+      opacity: 0;
+      transform: translateX(2rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes sheet-right-out {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(2rem);
+    }
+  }
+
+  @keyframes sheet-left-in {
+    from {
+      opacity: 0;
+      transform: translateX(-2rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes sheet-left-out {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-2rem);
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(0.5rem) scale(0.98);
+    }
+  }
 }
 
 /*
@@ -361,13 +394,15 @@
 :root {
   color-scheme: dark;
 
-  /* The one roundness knob — every --radius-* step above derives from it. */
-  --radius: 10px;
+  /* The everyday roundness knob — sm/md/lg/xl above derive from it (8/10/12/16). */
+  --radius: 12px;
 
-  /* Motion scale. Four steps, each with a job; nothing in the app should
-     invent a duration outside this ramp. */
-  --motion-duration-instant: 120ms; /* tactile feedback: hover, press, focus */
+  /* Motion scale. Each step has a job; nothing in the app should invent a
+     duration outside this ramp. Mirrored in tokens.css, the framer presets
+     (packages/app-ui/src/motion/presets.ts) and the RN theme. */
+  --motion-duration-instant: 120ms; /* tactile feedback: press, focus        */
   --motion-duration-fast: 180ms;    /* state change: scrim, tooltip, badge   */
+  --motion-duration-hover: 200ms;   /* hover = tone change only (no slide)   */
   --motion-duration-standard: 240ms;/* panel, popover, dialog, menu          */
   --motion-duration-arrival: 500ms; /* new content settling in               */
 
@@ -376,16 +411,21 @@
   --motion-ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
   --motion-ease-arrival: cubic-bezier(0.16, 1, 0.3, 1);
 
+  /* The authored POSITION spring {stiffness 500, damping 60, mass 1} (ζ≈1.34,
+     never overshoots) for CSS-driven motion — framer and React Native run the
+     real spring from the same three numbers. Generated by springToCssLinear()
+     in packages/ui/src/motion/spring.ts (24 samples, settles to framer's
+     granular rest delta 0.005); design-tokens.test.ts fails if these drift. */
+  --motion-ease-spring: linear(0, 0.0865, 0.2371, 0.3824, 0.506, 0.6066, 0.6873, 0.7517, 0.8028, 0.8435, 0.8757, 0.9013, 0.9217, 0.9378, 0.9506, 0.9608, 0.9689, 0.9753, 0.9804, 0.9844, 0.9876, 0.9902, 0.9922, 0.9938, 1);
+  --motion-duration-spring: 554ms;
+
   /* Arrival geometry. */
   --motion-distance-arrival: 0.75rem;
   --motion-blur-arrival: 2px;
 
-  /* Soft drop used by lifted, side-anchored surfaces.
-     Redesign-skill "colored, tinted shadows": instead of pure black, the drop
-     carries the app's warm near-black hue so a lifted panel/popover reads as
-     sitting over the Demli surface rather than a generic grey card. Kept dark
-     enough that the depth cue is unchanged in weight, only warmer. */
-  --shadow-lift-color: rgba(8, 3, 1, 0.5);
+  /* Koyu Masa has no outer shadows; the few legacy lifted panels that still
+     use one get a neutral black drop until Wave 3 removes them. */
+  --shadow-lift-color: rgba(0, 0, 0, 0.5);
 }
 
 html,
@@ -405,15 +445,15 @@ body {
 }
 
 ::selection {
-  background-color: rgb(255 140 26 / 0.35);
+  background-color: var(--color-selection);
 }
 
 /* Soft transitions everywhere (founder direktifi): her etkileşimli öğe görsel
-   durum değişimlerinde sessiz bir geri bildirim alır. Bu KATMAN "instant"
-   basamağıdır — imleç bir satırın üzerine geldiğinde beklemek istemezsiniz.
-   Tailwind utility'leri (class) element seçicisini ezdiği için bileşen bazında
-   incelik korunur. `transform` bilerek dışarıda — sürükleme/positioning ile
-   çakışmasın. */
+   durum değişimlerinde sessiz bir geri bildirim alır. Koyu Masa'da ürün
+   hover'ı yalnız TON geçişidir (200ms, kayan metin yok) — bu katman o
+   basamaktır. Tailwind utility'leri (class) element seçicisini ezdiği için
+   bileşen bazında incelik korunur. `transform` bilerek dışarıda —
+   sürükleme/positioning ile çakışmasın. */
 button,
 a,
 [role="button"],
@@ -425,7 +465,7 @@ textarea,
 select,
 summary {
   transition-property: background-color, color, border-color, opacity, box-shadow, fill, stroke;
-  transition-duration: var(--motion-duration-instant);
+  transition-duration: var(--motion-duration-hover);
   transition-timing-function: var(--motion-ease-standard);
 }
 
@@ -504,6 +544,44 @@ summary {
   transition-timing-function: var(--motion-ease-standard);
 }
 
+/** Hover tone change — Koyu Masa's only hover motion in product UI. */
+@utility motion-hover {
+  transition-duration: var(--motion-duration-hover);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+/** Something that MOVES (a switch thumb, a slider fill): the position spring. */
+@utility motion-spring {
+  transition-duration: var(--motion-duration-spring);
+  transition-timing-function: var(--motion-ease-spring);
+}
+
+/*
+ * ── Glass surfaces ────────────────────────────────────────────────────────
+ * Koyu Masa's floating layer: a translucent neutral tone plus a backdrop blur,
+ * never a border or an outer shadow. `surface-glass` is the nav-pill / panel
+ * weight (72%), `surface-glass-strong` the menu / tooltip weight (92%), where
+ * legibility of the content underneath matters less than of the menu itself.
+ */
+@utility surface-glass {
+  background-color: var(--color-glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+@utility surface-glass-strong {
+  background-color: var(--color-glass-strong);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/** Dialog / sheet backdrop: the scrim colour plus a light blur. */
+@utility surface-scrim {
+  background-color: var(--color-scrim);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
 /*
  * ── Edge / elevation utilities ────────────────────────────────────────────
  * Tailwind's stock shadows all point down the Y axis, which makes them
@@ -528,16 +606,14 @@ summary {
 }
 
 /**
- * Floating card elevation (popovers, dialogs, the profile card): a two-step
- * drop that carries the app's WARM near-black hue instead of Tailwind's generic
- * grey/black `shadow-xl`/`shadow-2xl`. Redesign-skill "colored, tinted shadows"
- * — the surface reads as lifted over the Demli backdrop, not pasted on. Single
- * source so every elevated surface shares one shadow signature.
+ * Legacy floating-card elevation, kept for the product surfaces that still use
+ * it (Wave 3 replaces them with tone + blur). The shared primitives no longer
+ * do. Neutral black now that the warm ramp is retired.
  */
 @utility shadow-elevated {
   box-shadow:
-    0 2px 8px -2px rgba(6, 2, 1, 0.4),
-    0 12px 32px -8px rgba(6, 2, 1, 0.55);
+    0 2px 8px -2px rgba(0, 0, 0, 0.4),
+    0 12px 32px -8px rgba(0, 0, 0, 0.55);
 }
 
 /**
@@ -666,7 +742,7 @@ summary {
     max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 1.5rem);
 
     /* A page, not a floating card: square the bottom corners into the edge. */
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
     border-bottom-width: 0;
 
     /* Home indicator / rounded corners / landscape notch. `box-sizing:border-box`

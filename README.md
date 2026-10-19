@@ -183,8 +183,8 @@ name. Contributing means agreeing to the CLA in [CONTRIBUTING.md](CONTRIBUTING.m
 which keeps a commercial licence possible; it is a licence to the maintainer, not an
 assignment — your copyright stays yours.
 
-Third-party code and fonts we ship (Microsoft's audio-loopback sample, Instrument
-Sans, Space Grotesk, two patched npm packages) carry their own MIT/OFL notices —
+Third-party code and fonts we ship (Microsoft's audio-loopback sample, Inter,
+Onest, two patched npm packages) carry their own MIT/OFL notices —
 all of them are listed in [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## How this repo is run

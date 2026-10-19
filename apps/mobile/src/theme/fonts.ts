@@ -1,14 +1,15 @@
 /**
- * "Demli Voice v2" typography for React Native.
+ * "Koyu Masa" typography for React Native: Inter (body) + Onest (display).
  *
- * Desktop/web self-host woff2 with a latin / latin-ext `unicode-range` split.
- * RN has no `@font-face` and no unicode-range, so `assets/fonts/*.ttf` are
- * static instances of the same upstream families, each subset to latin +
- * latin-ext COMBINED — that union is what keeps ı/İ/ğ/Ğ/ş/Ş rendering instead
- * of tofu (ç/ö/ü live in latin, the rest in latin-ext).
+ * Desktop/web self-host variable woff2 with a latin / latin-ext `unicode-range`
+ * split. RN has no `@font-face` and no unicode-range, so `assets/fonts/*.ttf`
+ * are the static instances Google Fonts serves for the same families (unwrapped
+ * from WOFF to TTF), each subset to latin + latin-ext COMBINED — that union is
+ * what keeps ı/İ/ğ/Ğ/ş/Ş rendering instead of tofu (ç/ö/ü live in latin, the
+ * rest in latin-ext). Licences: assets/fonts/OFL-*.txt, THIRD-PARTY.md.
  *
  * One family per weight: RN ignores numeric `fontWeight` for custom families on
- * Android, so "Instrument Sans @ 600" has to be its own registered family.
+ * Android, so "Inter @ 600" has to be its own registered family.
  *
  * OTA-SAFE: `expo-font` is already a dependency of the `expo` package itself
  * (expo@57 → expo-font@~57), so it is autolinked into the existing native
@@ -30,14 +31,14 @@ import * as Font from "expo-font";
    not the form Expo documents for `loadAsync`, so this is the one place in the
    app where require() is the correct call. */
 export const FONT_ASSETS = {
-  // Body — Instrument Sans 400 / 500 / 600, mirroring the desktop @font-face set.
-  "InstrumentSans-Regular": require("../../assets/fonts/InstrumentSans-Regular.ttf"),
-  "InstrumentSans-Medium": require("../../assets/fonts/InstrumentSans-Medium.ttf"),
-  "InstrumentSans-SemiBold": require("../../assets/fonts/InstrumentSans-SemiBold.ttf"),
-  // Display — Space Grotesk 500 / 600 / 700.
-  "SpaceGrotesk-Medium": require("../../assets/fonts/SpaceGrotesk-Medium.ttf"),
-  "SpaceGrotesk-SemiBold": require("../../assets/fonts/SpaceGrotesk-SemiBold.ttf"),
-  "SpaceGrotesk-Bold": require("../../assets/fonts/SpaceGrotesk-Bold.ttf"),
+  // Body — Inter 400 / 500 / 600.
+  "Inter-Regular": require("../../assets/fonts/Inter-Regular.ttf"),
+  "Inter-Medium": require("../../assets/fonts/Inter-Medium.ttf"),
+  "Inter-SemiBold": require("../../assets/fonts/Inter-SemiBold.ttf"),
+  // Display — Onest 500 / 600 / 700.
+  "Onest-Medium": require("../../assets/fonts/Onest-Medium.ttf"),
+  "Onest-SemiBold": require("../../assets/fonts/Onest-SemiBold.ttf"),
+  "Onest-Bold": require("../../assets/fonts/Onest-Bold.ttf"),
 } as const;
 /* eslint-enable @typescript-eslint/no-require-imports */
 
