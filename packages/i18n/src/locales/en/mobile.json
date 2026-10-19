@@ -122,6 +122,7 @@
     "channelDescription": "New messages and friend requests"
   },
   "home": {
+    "bannerSwipeHintA11y": "Swipe up to dismiss",
     "friendsWithRequestsA11y": "Friends — requests waiting",
     "dmLoadErrorTitle": "Couldn't load your messages",
     "longPressOptionsA11y": "Long-press for options",

@@ -1,8 +1,9 @@
 import { ActivityIndicator, View } from "react-native";
 import { Text } from "../components/ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "../components/Button";
+import { Button } from "../components/ui/Button";
 import { colors, space } from "../theme/theme";
+import { UpdateScreenFrame } from "./UpdateScreenFrame";
 import { useUpdatesStore } from "./updates-store";
 
 /**
@@ -10,6 +11,9 @@ import { useUpdatesStore } from "./updates-store";
  * `UpdateGate` INSTEAD of the app while any `critical-*` phase is active, so the
  * user cannot proceed until the update is fetched and the app reloads.
  * On failure it stays up and offers a retry (no way past it but to update).
+ *
+ * expo-updates reports no download fraction, so the waiting state is an honest
+ * spinner, not an invented percentage.
  */
 export function CriticalUpdateScreen() {
   const { t } = useAppTranslation();
@@ -19,45 +23,27 @@ export function CriticalUpdateScreen() {
   const failed = phase === "critical-error";
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.app,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: space.xl,
-        gap: space.lg,
-      }}
+    <UpdateScreenFrame
+      title={t("mobile:updates.criticalTitle")}
+      body={failed ? t("mobile:updates.criticalFailedBody") : t("mobile:updates.criticalLoadingBody")}
     >
-      {!failed ? <ActivityIndicator color={colors.accent} size="large" /> : null}
-
-      <View style={{ gap: space.sm, alignItems: "center" }}>
-        <Text variant="display" style={{ color: colors.fg, fontSize: 20, fontWeight: "700", textAlign: "center" }}>
-          {t("mobile:updates.criticalTitle")}
-        </Text>
-        <Text
-          selectable
-          style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20, textAlign: "center" }}
-        >
-          {failed
-            ? t("mobile:updates.criticalFailedBody")
-            : t("mobile:updates.criticalLoadingBody")}
-        </Text>
-      </View>
-
       {failed ? (
-        <View style={{ alignSelf: "stretch", gap: space.md }}>
-          <Button label={t("buttons.retry")} onPress={() => void retryCritical()} />
+        <>
+          <Button variant="primary" size="lg" block label={t("buttons.retry")} onPress={() => void retryCritical()} />
           {errorMessage ? (
             <Text
               selectable
-              style={{ color: colors.fgFaint, fontSize: 12, textAlign: "center" }}
+              style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16, textAlign: "center" }}
             >
               {errorMessage}
             </Text>
           ) : null}
+        </>
+      ) : (
+        <View style={{ alignItems: "center", paddingTop: space.xs }}>
+          <ActivityIndicator color={colors.accent} />
         </View>
-      ) : null}
-    </View>
+      )}
+    </UpdateScreenFrame>
   );
 }

@@ -1,17 +1,19 @@
-import { ActivityIndicator, Pressable, View } from "react-native";
-import { Text } from "../components/ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowDownToLine, X } from "lucide-react-native";
+import { ActivityIndicator, View } from "react-native";
+import { ArrowDownToLine } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space } from "../theme/theme";
+import { Button } from "../components/ui/Button";
+import { ProgressBar } from "../components/ui/ProgressBar";
+import { colors } from "../theme/theme";
 import { APK_INSTALL_SUPPORTED } from "./native-apk";
 import { useNativeUpdateStore } from "./native-update-store";
+import { UpdatePill } from "./UpdatePill";
 
 /**
- * Subtle, dismissible banner for an OPTIONAL native update — a newer APK exists
+ * Subtle, dismissible pill for an OPTIONAL native update — a newer APK exists
  * but the installed runtime is still supported. Unlike the OTA banner (which
  * reloads), this drives the full IN-APP install flow: tapping "Update" downloads
- * the APK with progress, then launches the Android installer — never a browser.
+ * the APK with a REAL progress bar under the label, then launches the Android
+ * installer — never a browser.
  *
  * Phase-driven inline: idle → "Update"; downloading → progress %; downloaded →
  * "Install" (re-offered after an OS-install cancel, no re-download); installing →
@@ -28,7 +30,6 @@ export function NativeUpdateBanner() {
   const startUpdate = useNativeUpdateStore((s) => s.startUpdate);
   const installDownloaded = useNativeUpdateStore((s) => s.installDownloaded);
   const dismissBanner = useNativeUpdateStore((s) => s.dismissBanner);
-  const insets = useSafeAreaInsets();
 
   // iOS can't sideload → nothing actionable, so never show the banner there.
   if (level !== "optional" || dismissed || !APK_INSTALL_SUPPORTED) return null;
@@ -48,75 +49,35 @@ export function NativeUpdateBanner() {
             : t("mobile:updates.nativeOptionalBanner");
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        paddingBottom: insets.bottom + space.md,
-        paddingHorizontal: space.lg,
-        alignItems: "center",
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.md,
-          maxWidth: 420,
-          backgroundColor: colors.surfaceRaised,
-          borderColor: colors.stroke,
-          borderWidth: 1,
-          borderRadius: radius.pill,
-          borderCurve: "continuous",
-          paddingLeft: space.lg,
-          paddingRight: space.sm,
-          paddingVertical: space.sm,
-          // Warm near-black lift — the string form of `elevation.panel`.
-          boxShadow: "0 6px 20px rgba(8,3,1,0.5)",
-        }}
-      >
-        <ArrowDownToLine size={16} color={colors.accent} />
-        <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600", flexShrink: 1 }}>
-          {label}
-        </Text>
-
-        {busy ? (
-          <ActivityIndicator size="small" color={colors.accent} />
+    <UpdatePill
+      icon={ArrowDownToLine}
+      label={label}
+      onDismiss={dismissBanner}
+      footer={
+        phase === "downloading" ? (
+          <ProgressBar value={progress} height={3} accessibilityLabel={label} />
+        ) : null
+      }
+      action={
+        busy ? (
+          <View style={{ width: 40, alignItems: "center" }}>
+            <ActivityIndicator size="small" color={colors.accent} />
+          </View>
         ) : (
-          <Pressable
-            onPress={() =>
-              phase === "downloaded" ? void installDownloaded() : void startUpdate()
-            }
-            style={({ pressed }) => ({
-              backgroundColor: colors.accent,
-              opacity: pressed ? 0.85 : 1,
-              borderRadius: radius.pill,
-              borderCurve: "continuous",
-              paddingHorizontal: space.md,
-              paddingVertical: space.xs + 2,
-            })}
-          >
-            <Text style={{ color: colors.onAccent, fontSize: 13, fontWeight: "700" }}>
-              {phase === "downloaded"
+          <Button
+            variant="accent"
+            size="sm"
+            label={
+              phase === "downloaded"
                 ? t("mobile:updates.nativeInstall")
                 : phase === "error"
                   ? t("mobile:updates.nativeRetry")
-                  : t("mobile:updates.nativeUpdate")}
-            </Text>
-          </Pressable>
-        )}
-
-        <Pressable
-          onPress={dismissBanner}
-          hitSlop={8}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: space.xs })}
-        >
-          <X size={16} color={colors.fgMuted} />
-        </Pressable>
-      </View>
-    </View>
+                  : t("mobile:updates.nativeUpdate")
+            }
+            onPress={() => (phase === "downloaded" ? void installDownloaded() : void startUpdate())}
+          />
+        )
+      }
+    />
   );
 }

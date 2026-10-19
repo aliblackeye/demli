@@ -122,6 +122,7 @@
     "channelDescription": "Yeni mesajlar ve arkadaşlık istekleri"
   },
   "home": {
+    "bannerSwipeHintA11y": "Kapatmak için yukarı kaydır",
     "friendsWithRequestsA11y": "Arkadaşlar — bekleyen istek var",
     "dmLoadErrorTitle": "Mesajlar yüklenemedi",
     "longPressOptionsA11y": "Seçenekler için basılı tut",
