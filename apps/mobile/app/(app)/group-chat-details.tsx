@@ -200,7 +200,7 @@ export default function GroupChatDetails() {
         {data ? (
           <>
             <View style={{ alignItems: "center", gap: space.sm }}>
-              <Avatar name={title} size={72} uri={null} />
+              <Avatar name={title} size={72} uri={group?.iconUrl} />
               <Text type="heading" tone="display" numberOfLines={2} style={{ textAlign: "center" }}>
                 {title}
               </Text>

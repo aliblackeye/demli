@@ -230,14 +230,17 @@ export function AvatarLightbox({
           pointerEvents="none"
           style={[{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.rail }, backdropStyle]}
         />
-        {/* Tapping the backdrop closes — but only at fit scale (see header). */}
+        {/* Tapping the backdrop closes — but only at fit scale (see header).
+            A SIBLING behind the image, not its parent: as a parent it would see
+            the first tap of a double-tap and close before the zoom could run. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("common:buttons.close")}
           onPress={zoomed ? undefined : onClose}
           disabled={zoomed}
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <GestureDetector gesture={gesture}>
             <Animated.View
               accessible
@@ -267,7 +270,7 @@ export function AvatarLightbox({
               </Animated.View>
             </Animated.View>
           </GestureDetector>
-        </Pressable>
+        </View>
 
         <Animated.View style={[{ position: "absolute", top: insets.top + space.sm, right: space.md }, chromeStyle]}>
           <IconButton icon={X} variant="veil" size="lg" label={t("common:buttons.close")} onPress={onClose} />
