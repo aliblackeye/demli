@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>Demli — shell harness (dev only)</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background-color: #000000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      DEV-ONLY page. Vite's production build has index.html as its single entry,
+      so this file and src/harness/* never reach a bundle. See
+      src/harness/shell/main.tsx for the scenes.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/harness/shell/main.tsx"></script>
+  </body>
+</html>
