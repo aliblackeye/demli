@@ -16,7 +16,20 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ScreenShareModule from "./screen-share";
+
+let screenShare: typeof ScreenShareModule;
+
+/**
+ * Loaded ONCE: `screen-share.ts` holds no module state and reads every browser
+ * global at call time, so the per-test stubs below apply to the one instance.
+ * Re-importing per test cost seconds of transform on a loaded full-workspace
+ * run and let a timed-out test keep running against the NEXT test's stubs.
+ */
+beforeAll(async () => {
+  screenShare = await import("./screen-share");
+}, 60_000);
 
 class FakeTrack {
   stopped = false;
@@ -185,14 +198,13 @@ function expectNoEndpointLoopback(h: Harness): void {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.resetModules();
   vi.useRealTimers();
 });
 
 describe("desktop share-audio ladder", () => {
   it("window + 'app' captures only that window's process tree", async () => {
     const h = install({});
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "app" });
 
     expect(h.startRequests).toEqual([{ mode: "app", sourceId: "window:123:0" }]);
@@ -205,7 +217,7 @@ describe("desktop share-audio ladder", () => {
 
   it("screen + 'system' captures everything except Demli", async () => {
     const h = install({});
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("screen:0:0", { quality: "1080p30", audioMode: "system" });
 
     expect(h.startRequests).toEqual([{ mode: "system" }]);
@@ -216,7 +228,7 @@ describe("desktop share-audio ladder", () => {
 
   it("keeps a healthy capture that has carried no bytes yet (play not pressed)", async () => {
     const h = install({});
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "app" });
     expect(h.stopped).toEqual([]);
   });
@@ -228,7 +240,7 @@ describe("desktop share-audio ladder", () => {
           ? { ok: false, reason: "includes_demli" }
           : { ok: true, captureId: 9, mode: "system", format: { sampleRate: 48000, channels: 2, bitDepth: 16 } },
     });
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "app" });
 
     expect(h.startRequests).toEqual([{ mode: "app", sourceId: "window:123:0" }, { mode: "system" }]);
@@ -240,7 +252,7 @@ describe("desktop share-audio ladder", () => {
 
   it("a refused 'system' capture shares picture only — nothing else is tried", async () => {
     const h = install({ start: () => ({ ok: false, reason: "activation_failed" }) });
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("screen:0:0", { quality: "1080p30", audioMode: "system" });
 
     expect(h.startRequests).toEqual([{ mode: "system" }]);
@@ -254,7 +266,7 @@ describe("desktop share-audio ladder", () => {
 
   it("Windows older than 20348: no capture attempt, honest notice", async () => {
     const h = install({ support: { supported: false, reason: "unsupported_os" } });
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("screen:0:0", { quality: "1080p30", audioMode: "system" });
 
     expect(h.startRequests).toEqual([]);
@@ -266,7 +278,7 @@ describe("desktop share-audio ladder", () => {
 
   it("'none' publishes video only and is not a failure", async () => {
     const h = install({});
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "none" });
 
     expect(h.startRequests).toEqual([]);
@@ -279,7 +291,7 @@ describe("desktop share-audio ladder", () => {
 
   it("defaults: a window shares its app, a screen the system", async () => {
     install({});
-    const { defaultShareAudioMode } = await import("./screen-share");
+    const { defaultShareAudioMode } = screenShare;
     expect(defaultShareAudioMode("window:1:0")).toBe("app");
     expect(defaultShareAudioMode("screen:0:0")).toBe("system");
   });
@@ -293,7 +305,7 @@ describe("pre-M16 share storage migration", () => {
         "demli:screen-share:system-audio": "false",
       },
     });
-    const { loadScreenSharePrefs } = await import("./screen-share");
+    const { loadScreenSharePrefs } = screenShare;
     const prefs = loadScreenSharePrefs();
 
     expect(h.storage.has("demli:screen-share:film-audio-source")).toBe(false);
@@ -308,7 +320,7 @@ describe("pre-M16 share storage migration", () => {
         "demli:screen-share:system-audio": "true",
       },
     });
-    const { loadScreenSharePrefs } = await import("./screen-share");
+    const { loadScreenSharePrefs } = screenShare;
     const prefs = loadScreenSharePrefs();
 
     expect(h.storage.has("demli:screen-share:film-audio-source")).toBe(false);
@@ -317,7 +329,7 @@ describe("pre-M16 share storage migration", () => {
 
   it("never lets a screen start in 'app' mode", async () => {
     install({ storage: { "demli:screen-share:audio-mode:screen": "app" } });
-    const { loadScreenSharePrefs } = await import("./screen-share");
+    const { loadScreenSharePrefs } = screenShare;
     expect(loadScreenSharePrefs().audioMode.screen).toBe("system");
   });
 });
@@ -329,7 +341,7 @@ describe("share-audio supervisor (watch-only)", () => {
 
   it("reports 'unavailable' when no share audio is published", async () => {
     install({});
-    const { superviseFilmAudio } = await import("./screen-share");
+    const { superviseFilmAudio } = screenShare;
     const statuses: string[] = [];
     superviseFilmAudio({ track: null, onStatus: (s) => statuses.push(s) })();
     expect(statuses).toEqual(["unavailable"]);
@@ -337,7 +349,7 @@ describe("share-audio supervisor (watch-only)", () => {
 
   it("a long-silent track stays 'waiting' and nothing else is ever captured", async () => {
     const h = install({});
-    const { superviseFilmAudio } = await import("./screen-share");
+    const { superviseFilmAudio } = screenShare;
     const statuses: string[] = [];
     const stop = superviseFilmAudio({
       track: new FakeTrack("audio") as unknown as MediaStreamTrack,
@@ -353,7 +365,7 @@ describe("share-audio supervisor (watch-only)", () => {
 
   it("reports 'live' once real sound is measured", async () => {
     const h = install({});
-    const { superviseFilmAudio } = await import("./screen-share");
+    const { superviseFilmAudio } = screenShare;
     const statuses: string[] = [];
     const stop = superviseFilmAudio({
       track: new FakeTrack("audio") as unknown as MediaStreamTrack,
@@ -367,7 +379,7 @@ describe("share-audio supervisor (watch-only)", () => {
 
   it("reports 'failed' when the capture dies mid-share, even after it went live", async () => {
     const h = install({});
-    const { superviseFilmAudio } = await import("./screen-share");
+    const { superviseFilmAudio } = screenShare;
     const statuses: string[] = [];
     const track = new FakeTrack("audio");
     const stop = superviseFilmAudio({
@@ -394,7 +406,7 @@ describe("share-audio supervisor (watch-only)", () => {
 describe("web share audio", () => {
   it("asks for a tab first, keeps Demli's own tab and playback out", async () => {
     install({ platform: "web" });
-    const { webDisplayMediaRequest } = await import("./screen-share");
+    const { webDisplayMediaRequest } = screenShare;
     const req = webDisplayMediaRequest(true, "1080p30", "browser") as Record<string, unknown> & {
       video: Record<string, unknown>;
       audio: Record<string, unknown>;
@@ -416,7 +428,7 @@ describe("web share audio", () => {
 
   it("asks for no audio at all when the sharer chose no sound", async () => {
     install({ platform: "web" });
-    const { webDisplayMediaRequest } = await import("./screen-share");
+    const { webDisplayMediaRequest } = screenShare;
     const req = webDisplayMediaRequest(false, "720p30", "monitor") as Record<string, unknown>;
     expect(req.audio).toBe(false);
     expect(req).not.toHaveProperty("systemAudio");
@@ -425,7 +437,7 @@ describe("web share audio", () => {
 
   it("maps the surface the user actually picked to honest guidance", async () => {
     install({ platform: "web" });
-    const { webShareAudioOutcome } = await import("./screen-share");
+    const { webShareAudioOutcome } = screenShare;
     const base = { wantAudio: true, audioCapable: true, restrictOwnAudioApplied: false };
 
     expect(webShareAudioOutcome({ ...base, surface: "browser", hasAudio: true })).toEqual({
@@ -455,7 +467,7 @@ describe("web share audio", () => {
 
   it("a window share returns no sound and the window guidance; the picker hint is honoured", async () => {
     const h = install({ platform: "web", userAgentData: true, videoSettings: { displaySurface: "window" } });
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("web:display:window", { quality: "1080p30", audioMode: "system" });
 
     expect((h.displayRequests[0] as { video: { displaySurface: string } }).video.displaySurface).toBe("window");
@@ -473,7 +485,7 @@ describe("web share audio", () => {
       videoSettings: { displaySurface: "browser" },
       displayAudio: [tabAudio],
     });
-    const { acquireScreenShare } = await import("./screen-share");
+    const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("web:display:browser", { quality: "1080p30", audioMode: "system" });
 
     expect(acquired.audio).toBe(tabAudio);

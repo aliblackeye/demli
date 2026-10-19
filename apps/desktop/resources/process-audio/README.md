@@ -52,13 +52,18 @@ normal.
 
 ## Proof
 
-`pnpm --filter @demli/desktop verify:process-audio` (Windows; plays two short
-test tones) measures each capture with the Goertzel algorithm:
+`pnpm --filter @demli/desktop verify:process-audio` (Windows; plays short test
+tones) measures each capture with the Goertzel algorithm:
 
-1. Two processes play 440 Hz and 1000 Hz at once. `include(A)` must carry 440 Hz
-   and not 1000 Hz; `exclude(A)` the reverse.
-2. A real Electron app plays 1000 Hz through an `<audio>` element (how LiveKit
-   plays remote voices) while another process plays 440 Hz. `exclude(<Electron
-   main PID>)` must carry 440 Hz and not 1000 Hz.
+1. Two processes play 613 Hz and 1471 Hz at once. `include(A)` must carry 613 Hz
+   and not 1471 Hz; `exclude(A)` the reverse.
+2. A real Electron app plays 1471 Hz through an `<audio>` element (how LiveKit
+   plays remote voices) while another process plays 613 Hz.
+   `exclude(<Electron main PID>)` must carry 613 Hz and not 1471 Hz, and
+   `include(<Electron main PID>)` must carry 1471 Hz.
 
-Present means ≥ −40 dBFS, absent ≤ −60 dBFS (tones are generated at −12 dBFS).
+Present means ≥ −40 dBFS and ≥ 15 dB above the neighbouring bins; absent means
+≤ −60 dBFS or no peak above those bins (an exclude capture also holds whatever
+else the PC is playing). Process loopback captures after the per-app volume, so
+an `electron.exe` muted in the Windows volume mixer makes part 2 fail instead of
+passing vacuously.

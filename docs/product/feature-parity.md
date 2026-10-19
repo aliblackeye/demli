@@ -1385,12 +1385,15 @@ kanalında ve grup aramasında aynı: üçü de tek `voice-store.startScreenShar
 | voice-store yarışı: edinim sonucu yayın bitince yazılıyor (eski kod "izleyiciler duymuyor" uyarısını ve önizlemeyi yayın sürerken siliyordu) | ✅ | ✅ | — |
 | `replaceScreenShareAudio`: takas sırasında gelen durdurma kazanır, yeni iz yayında kalmaz | ✅ | ✅ | ✅ (ortak motor) |
 
-**Sayısal kanıt** (`pnpm --filter @demli/desktop verify:process-audio`, bu makinede):
-iki süreç aynı anda 440 Hz / 1000 Hz çalarken include(A) 440 Hz −12,0 dBFS / 1000 Hz −118,8
-dBFS; exclude(A) 1000 Hz −12,0 dBFS / 440 Hz −151,3 dBFS. Gerçek Electron `<audio>` 1000 Hz
-çalarken exclude(Electron ana PID) 1000 Hz −118,8 dBFS / başka sürecin 440 Hz'i −12,0 dBFS;
-include(Electron ana PID) 1000 Hz −12,0 dBFS → Electron'un ses servisi ana sürecin ağacında.
-Eşik: var ≥ −40 dBFS, yok ≤ −60 dBFS. 8/8 geçti.
+**Sayısal kanıt** (`pnpm --filter @demli/desktop verify:process-audio`, bu makinede, arka
+planda başka ses çalarken): iki süreç aynı anda 613 Hz / 1471 Hz çalarken include(A) 613 Hz
+−12,0 dBFS / 1471 Hz −143 dBFS; exclude(A) 1471 Hz −12,0 dBFS / 613 Hz komşu bantların
+üstünde tepe yok (−1 dB) — 3 koşuda 12/12. Gerçek Electron `<audio>` (ilk koşu, 1000/440 Hz):
+exclude(Electron ana PID) Electron tonu −118,8 dBFS / başka sürecin tonu −12,0 dBFS;
+include(Electron ana PID) Electron tonu −12,0 dBFS → Electron'un ses servisi ana sürecin
+ağacında. Sonraki koşularda `electron.exe` Windows ses karıştırıcısında SESSİZE alınmıştı
+(oturum `mute=1`; süreç-yakalama karıştırıcı sonrası alır) — betik bunu artık "geçti" değil
+"kanıtsız" sayıyor; karıştırıcı açıkken yeniden koşulmalı.
 
 **Açık (cihaz):** founder makinesi (Voicemeeter + SSL) ve düz Windows'ta DM/kanal/grup
 aramasında karşı taraf konuşurken tüm ekran + sistem sesi paylaşımı → karşı taraf kendini

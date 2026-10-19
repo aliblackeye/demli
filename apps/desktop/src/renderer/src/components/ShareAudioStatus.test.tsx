@@ -17,6 +17,7 @@ import { I18nextProvider } from "react-i18next";
 import { createI18n, createMemoryStorage, type i18n as I18n } from "@demli/i18n";
 import { TooltipProvider } from "@demli/ui";
 import type { ShareAudioState } from "../stores/voice-store";
+import type { CallDock as CallDockComponent } from "./CallDock";
 
 const voiceState = {
   status: "connected",
@@ -68,7 +69,7 @@ declare global {
 }
 
 let i18n: I18n;
-let CallDock: (typeof import("./CallDock"))["CallDock"];
+let CallDock: typeof CallDockComponent;
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
