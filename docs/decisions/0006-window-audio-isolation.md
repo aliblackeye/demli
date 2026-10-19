@@ -1,7 +1,8 @@
 # 0006 — Window Audio Isolation for Screen Share
 
-- **Status:** Accepted (spike — no code shipped with this ADR itself)
-- **Date:** 2026-07-07
+- **Status:** Accepted — Option A (include + exclude) IMPLEMENTED in M16 (2026-10-19);
+  see "Update 2026-10-19" at the end. Endpoint loopback is no longer used anywhere.
+- **Date:** 2026-07-07 (updated 2026-10-19)
 - **Owner:** media-webrtc
 - **Related:** CLAUDE.md §6/§11/§26
 
@@ -136,3 +137,48 @@ does not reliably remove remote voices. Rejected.
 | B `restrictOwnAudio` | no | yes | Electron ≥ Chromium 141 | days (after upgrade) |
 | C `windowAudio: "window"` | single window | yes | needs Electron API support | blocked upstream |
 | D output-device routing | no | yes (manual) | now | hours (docs/hint) |
+
+## Update 2026-10-19 — M16: Option A shipped, loopback removed
+
+The "next step" above was never built: 0.0.47 vendored an include-only
+`ApplicationLoopback.exe` (mode hard-wired to `INCLUDE_TARGET_PROCESS_TREE`,
+confirmed by disassembly), and whole-screen shares kept using Electron
+`audio: "loopback"` or a regex-matched "system mix" recording input. Both carry
+Demli's playback of the call, which is exactly the founder's field report
+(M16 H1: the other side heard her own voice). The mix-input tier could also
+pick the user's microphone bus on a Voicemeeter setup, and an 8-second
+supervisor hot-swapped silent-but-correct sources onto those inputs.
+
+Decision now in code:
+
+1. **Own helper, both modes.** `apps/desktop/native/process-audio` (adapted from
+   the MS sample, MIT) is built statically with MinGW-w64 and committed as
+   `resources/process-audio/win32-x64/demli-audio-capture.exe`
+   (`<pid> include|exclude`, plus `--window-pid` / `--ancestors` lookups).
+   Not an N-API addon: a child process has no ABI coupling to Electron and no
+   native build at install time.
+2. **Two user-facing modes**, chosen explicitly in the picker:
+   "Yalnız bu uygulama" = include the window's tree; "Sistem sesi (Demli
+   hariç)" = exclude `process.pid`'s tree. Electron's audio service is a child
+   of the main process; measured with a real Electron `<audio>` element:
+   exclude(main PID) leaves the Electron tone at −118.8 dBFS while another
+   process's tone stays at −12.0 dBFS (`scripts/verify-process-audio.mjs`).
+3. **"App" mode refuses trees that contain Demli** (Demli itself, or an
+   ancestor such as Explorer, which launches it) and falls back to the exclude
+   mode with a notice.
+4. **No endpoint loopback, no mix inputs, no hot-swap.** The display-media
+   handler serves video only; the supervisor only reports waiting / live /
+   failed.
+5. **Unsupported Windows (build < 20348, i.e. Windows 10)**: the share goes out
+   without sound and says why. Endpoint loopback was rejected even as an opt-in
+   fallback: it echoes the call on every utterance, headphones do not prevent it
+   (loopback taps the render endpoint, not the speakers), and Option D needs a
+   second output device most users do not have.
+6. **Web** (Chromium ≥141 available there, unlike Electron 33): the request sets
+   `restrictOwnAudio: true` (Option B) and `selfBrowserSurface: "exclude"`;
+   window audio (Option C, `windowAudio: "window"`) is sent as a hint only.
+
+Still open: Option B/C on desktop once Electron reaches Chromium ≥141; a
+browser launched BY Demli (e.g. `shell.openExternal` starting Chrome) becomes a
+descendant of Demli and is therefore excluded from "system" sound — "app" mode
+on its window still works.
