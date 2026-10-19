@@ -12,7 +12,11 @@ import { ApiError, parseWith } from "../../errors.js";
 import { postMembershipSystemMessage } from "../../lib/system-messages.js";
 import { requirePerm } from "../../lib/permissions.js";
 import { requireUser } from "../../plugins/auth.js";
-import { ownedObjectPath, type AvatarStorage } from "../../lib/storage.js";
+import {
+  groupBannerOwnerPrefix,
+  ownedObjectPath,
+  type AvatarStorage,
+} from "../../lib/storage.js";
 import { evictFromGroupVoice, type VoiceEjector } from "../../lib/voice-eviction.js";
 import type { MediaModerator } from "../../lib/media-moderation.js";
 import {
@@ -319,7 +323,11 @@ export async function registerGroupsModule(
       if (!updated) throw new ApiError(404, "NOT_FOUND", "Group not found.");
 
       if (removingBanner && avatarStorage) {
-        const previousPath = ownedObjectPath(previousBannerUrl, avatarStorage);
+        const previousPath = ownedObjectPath(
+          previousBannerUrl,
+          avatarStorage,
+          groupBannerOwnerPrefix(groupId),
+        );
         if (previousPath) {
           // Best-effort: the row already says "no banner", which is the state the
           // user asked for. A stranded object costs storage, not correctness.
@@ -417,7 +425,11 @@ export async function registerGroupsModule(
         throw new ApiError(404, "NOT_FOUND", "Group not found.");
       }
 
-      const previousPath = ownedObjectPath(previousBannerUrl, avatarStorage);
+      const previousPath = ownedObjectPath(
+        previousBannerUrl,
+        avatarStorage,
+        groupBannerOwnerPrefix(groupId),
+      );
       if (previousPath && previousPath !== storagePath) {
         try {
           await avatarStorage.remove([previousPath]);

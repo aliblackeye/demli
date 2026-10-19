@@ -278,29 +278,64 @@ export function createAvatarStorage(env: {
 }
 
 /**
- * The bucket-relative object key for an avatar/banner URL, IFF it is one of ours
- * (a public URL in this bucket). Returns null for an external URL (a Google
- * avatar or a user-pasted link), so purging a superseded object never touches one
- * we do not own. Path segments are URL-decoded back to their stored form.
- *
- * Works for every image the public bucket holds — avatars, profile banners and
- * server banners all live in it under different prefixes — which is why it sits
- * here rather than inside one module: the group-banner path needs exactly the
- * same "is this mine to delete?" answer the profile path needed, and two copies
- * of an ownership test is how one of them ends up deleting an object it does not
- * own.
+ * The bucket-relative object key of a URL in our public bucket, or null when the
+ * URL is not one (a Google avatar, a user-pasted link). Path segments are
+ * URL-decoded back to their stored form; a key that decodes into anything but
+ * plain path segments (`..`, `.`, an empty segment, an encoded `/` or `\`) is
+ * refused, so no encoding trick can make it name a different object.
  */
-export function ownedObjectPath(url: string | null, storage: AvatarStorage): string | null {
+export function bucketObjectPath(url: string | null, storage: AvatarStorage): string | null {
   if (!url) return null;
   const prefix = storage.publicUrl("");
   if (!url.startsWith(prefix)) return null;
   const encoded = url.slice(prefix.length);
+  let segments: string[];
   try {
-    return encoded
-      .split("/")
-      .map((segment) => decodeURIComponent(segment))
-      .join("/");
+    segments = encoded.split("/").map((segment) => decodeURIComponent(segment));
   } catch {
     return null;
   }
+  for (const segment of segments) {
+    if (segment === "" || segment === "." || segment === "..") return null;
+    if (segment.includes("/") || segment.includes("\\")) return null;
+  }
+  return segments.join("/");
+}
+
+/**
+ * The bucket-relative object key for an avatar/banner URL, IFF it is an object
+ * this caller OWNS: a public URL in our bucket whose key sits under
+ * `ownerPrefix` (`avatars/<userId>/`, `banners/<userId>/`,
+ * `group-banners/<groupId>/`). Null otherwise — so purging a superseded object
+ * never touches one the caller does not own.
+ *
+ * "In our bucket" alone was not ownership. Avatars, profile banners and server
+ * banners all share one public bucket, and every one of those URLs is public
+ * (it is in the user/group DTO). Pointing your own avatarUrl at someone else's
+ * object and then uploading a new avatar used to delete THEIR file. The prefix
+ * is the owner's id, which nobody but the owner's own upload path writes under.
+ */
+export function ownedObjectPath(
+  url: string | null,
+  storage: AvatarStorage,
+  ownerPrefix: string,
+): string | null {
+  const path = bucketObjectPath(url, storage);
+  if (!path) return null;
+  return path.startsWith(ownerPrefix) && path.length > ownerPrefix.length ? path : null;
+}
+
+/** The key prefix under which a user's avatar uploads live. */
+export function avatarOwnerPrefix(userId: string): string {
+  return `avatars/${userId}/`;
+}
+
+/** The key prefix under which a user's profile-banner uploads live. */
+export function bannerOwnerPrefix(userId: string): string {
+  return `banners/${userId}/`;
+}
+
+/** The key prefix under which a server's banner uploads live. */
+export function groupBannerOwnerPrefix(groupId: string): string {
+  return `group-banners/${groupId}/`;
 }

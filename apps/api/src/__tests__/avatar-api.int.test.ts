@@ -186,6 +186,31 @@ describe.skipIf(!dbUp)("avatar upload API", () => {
     expect(storage.removed.slice(removedBefore)).toContain(firstPath);
   });
 
+  it("cannot point a profile at another user's object, so an upload cannot delete it", async () => {
+    const victim = await app.inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: { username: `av_victim_${suffix}`, password, displayName: "Victim" },
+    });
+    const victimToken = (victim.json() as { token: string }).token;
+    const victimUpload = await uploadTo(app, { mime: "image/png", dataBase64: pngBase64() }, victimToken);
+    const victimUrl = (victimUpload.json().user as { avatarUrl: string }).avatarUrl;
+    const victimPath = storage.uploads.at(-1)?.path;
+
+    const hijack = await app.inject({
+      method: "PATCH",
+      url: "/users/me",
+      headers: auth(token),
+      payload: { avatarUrl: victimUrl },
+    });
+    expect(hijack.statusCode).toBe(400);
+
+    const removedBefore = storage.removed.length;
+    const upload = await uploadTo(app, { mime: "image/png", dataBase64: pngBase64() });
+    expect(upload.statusCode).toBe(200);
+    expect(storage.removed.slice(removedBefore)).not.toContain(victimPath);
+  });
+
   it("answers 503 AVATAR_UPLOADS_DISABLED when no avatar bucket is configured", async () => {
     const res = await uploadTo(disabledApp, { mime: "image/png", dataBase64: pngBase64() });
     expect(res.statusCode).toBe(503);
