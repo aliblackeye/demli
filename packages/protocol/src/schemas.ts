@@ -383,6 +383,7 @@ export const errorRaisedPayloadSchema = z.object({
   message: z.string(),
   nonce: z.string().optional(),
   retryAfterSeconds: z.number().int().nonnegative().optional(),
+  channelId: id.optional(),
 });
 
 // ADR 0007 roles & channel-access payloads.

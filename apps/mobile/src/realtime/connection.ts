@@ -18,6 +18,7 @@ import type { InfiniteData } from "@tanstack/react-query";
 import { MESSAGE_MAX_LENGTH } from "@demli/config";
 import {
   RealtimeClient,
+  createVoiceAnnouncer,
   isAppInForeground,
   shouldPlayMessageCue,
   type MessagesPage,
@@ -1083,8 +1084,7 @@ function handleServerEvent(event: ServerToClientEvent): void {
       // The gateway tracks our voice presence per WS connection and forgot it on
       // this fresh socket, so re-announce our current room — otherwise peers would
       // stop seeing us under the channel after a reconnect (§10).
-      announcedVoiceRoom = null;
-      syncVoiceAnnouncement();
+      voiceAnnouncer.reset();
       // Re-report our foreground/background state on every (re)connect (#110):
       // the gateway defaults a fresh socket to "foreground", so a reconnect that
       // happened while backgrounded MUST correct that or the phone looks awake.
@@ -1107,7 +1107,10 @@ function handleServerEvent(event: ServerToClientEvent): void {
     }
 
     case SERVER_EVENT.errorRaised: {
-      const { code, nonce, message, retryAfterSeconds } = event.payload;
+      const { code, nonce, message, retryAfterSeconds, channelId } = event.payload;
+      // Our own voice.join refused (e.g. the gateway has not caught up with a
+      // DM → group upgrade yet): the announcer retries it on a short backoff.
+      if (channelId && voiceAnnouncer.refused(channelId, code)) return;
       if (nonce) {
         const queued = findQueuedItem(nonce);
         if (queued) {
@@ -1616,7 +1619,6 @@ function currentVoiceRoom(): ChannelId | null {
   return roomId as ChannelId;
 }
 
-let announcedVoiceRoom: ChannelId | null = null;
 /** The group voice channel a live, upgraded DM call is announced under (else null). */
 let callOccupancyChannel: ChannelId | null = null;
 
@@ -1636,18 +1638,19 @@ export function announceCallOccupancy(channelId: ChannelId | null): void {
 
 /**
  * Reconcile what the gateway believes about our voice presence with the engine's
- * actual room. Idempotent and cheap — a no-op unless the room changed. A failed
- * send (socket down) is recovered by the `auth.succeeded` re-announce once the
- * handshake completes.
+ * actual room (shared `createVoiceAnnouncer`). Idempotent and cheap — a no-op
+ * unless the room changed. A failed send (socket down) is recovered by the
+ * `auth.succeeded` re-announce; a REFUSED join is retried by the announcer (see
+ * the `error.raised` handler).
  */
+const voiceAnnouncer = createVoiceAnnouncer({
+  join: (channelId) => client?.send(clientEvent.voiceJoin({ channelId })),
+  leave: (channelId) => client?.send(clientEvent.voiceLeave({ channelId })),
+  desired: currentVoiceRoom,
+});
+
 function syncVoiceAnnouncement(): void {
-  const desired = currentVoiceRoom();
-  if (desired === announcedVoiceRoom) return;
-  if (announcedVoiceRoom) {
-    client?.send(clientEvent.voiceLeave({ channelId: announcedVoiceRoom }));
-  }
-  if (desired) client?.send(clientEvent.voiceJoin({ channelId: desired }));
-  announcedVoiceRoom = desired;
+  voiceAnnouncer.sync();
 }
 
 // Announce room changes as the engine transitions (join → connected, leave →
@@ -1713,7 +1716,7 @@ function handleAppStateChange(next: AppStateStatus): void {
 export function startRealtime(token: string): void {
   hadHandshake = false;
   // A brand-new session: the gateway knows nothing about our voice presence yet.
-  announcedVoiceRoom = null;
+  voiceAnnouncer.forget();
   callOccupancyChannel = null;
   // Fresh session starts in the foreground and active: clear any stale auto-idle
   // and arm the inactivity countdown (a backgrounded start corrects itself on the
@@ -1752,7 +1755,7 @@ export function stopRealtime(): void {
   appStateSub = null;
   // Drop occupancy so a re-login starts clean; the gateway broadcasts our leave
   // to peers when the socket closes (handleClose → leaveVoice).
-  announcedVoiceRoom = null;
+  voiceAnnouncer.forget();
   callOccupancyChannel = null;
   useVoiceOccupancyStore.getState().reset();
   // Same reasoning for the watch party: a session we can no longer receive

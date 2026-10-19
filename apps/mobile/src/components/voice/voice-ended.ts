@@ -25,6 +25,8 @@ export function localizeVoiceEnded(
       return t("mobile:voice.endedAlone");
     case "session_replaced":
       return t("mobile:voice.sessionReplaced");
+    case "moderator":
+      return t("mobile:voice.endedModerator");
     default:
       return t("mobile:voice.sessionReplaced");
   }

@@ -88,7 +88,7 @@ export function createVoiceSessionRegistry(
       let previousRoom: string | null = null;
       try {
         previousRoom = await deps.redis.get(key);
-        // Refresh the record to the room being joined (bounded by the token TTL).
+        // Refresh the record to the room being joined (bounded by the session TTL).
         await deps.redis.set(key, newRoom, "EX", deps.ttlSeconds);
       } catch (err) {
         // A tracking failure must never block the join; without a record we simply

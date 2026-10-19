@@ -57,6 +57,9 @@
  *                        desktop/web, long-press on mobile, one set of rules —
  *                        so "never offer what the server would refuse" (§35) is
  *                        decided once instead of per renderer.
+ * - voice-announcer.ts — the voice.join / voice.leave reconcile both apps run
+ *                        against the gateway, including the bounded retry of a
+ *                        join the gateway refused (DM → group upgrade race).
  * - dm-calls/         — the DM-call FSM + controller (ADR 0012 Wave 5): a thin,
  *                        framework-free call lifecycle above the voice FSM, driven
  *                        by the `call.*` events and the `/dm-calls/*` endpoints.
@@ -131,5 +134,6 @@ export * from "./watch-party.js";
 export * from "./watch-player-protocol.js";
 export * from "./outbox/index.js";
 export * from "./dm-calls/index.js";
+export * from "./voice-announcer.js";
 export * from "./account-vault/index.js";
 export * from "./forms/index.js";

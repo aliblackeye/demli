@@ -92,11 +92,14 @@ describe("voiceEndedReasonFromEvent", () => {
     expect(voiceEndedReasonFromEvent("alone")).toBe("alone");
   });
 
+  it("maps the server's `moderator` reason to the engine's ended reason", () => {
+    expect(voiceEndedReasonFromEvent("moderator")).toBe("moderator");
+  });
+
   it("returns null for every reason this client does not handle", () => {
-    // `moderator` belongs to the moderation surface, and a newer server will send
-    // reasons this build has never heard of. Both must fall through to the
-    // existing behavior rather than be coerced into the nearest known reason.
-    expect(voiceEndedReasonFromEvent("moderator")).toBeNull();
+    // A newer server will send reasons this build has never heard of. They must
+    // fall through to the existing behavior rather than be coerced into the
+    // nearest known reason.
     expect(voiceEndedReasonFromEvent("some_future_reason")).toBeNull();
     expect(voiceEndedReasonFromEvent("")).toBeNull();
   });

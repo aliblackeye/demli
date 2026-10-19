@@ -116,4 +116,29 @@ describe("createLiveKitVoiceOccupancyReader", () => {
     const occ = await createLiveKitVoiceOccupancyReader({ roomService }).read([CH_A, CH_B]);
     expect([...occ.keys()]).toEqual([CH_B]);
   });
+
+  it("reads an upgraded call's channel from the call room it really runs in", async () => {
+    const CALL_ROOM = "dmcall:cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const asked: string[][] = [];
+    const roomService: Pick<RoomServiceClient, "listRooms" | "listParticipants"> = {
+      listRooms: async (names?: string[]) => {
+        asked.push(names ?? []);
+        return [room(CALL_ROOM, 2)];
+      },
+      listParticipants: async (name) =>
+        name === CALL_ROOM
+          ? [
+              participant("u1", ParticipantInfo_State.ACTIVE, []),
+              participant("u2", ParticipantInfo_State.ACTIVE, []),
+            ]
+          : [],
+    };
+    const occ = await createLiveKitVoiceOccupancyReader({ roomService }).read(
+      [CH_A, CH_B],
+      new Map([[CH_B, CALL_ROOM]]),
+    );
+    expect(asked).toEqual([[CH_A, CALL_ROOM]]);
+    expect([...occ.keys()]).toEqual([CH_B]);
+    expect(occ.get(CH_B)?.map((o) => o.userId)).toEqual(["u1", "u2"]);
+  });
 });

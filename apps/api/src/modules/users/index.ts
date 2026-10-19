@@ -10,7 +10,12 @@ import {
 } from "@demli/protocol";
 import { ApiError, parseWith } from "../../errors.js";
 import { requireUser } from "../../plugins/auth.js";
-import { ownedObjectPath, type AvatarStorage } from "../../lib/storage.js";
+import {
+  avatarOwnerPrefix,
+  bannerOwnerPrefix,
+  ownedObjectPath,
+  type AvatarStorage,
+} from "../../lib/storage.js";
 import type { MediaModerator } from "../../lib/media-moderation.js";
 import { buildAvatarStoragePath, decodeAvatarUpload } from "../../lib/avatar-upload.js";
 import { buildBannerStoragePath, decodeBannerUpload } from "../../lib/banner-upload.js";
@@ -139,6 +144,31 @@ export async function registerUsersModule(
   const { avatarStorage, mediaModerator, mutationBus } = deps;
 
   /**
+   * Refuse a profile URL that points at an object in OUR bucket the caller does
+   * not own. Every avatar/banner URL is public (it rides the user DTO), so
+   * without this a user could set their avatarUrl to someone else's file — and
+   * the next upload's "purge the previous object" step would delete it. Only the
+   * upload routes put a bucket URL on a profile; re-sending your own (a client
+   * that saves the whole form) stays allowed, as does any external https URL.
+   */
+  function assertNotForeignBucketObject(
+    url: string | null | undefined,
+    ownerPrefix: string,
+    field: "avatarUrl" | "bannerUrl",
+  ): void {
+    if (!url || !avatarStorage) return;
+    if (!url.startsWith(avatarStorage.publicUrl(""))) return;
+    if (ownedObjectPath(url, avatarStorage, ownerPrefix)) return;
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Upload the image instead of linking to it.",
+      undefined,
+      { field },
+    );
+  }
+
+  /**
    * Announce a public profile change to everyone who can see this user.
    *
    * Publishes ONE user-scoped mutation; the gateway expands it to the presence
@@ -216,6 +246,8 @@ export async function registerUsersModule(
           );
         }
       }
+      assertNotForeignBucketObject(body.avatarUrl, avatarOwnerPrefix(user.id), "avatarUrl");
+      assertNotForeignBucketObject(body.bannerUrl, bannerOwnerPrefix(user.id), "bannerUrl");
       const updated = await server.repos.users.updateProfile(user.id, body);
       if (!updated) throw new ApiError(404, "NOT_FOUND", "User not found.");
       // Tell everyone who can see this user that the profile changed — `updated` is
@@ -298,10 +330,14 @@ export async function registerUsersModule(
         throw new ApiError(404, "NOT_FOUND", "User not found.");
       }
 
-      // Purge the previous avatar object IF it was one of OURS (a public URL in
-      // this bucket). A Google/external avatar URL has no object key here, so it
-      // is left untouched. Best-effort.
-      const previousPath = ownedObjectPath(previousAvatarUrl, avatarStorage);
+      // Purge the previous avatar object IF it is this user's own upload (a key
+      // under avatars/<self>/). A Google/external avatar URL has no object key
+      // here, and another user's object is never ours to delete. Best-effort.
+      const previousPath = ownedObjectPath(
+        previousAvatarUrl,
+        avatarStorage,
+        avatarOwnerPrefix(user.id),
+      );
       if (previousPath && previousPath !== storagePath) {
         try {
           await avatarStorage.remove([previousPath]);
@@ -376,7 +412,11 @@ export async function registerUsersModule(
         throw new ApiError(404, "NOT_FOUND", "User not found.");
       }
 
-      const previousPath = ownedObjectPath(previousBannerUrl, avatarStorage);
+      const previousPath = ownedObjectPath(
+        previousBannerUrl,
+        avatarStorage,
+        bannerOwnerPrefix(user.id),
+      );
       if (previousPath && previousPath !== storagePath) {
         try {
           await avatarStorage.remove([previousPath]);

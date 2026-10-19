@@ -30,6 +30,7 @@
  */
 
 import type { RealtimeMutationPublisher, Repositories } from "@demli/db";
+import { callMissedPush, type OfflineNotifier } from "@demli/notifications";
 import { serverEvent } from "@demli/protocol";
 import type { UserId } from "@demli/types";
 
@@ -48,6 +49,11 @@ export interface DmCallDisconnectReaperDeps {
   repos: Repositories;
   /** Publishes `call.ended` to the callee (and the caller's other devices). */
   mutationBus?: RealtimeMutationPublisher;
+  /**
+   * Replaces the withdrawn ring on the callee's phone with the missed-call line;
+   * a backgrounded phone never sees the `call.ended` event. Omitted ⇒ no push.
+   */
+  notifier?: OfflineNotifier;
   /** "Is this user still fully offline?" — presence-backed, cross-replica. */
   isOffline: (userId: UserId) => Promise<boolean>;
   graceMs?: number;
@@ -93,6 +99,15 @@ export function createDmCallDisconnectReaper(
     }
     if (missed.length > 0) {
       log(`caller ${userId} went offline — withdrew ${missed.length} outgoing ring(s)`);
+      const caller = deps.notifier ? await deps.repos.users.findById(userId) : null;
+      if (caller) {
+        for (const call of missed) {
+          await deps.notifier?.notifyAlways(
+            [call.calleeId],
+            callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
+          );
+        }
+      }
     }
   }
 

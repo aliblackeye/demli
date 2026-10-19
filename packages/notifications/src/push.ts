@@ -14,9 +14,23 @@ import type { UserPushToken } from "@demli/db";
  * one durable side effect is pruning dead tokens (`DeviceNotRegistered`).
  */
 
+/**
+ * The Android notification channel every push is posted on. MUST equal the
+ * channel the mobile app creates at startup (`ANDROID_CHANNEL_ID` in
+ * apps/mobile/src/push/push-manager.ts — a test pins the two together).
+ *
+ * A push that names no channel lands on Expo's `default` channel, which the app
+ * deletes on startup because its sound points at a missing file; Android then
+ * recreates it with those dead settings, so rings arrived silent or on a
+ * low-importance channel.
+ */
+export const ANDROID_PUSH_CHANNEL_ID = "messages-v2";
+
 /** The user-facing content of a push. `data` rides along for client navigation. */
 export interface PushNotification {
+  /** Ignored for a {@link silent} push. */
   title: string;
+  /** Ignored for a {@link silent} push. */
   body: string;
   /** Opaque nav payload (e.g. `{ type, channelId, dmId, messageId }`). */
   data?: Record<string, unknown>;
@@ -28,6 +42,17 @@ export interface PushNotification {
    * channel; omitted → notifications stack as before (DM, friend, mention pushes).
    */
   collapseKey?: string;
+  /**
+   * How long the push service may hold an undelivered push (seconds). Omitted →
+   * the provider default (up to four weeks on FCM). A call ring needs this: a
+   * phone that comes back online must not ring for a call that ended long ago.
+   */
+  ttlSeconds?: number;
+  /**
+   * Data-only: no title, body or sound, so nothing is shown by the OS. For
+   * signals a client acts on itself (dismissing a ring answered elsewhere).
+   */
+  silent?: boolean;
 }
 
 export interface PushService {
@@ -96,10 +121,12 @@ export class ExpoPushService implements PushService {
       }
       messages.push({
         to: token,
-        sound: "default",
-        title: notification.title,
-        body: notification.body,
+        ...(notification.silent
+          ? { _contentAvailable: true }
+          : { sound: "default", title: notification.title, body: notification.body }),
         ...(notification.data ? { data: notification.data } : {}),
+        channelId: ANDROID_PUSH_CHANNEL_ID,
+        ...(notification.ttlSeconds !== undefined ? { ttl: notification.ttlSeconds } : {}),
         // Collapse a channel's message burst into one device notification (#94):
         // `collapseId` = APNs apns-collapse-id (iOS), `tag` = Android notification
         // tag (a same-tag push replaces the previous). Absent → stack as before.

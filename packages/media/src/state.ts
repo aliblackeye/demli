@@ -200,8 +200,7 @@ export interface VoiceState {
 
 /**
  * A non-error reason a voice session ended, surfaced so the UI can announce it.
- * A closed union so the client localizes it; new clean-end reasons (e.g.
- * kicked-by-admin) can be added here later.
+ * A closed union so the client localizes it.
  *
  * - `session_replaced` — evicted because the user joined voice from another device
  *   (the single-active-session rule: one voice room per account, across all devices).
@@ -210,8 +209,13 @@ export interface VoiceState {
  *   with `reason: "alone"`, or an eviction disconnect landing after our own
  *   {@link VoiceState.aloneDeadlineAt}). Not a failure — the call simply had
  *   nobody left in it.
+ * - `moderator` — the server removed us from the room: a moderator disconnect, or
+ *   a kick, ban, timeout or removal from the group (`voice.disconnected` with
+ *   `reason: "moderator"`). The SFU force-remove usually lands first and reads as
+ *   `session_replaced`; the gateway event then corrects it (see
+ *   `handleForcedDisconnect`), so the user is never told they joined elsewhere.
  */
-export type VoiceEndedReason = "session_replaced" | "alone";
+export type VoiceEndedReason = "session_replaced" | "alone" | "moderator";
 
 /**
  * Map the `reason` carried by a server `voice.disconnected` event to the engine's
@@ -220,15 +224,21 @@ export type VoiceEndedReason = "session_replaced" | "alone";
  * Takes a plain string (not the protocol enum) so `@demli/media` keeps zero
  * dependency on `@demli/protocol` and stays RN-safe.
  *
- * NULL IS THE IMPORTANT RETURN. `moderator` is a real server reason whose notice
- * belongs to the moderation surface, and a future server will send reasons this
- * build has never heard of. Both must fall through to the client's existing
- * behavior rather than be coerced into the nearest reason we happen to know —
- * telling a user the wrong story about their own disconnect is worse than telling
- * them the generic one.
+ * NULL IS THE IMPORTANT RETURN. A future server will send reasons this build has
+ * never heard of, and they must fall through to the client's existing behavior
+ * rather than be coerced into the nearest reason we happen to know — telling a
+ * user the wrong story about their own disconnect is worse than telling them the
+ * generic one.
  */
 export function voiceEndedReasonFromEvent(reason: string): VoiceEndedReason | null {
-  return reason === "alone" ? "alone" : null;
+  switch (reason) {
+    case "alone":
+      return "alone";
+    case "moderator":
+      return "moderator";
+    default:
+      return null;
+  }
 }
 
 /**

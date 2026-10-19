@@ -191,6 +191,31 @@ describe.skipIf(!dbUp)("callsRepo + callUpgradeRepo (ADR 0012)", () => {
     expect("livekitRoom" in (boundAccess?.channel ?? {})).toBe(false);
   });
 
+  it("listVoiceRoomsForGroup + livekitRoomOverrides resolve the room each voice channel runs in", async () => {
+    const ownerId = await makeUser("dc_rooms_owner");
+    const server = await repos.groups.create({ name: "Rooms Server", ownerId });
+    const plain = await repos.channels.createVoiceChannel({ groupId: server.id, name: "Lobby" });
+    const bound = await repos.channels.createVoiceChannel({
+      groupId: server.id,
+      name: "Call Room",
+      livekitRoom: "dmcall:rooms-1",
+    });
+
+    const rooms = await repos.channels.listVoiceRoomsForGroup(server.id);
+    const byChannel = new Map(rooms.map((r) => [r.channelId, r.room]));
+    expect(byChannel.get(plain.id)).toBe(plain.id);
+    expect(byChannel.get(bound.id)).toBe("dmcall:rooms-1");
+    // Text channels never appear — only rooms someone can be talking in.
+    const textIds = (await repos.channels.listForGroup(server.id))
+      .filter((c) => c.kind === "text")
+      .map((c) => c.id);
+    for (const id of textIds) expect(byChannel.has(id)).toBe(false);
+
+    const overrides = await repos.channels.livekitRoomOverrides([plain.id, bound.id]);
+    expect([...overrides.entries()]).toEqual([[bound.id, "dmcall:rooms-1"]]);
+    expect((await repos.channels.livekitRoomOverrides([])).size).toBe(0);
+  });
+
   it("upgradeDmToGroup() builds group + text + voice(room=call room) + 3 members and flips the call", async () => {
     const { dmId, callerId, calleeId } = await freshDm();
     const thirdId = await makeUser("dc_third");

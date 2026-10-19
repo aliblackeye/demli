@@ -12,7 +12,12 @@ import { ApiError, parseWith } from "../../errors.js";
 import { postMembershipSystemMessage } from "../../lib/system-messages.js";
 import { requirePerm } from "../../lib/permissions.js";
 import { requireUser } from "../../plugins/auth.js";
-import { ownedObjectPath, type AvatarStorage } from "../../lib/storage.js";
+import {
+  groupBannerOwnerPrefix,
+  ownedObjectPath,
+  type AvatarStorage,
+} from "../../lib/storage.js";
+import { evictFromGroupVoice, type VoiceEjector } from "../../lib/voice-eviction.js";
 import type { MediaModerator } from "../../lib/media-moderation.js";
 import {
   buildGroupBannerStoragePath,
@@ -105,13 +110,18 @@ export interface GroupsModuleDeps {
   avatarStorage?: AvatarStorage | null;
   /** Server-side NSFW seam; fail-open `skipped` until MEDIA_MODERATION_MODE is flipped. */
   mediaModerator?: MediaModerator;
+  /**
+   * SFU admin used to end the media session of a member someone ELSE removed
+   * (see {@link evictFromGroupVoice}). Null/omitted ⇒ membership-only removal.
+   */
+  voiceEjector?: VoiceEjector | null;
 }
 
 export async function registerGroupsModule(
   server: FastifyInstance,
   deps: GroupsModuleDeps = {},
 ): Promise<void> {
-  const { mutationBus, avatarStorage = null, mediaModerator } = deps;
+  const { mutationBus, avatarStorage = null, mediaModerator, voiceEjector = null } = deps;
 
   /**
    * "May this user change this server's settings?" — the ONE rule the settings
@@ -313,7 +323,11 @@ export async function registerGroupsModule(
       if (!updated) throw new ApiError(404, "NOT_FOUND", "Group not found.");
 
       if (removingBanner && avatarStorage) {
-        const previousPath = ownedObjectPath(previousBannerUrl, avatarStorage);
+        const previousPath = ownedObjectPath(
+          previousBannerUrl,
+          avatarStorage,
+          groupBannerOwnerPrefix(groupId),
+        );
         if (previousPath) {
           // Best-effort: the row already says "no banner", which is the state the
           // user asked for. A stranded object costs storage, not correctness.
@@ -411,7 +425,11 @@ export async function registerGroupsModule(
         throw new ApiError(404, "NOT_FOUND", "Group not found.");
       }
 
-      const previousPath = ownedObjectPath(previousBannerUrl, avatarStorage);
+      const previousPath = ownedObjectPath(
+        previousBannerUrl,
+        avatarStorage,
+        groupBannerOwnerPrefix(groupId),
+      );
       if (previousPath && previousPath !== storagePath) {
         try {
           await avatarStorage.remove([previousPath]);
@@ -505,6 +523,15 @@ export async function registerGroupsModule(
           event: serverEvent.groupDeleted({ groupId }),
         });
         return reply.status(204).send();
+      }
+
+      // Removed by someone else: their media session ends with the membership.
+      // A member leaving on their own takes their client out of voice themselves.
+      if (!isSelf) {
+        await evictFromGroupVoice(server, { ejector: voiceEjector, mutationBus, log: request.log }, {
+          groupId,
+          userId,
+        });
       }
 
       // "X left the server" — best-effort, never fails the removal.

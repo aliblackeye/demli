@@ -28,9 +28,11 @@
  *   - you cannot kick/ban YOURSELF here (leave the server instead)
  *
  * Realtime: kick and ban both publish the group-scoped `member.left` (the gateway
- * already unsubscribes the removed member, forces them out of any of the server's
- * voice rooms, and refreshes every roster) PLUS a user-scoped `member.kicked` /
- * `member.banned` notice to the target's own devices. Voice-disconnect force-
+ * unsubscribes the removed member, clears them from its occupancy map, and
+ * refreshes every roster) PLUS a user-scoped `member.kicked` / `member.banned`
+ * notice to the target's own devices. Kick, ban and timeout also force the target
+ * out of every SFU room of the server (`evictFromGroupVoice`) — the gateway's
+ * bookkeeping alone never ended anyone's media session. Voice-disconnect force-
  * removes the SFU participant (`RoomServiceClient.removeParticipant`) and publishes
  * a user-scoped `voice.disconnected` — media teardown is the SFU's job, the event
  * is only the clean-leave/notice signal (§10/§35).
@@ -50,6 +52,7 @@ import { ApiError, parseWith } from "../../errors.js";
 import { loadServer, loadVisibleChannel, requirePerm } from "../../lib/permissions.js";
 import { requireUser } from "../../plugins/auth.js";
 import { livekitHttpUrl } from "../media/voice-session.js";
+import { evictFromGroupVoice } from "../../lib/voice-eviction.js";
 import { userRateLimit } from "../../lib/rate-limit.js";
 
 /** Max length of the optional moderator ban note. */
@@ -164,6 +167,10 @@ export async function registerModerationModule(
         targetId: userId,
         action: "kick",
       });
+      await evictFromGroupVoice(server, { ejector: voiceModerator, mutationBus, log: request.log }, {
+        groupId,
+        userId,
+      });
       await publishMemberRemoved(mutationBus, group.id, group.name, userId, "kicked");
       return reply.status(204).send();
     },
@@ -215,6 +222,10 @@ export async function registerModerationModule(
       // kick — plus the ban-specific notice.
       const removed = await server.repos.groups.removeMember(groupId, body.userId);
       if (removed) {
+        await evictFromGroupVoice(server, { ejector: voiceModerator, mutationBus, log: request.log }, {
+          groupId,
+          userId: body.userId,
+        });
         await publishMemberRemoved(mutationBus, group.id, group.name, body.userId, "banned");
       }
 
@@ -432,6 +443,13 @@ export async function registerModerationModule(
         action: "timeout",
         reason: body.reason ?? null,
         expiresAt: timedOutUntil,
+      });
+      // A timed-out member may not be in voice at all (the token gate refuses
+      // them), so one already talking is taken out of the room now rather than
+      // left speaking until their client happens to reconnect.
+      await evictFromGroupVoice(server, { ejector: voiceModerator, mutationBus, log: request.log }, {
+        groupId,
+        userId,
       });
       await publishTimeout(mutationBus, groupId, userId, timedOutUntil.toISOString(), actor.id);
 

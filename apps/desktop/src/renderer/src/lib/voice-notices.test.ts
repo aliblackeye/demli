@@ -28,6 +28,10 @@ describe("localizeVoiceEnded", () => {
     expect(localizeVoiceEnded("session_replaced", t)).toBe("desktop:voice.sessionReplaced");
   });
 
+  it("says the user was removed, never that they joined elsewhere, after a moderator removal", () => {
+    expect(localizeVoiceEnded("moderator", t)).toBe("desktop:voice.endedModerator");
+  });
+
   it("falls back to the existing generic copy for an UNKNOWN reason", () => {
     // A newer server (or a newer engine) may name a reason this build has never
     // seen. It must not blank the notice or leak the enum value.

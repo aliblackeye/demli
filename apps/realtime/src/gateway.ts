@@ -504,15 +504,21 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
   // carry only a groupId, so this is how the resync path finds the local
   // sockets that must be re-evaluated / notified.
   const connectionsByGroup = new Map<GroupId, Set<Connection>>();
-  // Voice channel → the set of userIds currently connected to it — the reverse
-  // index behind "who is in each voice channel". Kept in lock-step with
-  // `Connection.voiceChannelId`: a user is added in the `voice.join` handler and
-  // removed in `leaveVoice` (the single chokepoint every teardown path funnels
-  // through), so it needs no bespoke cleanup. Deduped by userId to match the
-  // delta stream (`voice.participant_joined/left`), which is also per-user; it
-  // feeds the visibility-filtered `auth.succeeded` occupancy snapshot. In-memory
-  // and single-instance — voice events never cross the mutation bus today.
-  const voiceOccupants = new Map<ChannelId, Set<UserId>>();
+  // Voice channel → userId → how many of that user's CONNECTIONS are in it — the
+  // reverse index behind "who is in each voice channel". Kept in lock-step with
+  // `Connection.voiceChannelId`: a connection is counted in the `voice.join`
+  // handler and uncounted in `leaveVoice` (the single chokepoint every teardown
+  // path funnels through), so it needs no bespoke cleanup.
+  //
+  // Counted per connection because joins ARE per connection. A per-user set let
+  // any one socket's leave erase a user still present on another: a reconnect
+  // re-announces on the new socket while the half-dead old one is reaped up to a
+  // minute later, and a second device takes over the same room while the first
+  // sends its leave. Either way the user vanished from every sidebar (and the
+  // watch party lost its host) while still talking. The user leaves — and
+  // `voice.participant_left` goes out — only when their LAST connection does.
+  // In-memory and single-instance — voice events never cross the mutation bus.
+  const voiceOccupants = new Map<ChannelId, Map<UserId, number>>();
   // Withdraws a caller's OUTGOING ring shortly after their last socket goes away
   // (founder P0 — a ring nobody is behind). Accepted calls are deliberately NOT
   // touched here; see dm-call-disconnect.ts for why a WebSocket close says
@@ -520,6 +526,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
   const callReaper = createDmCallDisconnectReaper({
     repos: deps.repos,
     mutationBus: deps.mutationBus,
+    ...(deps.notifier ? { notifier: deps.notifier } : {}),
     isOffline: async (userId) => (await deps.presence.getStatus(userId)) === "offline",
     graceMs: options.callerDropGraceMs,
     log,
@@ -539,7 +546,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           if (subscriber.voiceChannelId === channelId) sendEvent(subscriber, event);
         }
       },
-      occupantIds: (channelId) => [...(voiceOccupants.get(channelId) ?? [])],
+      occupantIds: (channelId) => [...(voiceOccupants.get(channelId)?.keys() ?? [])],
     },
     ...(options.watchHeartbeatIntervalMs !== undefined
       ? { heartbeatIntervalMs: options.watchHeartbeatIntervalMs }
@@ -713,17 +720,24 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
   function addVoiceOccupant(channelId: ChannelId, userId: UserId): void {
     let occupants = voiceOccupants.get(channelId);
     if (!occupants) {
-      occupants = new Set();
+      occupants = new Map();
       voiceOccupants.set(channelId, occupants);
     }
-    occupants.add(userId);
+    occupants.set(userId, (occupants.get(userId) ?? 0) + 1);
   }
 
-  function removeVoiceOccupant(channelId: ChannelId, userId: UserId): void {
+  /** Uncount one connection; true when that was the user's last one in the room. */
+  function removeVoiceOccupant(channelId: ChannelId, userId: UserId): boolean {
     const occupants = voiceOccupants.get(channelId);
-    if (!occupants) return;
+    const count = occupants?.get(userId);
+    if (!occupants || count === undefined) return false;
+    if (count > 1) {
+      occupants.set(userId, count - 1);
+      return false;
+    }
     occupants.delete(userId);
     if (occupants.size === 0) voiceOccupants.delete(channelId);
+    return true;
   }
 
   /**
@@ -743,7 +757,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
       if (!occupants || occupants.size === 0) continue;
       channels.push({
         channelId,
-        occupants: [...occupants].map((userId) => ({ userId, muted: false })),
+        occupants: [...occupants.keys()].map((userId) => ({ userId, muted: false })),
       });
     }
     return channels;
@@ -773,7 +787,11 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
 
     let occupancy: Map<ChannelId, VoiceOccupant[]>;
     try {
-      occupancy = await deps.voiceOccupancy.read(voiceChannelIds);
+      // An upgraded call's voice channel runs in the call's room, not its id;
+      // without the override that channel always read as empty, and the client
+      // REPLACES its whole map from this snapshot.
+      const roomOverrides = await deps.repos.channels.livekitRoomOverrides(voiceChannelIds);
+      occupancy = await deps.voiceOccupancy.read(voiceChannelIds, roomOverrides);
     } catch (err) {
       // Media plane unreachable — leave the client on its auth.succeeded snapshot.
       log(`voice.resync skipped: ${err instanceof Error ? err.message : String(err)}`);
@@ -792,7 +810,8 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     const channelId = conn.voiceChannelId;
     if (!channelId) return;
     conn.voiceChannelId = null;
-    removeVoiceOccupant(channelId, conn.userId);
+    // Another connection of the same user is still in this room: nobody left.
+    if (!removeVoiceOccupant(channelId, conn.userId)) return;
     broadcastToChannel(
       channelId,
       serverEvent.voiceParticipantLeft({ channelId, userId: conn.userId, muted: false }),
@@ -985,6 +1004,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           sendError(conn, {
             code: "NOT_A_MEMBER",
             message: "You are not a member of this channel.",
+            channelId,
           });
           return;
         }
@@ -992,6 +1012,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           sendError(conn, {
             code: "INVALID_CHANNEL",
             message: "This is not a voice channel.",
+            channelId,
           });
           return;
         }
@@ -1019,6 +1040,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           sendError(conn, {
             code: "MESSAGE_FAILED",
             message: "Something went wrong handling that event.",
+            channelId,
           });
           return;
         }
@@ -1028,6 +1050,7 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           sendError(conn, {
             code: "NOT_A_MEMBER",
             message: "You are not a member of this channel.",
+            channelId,
           });
           return;
         }
@@ -1035,9 +1058,16 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
           sendError(conn, {
             code: "INVALID_CHANNEL",
             message: "This is not a voice channel.",
+            channelId,
           });
           return;
         }
+        // The lookups above yield, so re-check what they may have raced:
+        // occupancy is counted per connection, and a socket that closed while
+        // its join was in flight has already run `handleClose` — counting it now
+        // would leave a count nothing ever removes. A second frame for the same
+        // room that landed first has already counted this socket.
+        if (conn.closed || conn.voiceChannelId === channelId) return;
         leaveVoice(conn); // implicit leave of any previous room
         conn.voiceChannelId = channelId;
         addVoiceOccupant(channelId, conn.userId);
@@ -1964,6 +1994,20 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     if (event.type === SERVER_EVENT.dmCreated) {
       subscribeUserToStream(userId, event.payload.dm.streamId);
     }
+    // A DM call was upgraded to a group (ADR 0012). The API publishes the new
+    // group's `member.joined`s first, but bus handlers run concurrently and
+    // `member.joined` awaits the DB before it subscribes anyone — so this event
+    // could reach the client first, its `voice.join` for the new group voice
+    // channel then hit an empty cache and was refused, and the two people
+    // talking showed as an empty channel to everyone else. Admitting the user
+    // here, BEFORE forwarding, makes the order irrelevant.
+    if (event.type === SERVER_EVENT.callUpgraded) {
+      try {
+        await admitUserToGroup(event.payload.group.id, userId);
+      } catch (err) {
+        log(`call.upgraded group admission failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     // A member was just added to a flat group chat — subscribe their live
     // connections to its stream BEFORE forwarding so a message racing in behind
     // the event still lands (mirrors dm.created; ADR 0005 / task group-chat-add).
@@ -2193,25 +2237,37 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
     event: ServerToClientEvent,
     joinedUserId: UserId,
   ): Promise<void> {
-    const groupConns = connectionsByGroup.get(groupId);
-    if (groupConns) {
-      for (const conn of [...groupConns]) sendEvent(conn, event);
-    }
+    const notified = new Set(connectionsByGroup.get(groupId) ?? []);
+    for (const conn of notified) sendEvent(conn, event);
 
-    const userConns = connectionsByUser.get(joinedUserId);
+    await admitUserToGroup(groupId, joinedUserId);
+    // The joiner's connections that were not indexed under the group when the
+    // event went out above have not seen it yet — whether this handler indexed
+    // them or a concurrent `call.upgraded` did while it was awaiting the DB.
+    for (const conn of connectionsByUser.get(joinedUserId) ?? []) {
+      if (conn.groupIds.has(groupId) && !notified.has(conn)) sendEvent(conn, event);
+    }
+  }
+
+  /**
+   * Index `userId`'s live connections under `groupId` and subscribe them to the
+   * group's channels they can see — no reconnect needed (task #43). Idempotent:
+   * a connection that already carries the group or a channel is left as it is,
+   * so `member.joined` and `call.upgraded` can both run it in either order.
+   */
+  async function admitUserToGroup(groupId: GroupId, userId: UserId): Promise<void> {
+    const userConns = connectionsByUser.get(userId);
     if (!userConns || userConns.size === 0) return;
     const groupUniverse = new Map<ChannelId, ChannelKind>(
       (await deps.repos.channels.listForGroup(groupId)).map((c) => [c.id, c.kind]),
     );
     const visibleIds = new Set(
-      await deps.repos.channelAccess.visibleChannelIdsForUser(groupId, joinedUserId),
+      await deps.repos.channelAccess.visibleChannelIdsForUser(groupId, userId),
     );
-    for (const conn of [...userConns]) {
+    for (const conn of [...(connectionsByUser.get(userId) ?? [])]) {
       if (!conn.groupIds.has(groupId)) {
         conn.groupIds.add(groupId);
         indexConnectionByGroup(conn, groupId);
-        // This connection just gained the group — it was not in the loop above.
-        sendEvent(conn, event);
       }
       const toAdd: ChannelId[] = [];
       for (const cid of visibleIds) {

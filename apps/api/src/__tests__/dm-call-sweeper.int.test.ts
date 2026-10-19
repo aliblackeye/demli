@@ -28,6 +28,7 @@ import {
   type RealtimeMutation,
   type Repositories,
 } from "@demli/db";
+import type { PushNotification } from "@demli/notifications";
 import { SERVER_EVENT } from "@demli/protocol";
 import {
   createDmCallSweeper,
@@ -217,6 +218,8 @@ describe.skipIf(!dbUp)("DM-call liveness sweeper (founder P0: calls stuck active
     return { id: call.id, roomName: call.roomName };
   }
 
+  const pushes: Array<{ to: readonly string[]; push: PushNotification }> = [];
+
   function makeSweeper(
     liveness: CallRoomLivenessReader | null,
     now: () => number = () => Date.now(),
@@ -227,6 +230,12 @@ describe.skipIf(!dbUp)("DM-call liveness sweeper (founder P0: calls stuck active
       liveness,
       ejector,
       mutationBus: bus,
+      notifier: {
+        notify: async () => undefined,
+        notifyAlways: async (to, push) => {
+          pushes.push({ to, push });
+        },
+      },
       log: silentLog,
       ringWindowMs: RING_WINDOW_MS,
       // Far longer than any test — every pass in these tests is driven by an
@@ -426,6 +435,11 @@ describe.skipIf(!dbUp)("DM-call liveness sweeper (founder P0: calls stuck active
     expect(after?.expiresAt).toBeNull();
 
     expect(endedRecipients(call.id).sort()).toEqual([callerId, calleeId].sort());
+
+    // The callee's phone gets its ring replaced by the missed-call line.
+    const retraction = pushes.find((p) => p.push.data?.["callId"] === call.id);
+    expect(retraction?.to).toEqual([calleeId]);
+    expect(retraction?.push).toMatchObject({ body: "Missed call", collapseKey: `call:${call.id}` });
   });
 
   it("leaves a ring alone while it is still inside its window", async () => {

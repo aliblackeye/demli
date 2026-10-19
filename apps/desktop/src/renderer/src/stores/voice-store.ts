@@ -427,9 +427,9 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
 
   voiceDisconnected: ({ roomId, channelId, reason }) => {
     const ended = voiceEndedReasonFromEvent(reason);
-    // An unmapped reason (a future enum value, or `moderator` — whose notice is
-    // the moderation wave's to own) is left to the existing paths rather than
-    // guessed at. Doing nothing keeps today's behavior; inventing copy would not.
+    // An unmapped reason (a future enum value) is left to the existing paths
+    // rather than guessed at. Doing nothing keeps today's behavior; inventing copy
+    // would not.
     if (!ended) return;
     void engine.handleForcedDisconnect([roomId, channelId], ended).catch(reportVoiceError);
   },

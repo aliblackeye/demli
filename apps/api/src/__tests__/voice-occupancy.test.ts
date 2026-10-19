@@ -15,6 +15,7 @@ import {
   ParticipantInfo_State,
   TrackSource,
   type ParticipantInfo,
+  type Room,
 } from "livekit-server-sdk";
 import type { Channel, ChannelId, User } from "@demli/types";
 import type { VoiceOccupant } from "@demli/protocol";
@@ -23,6 +24,7 @@ import { hashSessionToken } from "@demli/db";
 import { buildApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import {
+  createLiveKitVoiceOccupancyReader,
   participantsToOccupants,
   VoiceOccupancyUnavailableError,
   type VoiceOccupancyReader,
@@ -54,6 +56,11 @@ function makeChannel(id: string, kind: Channel["kind"]): Channel {
   };
 }
 
+/** Channel → LiveKit room overrides the repo reports (an upgraded call's channel). */
+let roomOverrides = new Map<ChannelId, string>();
+/** Set to make the repo's override lookup fail (a broken query, a DB blip). */
+let overridesError: Error | null = null;
+
 /** Only the methods this endpoint touches; any other repo call fails loudly. */
 const repos = {
   sessions: {
@@ -71,6 +78,10 @@ const repos = {
             makeChannel(textChannelId, "text"),
           ]
         : [],
+    livekitRoomOverrides: async (ids: readonly ChannelId[]) => {
+      if (overridesError) throw overridesError;
+      return new Map([...roomOverrides].filter(([id]) => ids.includes(id)));
+    },
   },
   channelAccess: {
     // The restricted voice channel is NOT visible to this user.
@@ -82,11 +93,13 @@ const repos = {
 // A fake reader whose behavior each test reconfigures; it records the exact
 // channel-id lists the endpoint asks the media plane about (leak assertion).
 const readCalls: ChannelId[][] = [];
+const overrideCalls: Array<ReadonlyMap<ChannelId, string> | undefined> = [];
 let readImpl: (ids: ChannelId[]) => Promise<Map<ChannelId, VoiceOccupant[]>> = async () =>
   new Map();
 const fakeReader: VoiceOccupancyReader = {
-  read: (ids) => {
+  read: (ids, overrides) => {
     readCalls.push(ids);
+    overrideCalls.push(overrides);
     return readImpl(ids);
   },
 };
@@ -97,6 +110,9 @@ describe("GET /voice/occupancy", () => {
   beforeEach(async () => {
     await app?.close();
     readCalls.length = 0;
+    overrideCalls.length = 0;
+    roomOverrides = new Map();
+    overridesError = null;
     readImpl = async () => new Map();
   });
 
@@ -201,6 +217,15 @@ describe("GET /voice/occupancy", () => {
     }
   });
 
+  it("hands the reader the room an upgraded call's voice channel really runs in", async () => {
+    app = await makeApp(fakeReader);
+    roomOverrides = new Map([[voiceVisibleId, "dmcall:call-1"]]);
+    const res = await inject(app);
+    expect(res.statusCode).toBe(200);
+    expect(overrideCalls).toHaveLength(1);
+    expect([...(overrideCalls[0] ?? new Map())]).toEqual([[voiceVisibleId, "dmcall:call-1"]]);
+  });
+
   it("answers 503 (not an empty snapshot) when the media plane is unreachable", async () => {
     app = await makeApp(fakeReader);
     readImpl = async () => {
@@ -209,6 +234,15 @@ describe("GET /voice/occupancy", () => {
     const res = await inject(app);
     expect(res.statusCode).toBe(503);
     expect(res.json().error.code).toBe("VOICE_OCCUPANCY_UNAVAILABLE");
+  });
+
+  it("answers 503 (not a 500, not an empty snapshot) when the room-override lookup fails", async () => {
+    app = await makeApp(fakeReader);
+    overridesError = new Error('relation "channels" does not exist');
+    const res = await inject(app);
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe("VOICE_OCCUPANCY_UNAVAILABLE");
+    expect(readCalls).toHaveLength(0);
   });
 
   it("answers 503 when the occupancy feature is disabled (no reader)", async () => {
@@ -283,5 +317,39 @@ describe("participantsToOccupants", () => {
       ]),
     ]);
     expect(occupants.map((o) => o.userId)).toEqual(["here"]);
+  });
+});
+
+describe("createLiveKitVoiceOccupancyReader — rooms that are not the channel id", () => {
+  const plainId = "66666666-6666-4666-8666-666666666666" as ChannelId;
+  const upgradedId = "77777777-7777-4777-8777-777777777777" as ChannelId;
+  const callRoom = "dmcall:88888888-8888-4888-8888-888888888888";
+
+  it("queries the override room and reports its occupants under the channel id", async () => {
+    const asked: string[][] = [];
+    const reader = createLiveKitVoiceOccupancyReader({
+      roomService: {
+        listRooms: async (names?: string[]) => {
+          asked.push(names ?? []);
+          return [
+            { name: plainId, numParticipants: 1 },
+            { name: callRoom, numParticipants: 3 },
+          ] as unknown as Room[];
+        },
+        listParticipants: async (room: string) =>
+          (room === callRoom ? ["a", "b", "c"] : ["d"]).map((identity) =>
+            participant(identity, ParticipantInfo_State.ACTIVE, [
+              { source: TrackSource.MICROPHONE, muted: false },
+            ]),
+          ),
+      },
+    });
+
+    const occupancy = await reader.read([plainId, upgradedId], new Map([[upgradedId, callRoom]]));
+    expect(asked).toEqual([[plainId, callRoom]]);
+    expect(occupancy.get(upgradedId)?.map((o) => o.userId)).toEqual(["a", "b", "c"]);
+    expect(occupancy.get(plainId)?.map((o) => o.userId)).toEqual(["d"]);
+    // The raw room name is never a key — the client only knows channel ids.
+    expect(occupancy.has(callRoom as ChannelId)).toBe(false);
   });
 });

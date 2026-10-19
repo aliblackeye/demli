@@ -2,7 +2,13 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { AccessToken } from "livekit-server-sdk";
 import type { RealtimeMutationPublisher } from "@demli/db";
-import type { OfflineNotifier, PushNotification } from "@demli/notifications";
+import {
+  callClearedPush,
+  callMissedPush,
+  callRingPush,
+  type OfflineNotifier,
+  type PushNotification,
+} from "@demli/notifications";
 import {
   serverEvent,
   type DmCallActiveResponse,
@@ -431,6 +437,30 @@ export async function registerDmCallsModule(
   }
 
   /**
+   * Close a ring whose deadline has passed as `missed`, exactly as the sweeper
+   * would — `call.ended` to both sides, the missed-call line in the DM history,
+   * and the ring push replaced — because whichever of the two gets there first
+   * is the only one that runs. Start and the resync read reap inline so a dead
+   * ring cannot block the DM; they used to do only the row write, so a missed
+   * call reaped there never reached the history and kept ringing on a phone.
+   * Guarded in SQL: a ring someone else already closed is left alone.
+   */
+  async function reapExpiredRing(call: DmCall): Promise<void> {
+    const missed = await server.repos.calls.closeIfIn(call.id, ["ringing"], "missed", new Date());
+    if (!missed) return;
+    await writeOutcomeSystemMessage(call, call.callerId, "call_missed");
+    await announceCallEnded(call, "timeout");
+    const caller = await server.repos.users.findById(call.callerId);
+    if (caller) {
+      dispatchCallPush(
+        [call.calleeId],
+        callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
+        "ring retraction",
+      );
+    }
+  }
+
+  /**
    * Close a LIVE call as `ended` — the hangup outcome — on behalf of `actor`.
    *
    * Shared by `/hangup` and by `/cancel` when the cancel arrives for a call that
@@ -512,7 +542,7 @@ export async function registerDmCallsModule(
       // null: guarding on a non-null `expiresAt` alone made a null-deadline
       // `ringing` row permanently un-sweepable — a DM bricked forever.
       if (latest && latest.status === "ringing" && ringDeadlinePassed(latest)) {
-        await server.repos.calls.closeIfIn(latest.id, ["ringing"], "missed", new Date());
+        await reapExpiredRing(latest);
       }
 
       // Start cooldown (F2): if THIS caller's most recent attempt in this DM ended
@@ -600,12 +630,12 @@ export async function registerDmCallsModule(
       // and hangs are logged there rather than swallowed.
       dispatchCallPush(
         [calleeId],
-        {
-          title: user.displayName,
-          body: "is calling you.",
-          data: { type: "call_invite", callId: call.id, dmId },
-          collapseKey: callPushTag(call.id),
-        },
+        callRingPush({
+          callerName: user.displayName,
+          callId: call.id,
+          ringSeconds: RING_TIMEOUT_SECONDS,
+          target: { dmId },
+        }),
         "ring",
       );
 
@@ -681,7 +711,7 @@ export async function registerDmCallsModule(
       // start does — so a resync can never re-seat a client onto a dead ring, and
       // so the DM is unblocked immediately instead of at the next sweeper tick.
       if (call.status === "ringing" && ringDeadlinePassed(call)) {
-        await server.repos.calls.closeIfIn(call.id, ["ringing"], "missed", new Date());
+        await reapExpiredRing(call);
         return empty;
       }
 
@@ -770,6 +800,13 @@ export async function registerDmCallsModule(
       // adopt the live call, which is what makes it VISIBLE rather than merely
       // silent.
       await mutationBus?.publish({ userId: user.id, event: accepted });
+      // …and the same for a backgrounded phone, which only knows about the call
+      // through its ring push: a silent signal its client dismisses the ring on.
+      dispatchCallPush(
+        [user.id],
+        callClearedPush({ callId: call.id, reason: "answered" }),
+        "ring cleared (answered)",
+      );
 
       return tokenResponse;
     },
@@ -812,6 +849,11 @@ export async function registerDmCallsModule(
       // Both sides (ADR 0023 §4): the decliner's OTHER devices are ringing too,
       // and this is what silences them.
       await announceCallEnded(call, "declined");
+      dispatchCallPush(
+        [user.id],
+        callClearedPush({ callId: call.id, reason: "declined" }),
+        "ring cleared (declined)",
+      );
 
       return { call: ended };
     },
@@ -895,20 +937,18 @@ export async function registerDmCallsModule(
       // call" line rather than leave a stale ring on a backgrounded phone.
       // Presence-independent for the same reason the ring was: a
       // backgrounded-but-connected callee still holds the ring. (The callee's own
-      // reject/accept clears the ring client-side on the acting device; a
-      // multi-device silent clear for those is a client-wave item — see report.)
+      // accept/reject sends `callClearedPush` to their other devices instead.)
       //
       // Not awaited, same as the ring (K2.1): the caller's teardown must not wait
       // on a push provider either — that delay is how a cancel and an accept end
       // up overlapping in the first place.
       dispatchCallPush(
         [call.calleeId],
-        {
-          title: user.displayName,
-          body: "Missed call",
-          data: { type: "call_ended", callId: call.id, reason: timedOut ? "timeout" : "canceled" },
-          collapseKey: callPushTag(call.id),
-        },
+        callMissedPush({
+          callerName: user.displayName,
+          callId: call.id,
+          reason: timedOut ? "timeout" : "canceled",
+        }),
         "ring retraction",
       );
 
@@ -1004,12 +1044,25 @@ export async function registerDmCallsModule(
       // text stream + voice channel bound to the ONGOING call room + flip the
       // call → upgraded. The two originals are already in that LiveKit room, so
       // there is zero reconnect and zero media gap; the DM stream is untouched.
-      const { group, voiceChannelId } = await server.repos.callUpgrade.upgradeDmToGroup({
-        callId: call.id,
-        name: buildGroupName([inviter, other, invitee]),
-        ownerId: user.id,
-        memberIds: [otherOriginalId, inviteeUserId],
-      });
+      //
+      // Both originals pressing "add person" at once: the loser passes the status
+      // pre-check above, then finds the call already upgraded under the row lock.
+      // That is the same answer as the pre-check, not a server error.
+      let upgraded: Awaited<ReturnType<typeof server.repos.callUpgrade.upgradeDmToGroup>>;
+      try {
+        upgraded = await server.repos.callUpgrade.upgradeDmToGroup({
+          callId: call.id,
+          name: buildGroupName([inviter, other, invitee]),
+          ownerId: user.id,
+          memberIds: [otherOriginalId, inviteeUserId],
+        });
+      } catch (err) {
+        if (err instanceof Error && /is not live/.test(err.message)) {
+          throw new ApiError(409, "CONFLICT", "This call is not active.");
+        }
+        throw err;
+      }
+      const { group, voiceChannelId } = upgraded;
 
       // 1) member.joined ×3 (group-scoped) FIRST — the gateway indexes and
       //    subscribes each user's connections into the new group off these
@@ -1052,12 +1105,12 @@ export async function registerDmCallsModule(
       // room and their UI moves on this response.
       dispatchCallPush(
         [inviteeUserId],
-        {
-          title: inviter.displayName,
-          body: "added you to a call.",
-          data: { type: "call_invite", callId: call.id, groupId: group.id, voiceChannelId },
-          collapseKey: callPushTag(call.id),
-        },
+        callRingPush({
+          callerName: inviter.displayName,
+          callId: call.id,
+          ringSeconds: RING_TIMEOUT_SECONDS,
+          target: { groupId: group.id, voiceChannelId },
+        }),
         "upgrade ring",
       );
 
@@ -1092,14 +1145,4 @@ function withProbeTimeout<T>(work: Promise<T>): Promise<T> {
 function buildGroupName(users: User[]): string {
   const joined = users.map((u) => u.displayName).join(", ");
   return joined.length > 100 ? `${joined.slice(0, 99)}…` : joined;
-}
-
-/**
- * Per-call push collapse tag (#103). The ring and its retraction share this tag
- * so a later same-tag push REPLACES the ring on the device (Android notification
- * `tag` / iOS `apns-collapse-id`) instead of stacking a second notification. The
- * client wave can also key a silent background dismiss on it (`type:"call_ended"`).
- */
-function callPushTag(callId: string): string {
-  return `call:${callId}`;
 }

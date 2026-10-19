@@ -11,6 +11,7 @@
  */
 
 import type { InfiniteData } from "@tanstack/react-query";
+import { createVoiceAnnouncer } from "@demli/client-core";
 import { MESSAGE_MAX_LENGTH } from "@demli/config";
 import {
   SERVER_EVENT,
@@ -990,8 +991,7 @@ function handleServerEvent(event: ServerToClientEvent): void {
       // The gateway tracks our voice presence per WS connection and forgot it on
       // this fresh socket, so re-announce our current room — otherwise peers would
       // stop seeing us under the channel after a reconnect (§10).
-      announcedVoiceRoom = null;
-      syncVoiceAnnouncement();
+      voiceAnnouncer.reset();
       // Re-report foreground/background on every (re)connect (#110): the gateway
       // defaults a fresh socket to "foreground", so a reconnect while hidden/tray
       // must correct that or the desktop looks awake and swallows the push.
@@ -1012,7 +1012,10 @@ function handleServerEvent(event: ServerToClientEvent): void {
     }
 
     case SERVER_EVENT.errorRaised: {
-      const { nonce, message, code, retryAfterSeconds } = event.payload;
+      const { nonce, message, code, retryAfterSeconds, channelId } = event.payload;
+      // Our own voice.join refused (e.g. the gateway has not caught up with a
+      // DM → group upgrade yet): the announcer retries it on a short backoff.
+      if (channelId && voiceAnnouncer.refused(channelId, code)) return;
       if (nonce) {
         const queued = findQueuedItem(nonce);
         if (queued) {
@@ -1577,23 +1580,22 @@ export function setCallOccupancyChannel(channelId: ChannelId | null): void {
   syncVoiceAnnouncement();
 }
 
-let announcedVoiceRoom: ChannelId | null = null;
-
 /**
  * Reconcile what the gateway believes about our voice presence with the engine's
- * actual room. Idempotent and cheap: a no-op unless the room changed, so the
- * per-tick voice-store notifications (speaking/participants) cost one comparison.
- * A failed send (socket not open) is recovered by the `auth.succeeded`
- * re-announce once the handshake completes.
+ * actual room (shared `createVoiceAnnouncer`). Idempotent and cheap: a no-op
+ * unless the room changed, so the per-tick voice-store notifications
+ * (speaking/participants) cost one comparison. A failed send (socket not open)
+ * is recovered by the `auth.succeeded` re-announce; a REFUSED join is retried
+ * by the announcer (see the `error.raised` handler).
  */
+const voiceAnnouncer = createVoiceAnnouncer({
+  join: (channelId) => client.send(clientEvent.voiceJoin({ channelId })),
+  leave: (channelId) => client.send(clientEvent.voiceLeave({ channelId })),
+  desired: currentVoiceRoom,
+});
+
 function syncVoiceAnnouncement(): void {
-  const desired = currentVoiceRoom();
-  if (desired === announcedVoiceRoom) return;
-  if (announcedVoiceRoom) {
-    client.send(clientEvent.voiceLeave({ channelId: announcedVoiceRoom }));
-  }
-  if (desired) client.send(clientEvent.voiceJoin({ channelId: desired }));
-  announcedVoiceRoom = desired;
+  voiceAnnouncer.sync();
 }
 
 // Announce room changes as the engine transitions (join → connected, leave →
@@ -1659,7 +1661,7 @@ let typingPruneTimer: number | null = null;
 export function startRealtime(token: string): void {
   hadHandshake = false;
   // A brand-new session: the gateway knows nothing about our voice presence yet.
-  announcedVoiceRoom = null;
+  voiceAnnouncer.forget();
   // Reset the pull throttle so this session's first window focus refreshes
   // occupancy immediately; re-adding the same listener ref is idempotent.
   occupancyPull.reset();
@@ -1690,7 +1692,7 @@ export function stopRealtime(): void {
   stopIdleAutoPresence();
   // Drop occupancy so a re-login starts clean; the gateway broadcasts our leave
   // to peers when the socket closes (handleClose → leaveVoice).
-  announcedVoiceRoom = null;
+  voiceAnnouncer.forget();
   useVoiceOccupancyStore.getState().reset();
   // Same reasoning for the watch party: a session we can no longer receive
   // heartbeats for must not linger as a player projecting a position forever.

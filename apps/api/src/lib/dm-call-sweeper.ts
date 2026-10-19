@@ -55,6 +55,7 @@
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { ParticipantInfo_State, RoomServiceClient } from "livekit-server-sdk";
 import type { RealtimeMutationPublisher, Repositories } from "@demli/db";
+import { callMissedPush, type OfflineNotifier } from "@demli/notifications";
 import { serverEvent } from "@demli/protocol";
 import type { CallId, DmCall, UserId } from "@demli/types";
 import { livekitHttpUrl } from "../modules/media/voice-session.js";
@@ -194,6 +195,11 @@ export interface DmCallSweeperOptions {
   ejector?: VoiceEjector | null;
   /** Publishes the `call.ended` fan-out + the DM system message. */
   mutationBus?: RealtimeMutationPublisher;
+  /**
+   * Replaces an expired ring on the callee's phone with the missed-call line —
+   * the push the caller's own cancel would have sent. Omitted ⇒ no push.
+   */
+  notifier?: OfflineNotifier;
   log: FastifyBaseLogger;
   /** Ring window used as the deadline fallback for rows with no `expires_at`. */
   ringWindowMs: number;
@@ -230,6 +236,7 @@ export function createDmCallSweeper(options: DmCallSweeperOptions): DmCallSweepe
   const {
     repos,
     mutationBus,
+    notifier,
     log,
     ringWindowMs,
     liveness = null,
@@ -293,6 +300,7 @@ export function createDmCallSweeper(options: DmCallSweeperOptions): DmCallSweepe
       result.expiredRings = missed.length;
       for (const call of missed) {
         await announceSwept(call, "timeout", "call_missed");
+        await retractRing(call);
       }
       if (missed.length > 0) {
         log.info(`dm-call sweep: closed ${missed.length} expired ring(s)`);
@@ -512,6 +520,21 @@ export function createDmCallSweeper(options: DmCallSweeperOptions): DmCallSweepe
       });
     }
     await writeSweptSystemMessage(call, token, seconds);
+  }
+
+  /** Best-effort: a push failure never stops the sweep. */
+  async function retractRing(call: DmCall): Promise<void> {
+    if (!notifier) return;
+    try {
+      const caller = await repos.users.findById(call.callerId);
+      if (!caller) return;
+      await notifier.notifyAlways(
+        [call.calleeId],
+        callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
+      );
+    } catch (err) {
+      log.warn({ err, callId: call.id }, "dm-call sweep: ring retraction push failed");
+    }
   }
 
   async function writeSweptSystemMessage(

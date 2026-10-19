@@ -53,6 +53,7 @@ import {
   PARTICIPANT_ATTR,
   ROOM_EVENT,
   TRACK_SOURCE,
+  voiceEndedReasonFromEvent,
   VoiceOperationError,
 } from "../index.js";
 
@@ -2570,6 +2571,24 @@ describe("alone-idle eviction reason", () => {
     expect(engine.getState().endedReason).toBe("alone");
     expect(engine.getState().status).toBe("idle");
     expect(room.disconnect).not.toHaveBeenCalled(); // no second teardown
+  });
+
+  it("a moderator removal reads as the moderator notice, not the handoff one", async () => {
+    // Kick, ban, timeout and voice-disconnect all force-remove the participant
+    // from the SFU first, then publish `voice.disconnected{moderator}`.
+    const { engine, room } = setup();
+    await engine.join("channel-1");
+    engine.setSurfaceKind("server");
+
+    room.emit(ROOM_EVENT.Disconnected, DISCONNECT_REASON.ParticipantRemoved);
+    const ended = voiceEndedReasonFromEvent("moderator");
+    expect(ended).not.toBeNull();
+    await engine.handleForcedDisconnect(["channel-1"], ended!);
+
+    expect(engine.getState().endedReason).toBe("moderator");
+    expect(engine.getState().status).toBe("idle");
+    expect(engine.getState().error).toBeNull();
+    expect(room.disconnect).not.toHaveBeenCalled();
   });
 
   it("does not resurrect a notice the user already dismissed", async () => {
