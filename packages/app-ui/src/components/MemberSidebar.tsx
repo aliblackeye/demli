@@ -8,6 +8,7 @@ import { useShellData, type ShellMember, type ShellMemberRole } from "../data/sh
 import { openActionMenuAt } from "./ActionMenu";
 import { useActiveTimeouts } from "./memberTimeout";
 import { RoleChip } from "./RoleChip";
+import { RetryNotice } from "./EmptyState";
 import { SectionHeading } from "./SectionHeading";
 import { ShellListSkeleton } from "./ShellListSkeleton";
 import { shellRowFocusClass } from "./shellRow";
@@ -202,7 +203,16 @@ export function MemberSidebar({
   renderMemberMenu,
 }: MemberSidebarProps): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  const { members, activeGroupId, serverDetailsLoading = false } = useShellData();
+  const {
+    members,
+    activeGroupId,
+    serverDetailsLoading = false,
+    serverDetailsError = null,
+    retryServerDetails,
+  } = useShellData();
+  // Nothing landed for this roster yet — loading or failed. Either way there is
+  // no count to show: "Üyeler — 0" would be a lie.
+  const rosterMissing = members.length === 0 && (serverDetailsLoading || serverDetailsError !== null);
   const renderProfile: RenderMemberProfile =
     renderMemberProfile ?? ((_userId, _groupId, children) => children);
   const renderMenu: RenderMemberMenu = renderMemberMenu ?? ((_member, children) => children);
@@ -245,7 +255,7 @@ export function MemberSidebar({
       <div className="flex h-16 shrink-0 items-center px-4">
         <h2 className="font-display text-base font-semibold text-fg-display">
           {/* No count until the roster has landed — "Üyeler — 0" would be a lie. */}
-          {serverDetailsLoading && members.length === 0
+          {rosterMissing
             ? t("desktop:members.membersNav")
             : t("desktop:members.headerCount", { count: total })}
         </h2>
@@ -253,6 +263,16 @@ export function MemberSidebar({
       <div className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {serverDetailsLoading && members.length === 0 && (
           <ShellListSkeleton label={t("desktop:members.loading")} variant="member" rows={7} />
+        )}
+        {!serverDetailsLoading && serverDetailsError !== null && members.length === 0 && (
+          <RetryNotice
+            variant="band"
+            title={t("desktop:members.loadFailed")}
+            message={serverDetailsError}
+            retryLabel={t("common:buttons.retry")}
+            onRetry={() => retryServerDetails?.()}
+            className="mt-1"
+          />
         )}
         {sections.map((section) => (
           <section

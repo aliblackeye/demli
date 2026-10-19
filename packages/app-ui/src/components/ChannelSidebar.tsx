@@ -31,7 +31,7 @@ import {
 import type { CategoryId, Channel, ChannelId } from "@demli/types";
 import { useShellData } from "../data/shell-data";
 import { ActionMenu } from "./ActionMenu";
-import { EmptyState } from "./EmptyState";
+import { EmptyState, RetryNotice } from "./EmptyState";
 import { FormErrorAlert } from "./FormErrorAlert";
 import { SectionHeading } from "./SectionHeading";
 import { ShellListSkeleton } from "./ShellListSkeleton";
@@ -245,6 +245,8 @@ export function ChannelSidebar({
     openServerSettings,
     reorderSidebar,
     serverDetailsLoading = false,
+    serverDetailsError = null,
+    retryServerDetails,
   } = useShellData();
 
   const { isCollapsed, toggle: toggleCollapsed } = useCollapsedSections(activeGroupId);
@@ -917,9 +919,22 @@ export function ChannelSidebar({
             className="pt-4"
           />
         )}
+        {/* First fetch FAILED: say so and offer the retry. Never the empty
+            state below — "no channels" (and a "create channel" CTA) for a
+            server that has channels would be a lie. */}
+        {!serverDetailsLoading && serverDetailsError !== null && channels.length === 0 && (
+          <RetryNotice
+            variant="band"
+            title={t("desktop:sidebar.loadFailed")}
+            message={serverDetailsError}
+            retryLabel={t("common:buttons.retry")}
+            onRetry={() => retryServerDetails?.()}
+            className="mt-4"
+          />
+        )}
         {/* Loaded, and genuinely no channel the viewer can see. Said plainly,
             with the one action that fixes it for someone who may take it. */}
-        {!serverDetailsLoading && channels.length === 0 && (
+        {!serverDetailsLoading && serverDetailsError === null && channels.length === 0 && (
           <EmptyState
             icon={<Hash />}
             title={t("desktop:sidebar.emptyTitle")}

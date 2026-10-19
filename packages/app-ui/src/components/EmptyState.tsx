@@ -48,22 +48,51 @@ export function EmptyState({
 }
 
 /**
- * The centered "couldn't load — try again" block shared by list views (friends,
- * call history, the home group list). The message in the muted step over a
- * secondary retry button. Kept next to {@link EmptyState} because the two are the
- * same family of list placeholder.
+ * The "couldn't load — try again" placeholder shared by list views. Kept next to
+ * {@link EmptyState} because the two are the same family of list placeholder:
+ * a list shows exactly one of skeleton / retry / empty / rows.
+ *
+ * - `variant="block"` (default): centered, for a full view (friends, call
+ *   history) — the message in the muted step over a secondary retry button.
+ * - `variant="band"`: a danger-tinted card for a sidebar list section (the
+ *   channel column, the roster, the home DM / group-chat lists), with an
+ *   optional `title` naming WHAT failed above the localized reason.
  */
 export function RetryNotice({
   message,
+  title,
   retryLabel,
   onRetry,
+  variant = "block",
   className,
 }: {
   message: string;
+  /** Band only: names what failed ("Kanallar yüklenemedi"); `message` says why. */
+  title?: string;
   retryLabel: string;
   onRetry: () => void;
+  variant?: "block" | "band";
   className?: string;
 }): JSX.Element {
+  if (variant === "band") {
+    return (
+      <div
+        role="alert"
+        className={cn(
+          "mx-1 flex animate-fade-in flex-col items-start gap-1 rounded-lg bg-danger-surface px-3 py-2.5",
+          className,
+        )}
+      >
+        {title && <p className="text-label font-medium text-danger">{title}</p>}
+        <p className={title ? "text-2xs leading-snug text-fg-muted" : "text-label text-danger"}>
+          {message}
+        </p>
+        <Button variant="ghost" size="sm" className="-ml-2 mt-1" onClick={onRetry}>
+          {retryLabel}
+        </Button>
+      </div>
+    );
+  }
   return (
     <div
       role="alert"

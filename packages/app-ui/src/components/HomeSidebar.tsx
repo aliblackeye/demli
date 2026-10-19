@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { BellOff, PhoneCall, Plus, Users, X } from "lucide-react";
-import { Button, IconButton, UserAvatar, cn, seedColor } from "@demli/ui";
+import { IconButton, UserAvatar, cn, seedColor } from "@demli/ui";
 import { useTranslation } from "@demli/i18n";
 import {
   useShellData,
@@ -8,6 +8,7 @@ import {
   type ShellDmRow,
   type ShellGroupChatRow,
 } from "../data/shell-data";
+import { RetryNotice } from "./EmptyState";
 import { SectionHeading } from "./SectionHeading";
 import { ShellListSkeleton } from "./ShellListSkeleton";
 import { UnreadCountBadge } from "./UnreadCountBadge";
@@ -265,6 +266,9 @@ export function HomeSidebar({
     activeDmId,
     activeGroupChatId,
     dms,
+    dmsStatus = "ready",
+    dmsErrorMessage = null,
+    retryDms,
     groupChats,
     groupChatsStatus,
     groupChatsErrorMessage,
@@ -314,7 +318,20 @@ export function HomeSidebar({
 
         {/* Direct messages */}
         <SectionHeading>{t("desktop:social.dmsHeading")}</SectionHeading>
-        {dms.length > 0 ? (
+        {/* Exactly one of: skeleton / retry band / rows / empty card. The empty
+            card ("Henüz sohbet yok") only after a SUCCESSFUL empty fetch — a
+            DM list that has not arrived is not an empty one. */}
+        {dmsStatus === "pending" && dms.length === 0 ? (
+          <ShellListSkeleton label={t("desktop:social.dmsLoading")} variant="member" rows={4} />
+        ) : dmsStatus === "error" && dms.length === 0 ? (
+          <RetryNotice
+            variant="band"
+            title={t("desktop:social.dmsLoadFailed")}
+            message={dmsErrorMessage ?? t("errors.generic")}
+            retryLabel={t("buttons.retry")}
+            onRetry={() => retryDms?.()}
+          />
+        ) : dms.length > 0 ? (
           <div className="space-y-px">
             {dms.map((dm) => (
               <DmRow
@@ -353,12 +370,13 @@ export function HomeSidebar({
         {groupChatsStatus === "pending" ? (
           <ShellListSkeleton label={t("desktop:groupChats.loading")} variant="member" rows={3} />
         ) : groupChatsStatus === "error" ? (
-          <div role="alert" className="mx-1 flex flex-col items-start gap-2 rounded-lg bg-danger-surface px-3 py-2.5">
-            <p className="text-label text-danger">{groupChatsErrorMessage}</p>
-            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => retryGroupChats()}>
-              {t("buttons.retry")}
-            </Button>
-          </div>
+          <RetryNotice
+            variant="band"
+            title={t("desktop:groupChats.loadFailed")}
+            message={groupChatsErrorMessage ?? t("errors.generic")}
+            retryLabel={t("buttons.retry")}
+            onRetry={() => retryGroupChats()}
+          />
         ) : groupChats.length > 0 ? (
           <div className="space-y-px">
             {groupChats.map((group) => (
