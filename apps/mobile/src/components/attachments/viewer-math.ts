@@ -5,6 +5,8 @@
  * to node, so the same code is unit-tested as-is).
  */
 
+import { rubberBand } from "../ui/kit-math";
+
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 4;
 /** The double-tap zoom step. */
@@ -37,6 +39,29 @@ export function panLimit(fitted: number, scale: number, screen: number): number 
 export function clampAbs(value: number, limit: number): number {
   "worklet";
   return Math.min(limit, Math.max(-limit, value));
+}
+
+/**
+ * Where a zoomed picture sits while a finger drags it to `raw`: it follows 1:1
+ * inside ±limit and past an edge only with rubber-band resistance, so black can
+ * show at the edge while you hold it, but only a little.
+ */
+export function rubberPan(raw: number, limit: number, screen: number): number {
+  "worklet";
+  const over = Math.abs(raw) - limit;
+  if (over <= 0) return raw;
+  return Math.sign(raw) * (limit + rubberBand(over, screen));
+}
+
+/**
+ * What a released zoomed drag does on one axis. "spring": the picture was let
+ * go past an edge, so it springs back to that edge (carrying the finger's
+ * velocity). "decay": it was inside, so it glides on and bounces off an edge.
+ * Half a pixel of slack keeps float noise from triggering a spring.
+ */
+export function panRelease(t: number, limit: number): "spring" | "decay" {
+  "worklet";
+  return Math.abs(t) > limit + 0.5 ? "spring" : "decay";
 }
 
 /**

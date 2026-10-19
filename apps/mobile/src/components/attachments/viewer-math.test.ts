@@ -3,7 +3,9 @@ import {
   clampAbs,
   containSize,
   panLimit,
+  panRelease,
   releasePage,
+  rubberPan,
   rubberScale,
   shouldDismiss,
   zoomAbout,
@@ -73,5 +75,28 @@ describe("shouldDismiss", () => {
     expect(shouldDismiss(130, 0)).toBe(true);
     expect(shouldDismiss(-20, -1000)).toBe(true);
     expect(shouldDismiss(60, 300)).toBe(false);
+  });
+});
+
+describe("rubberPan / panRelease (a zoomed picture never stays off its edge)", () => {
+  it("follows the finger 1:1 inside the limit", () => {
+    expect(rubberPan(120, 200, 400)).toBe(120);
+    expect(rubberPan(-200, 200, 400)).toBe(-200);
+  });
+  it("resists past an edge: moves less than the finger, both ways", () => {
+    const right = rubberPan(300, 200, 400);
+    expect(right).toBeGreaterThan(200);
+    expect(right).toBeLessThan(300);
+    expect(rubberPan(-300, 200, 400)).toBeCloseTo(-right);
+  });
+  it("springs back when let go past an edge, glides when inside", () => {
+    // Dragged past the edge and held still: the case withDecay left off-screen.
+    expect(panRelease(rubberPan(300, 200, 400), 200)).toBe("spring");
+    expect(panRelease(-240, 200)).toBe("spring");
+    expect(panRelease(150, 200)).toBe("decay");
+    expect(panRelease(200.3, 200)).toBe("decay");
+  });
+  it("a picture smaller than the screen on an axis springs back to centre", () => {
+    expect(panRelease(rubberPan(40, 0, 800), 0)).toBe("spring");
   });
 });

@@ -3,8 +3,8 @@
  * gallery lightbox, driven by touch:
  *
  *  - PINCH to zoom about your fingers (1× – 4×, a soft rubber band past either
- *    end), DRAG to move a zoomed picture (it keeps its momentum and never
- *    leaves the screen), DOUBLE TAP to zoom in at that point / back to fit.
+ *    end), DRAG to move a zoomed picture (it keeps its momentum; past an edge it
+ *    resists, and a release there springs it back), DOUBLE TAP to zoom in at that point / back to fit.
  *  - SWIPE sideways to step through the message's pictures ("2 / 3"); SWIPE
  *    up or down to close, the black backdrop thinning with the drag.
  *  - TAP once to hide / show the controls.
@@ -42,6 +42,7 @@ import { colors, motion, radius, space } from "../../theme/theme";
 import { IconButton } from "../ui/IconButton";
 import { Text } from "../ui/Text";
 import { Toaster } from "../ui/Toast";
+import { MODAL_RESPONDER_BARRIER } from "../ui/Touchable";
 import { ImageActionButtons } from "./ImageActionSheet";
 import {
   DOUBLE_TAP_ZOOM,
@@ -50,7 +51,9 @@ import {
   clampAbs,
   containSize,
   panLimit,
+  panRelease,
   releasePage,
+  rubberPan,
   rubberScale,
   shouldDismiss,
   zoomAbout,
@@ -228,8 +231,8 @@ export function ImageViewer({
         mode.value = Math.abs(e.translationX) > Math.abs(e.translationY) && count > 1 ? 2 : 3;
       }
       if (mode.value === 1) {
-        tx.value = tx0.value + e.translationX;
-        ty.value = ty0.value + e.translationY;
+        tx.value = rubberPan(tx0.value + e.translationX, panLimit(fitW.value, scale.value, W), W);
+        ty.value = rubberPan(ty0.value + e.translationY, panLimit(fitH.value, scale.value, H), H);
       } else if (mode.value === 2) {
         const atStart = indexSV.value === 0 && e.translationX > 0;
         const atEnd = indexSV.value === count - 1 && e.translationX < 0;
@@ -248,9 +251,17 @@ export function ImageViewer({
           settleInside();
           return;
         }
-        // Momentum, but never past an edge.
-        tx.value = withDecay({ velocity: e.velocityX, clamp: [-lx, lx], reduceMotion: ReduceMotion.System });
-        ty.value = withDecay({ velocity: e.velocityY, clamp: [-ly, ly], reduceMotion: ReduceMotion.System });
+        // Let go past an edge: spring back to it. Inside: momentum that bounces
+        // off an edge. (A rigid clamped decay finishes at once when the finger
+        // stopped, leaving the picture off its edge — so it is never used.)
+        tx.value =
+          panRelease(tx.value, lx) === "spring"
+            ? motionTo(clampAbs(tx.value, lx), "position", { velocity: e.velocityX })
+            : withDecay({ velocity: e.velocityX, clamp: [-lx, lx], rubberBandEffect: true, reduceMotion: ReduceMotion.System });
+        ty.value =
+          panRelease(ty.value, ly) === "spring"
+            ? motionTo(clampAbs(ty.value, ly), "position", { velocity: e.velocityY })
+            : withDecay({ velocity: e.velocityY, clamp: [-ly, ly], rubberBandEffect: true, reduceMotion: ReduceMotion.System });
       } else if (mode.value === 2) {
         const next = releasePage(indexSV.value, e.translationX, e.velocityX, W, count);
         pageX.value = motionTo(-next * W, "position", { reduced, velocity: e.velocityX });
@@ -325,7 +336,7 @@ export function ImageViewer({
       navigationBarTranslucent
       onRequestClose={onClose}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1 }} {...MODAL_RESPONDER_BARRIER}>
         <Animated.View
           pointerEvents="none"
           style={[{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.rail }, backdropStyle]}
