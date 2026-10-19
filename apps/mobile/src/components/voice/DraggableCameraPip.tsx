@@ -11,14 +11,14 @@ import { VideoTrack } from "@livekit/react-native";
 import { VideoOff, X } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { avatarTileGradient } from "@/theme/avatar-color";
+import { avatarTileGlow } from "@/theme/avatar-color";
 import { useReducedMotion } from "@/theme/motion";
 import { MOTION_PRESETS } from "@/theme/motion-presets";
 import { colors, radius, space, typography } from "@/theme/theme";
 import { withAlpha } from "../ui/kit-math";
 import { Text } from "../ui/Text";
 import { Touchable } from "../ui/Touchable";
-import { SpeakingFrame } from "./stage-chrome";
+import { IdentityGlow, SpeakingFrame } from "./stage-chrome";
 import { useVideoTrackRef } from "./track-ref";
 
 /** PiP frame size — small enough to never block the stream, portrait self-view shape. */
@@ -28,6 +28,11 @@ const PIP_H = 148;
 const TAP_SLOP = 6;
 /** The PiP's corner radius — a small window, one step under the stage tiles. */
 const PIP_RADIUS = radius.lg;
+/** The functional 1px edge (see the frame style below). */
+const PIP_EDGE = 1;
+/** The content box inside that edge — what the identity glow is sized to. */
+const PIP_INNER_W = PIP_W - 2 * PIP_EDGE;
+const PIP_INNER_H = PIP_H - 2 * PIP_EDGE;
 
 export type CornerKey = "tl" | "tr" | "bl" | "br";
 
@@ -58,8 +63,14 @@ function PipVideo({ track, mirror }: { track: object; mirror: boolean }) {
       trackRef={trackRef}
       objectFit="cover"
       mirror={mirror}
-      // Sit above the main fullscreen VideoTrack (higher zOrder = on top).
-      zOrder={2}
+      // 1 = SurfaceView.setZOrderMediaOverlay(true): above the main fullscreen
+      // VideoTrack's surface (zOrder 0) but still BELOW this window, so the RN
+      // views drawn over the PiP — the coral SpeakingFrame, the name strip, the
+      // self-view's close button — stay visible. 2 would be setZOrderOnTop(true)
+      // (react-native-webrtc WebRTCView.setZOrder), which composites the video
+      // above the whole window and silently covers all three. Same layering as
+      // the grid's local CameraTile.
+      zOrder={1}
       style={{ flex: 1, backgroundColor: colors.rail }}
     />
   );
@@ -83,7 +94,6 @@ function PipCameraOff({
   avatarUrl: string | null;
 }) {
   const { t } = useAppTranslation();
-  const { from } = avatarTileGradient(userId);
   return (
     <View
       style={{
@@ -91,9 +101,12 @@ function PipCameraOff({
         alignItems: "center",
         justifyContent: "center",
         gap: space.xs,
-        backgroundColor: from,
+        // Neutral surface + the identity glow, like the stage tile: the caption
+        // below sits on `surface`, so it keeps its contrast for every hue.
+        backgroundColor: colors.surface,
       }}
     >
+      <IdentityGlow color={avatarTileGlow(userId)} width={PIP_INNER_W} height={PIP_INNER_H} />
       <Avatar name={name} size={42} uri={avatarUrl} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: space.xs }}>
         <VideoOff size={11} color={colors.fgMuted} />
@@ -108,7 +121,7 @@ function PipCameraOff({
   );
 }
 
-/** Cameraless subject → a per-user gradient backdrop with the centered avatar. */
+/** Cameraless subject → the neutral surface with their identity glow and avatar. */
 function PipAvatar({
   userId,
   name,
@@ -118,9 +131,11 @@ function PipAvatar({
   name: string;
   avatarUrl: string | null;
 }) {
-  const { from } = avatarTileGradient(userId);
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: from }}>
+    <View
+      style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}
+    >
+      <IdentityGlow color={avatarTileGlow(userId)} width={PIP_INNER_W} height={PIP_INNER_H} />
       <Avatar name={name} size={52} uri={avatarUrl} />
     </View>
   );
@@ -170,12 +185,12 @@ export function DraggableCameraPip({
 }: {
   /** The subject's live camera track, or null → show their avatar/placeholder. */
   track: object | null;
-  /** Drives the deterministic avatar backdrop when cameraless. */
+  /** Drives the deterministic identity-glow hue when cameraless. */
   userId: string;
   name: string;
   /** The subject's avatar image for the cameraless PiP, or null when they have none. */
   avatarUrl: string | null;
-  /** Ring the frame green while this person is the active speaker. */
+  /** Ring the frame coral while this person is the active speaker. */
   speaking: boolean;
   /** Fullscreen container width (window width). */
   width: number;
@@ -334,7 +349,7 @@ export function DraggableCameraPip({
         // A small window over arbitrary video needs ONE functional edge to read
         // as a separate thing (Koyu Masa: lines only where they do a job). No
         // outer shadow — depth is the tone change, not a lift.
-        borderWidth: 1,
+        borderWidth: PIP_EDGE,
         borderColor: colors.strokeStrong,
       }}
     >

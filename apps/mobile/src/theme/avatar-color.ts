@@ -72,3 +72,21 @@ export function avatarTileGradient(userId: string): { from: string; to: string }
 export function avatarTileSolid(userId: string): string {
   return `hsl(${avatarHue(userId)}, ${SAT_SOLID}%, ${LIGHT_SOLID}%)`;
 }
+
+// Identity-glow tunables — the desktop stage tile's blurred disc
+// (`AvatarTile`: `hsl(hue 60% 50%)` at 16% opacity behind the avatar). The colour
+// is the person's HUE, never the surface: Koyu Masa keeps the tile itself on the
+// neutral `surface` and lets identity show only as this faint light.
+const SAT_GLOW = 60;
+const LIGHT_GLOW = 50;
+/** Peak opacity of the glow at its centre (desktop `opacity-[0.16]`). */
+export const AVATAR_GLOW_OPACITY = 0.16;
+
+/**
+ * The identity-glow colour for a cameraless stage tile: the user's hue at a
+ * mid lightness, drawn at {@link AVATAR_GLOW_OPACITY} over the neutral tile
+ * surface. Same hue as {@link avatarHue}, so phone and desktop agree.
+ */
+export function avatarTileGlow(userId: string): string {
+  return `hsl(${avatarHue(userId)}, ${SAT_GLOW}%, ${LIGHT_GLOW}%)`;
+}

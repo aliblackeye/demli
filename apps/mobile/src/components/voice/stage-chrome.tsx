@@ -17,13 +17,16 @@
  *    Android, and `veil` (24%) is unreadable over a bright frame.
  *  - {@link LiveDot}: a status dot that breathes while the state is in motion
  *    (ringing, reconnecting) and sits still once it settles.
+ *  - {@link IdentityGlow}: the faint per-person light behind a cameraless
+ *    avatar — the tile stays the neutral `surface`, identity is only this glow.
  *
  * Every animation runs on the UI thread (Reanimated) and honours the OS
  * reduce-motion switch twice: the presets carry `ReduceMotion.System`, and the
  * loops are not even started when `useReducedMotion()` says so.
  */
-import { useEffect, useMemo, type ReactNode } from "react";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import { memo, useEffect, useId, useMemo, type ReactNode } from "react";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import Animated, {
   Easing,
   ReduceMotion,
@@ -34,6 +37,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
+import { AVATAR_GLOW_OPACITY } from "@/theme/avatar-color";
 import { motionTo, toneTo, useReducedMotion } from "@/theme/motion";
 import { colors, elevation, radius, space } from "@/theme/theme";
 import { withAlpha } from "../ui/kit-math";
@@ -231,3 +235,54 @@ export function voiceStatusColor(status: string): string {
   if (status === "reconnecting" || status === "joining") return colors.warning;
   return colors.fgSubtle;
 }
+
+/**
+ * The identity light behind a cameraless avatar — the phone twin of the desktop
+ * stage tile's blurred disc (`AvatarTile`: a 46%-wide disc in the person's hue at
+ * 16% opacity, `blur-[60px]`, over `bg-surface`). React Native has no CSS blur,
+ * so the blurred disc is drawn as what it looks like: a radial falloff centred on
+ * the avatar, peaking at the desktop opacity and fading to nothing about 0.43 of
+ * the tile width out (the disc's own radius plus the blur's spread, scaled to the
+ * tile so a phone tile reads like a desktop one).
+ *
+ * The tile underneath stays neutral, so a room of camera-off people is a calm
+ * dark grid with one faint colour each — never a wall of saturated blocks — and
+ * captions on the tile sit on `surface`, not on a hue.
+ *
+ * Memoized on its three props, so a speaking/muted re-render of the tile never
+ * re-renders the SVG. Renders nothing until the tile has been measured.
+ */
+export const IdentityGlow = memo(function IdentityGlow({
+  color,
+  width,
+  height,
+}: {
+  /** The person's glow colour (`avatarTileGlow(userId)`). */
+  color: string;
+  /** Measured tile width — the glow is sized off it, like the desktop disc. */
+  width: number;
+  height: number;
+}) {
+  const id = useId();
+  if (width <= 0 || height <= 0) return null;
+  const r = width * 0.43;
+  return (
+    <Svg
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Defs>
+        <RadialGradient id={id} cx={width / 2} cy={height / 2} r={r} gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor={color} stopOpacity={AVATAR_GLOW_OPACITY} />
+          <Stop offset="0.4" stopColor={color} stopOpacity={AVATAR_GLOW_OPACITY * 0.85} />
+          <Stop offset="0.72" stopColor={color} stopOpacity={AVATAR_GLOW_OPACITY * 0.3} />
+          <Stop offset="1" stopColor={color} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Rect x="0" y="0" width={width} height={height} fill={`url(#${id})`} />
+    </Svg>
+  );
+});
