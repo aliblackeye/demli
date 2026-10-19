@@ -47,6 +47,7 @@ import {
 import type { UiSound } from "./sound-manager";
 import { playSound, primeSounds, setSoundsSuppressed } from "./sound-manager";
 import { createJoinCueScheduler } from "./join-cue-timing";
+import { isVoiceSessionStatus, setVoiceSessionProbe } from "./audio-mode-guard";
 
 /** Roster/share changes within this window after connecting are the initial snapshot. */
 const ROSTER_GRACE_MS = 2_000;
@@ -58,6 +59,10 @@ const ROSTER_GRACE_MS = 2_000;
  * beep and a broken one on Android.
  */
 const JOIN_CUE_SETTLE_MS = 350;
+
+// expo-audio's setAudioModeAsync must never run while a room is joining or live
+// (it would rewrite the call's audio mode); the guard reads the status from here.
+setVoiceSessionProbe(() => isVoiceSessionStatus(useVoiceStore.getState().status));
 
 // Warm up the sound subsystem at app entry (audio-mode config + player decode)
 // before the first join, so nothing reconfigures audio mid-connect. Runs once —
