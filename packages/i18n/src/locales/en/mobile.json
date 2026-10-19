@@ -432,7 +432,9 @@
     "deleteError": "Couldn't delete",
     "validationName": "Channel name must be 1–{{max}} characters.",
     "validationMaxParticipants": "Max participants must be a whole number of 1 or more.",
-    "slowmodeVoiceHint": "Applies to the voice channel's text chat too. Owners are exempt."
+    "slowmodeVoiceHint": "Applies to the voice channel's text chat too. Owners are exempt.",
+    "saveErrorTitle": "Couldn't save the channel",
+    "dangerDescription": "Deleting the channel removes its messages for everyone. It can't be undone."
   },
   "serverSettings": {
     "title": "Server settings",
@@ -455,7 +457,12 @@
     "membersSection": "Members",
     "membersHint": "Tap a member to assign roles.",
     "manageRoles": "Manage roles",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "loadErrorTitle": "Couldn't load server settings",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "saveErrorTitle": "Couldn't save the changes",
+    "dangerDescription": "Deleting the server removes its channels, messages, roles and invites for everyone. It can't be undone."
   },
   "roleEditor": {
     "title": "Edit role",
@@ -502,7 +509,8 @@
     "selectedRolesDesc": "Only the owner and members with a checked role.",
     "noRoles": "No roles yet — create one in Server settings.",
     "save": "Save visibility",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "saveErrorTitle": "Couldn't save visibility"
   },
   "slowmode": {
     "off": "Off"

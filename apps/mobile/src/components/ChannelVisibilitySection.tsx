@@ -3,12 +3,15 @@ import { View } from "react-native";
 import { Text } from "./ui/Text";
 import type { ChannelId, GroupId, RoleId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { Check, Save } from "lucide-react-native";
+import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { RoleMultiSelect } from "@/components/RoleMultiSelect";
 import { Segmented } from "@/components/Segmented";
 import { localizeError } from "@/lib/errors";
 import { useChannelRoles, useRoles, useSetChannelRoles } from "@/queries/chat-queries";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 type Mode = "public" | "restricted";
 
@@ -67,25 +70,30 @@ export function ChannelVisibilitySection({
   };
 
   return (
-    <View style={{ gap: space.md }}>
-      <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
+    <View
+      style={{
+        gap: space.md,
+        backgroundColor: colors.surface,
+        borderRadius: radius.xl,
+        borderCurve: "continuous",
+        padding: space.lg,
+      }}
+    >
       <View style={{ gap: space.xs }}>
-        <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
+        <Text
+          accessibilityRole="header"
+          variant="display"
+          style={{ color: colors.fgDisplay, fontSize: 16, lineHeight: 22, fontWeight: "600" }}
+        >
           {t("mobile:visibility.title")}
         </Text>
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>{t("mobile:visibility.note")}</Text>
+        <Text style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16 }}>{t("mobile:visibility.note")}</Text>
       </View>
 
-      {error ? (
-        <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-          <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-            {error}
-          </Text>
-        </View>
-      ) : null}
+      {error ? <Banner variant="danger" title={t("mobile:visibility.saveErrorTitle")} description={error} /> : null}
 
       <Segmented<Mode>
+        accessibilityLabel={t("mobile:visibility.title")}
         value={mode}
         onChange={(value) => {
           setMode(value);
@@ -96,21 +104,15 @@ export function ChannelVisibilitySection({
           { value: "restricted", label: t("mobile:visibility.selectedRoles") },
         ]}
       />
-      <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-        {mode === "public"
-          ? t("mobile:visibility.everyoneDesc")
-          : t("mobile:visibility.selectedRolesDesc")}
+      <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
+        {mode === "public" ? t("mobile:visibility.everyoneDesc") : t("mobile:visibility.selectedRolesDesc")}
       </Text>
 
       {mode === "restricted" ? (
         isLoading ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 13 }}>
-            {t("mobile:serverSettings.loading")}
-          </Text>
+          <Text style={{ color: colors.fgFaint, fontSize: 13 }}>{t("mobile:serverSettings.loading")}</Text>
         ) : (roles ?? []).length === 0 ? (
-          <Text style={{ color: colors.fgMuted, fontSize: 13 }}>
-            {t("mobile:visibility.noRoles")}
-          </Text>
+          <Text style={{ color: colors.fgMuted, fontSize: 13 }}>{t("mobile:visibility.noRoles")}</Text>
         ) : (
           <RoleMultiSelect roles={roles ?? []} selected={selected} onToggle={toggle} />
         )
@@ -119,12 +121,22 @@ export function ChannelVisibilitySection({
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
         <Button
           label={t("mobile:visibility.save")}
+          icon={Save}
+          variant="secondary"
           onPress={onSave}
           loading={setChannelRoles.isPending}
           style={{ flex: 1 }}
         />
         {saved && !setChannelRoles.isPending ? (
-          <Text style={{ color: colors.online, fontSize: 12 }}>{t("mobile:visibility.saved")}</Text>
+          <Animated.View
+            entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+            exiting={FadeOut.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+            accessibilityLiveRegion="polite"
+            style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}
+          >
+            <Check size={14} color={colors.success} strokeWidth={2.5} />
+            <Text style={{ color: colors.success, fontSize: 12, fontWeight: "500" }}>{t("mobile:visibility.saved")}</Text>
+          </Animated.View>
         ) : null}
       </View>
     </View>

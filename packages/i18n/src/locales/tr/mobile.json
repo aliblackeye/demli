@@ -432,7 +432,9 @@
     "deleteError": "Silinemedi",
     "validationName": "Kanal adı 1–{{max}} karakter olmalı.",
     "validationMaxParticipants": "En fazla katılımcı 1 veya daha büyük bir tam sayı olmalı.",
-    "slowmodeVoiceHint": "Sesli kanalın metin sohbeti için de geçerlidir. Sahipler muaftır."
+    "slowmodeVoiceHint": "Sesli kanalın metin sohbeti için de geçerlidir. Sahipler muaftır.",
+    "saveErrorTitle": "Kanal kaydedilemedi",
+    "dangerDescription": "Kanalı silmek mesajlarını herkes için kaldırır. Geri alınamaz."
   },
   "serverSettings": {
     "title": "Sunucu ayarları",
@@ -455,7 +457,12 @@
     "membersSection": "Üyeler",
     "membersHint": "Rol atamak için bir üyeye dokun.",
     "manageRoles": "Rolleri yönet",
-    "loading": "Yükleniyor…"
+    "loading": "Yükleniyor…",
+    "loadErrorTitle": "Sunucu ayarları yüklenemedi",
+    "memberCount_one": "{{count}} üye",
+    "memberCount_other": "{{count}} üye",
+    "saveErrorTitle": "Değişiklikler kaydedilemedi",
+    "dangerDescription": "Sunucuyu silmek kanallarını, mesajlarını, rollerini ve davetlerini herkes için kaldırır. Geri alınamaz."
   },
   "roleEditor": {
     "title": "Rolü düzenle",
@@ -502,7 +509,8 @@
     "selectedRolesDesc": "Yalnızca sahibi ve işaretli bir role sahip üyeler.",
     "noRoles": "Henüz rol yok — Sunucu ayarlarından bir tane oluştur.",
     "save": "Görünürlüğü kaydet",
-    "saved": "Kaydedildi."
+    "saved": "Kaydedildi.",
+    "saveErrorTitle": "Görünürlük kaydedilemedi"
   },
   "slowmode": {
     "off": "Kapalı"
