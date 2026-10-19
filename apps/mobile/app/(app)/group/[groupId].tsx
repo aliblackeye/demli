@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MoreVertical, UserPlus } from "lucide-react-native";
+import { MoreHorizontal, UserPlus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { Screen } from "@/components/Screen";
 import { ServerActionsSheet } from "@/components/home/ServerActionsSheet";
 import { ServerChannelList } from "@/components/home/ServerChannelList";
+import { IconButton } from "@/components/ui/IconButton";
 import { useGroupDetails } from "@/queries/chat-queries";
 import { colors, space } from "@/theme/theme";
 
@@ -16,9 +17,10 @@ import { colors, space } from "@/theme/theme";
  * preview, the join flow) — the Home shell's rail shows the SAME channels inline
  * via {@link ServerChannelList}, so this route and the panel never diverge.
  *
- * The route keeps its native Stack header; its actions mirror the shell panel's
- * (invite + the "…" overflow menu that holds settings and the destructive
- * leave), so the two surfaces stay identical.
+ * The route keeps its native Stack header (on the page tone, borderless); its
+ * actions mirror the shell panel's — the coral invite button and the "…"
+ * overflow menu that holds settings and the destructive leave — so the two
+ * surfaces stay identical.
  */
 export default function GroupScreen() {
   const { t } = useAppTranslation();
@@ -34,26 +36,23 @@ export default function GroupScreen() {
       <Stack.Screen
         options={{
           title: serverName,
+          headerStyle: { backgroundColor: colors.app },
           headerRight: () => (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.lg, paddingRight: space.xs }}>
-              <Pressable
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <IconButton
+                icon={UserPlus}
+                variant="accent"
+                size="sm"
+                label={t("mobile:group.inviteFriends")}
                 onPress={() =>
                   router.push({ pathname: "/invite", params: { groupId, name: serverName } })
                 }
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={t("mobile:group.inviteFriends")}
-              >
-                <UserPlus size={22} color={colors.accent} />
-              </Pressable>
-              <Pressable
+              />
+              <IconButton
+                icon={MoreHorizontal}
+                label={t("mobile:group.serverActionsA11y", { name: serverName })}
                 onPress={() => setActionsOpen(true)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={t("mobile:group.serverActionsA11y", { name: serverName })}
-              >
-                <MoreVertical size={22} color={colors.fgMuted} />
-              </Pressable>
+              />
             </View>
           ),
         }}

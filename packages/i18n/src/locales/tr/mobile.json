@@ -224,6 +224,11 @@
     }
   },
   "friends": {
+    "onlineSection": "Çevrimiçi · {{count}}",
+    "offlineSection": "Çevrimdışı · {{count}}",
+    "loadErrorTitle": "Arkadaş listen yüklenemedi",
+    "requestsLoadErrorTitle": "İstekler yüklenemedi",
+    "tabRequestsCount": "İstekler · {{count}}",
     "requestsBadgeA11y_one": "{{count}} bekleyen arkadaşlık isteği",
     "requestsBadgeA11y_other": "{{count}} bekleyen arkadaşlık isteği",
     "title": "Arkadaşlar",

@@ -224,6 +224,11 @@
     }
   },
   "friends": {
+    "onlineSection": "Online · {{count}}",
+    "offlineSection": "Offline · {{count}}",
+    "loadErrorTitle": "Couldn't load your friends",
+    "requestsLoadErrorTitle": "Couldn't load requests",
+    "tabRequestsCount": "Requests · {{count}}",
     "requestsBadgeA11y_one": "{{count}} pending friend request",
     "requestsBadgeA11y_other": "{{count}} pending friend requests",
     "title": "Friends",
