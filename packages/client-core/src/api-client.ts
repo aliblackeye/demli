@@ -401,6 +401,11 @@ export interface UpdateMeInput {
   displayName?: string;
   avatarUrl?: string | null;
   /**
+   * `null` removes the profile banner (the API's `updateProfileSchema` already
+   * accepts it); a new banner is set through `uploadBanner`, never a URL here.
+   */
+  bannerUrl?: string | null;
+  /**
    * Profile bio (ADR 0010 §3): ≤280 chars, plain text, `null` clears it.
    * Stored raw; escaped at render like message content (§28).
    */
