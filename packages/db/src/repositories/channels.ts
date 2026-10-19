@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type {
   CategoryId,
   Channel,
@@ -192,6 +192,43 @@ export function channelsRepo(db: Db) {
         .where(eq(channels.livekitRoom, room))
         .limit(1);
       return row ? toChannel(row) : null;
+    },
+
+    /**
+     * Every voice channel of a group with the LiveKit room it actually runs in
+     * (`livekitRoom ?? id`, ADR 0012 §6). Moderation uses it to force a removed
+     * member out of the SFU: an upgraded group's voice channel lives in the
+     * `dmcall:<id>` room, so evicting by channel id alone would miss the room the
+     * member is really talking in.
+     */
+    async listVoiceRoomsForGroup(
+      groupId: GroupId,
+    ): Promise<Array<{ channelId: ChannelId; room: string }>> {
+      const rows = await db
+        .select({ id: channels.id, livekitRoom: channels.livekitRoom })
+        .from(channels)
+        .where(and(eq(channels.groupId, groupId), eq(channels.kind, "voice")));
+      return rows.map((row) => ({ channelId: row.id, room: row.livekitRoom ?? row.id }));
+    },
+
+    /**
+     * The LiveKit room override of each given channel that HAS one, keyed by
+     * channel id. Channels without an override (every ordinary voice channel,
+     * room = id) are absent. The batch form of the media-token path's
+     * `room = livekitRoom ?? id`, for the occupancy readers that start from a
+     * list of visible channel ids and must ask LiveKit for the right room names.
+     */
+    async livekitRoomOverrides(channelIds: readonly ChannelId[]): Promise<Map<ChannelId, string>> {
+      const overrides = new Map<ChannelId, string>();
+      if (channelIds.length === 0) return overrides;
+      const rows = await db
+        .select({ id: channels.id, livekitRoom: channels.livekitRoom })
+        .from(channels)
+        .where(and(inArray(channels.id, [...channelIds]), isNotNull(channels.livekitRoom)));
+      for (const row of rows) {
+        if (row.livekitRoom) overrides.set(row.id, row.livekitRoom);
+      }
+      return overrides;
     },
 
     async listForGroup(groupId: GroupId): Promise<Channel[]> {
