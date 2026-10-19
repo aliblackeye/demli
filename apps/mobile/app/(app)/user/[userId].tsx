@@ -44,6 +44,7 @@ import { Text, TextInput } from "@/components/ui/Text";
 import { Touchable } from "@/components/ui/Touchable";
 import { localizeError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
+import { useSelfPresenceAsSeen } from "@/lib/use-self-presence";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import {
   useAcceptFriendRequest,
@@ -191,6 +192,8 @@ export default function UserProfileScreen() {
   const isSelf = !!me && me.id === userId;
   const profile = useProfile(userId ?? null, groupId, !!userId && !isSelf);
   const presence = useChatStore((s) => (userId ? s.presence[userId] ?? "offline" : "offline"));
+  // Your own card shows the status you CHOSE, as others see it (invisible = offline).
+  const selfPresence = useSelfPresenceAsSeen();
   // The viewer's private note about THIS person, for the short badge beside the
   // name. Gated on `!isSelf` — you cannot note yourself and the read must not
   // even be issued for your own card (ADR 0019 §1, desktop ProfileCard parity).
@@ -508,7 +511,7 @@ export default function UserProfileScreen() {
               name={displayName}
               size={AVATAR_SIZE}
               uri={user?.avatarUrl}
-              presence={isSelf ? "online" : presence}
+              presence={isSelf ? selfPresence : presence}
               ringColor={colors.app}
             />
           </Touchable>

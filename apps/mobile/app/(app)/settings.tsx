@@ -32,6 +32,7 @@ import { Touchable } from "@/components/ui/Touchable";
 import { toast } from "@/components/ui/toast-store";
 import { applyLanguagePreference, getLanguagePreference, type LanguagePreference } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
+import { useSelfPresenceAsSeen } from "@/lib/use-self-presence";
 import { useAccountsStore } from "@/stores/accounts-store";
 import { logoutActiveAccount } from "@/lib/account-manager";
 import { currentUpdateInfo } from "@/updates/updates";
@@ -52,6 +53,7 @@ import { colors, radius, space } from "@/theme/theme";
 export default function SettingsScreen() {
   const { t, i18n } = useAppTranslation();
   const user = useAuthStore((s) => s.user);
+  const selfPresence = useSelfPresenceAsSeen();
   const accountCount = useAccountsStore((s) => s.accounts.length);
   const checkForUpdates = useUpdatesStore((s) => s.check);
   const insets = useSafeAreaInsets();
@@ -166,7 +168,7 @@ export default function SettingsScreen() {
           <ProfileBannerImage bannerUrl={user?.bannerUrl} seedId={user?.id ?? "self"} height={64} />
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.md, paddingHorizontal: space.lg, paddingBottom: space.lg, marginTop: -28 }}>
             <View style={{ padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface }}>
-              <Avatar name={name} size={56} presence="online" uri={user?.avatarUrl} ringColor={colors.surface} />
+              <Avatar name={name} size={56} presence={selfPresence} uri={user?.avatarUrl} ringColor={colors.surface} />
             </View>
             <View style={{ flex: 1, paddingBottom: 2 }}>
               <Text type="subheading" tone="display" numberOfLines={1}>

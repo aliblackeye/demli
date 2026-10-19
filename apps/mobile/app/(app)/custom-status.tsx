@@ -24,6 +24,7 @@ import { useAppTranslation } from "@/lib/i18n";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { useSetCustomStatus } from "@/queries/social-queries";
 import { useAuthStore } from "@/stores/auth-store";
+import { useSelfPresenceAsSeen } from "@/lib/use-self-presence";
 import { colors, motion, radius, space } from "@/theme/theme";
 
 /** One catalog key per duration, so a new choice is a compile error here. */
@@ -55,6 +56,8 @@ export default function CustomStatusScreen() {
   const keyboard = useKeyboardHeight();
   const setCustomStatus = useSetCustomStatus();
   const me = useAuthStore((s) => s.user);
+  // The preview is "how others see you": your chosen status, invisible = offline.
+  const selfPresence = useSelfPresenceAsSeen();
 
   // Seed from the CURRENT value once, read imperatively rather than through a
   // subscribed selector: as a dependency it would re-seed — and so wipe what the
@@ -120,7 +123,7 @@ export default function CustomStatusScreen() {
               backgroundColor: colors.surface,
             }}
           >
-            <Avatar name={name} size={44} uri={me?.avatarUrl} presence="online" ringColor={colors.surface} />
+            <Avatar name={name} size={44} uri={me?.avatarUrl} presence={selfPresence} ringColor={colors.surface} />
             <View style={{ flex: 1, gap: space.xs }}>
               <Text type="body" tone="default" numberOfLines={1} style={{ fontWeight: "600" }}>
                 {name}
