@@ -16,7 +16,7 @@ patchedDependencies:
     hash: shkwyxooy67ipbsryrhzjduwl4
     path: patches/@livekit__react-native-webrtc@144.1.1.patch
   '@livekit/react-native@2.11.1':
-    hash: ukwucyqfewurd6bbvprigtpday
+    hash: q5hbbch6vfue72nzuawvzeltca
     path: patches/@livekit__react-native@2.11.1.patch
   '@supersami/rn-foreground-service@2.2.5':
     hash: 55qmlwm3k2qu242vaupq5pmlwy
@@ -282,10 +282,10 @@ importers:
         version: link:../../packages/types
       '@livekit/react-native':
         specifier: ^2.11.1
-        version: 2.11.1(patch_hash=ukwucyqfewurd6bbvprigtpday)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
+        version: 2.11.1(patch_hash=q5hbbch6vfue72nzuawvzeltca)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
       '@livekit/react-native-expo-plugin':
         specifier: ^1.0.2
-        version: 1.0.2(pdmibf2uqdlnqprsr5ovvkqoz4)
+        version: 1.0.2(e2elksj2lh24zjieaujes33lhy)
       '@livekit/react-native-webrtc':
         specifier: ^144.1.1
         version: 144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))
@@ -9845,9 +9845,9 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
-  '@livekit/react-native-expo-plugin@1.0.2(pdmibf2uqdlnqprsr5ovvkqoz4)':
+  '@livekit/react-native-expo-plugin@1.0.2(e2elksj2lh24zjieaujes33lhy)':
     dependencies:
-      '@livekit/react-native': 2.11.1(patch_hash=ukwucyqfewurd6bbvprigtpday)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
+      '@livekit/react-native': 2.11.1(patch_hash=q5hbbch6vfue72nzuawvzeltca)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
       expo: 57.0.2(@babel/core@7.29.7)(@expo/dom-webview@57.0.0)(@expo/metro-runtime@57.0.3)(expo-router@57.0.3)(react-dom@19.2.3(react@19.2.3))(react-native-webview@13.16.1(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3))(react-native-worklets@0.10.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       react: 19.2.3
       react-native: 0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)
@@ -9860,7 +9860,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@livekit/react-native@2.11.1(patch_hash=ukwucyqfewurd6bbvprigtpday)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)':
+  '@livekit/react-native@2.11.1(patch_hash=q5hbbch6vfue72nzuawvzeltca)(@livekit/react-native-webrtc@144.1.1(patch_hash=shkwyxooy67ipbsryrhzjduwl4)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3)))(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@18.3.31)(react@19.2.3))(react@19.2.3)(tslib@2.8.1)':
     dependencies:
       '@livekit/components-react': 2.9.21(livekit-client@2.20.0(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
       '@livekit/mutex': 1.1.1

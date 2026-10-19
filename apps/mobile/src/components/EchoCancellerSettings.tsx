@@ -8,7 +8,9 @@ import {
   setHardwareAudioProcessingPreferred,
   type AudioProcessingInfo,
 } from "@/media/audio-route";
+import { effectiveAudioProcessing } from "@demli/media";
 import { echoCancellerView, hardwareForMode, type EchoCancellerMode } from "@/media/echo-canceller";
+import { useMediaSettings } from "@/stores/media-settings";
 import { colors, space, typography } from "@/theme/theme";
 
 /**
@@ -20,7 +22,9 @@ import { colors, space, typography } from "@/theme/theme";
  * app start, before any JS runs), so this component reads and writes it through
  * the patched LiveKit module rather than a JS store, and shows a restart note
  * until the running module matches the saved choice. Rendered only where a real
- * choice or a real fact exists — never a dead control (§35).
+ * choice or a real fact exists — never a dead control (§35). With the mic's echo
+ * cancellation switched off, neither canceller runs; the status line says so
+ * instead of claiming the choice is active.
  */
 
 function SectionLabel({ children }: { children: string }) {
@@ -46,6 +50,7 @@ export function EchoCancellerSettings() {
   const { t } = useAppTranslation();
   const [info, setInfo] = useState<AudioProcessingInfo | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  const aecEnabled = useMediaSettings((s) => effectiveAudioProcessing(s.audio).echoCancellation);
 
   const reload = useCallback(() => {
     void getAudioProcessingInfo().then(setInfo);
@@ -55,7 +60,7 @@ export function EchoCancellerSettings() {
     reload();
   }, [reload]);
 
-  const view = echoCancellerView(info);
+  const view = echoCancellerView(info, aecEnabled);
   if (view.kind === "hidden") return null;
 
   const onSelect = (key: string) => {
@@ -72,11 +77,13 @@ export function EchoCancellerSettings() {
 
       <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
         {view.kind === "softwareOnly" ? (
-          <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
-            {view.reason === "oldAndroid"
-              ? t("mobile:echoCanceller.oldAndroid")
-              : t("mobile:echoCanceller.noHardware")}
-          </Text>
+          view.aecOff ? null : (
+            <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
+              {view.reason === "oldAndroid"
+                ? t("mobile:echoCanceller.oldAndroid")
+                : t("mobile:echoCanceller.noHardware")}
+            </Text>
+          )
         ) : (
           <>
             <ChipSelect
@@ -94,13 +101,21 @@ export function EchoCancellerSettings() {
                 : t("mobile:echoCanceller.softwareDesc")}
             </Text>
 
-            <Text style={{ color: view.restartPending ? colors.warning : colors.fgFaint, fontSize: 12 }}>
-              {view.restartPending
-                ? t("mobile:echoCanceller.restartPending")
-                : t("mobile:echoCanceller.applied")}
-            </Text>
+            {view.aecOff ? null : (
+              <Text style={{ color: view.restartPending ? colors.warning : colors.fgFaint, fontSize: 12 }}>
+                {view.restartPending
+                  ? t("mobile:echoCanceller.restartPending")
+                  : t("mobile:echoCanceller.applied")}
+              </Text>
+            )}
           </>
         )}
+
+        {view.aecOff ? (
+          <Text style={{ color: colors.warning, fontSize: 12, lineHeight: 17 }}>
+            {t("mobile:echoCanceller.aecOff")}
+          </Text>
+        ) : null}
 
         {saveFailed ? (
           <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 12 }}>

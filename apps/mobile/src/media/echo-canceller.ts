@@ -14,11 +14,18 @@
  * Why `device` stays the default: it is the measured status quo on every existing
  * install, and on Android libwebrtc's software path is its MOBILE canceller
  * (AECM, chosen for Android builds in webrtc_voice_engine.cc — not verified against
- * the shipped 144.7559.04 binary), which is built for the handset and can be
+ * the shipped 144.7559.05 binary), which is built for the handset and can be
  * weaker on the loudspeaker than a good vendor canceller. Which one wins is
  * device-specific, so the founder A/B (feature-parity.md, M16 1D) decides whether
  * the default flips. The ADM is built once per React instance, so a change
  * applies on the next app start; the view reports a pending restart honestly.
+ *
+ * "Platform canceller available" is libwebrtc's own check, not the raw
+ * `AcousticEchoCanceler.isAvailable()`: libwebrtc refuses the AOSP effect and
+ * runs its software canceller instead, so a phone with only that one has no
+ * real choice. And the mic's Yankı Engelleme switch gates BOTH cancellers
+ * (libwebrtc passes the same option to the platform effect and to its own), so
+ * with it off the view says that nothing is cancelling echo.
  */
 import type { AudioProcessingInfo } from "./audio-route";
 
@@ -30,10 +37,12 @@ export const DEFAULT_ECHO_CANCELLER: EchoCancellerMode = "device";
 export type EchoCancellerView =
   /** Not an Android build with the patched module: render nothing. */
   | { kind: "hidden" }
-  /** No hardware canceller to choose: WebRTC's software one always runs. */
-  | { kind: "softwareOnly"; reason: "oldAndroid" | "noHardware" }
+  /** No hardware canceller to choose: WebRTC's software one is the only one. */
+  | { kind: "softwareOnly"; reason: "oldAndroid" | "noHardware"; aecOff: boolean }
   | {
       kind: "choice";
+      /** Echo cancellation is switched off in the mic settings: neither runs. */
+      aecOff: boolean;
       /** The persisted choice (what the next start uses). */
       selected: EchoCancellerMode;
       /** What the running audio module was built with. */
@@ -50,11 +59,19 @@ export function hardwareForMode(mode: EchoCancellerMode): boolean {
   return mode === "device";
 }
 
-export function echoCancellerView(info: AudioProcessingInfo | null): EchoCancellerView {
+/**
+ * @param aecEnabled the EFFECTIVE echo-cancellation flag of the mic settings
+ *   (`effectiveAudioProcessing(...).echoCancellation`).
+ */
+export function echoCancellerView(
+  info: AudioProcessingInfo | null,
+  aecEnabled: boolean,
+): EchoCancellerView {
   if (!info) return { kind: "hidden" };
-  if (!info.hardwareSupported) return { kind: "softwareOnly", reason: "oldAndroid" };
-  if (!info.aecAvailable) return { kind: "softwareOnly", reason: "noHardware" };
+  const aecOff = !aecEnabled;
+  if (!info.hardwareSupported) return { kind: "softwareOnly", reason: "oldAndroid", aecOff };
+  if (!info.aecAvailable) return { kind: "softwareOnly", reason: "noHardware", aecOff };
   const selected = modeForHardware(info.hardwarePreferred);
   const active = modeForHardware(info.hardwareActive);
-  return { kind: "choice", selected, active, restartPending: selected !== active };
+  return { kind: "choice", aecOff, selected, active, restartPending: selected !== active };
 }

@@ -1104,7 +1104,8 @@
     "applied": "Bu seçim şu an çalışıyor.",
     "noHardware": "Bu telefonda donanım yankı engelleyicisi yok; yankıyı her zaman WebRTC'nin yazılım engelleyicisi temizliyor.",
     "oldAndroid": "Android 10'dan eski sürümlerde yankıyı her zaman WebRTC'nin yazılım engelleyicisi temizler.",
-    "saveFailed": "Seçim kaydedilemedi, ayar değişmedi. Birazdan tekrar dene."
+    "saveFailed": "Seçim kaydedilemedi, ayar değişmedi. Birazdan tekrar dene.",
+    "aecOff": "Mikrofon ayarlarında Yankı Engelleme kapalı; şu an yankıyı hiçbir engelleyici temizlemiyor. Hoparlörde karşı taraf kendi sesini duyabilir. Kulaklık kullanmıyorsan aç."
   },
   "video": {
     "section": "Görüntü",

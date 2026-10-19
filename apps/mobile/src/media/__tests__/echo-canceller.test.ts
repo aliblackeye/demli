@@ -28,35 +28,50 @@ describe("echo canceller view", () => {
   });
 
   it("is hidden without the patched native module (iOS / older binary)", () => {
-    expect(echoCancellerView(null)).toEqual({ kind: "hidden" });
+    expect(echoCancellerView(null, true)).toEqual({ kind: "hidden" });
   });
 
   it("offers no choice below Android 10, where LiveKit never enables hardware processing", () => {
-    expect(echoCancellerView({ ...base, hardwareSupported: false })).toEqual({
+    expect(echoCancellerView({ ...base, hardwareSupported: false }, true)).toEqual({
       kind: "softwareOnly",
       reason: "oldAndroid",
+      aecOff: false,
     });
   });
 
   it("offers no choice on a device without a platform echo canceller", () => {
-    expect(echoCancellerView({ ...base, aecAvailable: false })).toEqual({
+    expect(echoCancellerView({ ...base, aecAvailable: false }, true)).toEqual({
       kind: "softwareOnly",
       reason: "noHardware",
+      aecOff: false,
     });
   });
 
   it("reports a pending restart until the running module matches the saved choice", () => {
-    expect(echoCancellerView({ ...base, hardwarePreferred: false })).toEqual({
+    expect(echoCancellerView({ ...base, hardwarePreferred: false }, true)).toEqual({
       kind: "choice",
+      aecOff: false,
       selected: "demli",
       active: "device",
       restartPending: true,
     });
-    expect(echoCancellerView({ ...base, hardwarePreferred: false, hardwareActive: false })).toEqual({
+    expect(
+      echoCancellerView({ ...base, hardwarePreferred: false, hardwareActive: false }, true),
+    ).toEqual({
       kind: "choice",
+      aecOff: false,
       selected: "demli",
       active: "demli",
       restartPending: false,
+    });
+  });
+
+  it("says nothing cancels echo while the mic's echo cancellation is off", () => {
+    expect(echoCancellerView(base, false)).toMatchObject({ kind: "choice", aecOff: true });
+    expect(echoCancellerView({ ...base, aecAvailable: false }, false)).toEqual({
+      kind: "softwareOnly",
+      reason: "noHardware",
+      aecOff: true,
     });
   });
 });
