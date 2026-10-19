@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, ToastAndroid, View } from "react-native";
+import { Platform, View } from "react-native";
 import { Copy, Download } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
@@ -32,23 +32,21 @@ import {
   type ImageActionTarget,
 } from "@/lib/image-actions";
 import { ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
-import { colors, radius, space } from "@/theme/theme";
+import { IconButton } from "@/components/ui/IconButton";
+import { toast } from "@/components/ui/Toast";
+import { colors } from "@/theme/theme";
 
 /** Minimum touch target for the viewer's icon buttons (iOS HIG / Android 48dp). */
 export const IMAGE_ACTION_HIT_SIZE = 44;
 
 /**
- * Announce an outcome without stealing the screen. Android gets its native
- * toast (the platform idiom for "done", and the one surface that does not cover
- * the picture the user just acted on); iOS, which has no equivalent, falls back
- * to the alert every other mobile error already uses.
+ * Announce an outcome without stealing the screen: the kit toast, on whichever
+ * window is on top (the viewer hosts its own, so the line lands over the
+ * picture you just saved). Same surface on Android and iOS, and the same
+ * success / danger tones as every other outcome in the app.
  */
-function announce(message: string): void {
-  if (Platform.OS === "android") {
-    ToastAndroid.show(message, ToastAndroid.SHORT);
-    return;
-  }
-  Alert.alert(message);
+function announce(message: string, tone: "success" | "danger"): void {
+  toast({ title: message, variant: tone, key: "image-action" });
 }
 
 /**
@@ -77,7 +75,7 @@ export function useImageActions(target: ImageActionTarget | null): {
           if (!notice) return; // cancelled — stay silent
           if (notice.tone === "error") haptics.error();
           else haptics.success();
-          announce(t(notice.key));
+          announce(t(notice.key), notice.tone === "error" ? "danger" : "success");
         })
         .finally(() => setBusy(null));
     },
@@ -143,9 +141,9 @@ export function ImageActionSheet({
 
 /**
  * The save/copy pair as overlay buttons, for the full-screen viewer where there
- * is no row to long-press. Sized to {@link IMAGE_ACTION_HIT_SIZE} so they clear
- * the platform minimum on their own, without relying on `hitSlop` that a
- * neighbouring dismiss target would fight over.
+ * is no row to long-press: 48pt veil IconButtons (above the
+ * {@link IMAGE_ACTION_HIT_SIZE} minimum on their own, no `hitSlop` that a
+ * neighbouring gesture would fight over), the running action drawn active.
  */
 export function ImageActionButtons({
   target,
@@ -159,60 +157,28 @@ export function ImageActionButtons({
   const copyable = canCopyImage(target.mime);
 
   return (
-    <View style={{ flexDirection: "row", gap: space.sm }}>
-      <OverlayButton
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <IconButton
+        icon={Download}
         label={t("mobile:attachments.saveImage")}
-        busy={actions.busy === "save"}
-        disabled={actions.busy !== null}
+        variant="veil"
+        size="lg"
+        // The running action shows as active (coral); the other one waits.
+        active={actions.busy === "save"}
+        disabled={actions.busy === "copy"}
         onPress={actions.save}
-      >
-        <Download size={20} color={colors.fg} />
-      </OverlayButton>
+      />
       {copyable ? (
-        <OverlayButton
+        <IconButton
+          icon={Copy}
           label={t("mobile:attachments.copyImage")}
-          busy={actions.busy === "copy"}
-          disabled={actions.busy !== null}
+          variant="veil"
+          size="lg"
+          active={actions.busy === "copy"}
+          disabled={actions.busy === "save"}
           onPress={actions.copy}
-        >
-          <Copy size={20} color={colors.fg} />
-        </OverlayButton>
+        />
       ) : null}
     </View>
-  );
-}
-
-function OverlayButton({
-  label,
-  busy,
-  disabled,
-  onPress,
-  children,
-}: {
-  label: string;
-  busy: boolean;
-  disabled: boolean;
-  onPress: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled, busy }}
-      style={({ pressed }) => ({
-        width: IMAGE_ACTION_HIT_SIZE,
-        height: IMAGE_ACTION_HIT_SIZE,
-        borderRadius: radius.pill,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: pressed ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.12)",
-        opacity: disabled && !busy ? 0.5 : 1,
-      })}
-    >
-      {busy ? <ActivityIndicator color={colors.fg} /> : children}
-    </Pressable>
   );
 }

@@ -1,10 +1,13 @@
 /**
  * Attachment tiles for a message row (ADR 0008 §5) — mobile mirror of the
- * desktop's MessageAttachments.
+ * desktop's MessageAttachments, on Koyu Masa: borderless rounded tiles, a
+ * pulsing placeholder while a picture resolves, the full-screen viewer on tap.
  *
  * Contract-critical behaviors:
- * - Metadata-only DTOs: each tile reserves its EXACT display box from the
- *   stored width/height BEFORE any bytes load, so the inverted FlatList never
+ * - Metadata-only DTOs: each tile reserves its EXACT display box BEFORE any
+ *   bytes load — a single picture from its stored width/height, several
+ *   pictures as an equal square grid sized from the COUNT alone (2 or 4 → two
+ *   columns, otherwise three; desktop rule) — so the inverted FlatList never
  *   shifts (CLAUDE.md §27).
  * - Signed URLs are fetched lazily and batched per channel: the FlatList only
  *   mounts rows inside its window, and the resolver coalesces the mounted
@@ -14,21 +17,20 @@
  */
 
 import { memo, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Touchable } from "../ui/Touchable";
+import { Badge } from "../ui/Badge";
+import { Skeleton } from "../Skeleton";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
-import { FileAudio, ImageOff, Pause, Play, RotateCcw, X } from "lucide-react-native";
+import { ImageOff, Pause, Play, RotateCcw } from "lucide-react-native";
 import type { AttachmentUrlEntry } from "@demli/client-core";
 import type { Attachment, ChannelId } from "@demli/types";
 import { imageActionTarget, type ImageActionTarget } from "../../lib/image-actions";
-import {
-  ImageActionButtons,
-  ImageActionSheet,
-  IMAGE_ACTION_HIT_SIZE,
-} from "./ImageActionSheet";
+import { ImageActionSheet } from "./ImageActionSheet";
+import { ImageViewer, type ViewerImage } from "./ImageViewer";
 import {
   retryAttachmentUrl,
   useAttachmentUrls,
@@ -39,57 +41,70 @@ import {
   formatMediaDuration,
 } from "../../lib/attachments/validate";
 import { useAppTranslation } from "../../lib/i18n";
-import { colors, radius, space, typography } from "../../theme/theme";
+import { useReducedMotion } from "../../theme/motion";
+import { PRESS } from "../../theme/motion-presets";
+import { colors, motion, radius, space, typography } from "../../theme/theme";
 
-const MAX_TILE_H = 260;
+const MAX_TILE_H = 280;
 const IMAGE_FALLBACK = { width: 288, height: 162 };
 const VIDEO_FALLBACK = { width: 300, height: 168 };
+const GRID_GAP = 4;
 
 /** Tile width budget: screen minus avatar column + row paddings. */
 function useMaxTileWidth(): number {
   const { width } = useWindowDimensions();
-  return Math.max(180, Math.min(300, width - 110));
+  return Math.max(180, Math.min(320, width - 84));
 }
 
-interface TileProps {
-  attachment: Attachment;
-  channelId: ChannelId;
-  entry: AttachmentUrlEntry | undefined;
+/** Columns for an n-picture grid — desktop rule: 2 or 4 → two, else three. */
+export function gridColumns(count: number): number {
+  return count === 2 || count === 4 ? 2 : 3;
 }
 
 /**
  * Placeholder / broken-state body shared by all tiles. `broken` distinguishes
- * the quiet loading state from the retry affordance.
+ * the quiet loading state (the system pulse) from the retry affordance.
  */
 function TileFallback({ broken, onRetry }: { broken: boolean; onRetry: () => void }) {
   const { t } = useAppTranslation();
   if (!broken) {
-    return <View style={{ flex: 1, backgroundColor: colors.surfaceRaised }} />;
+    return <Skeleton width="100%" height="100%" radius={0} />;
   }
   return (
     <View
+      accessibilityRole="alert"
       style={{
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
         gap: space.xs,
-        backgroundColor: colors.surfaceRaised,
+        padding: space.sm,
+        backgroundColor: colors.surface,
       }}
     >
-      <ImageOff size={20} color={colors.fgFaint} />
-      <Text style={{ color: colors.fgMuted, fontSize: 12 }}>
+      <ImageOff size={20} color={colors.fgMuted} />
+      <Text type="meta" tone="muted" style={{ textAlign: "center", fontWeight: "400" }}>
         {t("mobile:attachments.loadFailed")}
       </Text>
-      <Pressable
+      <Touchable
         onPress={onRetry}
+        accessibilityRole="button"
+        accessibilityLabel={t("mobile:attachments.retry")}
         hitSlop={8}
-        style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.xs,
+          paddingHorizontal: space.sm,
+          paddingVertical: 4,
+          borderRadius: radius.sm,
+        }}
       >
         <RotateCcw size={12} color={colors.accent} />
-        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
+        <Text type="meta" tone="accent" style={{ fontWeight: "600" }}>
           {t("mobile:attachments.retry")}
         </Text>
-      </Pressable>
+      </Touchable>
     </View>
   );
 }
@@ -121,78 +136,27 @@ function useMediaErrorRecovery(channelId: ChannelId, attachmentId: string) {
   };
 }
 
-/**
- * Full-screen image viewer (tap the backdrop or the × to close), with the
- * save/copy pair pinned to the top bar. A long press has nothing to aim at once
- * the picture fills the screen, so here the actions are explicit buttons — and
- * they sit in their OWN row rather than inside the dismiss target, so a tap on
- * "save" can never fall through and close the viewer instead.
- */
-function ImageViewer({
-  url,
-  target,
-  onClose,
+function ImageTile({
+  attachment,
+  channelId,
+  entry,
+  box,
+  crop,
+  onOpen,
 }: {
-  url: string;
-  target: ImageActionTarget;
-  onClose: () => void;
+  attachment: Attachment;
+  channelId: ChannelId;
+  entry: AttachmentUrlEntry | undefined;
+  box: { width: number; height: number };
+  /** Grid cells crop to fill the square; a lone picture shows whole. */
+  crop: boolean;
+  onOpen: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const { t } = useAppTranslation();
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)" }}>
-        <Pressable
-          onPress={onClose}
-          accessibilityLabel={t("common:buttons.close")}
-          style={{ flex: 1, justifyContent: "center" }}
-        >
-          <Image
-            source={{ uri: url }}
-            contentFit="contain"
-            style={{ width: "100%", height: "100%" }}
-          />
-        </Pressable>
-        <View
-          style={{
-            position: "absolute",
-            top: insets.top + space.sm,
-            left: space.lg,
-            right: space.lg,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <ImageActionButtons target={target} t={t} />
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={t("common:buttons.close")}
-            style={{
-              width: IMAGE_ACTION_HIT_SIZE,
-              height: IMAGE_ACTION_HIT_SIZE,
-              borderRadius: radius.pill,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.12)",
-            }}
-          >
-            <X size={20} color={colors.fg} />
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function ImageTile({ attachment, channelId, entry }: TileProps) {
-  const { t } = useAppTranslation();
-  const maxW = useMaxTileWidth();
-  const box = fitTileBox(attachment.width, attachment.height, maxW, MAX_TILE_H, IMAGE_FALLBACK);
+  const reduced = useReducedMotion();
   const recovery = useMediaErrorRecovery(channelId, attachment.id);
-  const [viewerOpen, setViewerOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const isGif = attachment.mime === "image/gif";
   const url = entry?.status === "ready" ? entry.url : null;
   const failed = recovery.broken || entry?.status === "error";
@@ -210,56 +174,50 @@ function ImageTile({ attachment, channelId, entry }: TileProps) {
       style={{
         width: box.width,
         height: box.height,
-        borderRadius: radius.md,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
         overflow: "hidden",
-        borderWidth: 1,
-        borderColor: colors.stroke,
+        backgroundColor: colors.surface,
       }}
     >
       {url !== null && !failed ? (
-        <Pressable
-          onPress={() => setViewerOpen(true)}
-          // Long press = the app's one per-item action gesture (message rows,
-          // roster rows, DM rows all use it). Save/copy joins that vocabulary
-          // rather than inventing a hover-style affordance a phone cannot show.
+        <Touchable
+          onPress={onOpen}
+          // Long press = the app's one per-item action gesture. Save/copy joins
+          // that vocabulary rather than inventing a hover a phone cannot show.
           onLongPress={() => setActionsOpen(true)}
           delayLongPress={350}
+          tone={colors.surface}
+          pressedTone={colors.surface}
+          pressScale={PRESS.scale.button}
+          accessibilityRole="imagebutton"
           accessibilityLabel={t("mobile:attachments.openImageA11y")}
           accessibilityHint={t("mobile:attachments.imageActionsHint")}
           style={{ flex: 1 }}
         >
+          {!loaded ? (
+            <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
+              <Skeleton width="100%" height="100%" radius={0} />
+            </View>
+          ) : null}
           <Image
             source={{ uri: url }}
-            contentFit="cover"
-            transition={80}
+            contentFit={crop ? "cover" : "contain"}
+            transition={reduced ? 0 : motion.duration.fast}
+            accessibilityIgnoresInvertColors
             style={{ flex: 1 }}
+            onLoad={() => setLoaded(true)}
             onError={recovery.onMediaError}
           />
-        </Pressable>
+        </Touchable>
       ) : (
         <TileFallback broken={Boolean(failed)} onRetry={recovery.reset} />
       )}
-      {isGif && (
-        <View
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 6,
-            borderRadius: 4,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-          }}
-        >
-          <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 }}>
-            GIF
-          </Text>
+      {isGif ? (
+        <View pointerEvents="none" style={{ position: "absolute", top: 6, left: 6 }}>
+          <Badge label="GIF" variant="veil" />
         </View>
-      )}
-      {viewerOpen && url !== null && actionTarget !== null && (
-        <ImageViewer url={url} target={actionTarget} onClose={() => setViewerOpen(false)} />
-      )}
+      ) : null}
       <ImageActionSheet
         target={actionsOpen ? actionTarget : null}
         onClose={() => setActionsOpen(false)}
@@ -268,7 +226,15 @@ function ImageTile({ attachment, channelId, entry }: TileProps) {
   );
 }
 
-function VideoTile({ attachment, channelId, entry }: TileProps) {
+function VideoTile({
+  attachment,
+  channelId,
+  entry,
+}: {
+  attachment: Attachment;
+  channelId: ChannelId;
+  entry: AttachmentUrlEntry | undefined;
+}) {
   const maxW = useMaxTileWidth();
   const box = fitTileBox(attachment.width, attachment.height, maxW, MAX_TILE_H, VIDEO_FALLBACK);
   const recovery = useMediaErrorRecovery(channelId, attachment.id);
@@ -282,21 +248,14 @@ function VideoTile({ attachment, channelId, entry }: TileProps) {
       style={{
         width: box.width,
         height: box.height,
-        borderRadius: radius.md,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
         overflow: "hidden",
-        borderWidth: 1,
-        borderColor: colors.stroke,
-        backgroundColor: "#000",
+        backgroundColor: colors.rail,
       }}
     >
       {url !== null && !failed ? (
-        <VideoView
-          player={player}
-          nativeControls
-          contentFit="contain"
-          style={{ flex: 1 }}
-        />
+        <VideoView player={player} nativeControls contentFit="contain" style={{ flex: 1 }} />
       ) : (
         <TileFallback broken={Boolean(failed)} onRetry={recovery.reset} />
       )}
@@ -304,7 +263,20 @@ function VideoTile({ attachment, channelId, entry }: TileProps) {
   );
 }
 
-function AudioTile({ attachment, channelId, entry }: TileProps) {
+/**
+ * The audio card (design-system "dosya kartı"): surface card, a coral play
+ * button, the label with duration and size, and a thin progress line that
+ * follows playback.
+ */
+function AudioTile({
+  attachment,
+  channelId,
+  entry,
+}: {
+  attachment: Attachment;
+  channelId: ChannelId;
+  entry: AttachmentUrlEntry | undefined;
+}) {
   const { t } = useAppTranslation();
   const maxW = useMaxTileWidth();
   const recovery = useMediaErrorRecovery(channelId, attachment.id);
@@ -327,76 +299,87 @@ function AudioTile({ attachment, channelId, entry }: TileProps) {
 
   const durationMs =
     attachment.durationMs ?? (status.duration > 0 ? Math.round(status.duration * 1000) : null);
+  const played =
+    status.duration > 0 ? Math.min(1, Math.max(0, status.currentTime / status.duration)) : 0;
+  const elapsed = status.currentTime > 0 ? formatMediaDuration(Math.round(status.currentTime * 1000)) : null;
 
   return (
     <View
       style={{
         width: maxW,
-        height: 64,
-        borderRadius: radius.md,
+        minHeight: 64,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
-        borderWidth: 1,
-        borderColor: colors.stroke,
-        backgroundColor: colors.surfaceRaised,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.md,
-        paddingHorizontal: space.md,
+        backgroundColor: colors.surface,
+        overflow: "hidden",
       }}
     >
       {failed ? (
-        <TileFallback broken onRetry={recovery.reset} />
+        <View style={{ height: 96 }}>
+          <TileFallback broken onRetry={recovery.reset} />
+        </View>
       ) : (
         <>
-          <Pressable
-            onPress={toggle}
-            disabled={url === null}
-            accessibilityLabel={t(
-              status.playing ? "mobile:attachments.pauseAudioA11y" : "mobile:attachments.playAudioA11y",
-            )}
-            hitSlop={8}
+          <View
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: radius.pill,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: url === null ? colors.surface : colors.accent,
+              gap: space.md,
+              paddingHorizontal: space.md,
+              paddingVertical: space.md,
             }}
           >
-            {status.playing ? (
-              <Pause size={16} color={colors.onAccent} />
-            ) : (
-              <Play size={16} color={url === null ? colors.fgFaint : colors.onAccent} />
-            )}
-          </Pressable>
-          <View style={{ flex: 1, gap: 2 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-              <FileAudio size={13} color={colors.fgMuted} />
-              <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>
+            <Touchable
+              onPress={toggle}
+              disabled={url === null}
+              tone={url === null ? colors.surfaceRaised : colors.accent}
+              pressedTone={url === null ? colors.surfaceRaised : colors.accentDeep}
+              pressScale={PRESS.scale.icon}
+              accessibilityRole="button"
+              accessibilityLabel={t(
+                status.playing ? "mobile:attachments.pauseAudioA11y" : "mobile:attachments.playAudioA11y",
+              )}
+              hitSlop={4}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: radius.pill,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {status.playing ? (
+                <Pause size={16} color={colors.onAccent} fill={colors.onAccent} />
+              ) : (
+                <Play
+                  size={16}
+                  color={url === null ? colors.fgFaint : colors.onAccent}
+                  fill={url === null ? colors.fgFaint : colors.onAccent}
+                  style={{ marginLeft: 2 }}
+                />
+              )}
+            </Touchable>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text numberOfLines={1} type="ui" tone="default" style={{ fontWeight: "600" }}>
                 {t("mobile:attachments.audioLabel")}
               </Text>
+              <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"], fontVariant: ["tabular-nums"] }}>
+                {elapsed && durationMs !== null ? `${elapsed} / ` : ""}
+                {durationMs !== null ? `${formatMediaDuration(durationMs)} · ` : ""}
+                {formatBytes(attachment.sizeBytes)}
+              </Text>
             </View>
-            <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
-              {durationMs !== null ? `${formatMediaDuration(durationMs)} · ` : ""}
-              {formatBytes(attachment.sizeBytes)}
-            </Text>
+          </View>
+          <View
+            importantForAccessibility="no-hide-descendants"
+            style={{ height: 3, backgroundColor: colors.wash }}
+          >
+            <View style={{ height: 3, width: `${Math.round(played * 100)}%`, backgroundColor: colors.accent }} />
           </View>
         </>
       )}
     </View>
   );
-}
-
-function AttachmentTile(props: TileProps) {
-  switch (props.attachment.kind) {
-    case "image":
-      return <ImageTile {...props} />;
-    case "video":
-      return <VideoTile {...props} />;
-    case "audio":
-      return <AudioTile {...props} />;
-  }
 }
 
 export interface MessageAttachmentsProps {
@@ -415,21 +398,77 @@ export const MessageAttachments = memo(function MessageAttachments({
   attachments,
   muted = false,
 }: MessageAttachmentsProps) {
+  const maxW = useMaxTileWidth();
   const urls = useAttachmentUrls(
     channelId,
     attachments.map((a) => a.id),
   );
+  const [viewerAt, setViewerAt] = useState<number | null>(null);
+
+  const images = useMemo(() => attachments.filter((a) => a.kind === "image"), [attachments]);
+  const others = useMemo(() => attachments.filter((a) => a.kind !== "image"), [attachments]);
+
+  // The viewer pages through the pictures whose URL is ready.
+  const viewerImages = useMemo<ViewerImage[]>(() => {
+    const list: ViewerImage[] = [];
+    for (const a of images) {
+      const entry = urls.get(a.id);
+      if (entry?.status !== "ready" || !entry.url) continue;
+      list.push({
+        id: a.id,
+        url: entry.url,
+        width: a.width,
+        height: a.height,
+        target: imageActionTarget(a, entry.url),
+      });
+    }
+    return list;
+  }, [images, urls]);
+
+  const openViewer = (attachmentId: string) => {
+    const at = viewerImages.findIndex((v) => v.id === attachmentId);
+    if (at >= 0) setViewerAt(at);
+  };
+
+  const columns = gridColumns(images.length);
+  const cell = Math.floor((maxW - GRID_GAP * (columns - 1)) / columns);
 
   return (
-    <View style={{ marginTop: space.xs, gap: space.xs, opacity: muted ? 0.6 : 1 }}>
-      {attachments.map((attachment) => (
-        <AttachmentTile
-          key={attachment.id}
-          attachment={attachment}
+    <View style={{ marginTop: space.xs + 2, gap: space.xs + 2, opacity: muted ? 0.6 : 1 }}>
+      {images.length === 1 ? (
+        <ImageTile
+          attachment={images[0]!}
           channelId={channelId}
-          entry={urls.get(attachment.id)}
+          entry={urls.get(images[0]!.id)}
+          box={fitTileBox(images[0]!.width, images[0]!.height, maxW, MAX_TILE_H, IMAGE_FALLBACK)}
+          crop={false}
+          onOpen={() => openViewer(images[0]!.id)}
         />
-      ))}
+      ) : images.length > 1 ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP, width: maxW }}>
+          {images.map((a) => (
+            <ImageTile
+              key={a.id}
+              attachment={a}
+              channelId={channelId}
+              entry={urls.get(a.id)}
+              box={{ width: cell, height: cell }}
+              crop
+              onOpen={() => openViewer(a.id)}
+            />
+          ))}
+        </View>
+      ) : null}
+      {others.map((attachment) =>
+        attachment.kind === "video" ? (
+          <VideoTile key={attachment.id} attachment={attachment} channelId={channelId} entry={urls.get(attachment.id)} />
+        ) : (
+          <AudioTile key={attachment.id} attachment={attachment} channelId={channelId} entry={urls.get(attachment.id)} />
+        ),
+      )}
+      {viewerAt !== null ? (
+        <ImageViewer images={viewerImages} initialIndex={viewerAt} onClose={() => setViewerAt(null)} />
+      ) : null}
     </View>
   );
 });
