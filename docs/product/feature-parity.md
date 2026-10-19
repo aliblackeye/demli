@@ -1546,24 +1546,28 @@ Mobil karşılıklar Dalga 4'te (aşağıdaki ⏳ satırlar takip kaydıdır).
 | Tek satır dili (`shellRow`): seçili = mercan yıkama + açık mercan yazı, hover = yüzey tonu 200ms, basılı = bir ton koyu, okunmamış = beyaz kenar pipi + kalın ad, sessize alınmış = %55 | ✅ kanal / DM / grup / üye / komut menüsü | ⏳ Dalga 4 | hover'da hiçbir şey kaymaz/büyümez |
 | Rail kenar hapı: seçili 36px mercan, okunmamış 8px beyaz, hover 20px — konum yayıyla büyür | ✅ | ⏳ Dalga 4 | eski radius-morph hover kaldırıldı |
 | Sayaç rozeti 18px (mention = mercan, düz = açık çip), değişince pop | ✅ | ⏳ Dalga 4 | |
-| Kanal kenar çubuğu: dönen daralt oku, açılınca satırlar belirir, iskelet (ilk yükleme), boş sunucu durumu (+ kanal oluştur, yetkiye göre) | ✅ | ⏳ Dalga 4 | `ShellData.serverDetailsLoading` (isteğe bağlı) |
-| Üye listesi: 48px satır, iskelet, yüklenirken sahte "— 0" sayısı yok | ✅ | ⏳ Dalga 4 | |
-| Kullanıcı çubuğu: yüzey hapı; mikrofon kapalı / sağır = pembe tehlike düğmesi + kesik ikon; ikinci satır özel durum | ✅ | ⏳ Dalga 4 | |
+| Kanal kenar çubuğu: dönen daralt oku, açılınca satırlar belirir, iskelet (ilk yükleme), yükleme HATASI = "Kanallar yüklenemedi" bandı + Tekrar dene, boş sunucu durumu (+ kanal oluştur, yetkiye göre) yalnız başarılı boş yanıttan sonra | ✅ | ⏳ Dalga 4 | `ShellData.serverDetailsLoading/serverDetailsError/retryServerDetails` (isteğe bağlı); denetim: hata eskiden "Henüz kanal yok" diyordu |
+| Üye listesi: 48px satır, iskelet, hata bandı + Tekrar dene; yüklenmemiş/başarısız listede sahte "— 0" sayısı yok | ✅ | ⏳ Dalga 4 | |
+| Ana sayfa DM listesi: iskelet / hata bandı + Tekrar dene / satırlar / boş kart — "Henüz sohbet yok" yalnız başarılı boş yanıttan sonra; grup sohbetleri aynı bant | ✅ | ⏳ Dalga 4 | `ShellData.dmsStatus/dmsErrorMessage/retryDms`; tek kural `lib/shell-list-status.ts` |
+| Rail sayaç rozetleri karonun köşesinde (rail kenarında kırpılmıyor), sunucu sütunu yana kaymıyor | ✅ | ⏳ Dalga 4 | denetim: 4px kırpılıyordu |
+| Kullanıcı çubuğu: yüzey hapı; mikrofon kapalı / sağır = pembe tehlike düğmesi + kesik ikon; ikinci satır özel durum, kimlik bloğu ~96px (28px kontroller), üstüne gelince durumun tamamı | ✅ | ⏳ Dalga 4 | denetim: ad/durum 38px'e sıkışıyordu |
 | Komut menüsü: cam radius-24 kart, seçili satır = kabuk seçili dili, boş durum, klavye ipucu satırı (⌘/Ctrl) | ✅ | — (mobil komut paleti M20) | |
-| Tek bildirim kartı (`NoticeToast`): üzerine gelince/odakta süre durur, Esc/✕, tehlike = alert; kök yığın üst üste binmez, yazma alanının üstünde | ✅ 6 bildirim | ⏳ Dalga 4 | |
-| Yaş doğrulama + "uygulamayı indir" hapları: geniş kabukta kolon içinde (artık rail/mikrofonu örtmüyor), dar web'de yazma alanının üstünde | ✅ | — | |
-| Dar web kabuğu: ada orta kolon, 44px dokunma hedefleri, çekmece konum yayıyla açılır, kapalıyken `inert` (Tab'a girmez), odak içeri/geri, kaydırarak kapatma | ✅ web | — | kapalı çekmece eskiden Tab ile odaklanabiliyordu |
+| Tek bildirim kartı (`NoticeToast`): üzerine gelince/odakta süre durur, Esc/✕, tehlike = alert; kök yığın üst üste binmez, yazma alanının üstünde; "hesap değiştirilemedi (çevrimdışı)" da artık yığının üyesi | ✅ 6 bildirim | ⏳ Dalga 4 | |
+| Yaş doğrulama + "uygulamayı indir" hapları: geniş kabukta kolon içinde (artık rail/mikrofonu örtmüyor), dar web'de üst çubuğun altında akışta tek satır (mesajları ve bildirim yığınını örtmez) | ✅ | — | denetim: telefonda bildirimlerle çakışıyordu |
+| Dar web kabuğu: ada orta kolon, 44px dokunma hedefleri, çekmece konum yayıyla açılır, kapalıyken `inert` (Tab'a girmez), odak içeri/geri, kaydırarak kapatma (dokunma olaylarıyla — tarayıcı pan'i pointer'ı iptal etse de) | ✅ web | — | denetim: pointer tabanlı kaydırma gerçek telefonda hiç kapanmıyordu; CDP dokunma testi |
 | Açılış: siyah sayfa + tek mercan ışık (BootSplash, iki `index.html`, Electron pencere rengi) | ✅ | ⏳ splash APK ister | `boot-surface.test.ts` dört kaynağı token'a kilitler |
 | Çökme ekranı: sakin kart, tek eylem | ✅ | ⏳ Dalga 4 | |
-| Giriş: ışıklı sayfa, kenarsız kart, alan-düzeyi doğrulama (hata alanın altında), mod geçişinde başlık geçişi + kayıt alanları açılır, kısa pencerede güvenli ortalama | ✅ | ⏳ Dalga 4 | giriş metni "siz"den "sen"e (marka kuralı); mobil `mobile:auth.*` metinleri ayrı, Dalga 4 |
+| Giriş: ışıklı sayfa, kenarsız kart, alan-düzeyi doğrulama (hata alanın altında, `role=alert` + odak hatalı alana gider), mod geçişinde başlık geçişi + kayıt alanları açılır, kısa pencerede güvenli ortalama | ✅ | ⏳ Dalga 4 | giriş + `common.errors/validation` + güncelleme/görsel bildirim metinleri "siz/Lütfen"den "sen"e (marka kuralı; ortak katalog mobile de yansır); tek terim "parola", tek fiil "Hesap aç"; mobil `mobile:auth.*` ayrı, Dalga 4 |
 | Hesap değiştirme örtüsü opak (eski hesabın sohbeti arkadan görünmez) | ✅ | ⏳ Dalga 4 | |
 | Güncelleme rozeti kenarsız yeşil; indirme çubuğu `progressbar` | ✅ masaüstü | — | |
 
 **Kanıt:** `apps/web/harness-shell.html?scene=…` gerçek bileşenleri gerçek store/query
-önbelleğiyle 20 durumda gösterir (ağ beklemede tutulur, canlı API'ye gidilmez);
-`apps/web/src/harness/shell/verify.mjs` sistem Chrome'uyla 48 kontrol (token, font, hover/
-basılı/odak, rail hapı, daralt, komut menüsü aç/kapa + klavye, azaltılmış hareket, çekmece,
-alan doğrulaması, bildirim yığını, TR+EN, temiz konsol).
+önbelleğiyle 23 durumda gösterir (ağ beklemede tutulur, canlı API'ye gidilmez);
+`apps/web/src/harness/shell/verify.mjs` sistem Chrome'uyla 71 kontrol (token, font, hover/
+basılı/odak, rail hapı + rozet geometrisi, daralt, komut menüsü aç/kapa + klavye, azaltılmış
+hareket, çekmece + gerçek CDP dokunma kaydırması, alan doğrulaması + odak/duyuru, yükleme
+hatası → Tekrar dene → gerçek yeniden çekim (kanallar + DM), telefon bildirim/hap çakışması,
+sen'li metin taraması, TR+EN, temiz konsol).
 
 **Açık:** `apps/web/public/site.webmanifest` hâlâ eski turuncu `theme_color`/`background_color`
 (meta `theme-color` siyaha çekildi); pencere çerçevesi dışı. Seçili satırda mention rozetinin
