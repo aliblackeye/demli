@@ -355,6 +355,19 @@ function IconButtons(): JSX.Element {
           </IconButton>
         </Row>
       ))}
+      <Row label="araç çubuğu">
+        <div data-kit="toolbar" className="flex items-center gap-0.5 rounded-lg bg-overlay p-0.5">
+          <Button variant="ghost" size="icon-sm" aria-label={t("desktop:devices.camera")}>
+            <Camera className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label={t("desktop:devices.input")}>
+            <Settings className="size-4" />
+          </Button>
+          <IconButton size="sm" variant="ghost" label={t("common:a11y.moreActions")}>
+            <MoreHorizontal />
+          </IconButton>
+        </div>
+      </Row>
       <Row label="aç/kapa">
         <IconButton pressed={muted} variant={muted ? "danger" : "solid"} label={t("desktop:devices.input")} onClick={() => setMuted((m) => !m)}>
           {muted ? <MicOff /> : <Mic />}
@@ -659,6 +672,20 @@ function Overlays(): JSX.Element {
           </div>
         </div>
         <Skeleton shape="rect" width={160} height={90} />
+      </Row>
+      <Row label="iskelet · popover tonunda">
+        <div
+          data-kit="skeleton-on-surface"
+          role="status"
+          aria-label={t("desktop:voice.statusJoining")}
+          className="flex w-80 items-center gap-3 rounded-xl bg-surface p-4"
+        >
+          <Skeleton shape="circle" width={48} />
+          <div className="flex flex-1 flex-col gap-2">
+            <Skeleton shape="line" height={18} className="w-36" />
+            <Skeleton shape="line" className="w-24" />
+          </div>
+        </div>
       </Row>
     </Section>
   );

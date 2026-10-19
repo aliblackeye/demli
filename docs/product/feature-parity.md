@@ -1380,6 +1380,9 @@ yeniden stillenen ortak atomlar kadar değişir.
 | Avatar konuşma halkası yeşil → mercan; durum noktası avatarın %30'u | ✅ | ⏳ Dalga 4 | |
 | Menü vurgusu mercan dolgu → raised ton; tehlike satırı pembe yıkama | ✅ | — | StatusPicker vurgulu satır mürekkebi uyarlandı |
 | Dev-only UI kiti `/ui-kit.html` (G2 kapısı) | ✅ web dev sunucusu | — | build'e girmez |
+| Dolgusuz kontrol hover/basılı + iskelet = göreli beyaz yıkama (`wash` .06 / `wash-strong` .10) | ✅ | ✅ token (`colors.wash`) | mesaj araç çubuğu, güncelleme/sabit mesaj popover'ı ve profil kartı iskeleti `#171717` üstünde görünmüyordu; `ui-tones.test.tsx` her kap tonunda ölçer |
+| Açık dolguda (çağrı reddet/kapat/kabul, odadan çık, okunmamış rozeti, rail "sunucu ekle" hover'ı) koyu `on-accent` mürekkep | ✅ | ✅ (zaten `onAccent`) | beyaz pembe üstünde 2.56:1, yeşil üstünde 2.28:1 idi; kaynak taraması testi zorlar |
+| Avatar baş harfleri saf beyaz | ✅ | — (mobil zemin %24 açıklık: `fg` ile en kötü 5.31:1, değişiklik gerekmedi) | `fg` ile 360 renk tonunun 151'i AA altındaydı; şimdi 0 (en kötü 4.67:1) |
 
 **Kapılar:** desktop `design-tokens.test.ts` (76) + mobil `design-tokens.test.ts` (72)
 mutasyonla doğrulandı (fg-faint #737373, yay süresi, tehlike #ef4444 → kırmızı);

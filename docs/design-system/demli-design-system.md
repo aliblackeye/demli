@@ -45,6 +45,7 @@ rampası emekli (founder kararı).
 | `glass` / `glass-strong` | `rgba(23,23,23,.72)` / `.92` + blur(10) | nav hapı / menü, ipucu |
 | `veil` / `scrim` | `rgba(0,0,0,.24)` / `.55` (+blur 4) | medya hapı / kiplik örtüsü |
 | `selected` | `rgba(255,132,100,.12)` | seçili satır = accent-soft |
+| `wash` / `wash-strong` | `rgba(255,255,255,.06)` / `.10` | kendi dolgusu olmayan kontrolün (hayalet/çerçeveli buton, kapat düğmesi, seçenek satırı) hover / basılı hâli; `wash-strong` iskelet bloğu da. Göreli ton: `surface`/`overlay`/`hover` aynı `#171717` olduğu için yüzey tonlu bir hover, yüzey tonlu araç çubuğunda veya popover'da görünmez olur; beyaz yıkama altındaki her tonu kaldırır. `ui-tones.test.tsx` her durumu her kap tonunda ölçer (taban: surface/app adımı 1.084:1). |
 | `stroke` / `stroke-strong` | `rgba(255,255,255,.08)` / `.16` | yalnız işlevsel çizgi |
 | `inverse` (+hover/pressed) / `on-inverse` | `#fff` (`#e5e5e5`/`#d4d4d4`) / `#171717` | beyaz birincil buton |
 
@@ -113,8 +114,14 @@ bozuluyor hem de kırmızı-yeşil renk körlüğünde (erkeklerin ~%8'i) "rahat
 etmeyin" noktası "çevrimiçi" yeşiliyle karışıyor (#ff4d6d ↔ yeşil ΔE 3.9 —
 neredeyse aynı). Pembenin "tehlike" anlamı rengin kendisinden değil
 yerleşimden ve işaretten gelir: tehlike kontrolleri her zaman ikonuyla
-(kesik mikrofon, kapanan telefon, çöp kutusu) ve etiketiyle çizilir,
-düğme dolgusu değil pembe yıkama + pembe yazı kullanır. Founder kırmızıya
+(kesik mikrofon, kapanan telefon, çöp kutusu) ve etiketiyle çizilir.
+`Button`/`IconButton` `danger` varyantı ve menüdeki yıkıcı öğe dolgu değil
+pembe yıkama + pembe yazıdır; çağrı reddet/kapat/odadan çık düğmeleri ve
+okunmamış rozeti ise dolu pembedir ve üstünde koyu `on-accent` mürekkebi
+(7.0:1) taşır — beyaz 2.56:1'dir, ikon için gereken 3:1'in de altında. Aynı
+kural kabul (yeşil, beyaz 2.28:1) dahil bütün açık dolgular için geçerli;
+`design-tokens.test.ts` masaüstü/web kaynağını tarar, aynı sınıf dizesinde
+açık dolgu + açık mürekkep bulursa kırılır. Founder kırmızıya
 daha yakın bir ton isterse ölçülen en iyi yedek **`#ff6aa0`** (testler
 geçer: hue 34°, döteran ΔE mercan 17.3 — eşik 20'nin altında kaldığı için
 CVD testi o eşikle güncellenmeli). Tritan (çok nadir) için hiçbir aday
