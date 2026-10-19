@@ -93,19 +93,28 @@ const RESOLUTION_LABEL = {
 const SOURCE_REFRESH_MS = 1_500;
 
 /** "1080p · 30 fps · ~4.5 Mbps" — derived from the shared profile table. */
-function qualityDetail(
-  resolution: ScreenShareResolution,
-  frameRate: ScreenShareFrameRate,
-): string {
+function qualityDetail(resolution: ScreenShareResolution, frameRate: ScreenShareFrameRate): string {
   const profile = SCREEN_SHARE_QUALITY_PROFILES[screenShareQualityId(resolution, frameRate)];
   const mbps = profile.maxBitrateBps / 1_000_000;
   return `${profile.height}p · ${profile.frameRate} fps · ~${mbps} Mbps`;
 }
 
 const WEB_SURFACE_COPY = {
-  browser: { label: "desktop:sourcePicker.webTab", hint: "desktop:sourcePicker.webTabHint", icon: Globe },
-  monitor: { label: "desktop:sourcePicker.webScreen", hint: "desktop:sourcePicker.webScreenHint", icon: Monitor },
-  window: { label: "desktop:sourcePicker.webWindow", hint: "desktop:sourcePicker.webWindowHint", icon: AppWindow },
+  browser: {
+    label: "desktop:sourcePicker.webTab",
+    hint: "desktop:sourcePicker.webTabHint",
+    icon: Globe,
+  },
+  monitor: {
+    label: "desktop:sourcePicker.webScreen",
+    hint: "desktop:sourcePicker.webScreenHint",
+    icon: Monitor,
+  },
+  window: {
+    label: "desktop:sourcePicker.webWindow",
+    hint: "desktop:sourcePicker.webWindowHint",
+    icon: AppWindow,
+  },
 } as const satisfies Record<WebDisplaySurface, unknown>;
 
 function kindOf(sourceId: string): ShareSourceKind {
@@ -267,7 +276,20 @@ function AudioModeSelector({
           key={option.mode}
           value={option.mode}
           label={option.label}
-          description={option.hint}
+          // The long explanation is shown for the CHOSEN option (and for a
+          // disabled one, whose hint says why it is off); the others show their
+          // label only. All three hints were ~400px of copy in the settings pane
+          // and pushed the choice itself out of view. Hidden hints stay in the
+          // accessibility tree (sr-only), so every radio still announces its
+          // description.
+          description={
+            <span
+              data-hint-visible={option.mode === value || option.disabled || undefined}
+              className={option.mode === value || option.disabled ? undefined : "sr-only"}
+            >
+              {option.hint}
+            </span>
+          }
           disabled={option.disabled}
           data-testid={`share-audio-option-${option.mode}`}
         />
@@ -533,167 +555,192 @@ export function SourcePicker({ open, onOpenChange, onSelect }: SourcePickerProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" closeLabel={t("buttons.close")}>
+      {/* Two panes on a desktop-sized window: what to share on the left (its own
+          scroll — there can be dozens of windows), how to share it on the right,
+          always in view. Stacked in one column it was taller than the default
+          1280×800 window, so the sound choice sat below an invisible-until-hover
+          scrollbar and people started a silent share without ever seeing it. */}
+      <DialogContent
+        className="max-h-[calc(100vh-2rem)] max-w-4xl"
+        closeLabel={t("buttons.close")}
+        data-testid="source-picker"
+      >
         <DialogHeader>
           <DialogTitle>{t("desktop:voice.shareScreen")}</DialogTitle>
           <DialogDescription>{t("desktop:sourcePicker.description")}</DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          {state.kind === "loading" && (
-            <SourceGridSkeleton label={t("desktop:sourcePicker.loading")} />
-          )}
-
-          {state.kind === "error" && (
-            <FormErrorAlert className="text-sm">
-              {t(`desktop:sourcePicker.${state.error}`)}
-            </FormErrorAlert>
-          )}
-
-          {state.kind === "ready" && state.sources.length === 0 && (
-            <div
-              data-testid="source-empty"
-              className="flex flex-col items-center gap-3 rounded-xl bg-surface px-4 py-10 text-center"
-            >
-              <span className="flex size-11 items-center justify-center rounded-full bg-raised text-fg-faint">
-                <MonitorX aria-hidden className="size-5" />
-              </span>
-              <p className="text-label text-fg-muted">{t("desktop:sourcePicker.empty")}</p>
-            </div>
-          )}
-
-          {state.kind === "ready" && state.sources.length > 0 && web && (
-            <div className="grid gap-2 sm:grid-cols-3">
-              {state.sources.map((source) => (
-                <WebSurfaceCard
-                  key={source.id}
-                  source={source}
-                  selected={source.id === selectedId}
-                  onSelect={setSelectedId}
-                  onStart={start}
-                />
-              ))}
-            </div>
-          )}
-
-          {state.kind === "ready" && state.sources.length > 0 && !web && (
-            <div className="space-y-4">
-              {(() => {
-                const screens = state.sources.filter((s) => s.kind === "screen");
-                const windows = state.sources.filter((s) => s.kind !== "screen");
-                return (
-                  <>
-                    {windows.length > 0 && (
-                      <div>
-                        <div className="mb-2 flex items-baseline justify-between gap-2 px-0.5">
-                          <p className="text-2xs font-semibold uppercase tracking-wide text-fg-faint">
-                            {t("desktop:sourcePicker.windowsHeading")}
-                          </p>
-                          <p className="truncate text-2xs text-fg-faint">
-                            {t("desktop:sourcePicker.screensHint")}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {windows.map((source) => (
-                            <SourceCard
-                              key={source.id}
-                              source={source}
-                              selected={source.id === selectedId}
-                              onSelect={setSelectedId}
-                              onStart={start}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {screens.length > 0 && (
-                      <div>
-                        <p className="mb-2 px-0.5 text-2xs font-semibold uppercase tracking-wide text-fg-faint">
-                          {t("desktop:sourcePicker.screensHeading")}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {screens.map((source) => (
-                            <SourceCard
-                              key={source.id}
-                              source={source}
-                              selected={source.id === selectedId}
-                              onSelect={setSelectedId}
-                              onStart={start}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          <section
-            aria-label={t("desktop:sourcePicker.audioHeading")}
-            className="mt-4 rounded-xl bg-surface p-3"
+        <DialogBody className="md:grid md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-[minmax(0,1fr)] md:gap-5 md:overflow-hidden md:pb-2">
+          <div
+            data-testid="source-pane"
+            className="md:min-h-0 md:overflow-y-auto md:overscroll-contain md:pb-4 md:pr-1"
           >
-            <p className="flex items-center gap-1.5 text-label font-semibold text-fg">
-              <Volume2 aria-hidden className="size-3.5 text-fg-muted" />
-              {t("desktop:sourcePicker.audioHeading")}
-            </p>
-            {unsupportedCopy ? (
-              <p className="mt-1.5 text-2xs leading-snug text-fg-muted">{unsupportedCopy}</p>
-            ) : selectedId ? (
-              <AudioModeSelector
-                label={t("desktop:sourcePicker.audioHeading")}
-                options={web ? webAudioOptions() : desktopAudioOptions()}
-                value={web && selectedMode === "app" ? "system" : selectedMode}
-                onChange={setAudioMode}
-              />
-            ) : (
-              <p className="mt-1.5 text-2xs leading-snug text-fg-faint">
-                {t("desktop:sourcePicker.pickFirst")}
-              </p>
+            {state.kind === "loading" && (
+              <SourceGridSkeleton label={t("desktop:sourcePicker.loading")} />
             )}
-          </section>
 
-          <section
-            aria-label={t("desktop:sourcePicker.quality")}
-            className="mt-2 rounded-xl bg-surface p-3"
+            {state.kind === "error" && (
+              <FormErrorAlert className="text-sm">
+                {t(`desktop:sourcePicker.${state.error}`)}
+              </FormErrorAlert>
+            )}
+
+            {state.kind === "ready" && state.sources.length === 0 && (
+              <div
+                data-testid="source-empty"
+                className="flex flex-col items-center gap-3 rounded-xl bg-surface px-4 py-10 text-center"
+              >
+                <span className="flex size-11 items-center justify-center rounded-full bg-raised text-fg-faint">
+                  <MonitorX aria-hidden className="size-5" />
+                </span>
+                <p className="text-label text-fg-muted">{t("desktop:sourcePicker.empty")}</p>
+              </div>
+            )}
+
+            {state.kind === "ready" && state.sources.length > 0 && web && (
+              <div className="grid gap-2 sm:grid-cols-3">
+                {state.sources.map((source) => (
+                  <WebSurfaceCard
+                    key={source.id}
+                    source={source}
+                    selected={source.id === selectedId}
+                    onSelect={setSelectedId}
+                    onStart={start}
+                  />
+                ))}
+              </div>
+            )}
+
+            {state.kind === "ready" && state.sources.length > 0 && !web && (
+              <div className="space-y-4">
+                {(() => {
+                  const screens = state.sources.filter((s) => s.kind === "screen");
+                  const windows = state.sources.filter((s) => s.kind !== "screen");
+                  return (
+                    <>
+                      {windows.length > 0 && (
+                        <div>
+                          <div className="mb-2 flex items-baseline justify-between gap-2 px-0.5">
+                            <p className="text-2xs font-semibold uppercase tracking-wide text-fg-faint">
+                              {t("desktop:sourcePicker.windowsHeading")}
+                            </p>
+                            <p className="truncate text-2xs text-fg-faint">
+                              {t("desktop:sourcePicker.screensHint")}
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {windows.map((source) => (
+                              <SourceCard
+                                key={source.id}
+                                source={source}
+                                selected={source.id === selectedId}
+                                onSelect={setSelectedId}
+                                onStart={start}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {screens.length > 0 && (
+                        <div>
+                          <p className="mb-2 px-0.5 text-2xs font-semibold uppercase tracking-wide text-fg-faint">
+                            {t("desktop:sourcePicker.screensHeading")}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {screens.map((source) => (
+                              <SourceCard
+                                key={source.id}
+                                source={source}
+                                selected={source.id === selectedId}
+                                onSelect={setSelectedId}
+                                onStart={start}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          <div
+            data-testid="share-settings-pane"
+            className="mt-4 space-y-2 md:mt-0 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:pb-4"
           >
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-label font-semibold text-fg">{t("desktop:sourcePicker.quality")}</p>
-              <p className="truncate text-2xs tabular-nums text-fg-faint">
-                {qualityDetail(resolution, frameRate)}
+            <section
+              aria-label={t("desktop:sourcePicker.audioHeading")}
+              data-testid="share-audio-section"
+              className="rounded-xl bg-surface p-3"
+            >
+              <p className="flex items-center gap-1.5 text-label font-semibold text-fg">
+                <Volume2 aria-hidden className="size-3.5 text-fg-muted" />
+                {t("desktop:sourcePicker.audioHeading")}
               </p>
-            </div>
+              {unsupportedCopy ? (
+                <p className="mt-1.5 text-2xs leading-snug text-fg-muted">{unsupportedCopy}</p>
+              ) : selectedId ? (
+                <AudioModeSelector
+                  label={t("desktop:sourcePicker.audioHeading")}
+                  options={web ? webAudioOptions() : desktopAudioOptions()}
+                  value={web && selectedMode === "app" ? "system" : selectedMode}
+                  onChange={setAudioMode}
+                />
+              ) : (
+                <p className="mt-1.5 text-2xs leading-snug text-fg-faint">
+                  {t("desktop:sourcePicker.pickFirst")}
+                </p>
+              )}
+            </section>
 
-            <div className="mt-2.5 grid gap-3 sm:grid-cols-[4fr_3fr]">
-              <div>
-                <p className="px-0.5 text-badge font-semibold uppercase tracking-wide text-fg-faint">
-                  {t("desktop:sourcePicker.resolution")}
+            <section
+              aria-label={t("desktop:sourcePicker.quality")}
+              data-testid="share-quality-section"
+              className="rounded-xl bg-surface p-3"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-label font-semibold text-fg">
+                  {t("desktop:sourcePicker.quality")}
                 </p>
-                <Segmented
-                  label={t("desktop:sourcePicker.resolution")}
-                  options={SCREEN_SHARE_RESOLUTIONS}
-                  value={resolution}
-                  onChange={(option) => applyQuality(option, frameRate)}
-                  renderLabel={(option) => RESOLUTION_LABEL[option]}
-                  testId="share-resolution"
-                />
-              </div>
-              <div>
-                <p className="px-0.5 text-badge font-semibold uppercase tracking-wide text-fg-faint">
-                  {t("desktop:sourcePicker.frameRate")}
+                <p className="truncate text-2xs tabular-nums text-fg-faint">
+                  {qualityDetail(resolution, frameRate)}
                 </p>
-                <Segmented
-                  label={t("desktop:sourcePicker.frameRate")}
-                  options={SCREEN_SHARE_FRAME_RATES}
-                  value={frameRate}
-                  onChange={(option) => applyQuality(resolution, option)}
-                  renderLabel={(option) => `${option} fps`}
-                  testId="share-framerate"
-                />
               </div>
-            </div>
-          </section>
+
+              {/* Side by side on a phone-width sheet; stacked in the narrow settings
+                pane, where four resolution segments would not fit half of it. */}
+              <div className="mt-2.5 grid gap-3 sm:grid-cols-[4fr_3fr] md:grid-cols-1">
+                <div>
+                  <p className="px-0.5 text-badge font-semibold uppercase tracking-wide text-fg-faint">
+                    {t("desktop:sourcePicker.resolution")}
+                  </p>
+                  <Segmented
+                    label={t("desktop:sourcePicker.resolution")}
+                    options={SCREEN_SHARE_RESOLUTIONS}
+                    value={resolution}
+                    onChange={(option) => applyQuality(option, frameRate)}
+                    renderLabel={(option) => RESOLUTION_LABEL[option]}
+                    testId="share-resolution"
+                  />
+                </div>
+                <div>
+                  <p className="px-0.5 text-badge font-semibold uppercase tracking-wide text-fg-faint">
+                    {t("desktop:sourcePicker.frameRate")}
+                  </p>
+                  <Segmented
+                    label={t("desktop:sourcePicker.frameRate")}
+                    options={SCREEN_SHARE_FRAME_RATES}
+                    value={frameRate}
+                    onChange={(option) => applyQuality(resolution, option)}
+                    renderLabel={(option) => `${option} fps`}
+                    testId="share-framerate"
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
         </DialogBody>
 
         <DialogFooter>
