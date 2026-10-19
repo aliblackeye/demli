@@ -12,18 +12,20 @@ nothing here restricts what you may do with a fork.
 
 ## Windows process-loopback audio capture
 
-**Where:** `apps/desktop/resources/process-audio/` (prebuilt `.exe` files, shipped
-via electron-builder `extraResources`).
+**Where:** `apps/desktop/resources/process-audio/win32-x64/demli-audio-capture.exe`
+(built from `apps/desktop/native/process-audio/src/main.cpp`, shipped via
+electron-builder `extraResources`).
 
-Two MIT notices apply, and both are reproduced in full in
-[`apps/desktop/resources/process-audio/LICENSE`](apps/desktop/resources/process-audio/LICENSE):
+The helper is Demli's own code, adapted from Microsoft's `ApplicationLoopback`
+sample in [Windows-classic-samples](https://github.com/microsoft/Windows-classic-samples)
+(MIT, Copyright (c) Microsoft Corporation). The full notice is in
+[`apps/desktop/resources/process-audio/LICENSE`](apps/desktop/resources/process-audio/LICENSE),
+which ships next to the binary.
 
-- **Microsoft Corporation** — the executables are a stripped build of the
-  `ApplicationLoopback` and `ProcessList` samples from
-  [Windows-classic-samples](https://github.com/microsoft/Windows-classic-samples).
-- **Matin Tat** — the `application-loopback` npm package that packaged that build.
-
-Microsoft's notice was missing until 2026-07-31, which meant every installer
+Builds before M16 (2026-10) shipped prebuilt `ApplicationLoopback.exe` /
+`ProcessList.exe` from the `application-loopback` npm package by **Matin Tat**
+(MIT); those binaries and their notice were removed together. Microsoft's
+notice was missing from installers until 2026-07-31, which meant every installer
 released before then distributed their code without it. Fixed, and recorded here
 rather than quietly.
 

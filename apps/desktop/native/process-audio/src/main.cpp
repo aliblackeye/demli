@@ -3,7 +3,7 @@
 // Captures the audio rendered by one process tree through the WASAPI
 // process-loopback virtual device and streams it as raw PCM on stdout.
 // Adapted from Microsoft's Windows-classic-samples "ApplicationLoopback"
-// (MIT License, Copyright (c) Microsoft Corporation) — see ../LICENSE and
+// (MIT License, Copyright (c) Microsoft Corporation) — the notice ships in
 // apps/desktop/resources/process-audio/LICENSE.
 //
 // Usage:

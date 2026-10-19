@@ -7,15 +7,23 @@
  * to import from main (values + types), preload (values + types) and the
  * renderer (types only). Do not add electron/node imports here.
  *
- * WHY this feature exists (founder P0): the shared window's
- * FILM sound is captured straight from that window's PROCESS via the Windows
- * WASAPI process-loopback API (AUDCLNT activation on a process tree, Win10
- * 20348+). That bypasses the render endpoint entirely — so it works even when
- * the default output is a virtual mixer (Voicemeeter Input / VB-CABLE) whose
- * endpoint loopback comes up SILENT. The capture is performed by a small,
- * bundled helper binary (Microsoft's ApplicationLoopback sample) that streams
- * raw PCM to stdout; main reads it and forwards PCM chunks to the renderer,
- * which rebuilds a MediaStreamTrack for the LiveKit publish.
+ * WHY: screen-share sound must never contain Demli's own playback of the other
+ * people in the call, or they hear themselves (M16 H1). The Windows WASAPI
+ * process-loopback API (AUDCLNT activation on a process tree, build 20348+)
+ * captures by PROCESS, not by output device, which gives two echo-free modes:
+ *
+ *   - "app":    INCLUDE the shared window's process tree — only that app's sound.
+ *   - "system": EXCLUDE Demli's own main process tree — everything the PC plays
+ *               except Demli. Electron renders all audio in its audio-service
+ *               utility process, a child of the main process, so the tree covers
+ *               every remote voice Demli plays (measured by
+ *               scripts/verify-process-audio.mjs --electron).
+ *
+ * Capturing by process also bypasses the render endpoint, so it works when the
+ * default output is a virtual mixer (Voicemeeter / VB-CABLE). The capture runs
+ * in Demli's own helper (`native/process-audio`, built from source), which
+ * streams raw PCM to stdout; main forwards the chunks to the renderer, which
+ * rebuilds a MediaStreamTrack for the LiveKit publish.
  */
 
 /**
@@ -23,7 +31,9 @@
  * never hard-code these strings anywhere else (CLAUDE.md §23: no magic strings).
  */
 export const PROCESS_AUDIO_CHANNELS = {
-  /** renderer -> main (invoke): start capturing a window source's process audio. */
+  /** renderer -> main (invoke): can this machine capture process audio at all? */
+  support: "demli:process-audio:support",
+  /** renderer -> main (invoke): start an "app" or "system" capture. */
   start: "demli:process-audio:start",
   /** renderer -> main (invoke): stop a capture by id. */
   stop: "demli:process-audio:stop",
@@ -59,31 +69,61 @@ export const PROCESS_AUDIO_FORMAT: ProcessAudioFormat = {
 } as const;
 
 /**
- * Renderer's request to start a process-audio capture. Only a `sourceId` is
- * passed — never a raw PID. Main resolves the PID itself from the (allow-listed)
- * window source, so the renderer can never point the capture at an arbitrary
- * process.
+ * Lowest Windows build with the process-loopback activation type
+ * (Windows Server 2022 / Windows 11 = 20348+). Windows 10 client builds stop at
+ * 1904x and cannot capture by process.
  */
-export interface ProcessAudioStartRequest {
-  /** Must equal a `window:` source id returned by a prior capture.listSources(). */
-  sourceId: string;
-}
+export const PROCESS_LOOPBACK_MIN_WINDOWS_BUILD = 20348;
 
-/** Why a start request could not begin a capture (renderer falls back to the
- *  existing loopback ladder on any of these — none is fatal to the share). */
+/** Which process tree the capture follows. See the module doc. */
+export type ProcessAudioMode = "app" | "system";
+
+/**
+ * Renderer's request to start a process-audio capture. Never a raw PID:
+ *   - "app" names a `window:` source from a prior capture.listSources(); main
+ *     resolves the owning PID itself, so the renderer can never point the
+ *     capture at an arbitrary process.
+ *   - "system" takes no target — main always excludes its OWN process tree.
+ */
+export type ProcessAudioStartRequest =
+  | { mode: "app"; sourceId: string }
+  | { mode: "system" };
+
+/** Why a capture cannot run. None is fatal to the share: it goes out without
+ *  sound and the sharer is told why. */
 export type ProcessAudioUnavailableReason =
+  /** Not Windows. */
   | "unsupported_platform"
+  /** Windows older than {@link PROCESS_LOOPBACK_MIN_WINDOWS_BUILD}. */
+  | "unsupported_os"
+  /** "app" mode on a source that is not a window. */
   | "not_a_window"
+  /** The source id was not in main's latest enumeration. */
   | "unknown_source"
+  /** The window's owning process could not be found (it closed). */
   | "pid_unresolved"
+  /**
+   * The window belongs to Demli itself or to one of Demli's ancestors (for
+   * example Explorer, which launched Demli). Its process tree CONTAINS Demli,
+   * so "app" mode would capture the call's voices — refused.
+   */
+  | "includes_demli"
   | "binary_missing"
-  | "spawn_failed";
+  | "spawn_failed"
+  /** The helper started but Windows refused the capture. */
+  | "activation_failed";
+
+/** Whether process capture can work on this machine, asked before a share so
+ *  the picker never offers an option that cannot work. */
+export type ProcessAudioSupport =
+  | { supported: true }
+  | { supported: false; reason: "unsupported_platform" | "unsupported_os" | "binary_missing" };
 
 /** Result of a start request. On success the renderer subscribes to `onData`
  *  for `captureId` and rebuilds a track using `format`. The PID is deliberately
  *  NOT exposed to the renderer (minimal surface). */
 export type ProcessAudioStartResult =
-  | { ok: true; captureId: number; format: ProcessAudioFormat }
+  | { ok: true; captureId: number; mode: ProcessAudioMode; format: ProcessAudioFormat }
   | { ok: false; reason: ProcessAudioUnavailableReason };
 
 /** A raw PCM chunk for an active capture (main -> renderer). */
@@ -107,7 +147,9 @@ export interface ProcessAudioEndedEvent {
  * unsubscribe function.
  */
 export interface ProcessAudioBridge {
-  /** Start capturing the given window source's process audio. */
+  /** Can this machine capture process audio? */
+  support(): Promise<ProcessAudioSupport>;
+  /** Start an "app" (one window's process tree) or "system" (all but Demli) capture. */
   start(request: ProcessAudioStartRequest): Promise<ProcessAudioStartResult>;
   /** Stop a capture by id. Best-effort; safe to call more than once. */
   stop(captureId: number): Promise<void>;

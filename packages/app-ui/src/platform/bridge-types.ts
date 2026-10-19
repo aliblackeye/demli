@@ -58,32 +58,24 @@ export interface ListSourcesOptions {
   maxThumbnailWidth?: number;
 }
 
-/** What audio (if any) is captured alongside the screen video. */
-export type CaptureAudioMode = "loopback" | "none";
-
-/** Request to arm the source served by the NEXT getDisplayMedia() call. */
+/**
+ * Request to arm the source served by the NEXT getDisplayMedia() call. Always
+ * served as video only; share sound comes from {@link ProcessAudioBridge}.
+ */
 export interface CaptureSelectionRequest {
   /** Must equal the id of a source returned by a prior listSources() call. */
   sourceId: string;
-  /** Whether to also capture system/loopback audio (honoured on Windows only). */
-  audio: boolean;
 }
 
 /** Result of arming a selection. */
 export interface CaptureSelectionResult {
   ok: true;
   sourceId: string;
-  /** The audio mode that will be attempted when the handler fires. */
-  audio: CaptureAudioMode;
-  /** True only when loopback audio is actually supported for this selection. */
-  loopbackSupported: boolean;
 }
 
 /** Notification emitted right after a source is served to the media engine. */
 export interface DisplaySourceServedEvent {
   sourceId: string;
-  /** The audio mode handed to the engine: "loopback" or "none". */
-  audio: CaptureAudioMode;
 }
 
 export interface CaptureBridge {
@@ -106,24 +98,35 @@ export interface ProcessAudioFormat {
   bitDepth: number;
 }
 
-/** Request to start a process-audio capture for a window source. */
-export interface ProcessAudioStartRequest {
-  /** Must equal a `window:` source id from a prior capture.listSources(). */
-  sourceId: string;
-}
+/** Which process tree a capture follows: one app ("app") or all but Demli ("system"). */
+export type ProcessAudioMode = "app" | "system";
 
-/** Why a start request could not begin a capture (all non-fatal fallbacks). */
+/** Request to start a process-audio capture. "app" names a `window:` source
+ *  from a prior capture.listSources(); "system" always excludes Demli itself. */
+export type ProcessAudioStartRequest =
+  | { mode: "app"; sourceId: string }
+  | { mode: "system" };
+
+/** Why a capture cannot run (never fatal to the share). */
 export type ProcessAudioUnavailableReason =
   | "unsupported_platform"
+  | "unsupported_os"
   | "not_a_window"
   | "unknown_source"
   | "pid_unresolved"
+  | "includes_demli"
   | "binary_missing"
-  | "spawn_failed";
+  | "spawn_failed"
+  | "activation_failed";
+
+/** Whether process capture can work on this machine. */
+export type ProcessAudioSupport =
+  | { supported: true }
+  | { supported: false; reason: "unsupported_platform" | "unsupported_os" | "binary_missing" };
 
 /** Result of a start request. */
 export type ProcessAudioStartResult =
-  | { ok: true; captureId: number; format: ProcessAudioFormat }
+  | { ok: true; captureId: number; mode: ProcessAudioMode; format: ProcessAudioFormat }
   | { ok: false; reason: ProcessAudioUnavailableReason };
 
 /** A raw PCM chunk for an active capture. */
@@ -139,6 +142,7 @@ export interface ProcessAudioEndedEvent {
 }
 
 export interface ProcessAudioBridge {
+  support(): Promise<ProcessAudioSupport>;
   start(request: ProcessAudioStartRequest): Promise<ProcessAudioStartResult>;
   stop(captureId: number): Promise<void>;
   onData(listener: (chunk: ProcessAudioChunk) => void): () => void;

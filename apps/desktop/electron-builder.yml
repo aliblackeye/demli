@@ -83,11 +83,13 @@ files:
   # Never ship dev env templates (localhost URLs) inside the installer.
   - "!**/.env*"
 
-# Vendored Windows process-loopback helper binaries (per-process film audio).
-# extraResources copies them UNPACKED, next to the app under
-# `process.resourcesPath` (outside the asar) so they are directly executable —
-# main/process-audio.ts resolves them there in packaged builds. Tiny (~70 KB),
-# Windows-only; harmless to include on other targets. Provenance + license:
+# Demli's own Windows process-loopback helper (screen-share sound: one app, or
+# everything except Demli). Built from native/process-audio by
+# scripts/build-process-audio.mjs. extraResources copies it UNPACKED, next to
+# the app under `process.resourcesPath` (outside the asar) so it is directly
+# executable — main/process-audio.ts resolves it there in packaged builds.
+# ~210 KB, Windows-only; harmless on other targets. The LICENSE (Microsoft's
+# MIT notice for the sample it adapts) ships alongside. See
 # resources/process-audio/README.md.
 extraResources:
   - from: resources/process-audio

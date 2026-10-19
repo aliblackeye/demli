@@ -14,6 +14,7 @@ import {
   type ProcessAudioEndedEvent,
   type ProcessAudioStartRequest,
   type ProcessAudioStartResult,
+  type ProcessAudioSupport,
 } from "../main/process-audio-types";
 import {
   SECURE_TOKEN_CHANNELS,
@@ -85,8 +86,8 @@ const capture = {
 
   /**
    * Arm the source that the NEXT `getDisplayMedia()` call will receive. Single-
-   * shot: must be called again before each new share. `audio: true` requests
-   * loopback system audio (Windows only; see the returned `loopbackSupported`).
+   * shot: must be called again before each new share. Always served as video
+   * only — share sound comes from `processAudio`.
    */
   selectSource(
     request: CaptureSelectionRequest,
@@ -129,11 +130,14 @@ const capture = {
  * Per-process audio bridge (Windows process loopback). Mirrors the capture
  * bridge shape: fixed channels, main-re-validated payloads, and subscribe
  * methods that forward ONLY the sanitized payload (never the raw IPC event) and
- * return an unsubscribe function. The renderer passes a `sourceId` (never a
- * PID); main resolves the PID and streams PCM chunks back. See
+ * return an unsubscribe function. The renderer passes a mode plus, for "app",
+ * a `sourceId` (never a PID); main resolves the PID and streams PCM back. See
  * `main/process-audio.ts` for the security posture.
  */
 const processAudio: ProcessAudioBridge = {
+  support(): Promise<ProcessAudioSupport> {
+    return ipcRenderer.invoke(PROCESS_AUDIO_CHANNELS.support);
+  },
   start(request: ProcessAudioStartRequest): Promise<ProcessAudioStartResult> {
     return ipcRenderer.invoke(PROCESS_AUDIO_CHANNELS.start, request);
   },
@@ -418,7 +422,6 @@ export type DemliBridge = typeof api;
 // from the preload entry without reaching into `main/`. `export type` is fully
 // erased at build time — no runtime effect on the preload bundle.
 export type {
-  CaptureAudioMode,
   CaptureSelectionRequest,
   CaptureSelectionResult,
   CaptureSource,
@@ -432,8 +435,10 @@ export type {
   ProcessAudioChunk,
   ProcessAudioEndedEvent,
   ProcessAudioFormat,
+  ProcessAudioMode,
   ProcessAudioStartRequest,
   ProcessAudioStartResult,
+  ProcessAudioSupport,
   ProcessAudioUnavailableReason,
 } from "../main/process-audio-types";
 
