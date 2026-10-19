@@ -1581,21 +1581,27 @@ bağımlılıklara (Reanimated/gesture-handler/expo-blur) dayanır → 2.1.0 APK
 | Alt gezinme: yüzen cam hap, mercan gösterge konum yayıyla kayar, mürekkep geçişi, Ana Sayfa okunmamış + Arkadaşlar bekleyen istek sayacı | — (masaüstünde alt sekme yok) | ✅ | Klavye açıkken iner. Arkadaşlar sekme sayacı YENİ (aynı sayı İstekler segmentinde ve Sen sekmesinde) |
 | Ana sayfa ada çerçevesi: siyah sayfa + ray, panel taban tonunda radius-24 ada; panel değişimi solarak | ✅ (AppShell adaları) | ✅ | |
 | Ray: 48px yuvarlak-kare kutu, kenar hapı (seçili 36 mercan / okunmamış 8 beyaz / boş), basışta 0.92, ilk yüklemede kutu iskeleti | ✅ (GroupRail RailPill) | ✅ | Masaüstüyle aynı üç durum ve yükseklik (`shell-math` testli). Sayı rozeti köşede (sayılmamış okunmamış "1+") |
-| Tek satır dili (ShellRow): boşta dolgu yok, basışta ton, seçili mercan yıkama, okunmamış beyaz kenar pipi (bahsetmede mercan), sessiz %55 | ✅ (`shellRow`) | ✅ | DM, grup sohbeti, kanal, üye, arkadaş, komut paleti ve arama satırları |
+| Tek satır dili (ShellRow): boşta dolgu yok, basışta ton, seçili mercan yıkama, okunmamış beyaz kenar pipi (bahsetmede mercan), sessiz %55 | ✅ (`shellRow`) | ✅ | DM, grup sohbeti, kanal, üye, arkadaş, komut paleti ve arama satırları. Pip ve rozetin ÇIKIŞ animasyonu yok (sanal liste hücresinde geç kaldırılan görünüm = Fabric "view already has a parent" deseni) |
+| Kanal satırı sayı rozeti: düz okunmamış NÖTR, yalnız bahsetme MERCAN; sayılmamışta "1+" yok (yalnız pip); "yalnız bahsetmeler" susturmasında sayı yok | ✅ (ChannelItem) | ✅ | Denetim düzeltmesi: mobil her okunmamışı mercan + "1+" gösteriyordu, ray kutusuyla zıt sinyal. `channelRowBadge` saf + test. DM rozeti mercan kalır (DM = sana yazılmış) |
 | Bağlı olduğun ses kanalı: mercan glif + tam mürekkep ad (yıkama değil — yıkama "sohbetini okuduğun kanal" demek) | ✅ (ChannelItem `isVoiceTarget`) | ✅ | Skaler seçici (yalnız katıl/ayrıl'da değişir, §27); TalkBack "Bağlısın" |
 | Bölüm başlıkları cümle düzeninde 13px (büyük harf yok) | ✅ (SectionHeading) | ✅ | Mobil `ui/SectionHeading` |
-| Kanal listesi yüklenemedi → hata durumu + tekrar dene (eskiden "metin kanalı yok" yalanı) | ✅ | ✅ | Kategori oku döner, açılan kategori solarak gelir; sıralama reddi kapatılabilir Banner |
+| Kanal listesi yüklenemedi → hata durumu + tekrar dene (eskiden "metin kanalı yok" yalanı) | ✅ | ✅ | Kategori oku döner, açılan kategori solarak gelir (katlanınca anında gider); sıralama reddi kapatılabilir Banner |
+| "Metin kanalı yok" yalnız sunucuda GERÇEKTEN metin kanalı yoksa; tüm metin kanalları kategorideyse üst "Metin kanalları" bölümü hiç çizilmez | ✅ | ✅ | Denetim düzeltmesi (M18 kategorili sunucular). `uncategorizedTextSection` saf + test |
+| DM listesi: DM'ler gelene kadar iskelet (grup sohbetleri önce boş dönse bile "Direkt mesaj yok" demez); DM veya grup sohbeti yüklenemezse liste durur, üstte tehlike bandı + tekrar dene | ✅ | ✅ | Denetim düzeltmesi: grup sohbeti hatası hiç okunmuyordu. `dmListStates` saf + test |
+| Ana sayfa şeritleri (bağlantı, yaş hatırlatması) kit Banner'ında; yaş doğrulama kit Sheet'inde | ✅ | ✅ | Kenarlıksız (eski çizgili şerit + elle yazılmış Modal kaldırıldı). Bağlantı bandı sohbet ekranlarında da aynı bileşen |
 | Arkadaşlar: çevrimiçi/çevrimdışı bölümleri, her segmentte iskelet/hata/boş durum, istek hatası artık "istek yok" görünmüyor (kısmi hatada bant), eylem hataları tost | ✅ (Çevrimiçi/Tümü sekmeleri) | ✅ | Ekle: başarı Banner'ı |
 | Sen: profil kartı (üstte mercan ışık, yüklenirken iskelet), gruplu kartlar, bekleyen istek sayısı | ✅ (profil kartı reçetesi) | ✅ | |
 | Komut paleti: yazarken en üst sonuç mercan, klavyenin git/Enter tuşu onu çalıştırır | ✅ (cmdk) | ✅ | `primaryPaletteItem` saf + test; canlı girdiden yeniden hesaplanır |
 | Kanal arama: başlangıç/kısa/iskelet/hata+tekrar/sonuç yok durumları, eşleşen metin vurgulu | ✅ (`highlightQuery`) | ✅ | Sonraki sayfa hatası mevcut sonuçları korur, altta tekrar dene |
-| Uygulama içi bildirim: cam kart, sekmesiz varış (yay, zıplama yok), yukarı kaydır = kapat, parmak üstündeyken süre durur | ✅ (toast) | ✅ | TalkBack'e duyurulur |
-| Güncelleme hapları (OTA hazır, isteğe bağlı APK) cam hap, sekme çubuğunun üstünde; APK indirmesi gerçek ilerlemeyle | ✅ | ✅ | Zorunlu OTA/APK ekranları açılış yüzeyinde; OTA için uydurma yüzde yok (expo-updates oran vermiyor) |
-| Hesap değiştirme örtüsü: siyah sayfa + işaret | ✅ | ✅ | Çıkışta animasyon YOK (bilerek: Fabric "view already has a parent" P0'ı tam bu anda yaşanmıştı) |
+| Uygulama içi bildirim: cam kart, sekmesiz varış (yay, zıplama yok), yukarı kaydır = kapat, parmak üstündeyken süre durur | ✅ (toast) | ✅ | TalkBack'e duyurulur. Denetim düzeltmesi: yana kaydırma/OS iptali sonrası süre yeniden kuruluyor (`onFinalize`; eskiden kart sonsuza dek kalıyordu) — `bannerRelease` saf + test |
+| Güncelleme hapları (OTA hazır, isteğe bağlı APK) cam hap, alt kromun (sekme çubuğu + çağrı sırasında ses çubuğu) üstünde; APK indirmesi gerçek ilerlemeyle | ✅ | ✅ | Zorunlu OTA/APK ekranları açılış yüzeyinde; OTA için uydurma yüzde yok (expo-updates oran vermiyor) |
+| Alt krom geometrisi: çağrı sırasında yeni-DM düğmesi, güncelleme hapı, son liste satırları ve ray "+" kutusu ses çubuğunun ALTINDA kalmaz | — | ✅ | Denetim düzeltmesi: yüzen sekme çubuğu sahneleri tam boya uzattı, eski boşluk yalnız hapı aşıyordu. Tek kaynak `lib/bottom-chrome` (ses çubuğu da kendini onunla konumlar) — `bottom-chrome.test` dikdörtgen çakışmasını sabitler |
+| Hesap değiştirme örtüsü: siyah sayfa + işaret | ✅ | ✅ | Çıkışta animasyon YOK (bilerek: Fabric "view already has a parent" P0'ı tam bu anda yaşanmıştı). Oturum ağacı `LayoutAnimationConfig skipExiting` ile sarılı: geçişte söküldüğünde içindeki hiçbir `exiting` görünümü hayatta tutmaz. **Cihazda doğrulanmadı** — 2.1.0 APK öncesi AVD'de hesap değiştir + DM okundu yolu denenmeli |
 | Native başlıklar sayfa tonunda, çizgisiz | ✅ | ✅ | Tüm oturum açık ekranların başlığı `colors.app` |
 
-**Doğrulama:** `pnpm --filter @demli/mobile typecheck · lint · test` (65 dosya / 699 test; yeni:
-`shell-math`, `sign-in-validation`, `primaryPaletteItem`), `pnpm --filter @demli/i18n test`,
+**Doğrulama:** `pnpm --filter @demli/mobile typecheck · lint · test` (68 dosya / 744 test; yeni:
+`shell-math`, `sign-in-validation`, `primaryPaletteItem`, denetim turunda `bottom-chrome`,
+`home-list-rules`, `in-app-banner-gesture`), `pnpm --filter @demli/i18n test`,
 `npx expo export --platform android`. **Cihazda/emülatörde görsel ve dokunma denemesi
 YAPILMADI** (bu adımda APK/emülatör yasak) — radyal parıltı (`experimental_backgroundImage`),
 `boxShadow` halesi, hap göstergesi, ray hapı ve sekme çubuğunun klavyeyle inişi ilk APK'da
