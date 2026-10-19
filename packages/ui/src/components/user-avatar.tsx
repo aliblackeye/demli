@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { PresencePlatform, PresenceStatus } from "@demli/types";
 import { cn } from "../lib/cn";
 import { PresenceBadge } from "./presence-badge";
@@ -9,6 +9,9 @@ const SIZE_CLASS = {
   md: "size-10 text-xs",
   lg: "size-20 text-2xl",
 } as const;
+
+/** Rendered diameter per size step, for the proportional presence dot. */
+export const USER_AVATAR_PX = { xs: 20, sm: 32, md: 40, lg: 80 } as const;
 
 export type UserAvatarSize = keyof typeof SIZE_CLASS;
 
@@ -57,9 +60,17 @@ export interface UserAvatarProps {
   presence?: PresenceStatus;
   /** Client kind driving the presence badge (task #47) — "mobile" shows a phone. */
   presencePlatform?: PresencePlatform;
-  /** Green speaking ring (voice). */
+  /** Coral speaking ring (voice): +2px of accent outside the base ring. */
   speaking?: boolean;
+  /**
+   * Koyu Masa draws every avatar with a 2px ring in the surface colour behind
+   * it, which is what separates overlapping avatars and the presence dot from
+   * the photo. Set the colour with the `--avatar-ring` custom property (default
+   * `--color-app`) or turn it off for an avatar that sits alone on media.
+   */
+  ring?: boolean;
   className?: string;
+  style?: CSSProperties;
 }
 
 export function UserAvatar({
@@ -70,24 +81,30 @@ export function UserAvatar({
   presence,
   presencePlatform,
   speaking = false,
+  ring = true,
   className,
+  style,
 }: UserAvatarProps): JSX.Element {
   // Track the exact URL that failed rather than a boolean, so a NEW `src` (e.g.
   // right after an upload) is retried instead of staying stuck on the fallback.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = src != null && src.length > 0 && failedSrc !== src;
 
+  const dot = Math.max(10, Math.round(USER_AVATAR_PX[size] * 0.3));
+
   return (
-    <span className={cn("relative inline-flex shrink-0 select-none rounded-full", className)}>
+    <span className={cn("relative inline-flex shrink-0 select-none rounded-full", className)} style={style}>
       {/* rounded-full on the OUTER wrapper so a caller's ring/shadow (className) hugs
           the circle instead of squaring off (founder P0: "avatar kare çerçeve"). */}
       <span
         aria-hidden
         className={cn(
-          "relative flex items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-white/90",
-          "transition-shadow motion-instant",
+          "relative flex items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-fg",
+          "transition-shadow motion-hover",
           SIZE_CLASS[size],
-          speaking && "ring-2 ring-online",
+          speaking
+            ? "shadow-[0_0_0_2px_var(--avatar-ring,var(--color-app)),0_0_0_4px_var(--color-accent)]"
+            : ring && "shadow-[0_0_0_2px_var(--avatar-ring,var(--color-app))]",
         )}
         style={{ backgroundColor: seedColor(colorSeed ?? name) }}
       >
@@ -110,7 +127,8 @@ export function UserAvatar({
         <PresenceBadge
           status={presence}
           platform={presencePlatform}
-          className="absolute -bottom-px -right-px"
+          size={dot}
+          className="absolute -bottom-0.5 -right-0.5"
         />
       )}
     </span>

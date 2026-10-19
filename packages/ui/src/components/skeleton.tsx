@@ -5,9 +5,9 @@ export type SkeletonShape = "line" | "circle" | "rect";
 
 /** Corner treatment per shape — a text-line pill, a full circle, a soft block. */
 const SHAPE_RADIUS: Record<SkeletonShape, string> = {
-  line: "rounded",
+  line: "rounded-full",
   circle: "rounded-full",
-  rect: "rounded-md",
+  rect: "rounded-lg",
 };
 
 export interface SkeletonProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
@@ -34,7 +34,7 @@ const toDim = (value: number | string | undefined): string | undefined =>
  *
  * Decorative by default (`aria-hidden`); wrap a skeleton group in an element with
  * `role="status"` + an aria-label so screen readers announce "loading" once,
- * not per shape. Uses the shared `bg-raised` token + Tailwind's `animate-pulse`
+ * not per shape. Uses the shared `bg-surface` token + Tailwind's `animate-pulse`
  * so it renders identically on desktop and web (Safari 12 safe — opacity only).
  */
 export function Skeleton({
@@ -60,7 +60,7 @@ export function Skeleton({
     <div
       aria-hidden
       className={cn(
-        "shrink-0 bg-raised",
+        "shrink-0 bg-surface",
         animated && "animate-pulse",
         SHAPE_RADIUS[shape],
         // Sensible text-line defaults when the caller gives no dimensions.

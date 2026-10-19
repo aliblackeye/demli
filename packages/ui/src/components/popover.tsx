@@ -23,8 +23,11 @@ export const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 w-72 overflow-hidden rounded-xl border border-stroke-strong bg-overlay",
-        "shadow-elevated data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
+        // Surface tone, not the base: a popover opens OVER the base-toned
+        // conversation column, and with no border or shadow (Koyu Masa) the
+        // tone step is the only thing that separates the two.
+        "z-50 w-72 overflow-hidden rounded-xl bg-surface",
+        "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
         "focus-visible:outline-none",
         className,
       )}

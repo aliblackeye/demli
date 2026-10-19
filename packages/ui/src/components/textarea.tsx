@@ -1,22 +1,20 @@
 import * as React from "react";
 import { cn } from "../lib/cn";
+import { fieldClass, isInvalid } from "./input";
 
-export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  /** Shorthand for `aria-invalid`. */
+  invalid?: boolean;
+}
 
 /** Multi-line text input, styled to match {@link Input} (profile bio, etc.). */
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => (
+  ({ className, invalid, ...props }, ref) => (
     <textarea
       ref={ref}
-      className={cn(
-        "w-full resize-none rounded-md border border-stroke bg-raised px-3 py-2 text-sm text-fg",
-        "placeholder:text-fg-faint",
-        "transition-colors motion-instant",
-        "focus:outline-none focus-visible:border-accent/60 focus-visible:ring-2 focus-visible:ring-accent/30",
-        "disabled:pointer-events-none disabled:opacity-50",
-        className,
-      )}
+      className={cn(fieldClass, "resize-none py-2.5 leading-[1.4]", className)}
       {...props}
+      aria-invalid={isInvalid(invalid, props["aria-invalid"])}
     />
   ),
 );

@@ -55,14 +55,14 @@ export function StatusPicker(): JSX.Element {
       <DropdownMenuSubTrigger className="group gap-2.5">
         <PresenceBadge status={current} className="ring-transparent" />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-on-accent">
+          <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
             {t("desktop:presence.menuLabel")}
           </span>
           {/* The trigger's second line prefers the custom status when there is
               one — that is the line peers actually see, so showing "Online" over
               it would misreport what the user is broadcasting. Plain text child,
               never markdown (§28). */}
-          <span className="block truncate text-2xs text-fg-faint group-data-[highlighted]:text-on-accent/80">
+          <span className="block truncate text-2xs text-fg-faint group-data-[highlighted]:text-fg-muted">
             {customStatus ?? t(LABEL_KEY[current])}
           </span>
         </span>
@@ -78,17 +78,17 @@ export function StatusPicker(): JSX.Element {
             >
               <PresenceBadge status={status} className="mt-1 ring-transparent" />
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-on-accent">
+                <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
                   {t(LABEL_KEY[status])}
                 </span>
                 {descKey && (
-                  <span className="mt-0.5 block text-2xs leading-snug text-fg-faint group-data-[highlighted]:text-on-accent/80">
+                  <span className="mt-0.5 block text-2xs leading-snug text-fg-faint group-data-[highlighted]:text-fg-muted">
                     {t(descKey)}
                   </span>
                 )}
               </span>
               {status === current && (
-                <Check className="mt-0.5 size-4 shrink-0 text-accent group-data-[highlighted]:text-on-accent" />
+                <Check className="mt-0.5 size-4 shrink-0 text-accent group-data-[highlighted]:text-fg" />
               )}
             </DropdownMenuItem>
           );
@@ -103,13 +103,13 @@ export function StatusPicker(): JSX.Element {
           className="group items-start gap-2.5 py-2"
           onSelect={() => setCustomStatusDialogOpen(true)}
         >
-          <MessageCircle className="mt-0.5 size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-on-accent" />
+          <MessageCircle className="mt-0.5 size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-fg" />
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-on-accent">
+            <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
               {customStatus ? t("desktop:customStatus.edit") : t("desktop:customStatus.set")}
             </span>
             {customStatus && (
-              <span className="mt-0.5 block truncate text-2xs text-fg-faint group-data-[highlighted]:text-on-accent/80">
+              <span className="mt-0.5 block truncate text-2xs text-fg-faint group-data-[highlighted]:text-fg-muted">
                 {customStatus}
               </span>
             )}
@@ -122,8 +122,8 @@ export function StatusPicker(): JSX.Element {
             disabled={setCustomStatus.isPending}
             onSelect={() => setCustomStatus.mutate({ text: null })}
           >
-            <X className="size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-on-accent" />
-            <span className="text-[13px] text-fg group-data-[highlighted]:text-on-accent">
+            <X className="size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-fg" />
+            <span className="text-[13px] text-fg group-data-[highlighted]:text-fg">
               {t("desktop:customStatus.clear")}
             </span>
           </DropdownMenuItem>
