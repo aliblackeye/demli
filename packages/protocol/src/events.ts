@@ -900,6 +900,13 @@ export interface ErrorRaisedPayload {
    * client would have to re-derive.
    */
   retryAfterSeconds?: number;
+  /**
+   * voice.join refusals only: the channel the refused join targeted. Lets the
+   * client tell "my voice announcement was refused" from any other refusal and
+   * retry it — the gateway can refuse a legitimate join when it has not yet
+   * processed the membership that allows it (the DM → group upgrade race).
+   */
+  channelId?: ChannelId;
 }
 
 // ---------------------------------------------------------------------------
