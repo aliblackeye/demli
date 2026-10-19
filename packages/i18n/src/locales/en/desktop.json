@@ -988,8 +988,6 @@
     "emojiLimits": "Up to {{max}} KB · PNG or WebP",
     "emojiReplace": "Pick another image",
     "emojiFull": "The emoji limit is reached. Remove one to add a new one.",
-    "channelNameNormalized": "Spaces in channel names become dashes.",
-    "invitePreviewLoading": "Preparing the invite link…",
     "friendsSearch": "Search friends",
     "friendsNoMatch": "No friend matches “{{query}}”.",
     "groupLoadFailedTitle": "Couldn't open the group",

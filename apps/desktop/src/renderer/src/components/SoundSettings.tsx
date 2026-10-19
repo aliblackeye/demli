@@ -48,7 +48,7 @@ export function SoundSettings(): JSX.Element {
             title={<span id={volumeLabelId}>{t("desktop:sound.volume")}</span>}
             disabled={!enabled}
           />
-          <SettingsBlock className="pl-[3.75rem] pt-0">
+          <SettingsBlock className="pt-0 sm:pl-[3.75rem]">
             <Slider
               aria-labelledby={volumeLabelId}
               min={0}

@@ -59,7 +59,10 @@ export function BlockUserDialog(): JSX.Element {
 
   return (
     <Dialog open={target !== null} onOpenChange={(next) => !next && close()}>
-      <DialogContent>
+      {/* z-[58] for scrim AND card: this dialog is also opened from Settings →
+          Blocked users, and the settings layer sits at z-[55] — at the default
+          z-50 the unblock confirmation opened invisibly BEHIND it. */}
+      <DialogContent className="z-[58]" overlayClassName="z-[58]">
         <DialogHeader>
           <DialogTitle>
             {unblocking

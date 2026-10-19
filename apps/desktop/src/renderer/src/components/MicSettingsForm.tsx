@@ -182,7 +182,7 @@ function EchoCancellationRow({ music }: { music: boolean }): JSX.Element {
           </m.div>
       )}
       {!on && !music && (
-        <p className="flex gap-2 px-4 pb-3.5 pl-[3.75rem] text-label leading-relaxed text-warning">
+        <p className="flex gap-2 px-4 pb-3.5 text-label sm:pl-[3.75rem] leading-relaxed text-warning">
           <Headphones className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {t("desktop:micSettings.echoOffActive")}
         </p>
@@ -257,7 +257,7 @@ export function MicSettingsForm(): JSX.Element {
               title={<span id={sensitivityId}>{t("desktop:micSettings.sensitivityLabel")}</span>}
               description={t("desktop:micSettings.sensitivityHint")}
             />
-            <SettingsBlock className="pl-[3.75rem] pt-0">
+            <SettingsBlock className="pt-0 sm:pl-[3.75rem]">
               <Slider
                 aria-labelledby={sensitivityId}
                 min={0}
@@ -292,7 +292,7 @@ export function MicSettingsForm(): JSX.Element {
             description={t("desktop:micSettings.noiseSuppressionTierDesc")}
             disabled={music}
           />
-          <SettingsBlock className="pl-[3.75rem] pt-0">
+          <SettingsBlock className="pt-0 sm:pl-[3.75rem]">
             <RadioGroup
               value={effectiveNoise}
               onValueChange={(next) => setNoiseSuppression(next as NoiseSuppressionTier)}
@@ -350,7 +350,7 @@ export function MicSettingsForm(): JSX.Element {
             label={t("desktop:micSettings.monitorLabel")}
           />
         </SettingRow>
-        <SettingsBlock className="space-y-1.5 pl-[3.75rem]">
+        <SettingsBlock className="space-y-1.5 sm:pl-[3.75rem]">
           {/* Say WHY the mic/audio drop out — an unexplained auto-mute reads as a bug. */}
           {isActive && (
             <p
