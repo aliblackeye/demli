@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable } from "react-native";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { Modal, Platform, Pressable } from "react-native";
 import { Text } from "../ui/Text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -12,7 +12,11 @@ import {
 } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
-import { getAudioOutputRoutes } from "@/media/livekit-room";
+import {
+  getAudioRouteSnapshot,
+  refreshAudioRoute,
+  subscribeAudioRoute,
+} from "@/media/audio-route";
 import { useVoiceStore } from "@/stores/voice-store";
 import { colors, radius, space, typography } from "@/theme/theme";
 
@@ -26,12 +30,17 @@ import { colors, radius, space, typography } from "@/theme/theme";
  * the OS currently offers (speaker / earpiece / headphones / bluetooth on
  * Android; automatic / speaker on iOS), and drives the same store action.
  *
- * Self-contained: it reads `status` / `selectedOutputDeviceId` / `setOutputDevice`
- * straight from the store, so the parent only drops it in. Routes are enumerated
- * through the media adapter (the one place mobile touches the LiveKit SDK), never
- * by importing the SDK here. Rendered only while a room's audio session is live
- * (connected / reconnecting); otherwise there is nothing to route and we hide.
+ * Self-contained: it reads `status` / `setOutputDevice` straight from the store,
+ * so the parent only drops it in — the DM call, the group call and the server
+ * voice room all mount this same component. On Android the pill shows the route
+ * audio is ACTUALLY on (media/audio-route: audioswitch's selection plus its change
+ * event), so a session that auto-started on the loudspeaker says so, and a
+ * headset or Bluetooth device appearing mid-call updates it. Rendered only while
+ * a room's audio session is live (connected / reconnecting).
  */
+
+/** iOS routes — what `AudioSession.getAudioOutputs()` returns there (static). */
+const IOS_ROUTES = ["default", "force_speaker"] as const;
 
 /** Icon + localized label for a raw route id from `AudioSession.getAudioOutputs()`. */
 function routeMeta(id: string, t: AppTFunction): { Icon: LucideIcon; label: string } {
@@ -58,34 +67,33 @@ export function AudioOutputControl() {
   const insets = useSafeAreaInsets();
 
   const status = useVoiceStore((s) => s.status);
-  const selected = useVoiceStore((s) => s.selectedOutputDeviceId);
+  const lastPick = useVoiceStore((s) => s.selectedOutputDeviceId);
   const setOutputDevice = useVoiceStore((s) => s.setOutputDevice);
+  const route = useSyncExternalStore(subscribeAudioRoute, getAudioRouteSnapshot);
 
-  const [routes, setRoutes] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
   // The audio session is only started while in a room, so routing is meaningful
-  // (and getAudioOutputs succeeds) only then.
+  // only then.
   const active = status === "connected" || status === "reconnecting";
 
-  const refresh = useCallback(() => {
-    void getAudioOutputRoutes().then(setRoutes);
-  }, []);
-
-  // Enumerate when the session goes live; clear (and close) when it ends so a
-  // stale route list can't linger.
   useEffect(() => {
-    if (active) refresh();
-    else {
-      setRoutes([]);
-      setOpen(false);
-    }
-  }, [active, refresh]);
+    if (active) void refreshAudioRoute();
+    else setOpen(false);
+  }, [active]);
 
   if (!active) return null;
 
+  const ios = Platform.OS === "ios";
+  const routes: readonly string[] = ios ? IOS_ROUTES : route.available;
+  // Android: the live route; the last pick only stands in when the native read
+  // is unavailable. iOS has no readback, so the pick is all there is.
+  const selected = ios ? lastPick : (route.selected ?? lastPick);
+  const echoHint =
+    !ios && selected === "speaker" && routes.some((r) => r === "earpiece" || r === "headset" || r === "bluetooth");
+
   const onOpen = () => {
-    refresh(); // re-enumerate: a headset/bluetooth device may have (dis)appeared
+    void refreshAudioRoute(); // a headset/bluetooth device may have (dis)appeared
     setOpen(true);
   };
 
@@ -94,8 +102,6 @@ export function AudioOutputControl() {
     setOpen(false);
   };
 
-  // The pill reflects the current pick, or a neutral speaker + generic label
-  // until the user chooses one (Android auto-routes before any explicit pick).
   const current = selected ? routeMeta(selected, t) : { Icon: Volume2, label: t("mobile:voice.outputTitle") };
   const CurrentIcon = current.Icon;
 
@@ -192,6 +198,20 @@ export function AudioOutputControl() {
                 );
               })
             )}
+
+            {echoHint ? (
+              <Text
+                style={{
+                  color: colors.fgFaint,
+                  fontSize: 12,
+                  lineHeight: 17,
+                  paddingHorizontal: space.sm,
+                  paddingTop: space.xs,
+                }}
+              >
+                {t("mobile:voice.outputSpeakerEchoHint")}
+              </Text>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>

@@ -28,7 +28,11 @@
  *  - Microphone permission + error normalization (see ./permissions) so the
  *    unchanged engine emits the correct §26 errors.
  *  - Output routing mapped to the native audio-route picker (speaker / earpiece
- *    / bluetooth) instead of the web's arbitrary `setSinkId`.
+ *    / bluetooth) instead of the web's arbitrary `setSinkId`; the live route is
+ *    tracked in ./audio-route.
+ *  - Ordering with expo-audio: `setAudioModeAsync` rewrites the Android audio
+ *    mode, so connect acquires ../sounds/audio-mode-guard first and the LiveKit
+ *    session is always the last writer.
  */
 import { AudioSession } from "@livekit/react-native";
 import { Room, RoomEvent, Track, VideoQuality } from "livekit-client";
@@ -60,7 +64,9 @@ import type {
 } from "@demli/media";
 import type { LocalAudioMeter } from "@demli/media";
 import { connectionQualityLevelFromLiveKit, MOBILE_CAMERA_CAPTURE_DEFAULT } from "@demli/media";
+import { acquireCallAudio, releaseCallAudio } from "../sounds/audio-mode-guard";
 import { androidAudioTypeOptionsFor, getActiveAudioProfile } from "./audio-profile";
+import { clearAudioRoute, getAudioRouteSnapshot, refreshAudioRoute } from "./audio-route";
 import { ensureLiveKitGlobals } from "./livekit-globals";
 import { createRNLocalAudioMeter } from "./local-audio-meter";
 import {
@@ -112,31 +118,6 @@ export function subscribeLocalCamera(listener: () => void): () => void {
   return () => {
     localCameraListeners.delete(listener);
   };
-}
-
-// ---------------------------------------------------------------------------
-// Audio output routing (audit D1)
-//
-// This module is the one place mobile touches the `@livekit/react-native`
-// AudioSession (see the file header), so enumerating output routes lives here
-// too — the UI never imports the SDK directly. Selecting a route already flows
-// through the engine (`setOutputDevice` → switchActiveDevice("audiooutput") →
-// AudioSession.selectAudioOutput above); this is only the read side.
-// ---------------------------------------------------------------------------
-
-/**
- * The audio output routes currently available for {@link AudioSession.selectAudioOutput}
- * (Android: some of speaker/earpiece/headset/bluetooth; iOS: default/force_speaker).
- * Requires a started audio session (we start one on connect), so this returns []
- * until the room is connected — the caller simply shows nothing to pick then.
- * Defensive: never throws (the picker treats [] as "nothing to choose").
- */
-export async function getAudioOutputRoutes(): Promise<string[]> {
-  try {
-    return await AudioSession.getAudioOutputs();
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -405,7 +386,10 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
   private readonly onLocalTrackChanged = (
     publication: LocalTrackPublication,
   ): void => {
-    if (publication.source === Track.Source.Camera) notifyLocalCameraChanged();
+    if (publication.source === Track.Source.Camera) {
+      notifyLocalCameraChanged();
+      this.preferSpeakerForVideo();
+    }
   };
 
   /**
@@ -422,6 +406,44 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       publication.source === Track.Source.Camera
     ) {
       notifyLocalCameraChanged();
+      this.preferSpeakerForVideo();
+    }
+  };
+
+  /**
+   * Video calls play on the loudspeaker. audioswitch already starts there when no
+   * headset is connected, but a route the user picked earlier (the engine
+   * re-applies its last output pick on every join) can leave a call on the
+   * EARPIECE; the moment our camera goes live we move that one case to the
+   * speaker. Headset and Bluetooth are never overridden.
+   */
+  private preferSpeakerForVideo(): void {
+    if (!this.audioActive) return;
+    const camera = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
+    if (!camera || camera.isMuted) return;
+    if (getAudioRouteSnapshot().selected !== "earpiece") return;
+    void AudioSession.selectAudioOutput("speaker")
+      .then(() => refreshAudioRoute())
+      .catch(() => undefined);
+  }
+
+  /**
+   * Re-apply the call audio session after an expo-audio mode change landed while
+   * we owned it (see audio-mode-guard): stop + configure + start puts the mode
+   * back to the profile's, then the route the call was on is restored.
+   */
+  private readonly reassertAudioSession = async (): Promise<void> => {
+    if (!this.audioActive) return;
+    const route = getAudioRouteSnapshot().selected;
+    try {
+      await AudioSession.stopAudioSession();
+      await AudioSession.configureAudio({
+        android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
+      });
+      await AudioSession.startAudioSession();
+      if (route) await AudioSession.selectAudioOutput(route);
+    } finally {
+      void refreshAudioRoute();
     }
   };
 
@@ -464,11 +486,18 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       // call stream. Read at connect time and never mid-session — the RN SDK
       // offers no live switch, and the settings UI states that plainly. See
       // ./audio-profile for the tradeoffs the UI discloses.
-      await AudioSession.configureAudio({
-        android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
-      });
-      await AudioSession.startAudioSession();
+      await acquireCallAudio(this.reassertAudioSession);
+      try {
+        await AudioSession.configureAudio({
+          android: { audioTypeOptions: androidAudioTypeOptionsFor(getActiveAudioProfile()) },
+        });
+        await AudioSession.startAudioSession();
+      } catch (err) {
+        releaseCallAudio();
+        throw err;
+      }
       this.audioActive = true;
+      void refreshAudioRoute();
     }
     try {
       // autoSubscribe (the default) ensures we receive remote voice + the host's
@@ -505,6 +534,9 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       await AudioSession.stopAudioSession();
     } catch {
       // Best effort — the session may already be torn down.
+    } finally {
+      releaseCallAudio();
+      clearAudioRoute();
     }
   }
 
@@ -531,7 +563,9 @@ class LiveKitMobileRoom implements VoiceRoomAdapter {
       // RN has no arbitrary output sink ids; it routes to a named audio output
       // (speaker / earpiece / bluetooth) through the native session. Output-switch
       // failures are treated as non-fatal by the engine.
-      return AudioSession.selectAudioOutput(deviceId);
+      await AudioSession.selectAudioOutput(deviceId);
+      void refreshAudioRoute();
+      return undefined;
     }
     // audioinput + videoinput (camera device select, task #18) both go through
     // livekit's own device switch on native WebRTC.

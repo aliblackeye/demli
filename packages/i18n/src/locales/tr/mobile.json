@@ -885,6 +885,7 @@
     "routeHeadset": "Kulaklık",
     "routeBluetooth": "Bluetooth",
     "routeAutomatic": "Otomatik",
+    "outputSpeakerEchoHint": "Karşı taraf kendi sesini duyuyorsa ahizeye ya da kulaklığa geç: hoparlörden çıkan ses telefonun mikrofonuna geri dönebiliyor.",
     "errors": {
       "micPermission": "Mikrofon erişimi reddedildi. Konuşmak için sistem ayarlarından izin ver.",
       "cameraPermission": "Kamera erişimi reddedildi. Kameranı açmak için sistem ayarlarından izin ver.",
@@ -1092,6 +1093,18 @@
     "mediaDesc": "Paylaşılan film/müzik sesi daha yüksek ve net olur (medya ses seviyesi, konuşma filtresi yok, Bluetooth'ta stereo). Buna karşılık bazı cihazlarda hoparlörle konuşurken yankı yapabilir ve Bluetooth mikrofonu etkileyebilir.",
     "applyNote": "Seçim, sesli odaya bir sonraki katılışında uygulanır.",
     "activeHint": "Şu anda bir sesli odadasın — bu seçim bir sonraki bağlanışında geçerli olacak, mevcut görüşmen bozulmaz."
+  },
+  "echoCanceller": {
+    "section": "Yankı engelleyici",
+    "optionDevice": "Telefonun kendi",
+    "optionSoftware": "WebRTC yazılımı",
+    "deviceDesc": "Varsayılan. Telefon üreticisinin donanım engelleyicisi çalışır; çoğu telefonda en temiz sonucu verir. Bazı modellerde hoparlördeyken karşı taraf kendi sesini duyabilir.",
+    "softwareDesc": "Telefonun donanım yankı engelleyicisi ve gürültü bastırıcısı kapanır; yankıyı ve gürültüyü WebRTC'nin yazılım engelleyicisi temizler. Hoparlördeyken karşı taraf kendi sesini duyuyorsa bunu dene.",
+    "restartPending": "Uygulamayı tamamen kapatıp yeniden açtığında geçerli olur. Şu an önceki seçim çalışıyor.",
+    "applied": "Bu seçim şu an çalışıyor.",
+    "noHardware": "Bu telefonda donanım yankı engelleyicisi yok; yankıyı her zaman WebRTC'nin yazılım engelleyicisi temizliyor.",
+    "oldAndroid": "Android 10'dan eski sürümlerde yankıyı her zaman WebRTC'nin yazılım engelleyicisi temizler.",
+    "saveFailed": "Seçim kaydedilemedi, ayar değişmedi. Birazdan tekrar dene."
   },
   "video": {
     "section": "Görüntü",
