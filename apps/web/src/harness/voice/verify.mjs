@@ -25,7 +25,7 @@
 
 // Node script whose page.evaluate / $eval callbacks run IN THE BROWSER, so
 // both environments' globals appear in this one file.
-/* global console, process, document, getComputedStyle */
+/* global console, process, document, getComputedStyle, Image, window */
 
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
@@ -52,7 +52,7 @@ const browser = await chromium.launch({ channel: "chrome", headless: true });
 
 async function openPage(query = "", opts = {}) {
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 1000 },
+    viewport: opts.viewport ?? { width: 1440, height: 1000 },
     deviceScaleFactor: 1,
     reducedMotion: opts.reducedMotion ?? "no-preference",
   });
@@ -519,6 +519,292 @@ async function animationsSettle(page, selector, timeout = 2000) {
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(shotDir, "20-add-call-loading.png") });
   check("loading mode: zero console errors/warnings", messages.length === 0, messages.join(" || "));
+  await context.close();
+}
+
+// ── 5. real sidebar width (w-60 = 240px), TR + EN: the DM dock never cuts its state ──
+for (const lng of ["tr", "en"]) {
+  const { page, context, messages } = await openPage(`?lng=${lng}`);
+  await page.click('[data-testid="status-connected"]');
+  await page.waitForTimeout(250);
+  const widths = await page.$$eval('[data-testid="sidebar-column"], [data-testid^="dock-"]', (els) =>
+    els.map((e) => Math.round(e.getBoundingClientRect().width)),
+  );
+  check(
+    `[${lng}] harness columns are the real sidebar width (240px)`,
+    widths.length === 5 && widths.every((w) => w === 240),
+    widths.join(","),
+  );
+
+  /** Every line must show its whole text: no ellipsis, no clamp overflow. */
+  const fits = (selector) =>
+    page.$$eval(selector, (els) =>
+      els.map((e) => ({
+        text: e.textContent,
+        // A truncated or clamped line holds more content than its box on one axis.
+        clipped: e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1,
+        lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)),
+      })),
+    );
+  const states = [];
+  for (const camera of [false, true]) {
+    if (camera) {
+      await page.click('[data-testid="stage-camera"]');
+      await page.waitForTimeout(250);
+    }
+    states.push(...(await fits('[data-testid^="dock-"] [data-testid="call-dock-status"]')));
+  }
+  states.push(...(await fits('[data-testid^="dock-"] [data-testid="call-dock-title"]')));
+  const expected =
+    lng === "tr"
+      ? ["Çalıyor", "Sesli bağlantı kuruldu", "Görüntülü bağlantı kuruldu", "Başka cihazda aramadasın"]
+      : ["Ringing", "Voice connected", "Video connected", "on another"];
+  const texts = states.map((s) => s.text ?? "");
+  check(
+    `[${lng}] dock status + seat lines covered (ringing, voice, video, elsewhere, vacant)`,
+    states.length === 6 && expected.every((e) => texts.some((t) => t.includes(e))),
+    texts.join(" | "),
+  );
+  const cut = states.filter((s) => s.clipped || s.lines > 2);
+  check(
+    `[${lng}] no dock status/seat line is cut at 240px`,
+    cut.length === 0,
+    JSON.stringify(cut.length ? cut : states.map((s) => `${s.text}:${s.lines}l`)),
+  );
+  // Put the camera back so the rest of the page is as it started.
+  await page.click('[data-testid="stage-camera"]');
+
+  // The voice panel's own lines at the same width, through every FSM state.
+  const panel = [];
+  for (const status of ["joining", "connected", "reconnecting", "error", "leaving"]) {
+    await page.click(`[data-testid="status-${status}"]`);
+    await page.waitForTimeout(350);
+    panel.push(...(await fits('[data-testid="voice-panel"] [role="status"]')));
+  }
+  const panelCut = panel.filter((s) => s.clipped);
+  check(
+    `[${lng}] voice panel status line is never cut at 240px`,
+    panel.length === 5 && panelCut.length === 0,
+    JSON.stringify(panelCut.length ? panelCut : panel.map((s) => s.text)),
+  );
+  await page.click('[data-testid="status-connected"]');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(shotDir, `21-panel-240-${lng}.png`) });
+  check(`[${lng}] sidebar-width mode: zero console errors/warnings`, messages.length === 0, messages.join(" || "));
+  await context.close();
+}
+
+// ── 6. keyboard focus is VISIBLE on video tiles (sampled pixels, not classes) ──
+{
+  const { page, context, messages } = await openPage("");
+  await page.waitForTimeout(600);
+  /**
+   * Read RGB pixels out of a real VIEWPORT screenshot, at points measured from
+   * the element's own edges in page pixels (x < 0 = from the right edge). The
+   * viewport shot avoids a fractional clip box shaving off the 2px edge itself.
+   */
+  async function pixels(selector, points) {
+    const png = await page.screenshot();
+    const rect = await page.$eval(selector, (el) => {
+      const b = el.getBoundingClientRect();
+      return { left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+    });
+    return page.evaluate(
+      async ({ b64, pts, r }) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        return pts.map(([px, fy]) => {
+          // Sample the CENTRE of the device pixel `px` steps in from the edge.
+          const x = px < 0 ? Math.round(r.right) + px : Math.round(r.left) + px;
+          const y = Math.round(r.top + fy * (r.bottom - r.top));
+          return Array.from(ctx.getImageData(x, y, 1, 1).data.slice(0, 3));
+        });
+      },
+      { b64: png.toString("base64"), pts: points, r: rect },
+    );
+  }
+  const white = (p) => p.every((v) => v >= 225);
+  const dark = (p) => p.every((v) => v <= 40);
+  for (const [wrap, tile, label] of [
+    ["tile-camera", "camera-tile", "camera tile (video)"],
+    ["tile-share", "screen-share-tile", "screen-share tile (video)"],
+    ["tile-avatar-speaking", "avatar-tile", "speaking avatar tile"],
+  ]) {
+    const sel = `[data-testid="${wrap}"] [data-testid="${tile}"]`;
+    await page.locator(sel).scrollIntoViewIfNeeded();
+    // Edge pixels: the outer 2px on the left and right (x = 1, w-2) and the
+    // black keyline just inside it (x = 3).
+    const pts = [
+      [1, 0.5],
+      [-2, 0.5],
+      [3, 0.5],
+    ];
+    const before = await pixels(sel, pts);
+    // Reach the tile BY KEYBOARD (Shift+Tab away, Tab back) so :focus-visible
+    // is the browser's own decision, not a forced class.
+    await page.focus(sel);
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    const state = await page.$eval(sel, (el) => ({
+      active: document.activeElement === el,
+      visible: el.matches(":focus-visible"),
+    }));
+    await page.waitForTimeout(350);
+    const ring = await css(page, `${sel} > [data-testid="tile-focus-ring"]`, ["opacity", "z-index"]);
+    const after = await pixels(sel, pts);
+    check(
+      `focus-visible on the ${label} paints a white edge above the picture`,
+      state.active &&
+        state.visible &&
+        ring.opacity === "1" &&
+        white(after[0]) &&
+        white(after[1]) &&
+        dark(after[2]) &&
+        !white(before[0]),
+      JSON.stringify({ state, ring, before, after }),
+    );
+    await page.locator(`[data-testid="${wrap}"]`).screenshot({ path: join(shotDir, `22-focus-${tile}.png`) });
+    // Blur → the overlay fades back out.
+    await page.$eval(sel, (el) => el.blur());
+    await page.waitForTimeout(350);
+    const gone = await css(page, `${sel} > [data-testid="tile-focus-ring"]`, ["opacity"]);
+    check(`${label}: focus mark fades out on blur`, gone.opacity === "0", gone.opacity);
+  }
+  check("tile focus mode: zero console errors/warnings", messages.length === 0, messages.join(" || "));
+  await context.close();
+}
+
+// ── 7. source picker at the real window sizes: the sound choice is never below the fold ──
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 940, height: 560 },
+]) {
+  const tag = `${viewport.width}x${viewport.height}`;
+  const { page, context, messages } = await openPage("?picker=desktop&windows=12", { viewport });
+  await page.click('[data-testid="open-picker"]');
+  await page.waitForSelector('[role="dialog"] [data-testid="source-card"]', { timeout: 5000 });
+  await animationsSettle(page, '[role="dialog"]');
+  await page.click('[role="dialog"] [data-testid="source-card"] >> nth=0');
+  await page.waitForTimeout(300);
+  const layout = await page.evaluate(() => {
+    const r = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right) };
+    };
+    const pane = document.querySelector('[data-testid="share-settings-pane"]');
+    const sources = document.querySelector('[data-testid="source-pane"]');
+    const options = [...document.querySelectorAll('[role="dialog"] [data-testid^="share-audio-option-"]')].map((e) => {
+      const b = e.getBoundingClientRect();
+      return { id: e.getAttribute("data-testid"), top: Math.round(b.top), bottom: Math.round(b.bottom) };
+    });
+    return {
+      vh: window.innerHeight,
+      cards: document.querySelectorAll('[role="dialog"] [data-testid="source-card"]').length,
+      dialog: r('[data-testid="source-picker"]'),
+      pane: r('[data-testid="share-settings-pane"]'),
+      sources: r('[data-testid="source-pane"]'),
+      start: r('[data-testid="source-start"]'),
+      resolution: r('[data-testid="share-resolution"]'),
+      framerate: r('[data-testid="share-framerate"]'),
+      options,
+      paneScroll: pane ? [pane.scrollTop, pane.scrollHeight, pane.clientHeight] : null,
+      sourceScroll: sources ? [sources.scrollHeight, sources.clientHeight] : null,
+    };
+  });
+  const within = (el, box) => Boolean(el && box && el.top >= box.top - 1 && el.bottom <= box.bottom + 1);
+  check(`[${tag}] picker lists 16 windows + 2 screens`, layout.cards === 18, String(layout.cards));
+  check(
+    `[${tag}] picker fits the window`,
+    Boolean(layout.dialog && layout.dialog.top >= 0 && layout.dialog.bottom <= layout.vh),
+    JSON.stringify(layout.dialog),
+  );
+  check(
+    `[${tag}] two panes: settings beside the sources`,
+    Boolean(layout.pane && layout.sources && layout.pane.left >= layout.sources.right),
+    JSON.stringify({ pane: layout.pane, sources: layout.sources }),
+  );
+  check(
+    `[${tag}] all three sound options are in view without scrolling`,
+    layout.options.length === 3 && layout.options.every((o) => within(o, layout.pane) && o.bottom <= layout.vh),
+    JSON.stringify({ options: layout.options, pane: layout.pane }),
+  );
+  const hints = await page.$$eval('[role="dialog"] [data-testid^="share-audio-option-"]', (els) =>
+    els.map((e) => {
+      const d = document.getElementById(e.getAttribute("aria-describedby") ?? "");
+      const shown = d?.querySelector("[data-hint-visible]") !== null && d?.querySelector("[data-hint-visible]") !== undefined;
+      return { id: e.getAttribute("data-testid"), checked: e.getAttribute("aria-checked"), described: (d?.textContent ?? "").length > 10, shown };
+    }),
+  );
+  check(
+    `[${tag}] only the chosen option shows its hint; every option keeps its accessible description`,
+    hints.every((h) => h.described) && hints.filter((h) => h.shown).length === 1 && hints.find((h) => h.shown)?.checked === "true",
+    JSON.stringify(hints),
+  );
+  // Worst case: the longest hint (system sound) is the chosen one.
+  await page.click('[role="dialog"] [data-testid="share-audio-option-system"]');
+  await page.waitForTimeout(200);
+  const worst = await page.evaluate(() => {
+    const p = document.querySelector('[data-testid="share-settings-pane"]').getBoundingClientRect();
+    return [...document.querySelectorAll('[role="dialog"] [data-testid^="share-audio-option-"]')].map((e) => {
+      const b = e.getBoundingClientRect();
+      return { id: e.getAttribute("data-testid"), inView: b.top >= p.top - 1 && b.bottom <= p.bottom + 1, bottom: Math.round(b.bottom), paneBottom: Math.round(p.bottom) };
+    });
+  });
+  check(
+    `[${tag}] with the longest hint chosen (system sound) all three options are still in view`,
+    worst.length === 3 && worst.every((o) => o.inView),
+    JSON.stringify(worst),
+  );
+  await page.screenshot({ path: join(shotDir, `26-picker-${tag}-system.png`) });
+  await page.click('[role="dialog"] [data-testid="share-audio-option-app"]');
+  await page.waitForTimeout(200);
+  check(`[${tag}] the start button is in view`, Boolean(layout.start && layout.start.bottom <= layout.vh), JSON.stringify(layout.start));
+  if (viewport.width === 1280) {
+    check(
+      `[${tag}] resolution + frame rate are in view too`,
+      within(layout.resolution, layout.pane) && within(layout.framerate, layout.pane),
+      JSON.stringify({ resolution: layout.resolution, framerate: layout.framerate, pane: layout.pane }),
+    );
+  } else {
+    // At the 940×560 minimum the quality block may need the settings pane's own
+    // scroll; the sound choice above must not, and quality must stay reachable.
+    await page.locator('[data-testid="share-framerate"]').scrollIntoViewIfNeeded();
+    const reach = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="share-framerate"]').getBoundingClientRect();
+      const p = document.querySelector('[data-testid="share-settings-pane"]').getBoundingClientRect();
+      return b.top >= p.top - 1 && b.bottom <= p.bottom + 1;
+    });
+    check(`[${tag}] frame rate is reachable inside the settings pane`, reach, JSON.stringify(layout.paneScroll));
+    await page.locator('[data-testid="share-settings-pane"]').evaluate((el) => el.scrollTo({ top: 0 }));
+  }
+  check(
+    `[${tag}] a long window list scrolls in the source pane`,
+    Boolean(layout.sourceScroll && layout.sourceScroll[0] > layout.sourceScroll[1]),
+    JSON.stringify(layout.sourceScroll),
+  );
+  const paneTopBefore = layout.pane.top;
+  await page.locator('[data-testid="source-pane"]').evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await page.waitForTimeout(150);
+  const paneTopAfter = await page.$eval('[data-testid="share-settings-pane"]', (el) =>
+    Math.round(el.getBoundingClientRect().top),
+  );
+  check(
+    `[${tag}] scrolling the sources leaves the sound choice in place`,
+    paneTopAfter === paneTopBefore,
+    `${paneTopBefore} → ${paneTopAfter}`,
+  );
+  await page.locator('[data-testid="source-pane"]').evaluate((el) => el.scrollTo({ top: 0 }));
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: join(shotDir, `25-picker-${tag}.png`) });
+  check(`[${tag}] picker mode: zero console errors/warnings`, messages.length === 0, messages.join(" || "));
   await context.close();
 }
 

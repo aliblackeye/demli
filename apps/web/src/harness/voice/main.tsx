@@ -28,7 +28,8 @@
  *
  * URL switches: `?picker=desktop` (Electron source grid with thumbnails and the
  * three sound options) vs the default web surface cards · `?nocam=1` (camera
- * permission denied) · `?nodevices=1` (no devices enumerated).
+ * permission denied) · `?nodevices=1` (no devices enumerated) · `?windows=N`
+ * (N extra open windows in the desktop picker) · `?lng=en|tr` (pin the catalog).
  */
 
 import "../../shim/demli-bridge";
@@ -90,6 +91,7 @@ import {
 const params = new URLSearchParams(window.location.search);
 const PICKER_MODE = params.get("picker") === "desktop" ? "desktop" : "web";
 const FRIENDS_MODE = (params.get("friends") ?? "ready") as "ready" | "loading" | "error";
+const EXTRA_WINDOWS = Math.min(Math.max(Number(params.get("windows") ?? 0) || 0, 0), 40);
 
 installFakeMediaDevices({ denyCamera: params.get("nocam") === "1", noDevices: params.get("nodevices") === "1" });
 
@@ -206,6 +208,14 @@ if (PICKER_MODE === "desktop") {
       { id: "window:102:0", name: "Visual Studio Code — demli", kind: "window", thumbnailDataUrl: thumbnail("VS Code", 210) },
       { id: "window:103:0", name: "Spotify Premium", kind: "window", thumbnailDataUrl: thumbnail("Spotify", 130) },
       { id: "window:104:0", name: "Çok uzun bir pencere başlığı olan bir tarayıcı sekmesi — YouTube", kind: "window", thumbnailDataUrl: "" },
+      // `?windows=N` adds N more open windows — a real desktop often lists a dozen
+      // or more, which is what the picker's own source scroll is for.
+      ...Array.from({ length: EXTRA_WINDOWS }, (_, i) => ({
+        id: `window:${200 + i}:0`,
+        name: `Belge ${i + 1} — Not Defteri`,
+        kind: "window",
+        thumbnailDataUrl: thumbnail(`Belge ${i + 1}`, (i * 47) % 360),
+      })),
       { id: "screen:0:0", name: "Ekran 1", kind: "screen", thumbnailDataUrl: thumbnail("Ekran 1", 30) },
       { id: "screen:1:0", name: "Ekran 2", kind: "screen", thumbnailDataUrl: thumbnail("Ekran 2", 260) },
     ],
@@ -410,7 +420,7 @@ function PanelSection(): JSX.Element {
 
       <div className="flex flex-wrap items-start gap-4">
         {/* A real sidebar column: the panel sits at the foot of the channel list. */}
-        <div data-testid="sidebar-column" className="flex w-[248px] flex-col rounded-card bg-sidebar py-2">
+        <div data-testid="sidebar-column" className="flex w-60 flex-col rounded-card bg-sidebar py-2">
           <p className="px-4 pb-1 text-2xs font-semibold uppercase tracking-wide text-fg-faint">lobi</p>
           <ul aria-label="lobi" className="space-y-px px-2 pb-3">
             {participants.map((p) => (
@@ -435,7 +445,7 @@ function PanelSection(): JSX.Element {
             ["dock-vacant", "Ayrıldın", { phase: "active", seat: "vacant" }],
           ] as const
         ).map(([id, label, state]) => (
-          <div key={id} data-testid={id} className="w-[248px] space-y-2 rounded-card bg-sidebar py-3">
+          <div key={id} data-testid={id} className="w-60 space-y-2 rounded-card bg-sidebar py-3">
             <div className="px-4">
               <Caption>{label}</Caption>
             </div>
@@ -719,7 +729,12 @@ function Harness(): JSX.Element {
 function Root(): JSX.Element | null {
   const [i18n, setI18n] = useState<I18nInstance | null>(null);
   useEffect(() => {
-    void createDesktopI18n().then(setI18n);
+    // `?lng=en|tr` pins the catalog, so the width checks run in BOTH languages.
+    const lng = params.get("lng");
+    void createDesktopI18n().then(async (instance) => {
+      if (lng === "en" || lng === "tr") await instance.changeLanguage(lng);
+      setI18n(instance);
+    });
   }, []);
   if (!i18n) return null;
   return (
