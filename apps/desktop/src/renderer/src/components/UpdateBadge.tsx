@@ -214,17 +214,21 @@ export function UpdateBadge(): JSX.Element | null {
           onFocus={openByHover}
           onBlur={scheduleClose}
           className={cn(
-            "flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-full",
-            "transition-colors motion-instant",
+            // Arrives with the fast pop: the badge only EXISTS when there is
+            // something to do, so its appearance is itself the news.
+            "flex h-8 shrink-0 animate-pop-in-fast cursor-pointer items-center justify-center rounded-pill",
+            "transition-colors motion-hover",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
             kind === "downloading" ? "gap-1.5 px-2.5" : "w-8",
+            // The founder's green download button, borderless: a success wash
+            // that deepens on hover, a solid fill (dark ink) once it is ready.
             kind === "error"
-              ? "bg-danger-surface text-danger hover:bg-danger/25"
+              ? "bg-danger-surface text-danger hover:bg-danger/20 active:bg-danger/28"
               : kind === "checking"
                 ? "bg-raised text-fg-muted"
                 : kind === "ready"
-                  ? "bg-online text-app hover:bg-online/90"
-                  : "bg-online/15 text-online ring-1 ring-inset ring-online/30 hover:bg-online/25",
+                  ? "bg-success text-on-accent hover:bg-success/90 active:bg-success/80"
+                  : "bg-success/12 text-success hover:bg-success/20 active:bg-success/28",
           )}
         >
           {kind === "available" && <Download className="size-4" />}
@@ -252,7 +256,7 @@ export function UpdateBadge(): JSX.Element | null {
         }}
         onMouseEnter={openByHover}
         onMouseLeave={scheduleClose}
-        className="w-64 p-3"
+        className="w-72 p-4"
       >
         {kind === "available" && (
           <>
@@ -274,9 +278,15 @@ export function UpdateBadge(): JSX.Element | null {
             <p className="text-sm font-semibold text-fg">
               {t("desktop:updates.badge.downloading", { percent })}
             </p>
-            <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-raised">
+            <div
+              className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-wash-strong"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+            >
               <div
-                className="h-full rounded-full bg-online transition-[width] motion-fast"
+                className="h-full rounded-full bg-success transition-[width] motion-standard"
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -293,6 +303,7 @@ export function UpdateBadge(): JSX.Element | null {
             </p>
             <Button
               size="sm"
+              variant="primary"
               className="mt-3 w-full"
               onClick={() => {
                 setEngaged(true);
@@ -314,7 +325,7 @@ export function UpdateBadge(): JSX.Element | null {
               {t("desktop:updates.errors.download")}
             </p>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="mt-3 w-full"
               onClick={() => {

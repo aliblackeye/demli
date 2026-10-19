@@ -90,16 +90,16 @@ function PlatformCard({ target }: { target: DownloadTarget }): JSX.Element {
         // which the nowrap platform hint inflates to ~383px. Without it the row
         // refuses to shrink and punches ~30px out of the dialog on a 375px
         // phone (the inner `truncate` never gets a chance to run).
-        "flex min-w-0 items-center gap-3 rounded-xl border border-stroke bg-raised p-3",
-        "transition-colors motion-instant",
-        available ? "hover:border-stroke-strong" : "opacity-70",
+        "flex min-w-0 items-center gap-3 rounded-xl bg-surface p-3",
+        "transition-colors motion-hover",
+        available ? "hover:bg-raised" : "opacity-70",
       )}
     >
       <span
         aria-hidden
         className={cn(
           "flex size-10 shrink-0 items-center justify-center rounded-lg",
-          available ? "bg-accent-surface text-accent" : "bg-white/[0.05] text-fg-faint",
+          available ? "bg-accent-surface text-accent" : "bg-wash text-fg-faint",
         )}
       >
         <Icon className="size-5" />
@@ -109,7 +109,7 @@ function PlatformCard({ target }: { target: DownloadTarget }): JSX.Element {
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-semibold text-fg">{name}</span>
           {!available && (
-            <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-badge font-semibold uppercase tracking-wide text-fg-faint">
+            <span className="shrink-0 rounded-pill bg-wash-strong px-2 py-0.5 text-badge font-semibold text-fg-muted">
               {t("desktop:downloadApp.soon")}
             </span>
           )}
@@ -120,6 +120,7 @@ function PlatformCard({ target }: { target: DownloadTarget }): JSX.Element {
       {available ? (
         <Button
           size="sm"
+          variant="accent"
           className="shrink-0"
           aria-label={t("desktop:downloadApp.downloadFor", { platform: name })}
           onClick={() => openDownloadUrl(target.url as string)}
@@ -146,9 +147,7 @@ function Section({
   if (targets.length === 0) return null;
   return (
     <section>
-      <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-        {title}
-      </h3>
+      <h3 className="mb-2 text-label font-medium text-fg-faint">{title}</h3>
       {/* One column on a phone-width viewport, two from `sm` up (§7 responsive).
           A lone row stays full width rather than sitting in a half-empty grid. */}
       <div className={cn("grid gap-2", targets.length > 1 && "sm:grid-cols-2")}>

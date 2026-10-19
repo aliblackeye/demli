@@ -45,15 +45,15 @@ export function AccountSwitcher(): JSX.Element {
               size="xs"
             />
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-[13px] font-semibold text-fg group-data-[highlighted]:text-white">
+              <span className="block truncate text-label font-semibold text-fg group-data-[highlighted]:text-fg">
                 {account.displayName}
               </span>
-              <span className="block truncate text-2xs text-fg-faint group-data-[highlighted]:text-white/70">
+              <span className="block truncate text-2xs text-fg-faint group-data-[highlighted]:text-fg-muted">
                 @{account.username}
               </span>
             </span>
             {isActive ? (
-              <Check className="size-4 shrink-0 text-accent group-data-[highlighted]:text-white" />
+              <Check className="size-4 shrink-0 text-accent group-data-[highlighted]:text-fg" />
             ) : (
               <button
                 type="button"
@@ -67,8 +67,8 @@ export function AccountSwitcher(): JSX.Element {
                   void removeAccount(account.accountId);
                 }}
                 className={cn(
-                  "shrink-0 rounded p-0.5 text-fg-faint opacity-0 transition-opacity",
-                  "hover:text-danger group-data-[highlighted]:opacity-100",
+                  "grid size-6 shrink-0 place-items-center rounded-sm text-fg-faint opacity-0 transition-[opacity,color,background-color] motion-hover",
+                  "hover:bg-danger-surface hover:text-danger group-data-[highlighted]:opacity-100",
                   "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-danger/70",
                 )}
               >

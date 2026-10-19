@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import { Crown, Loader2, UserPlus, X } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, UserAvatar, cn } from "@demli/ui";
-import { SectionHeading } from "@demli/app-ui";
+import { IconButton, Tooltip, TooltipContent, TooltipTrigger, UserAvatar, cn } from "@demli/ui";
+import {
+  SectionHeading,
+  ShellListSkeleton,
+  shellRowFocusClass,
+  shellRowIconButtonClass,
+} from "@demli/app-ui";
 import type { PresencePlatform, PresenceStatus, User } from "@demli/types";
 import { useGroupChat, useRemoveGroupChatMember } from "../queries/chat-queries";
 import { useAppTranslation } from "../lib/i18n";
@@ -49,16 +54,18 @@ function MemberRow({
   return (
     <li
       className={cn(
-        "group flex h-10 items-center gap-2.5 rounded-md px-2 transition-colors motion-instant hover:bg-white/[0.04]",
+        // Same roster row as the server member list: 48px, surface-tone hover.
+        "group flex h-12 items-center gap-2.5 rounded-md px-2",
+        "transition-[background-color,opacity] motion-hover hover:bg-hover",
         // Not virtualized — skip layout/paint for rows scrolled out of view (§27).
         "content-visibility-row",
-        offline && "opacity-55",
+        offline && "opacity-55 hover:opacity-100",
       )}
     >
       <ProfileCard userId={member.user.id}>
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+          className={cn("flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-sm text-left", shellRowFocusClass)}
         >
           <UserAvatar
             name={member.user.displayName}
@@ -68,7 +75,7 @@ function MemberRow({
             presence={member.status}
             presencePlatform={member.platform}
           />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg-muted">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg-muted transition-colors motion-hover group-hover:text-fg">
             {member.user.displayName}
           </span>
         </button>
@@ -91,10 +98,10 @@ function MemberRow({
           disabled={removing}
           onClick={onRemove}
           className={cn(
-            "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-fg-faint",
-            "opacity-0 transition-opacity motion-instant hover:bg-danger/15 hover:text-danger",
-            "group-hover:opacity-100 focus-visible:opacity-100",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+            shellRowIconButtonClass,
+            "opacity-0 hover:bg-danger-surface hover:text-danger",
+            "group-hover:opacity-100 pointer-coarse:opacity-100",
+            removing && "opacity-100",
           )}
         >
           {removing ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
@@ -112,7 +119,7 @@ export function GroupChatMemberSidebar(): JSX.Element {
   const presencePlatforms = useChatStore((s) => s.presencePlatforms);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const setAddGroupMemberDialogOpen = useUiStore((s) => s.setAddGroupMemberDialogOpen);
-  const { data } = useGroupChat(activeGroupChatId);
+  const { data, isPending } = useGroupChat(activeGroupChatId);
   const removeMember = useRemoveGroupChatMember(activeGroupChatId);
 
   const ownerId = data?.group.ownerId;
@@ -147,33 +154,28 @@ export function GroupChatMemberSidebar(): JSX.Element {
     <aside
       aria-label={t("desktop:members.groupMembersNav")}
       // Right-anchored panel — hairline + soft lift via `shadow-panel-left`.
-      className="flex w-60 shrink-0 flex-col bg-sidebar shadow-panel-left"
+      className="flex w-60 shrink-0 flex-col bg-sidebar"
     >
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-stroke pl-4 pr-2">
-        <h2 className="text-[13px] font-semibold text-fg-muted">
+      <div className="flex h-16 shrink-0 items-center justify-between pl-4 pr-3">
+        <h2 className="font-display text-base font-semibold text-fg-display">
           {t("desktop:members.headerCount", { count: total })}
         </h2>
         {isOwner && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t("desktop:groupChats.addMember")}
-                onClick={() => setAddGroupMemberDialogOpen(true)}
-                className={cn(
-                  "flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-muted",
-                  "transition-colors motion-instant hover:bg-white/[0.06] hover:text-fg",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                )}
-              >
-                <UserPlus className="size-[18px]" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("desktop:groupChats.addMember")}</TooltipContent>
-          </Tooltip>
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={t("desktop:groupChats.addMember")}
+            tooltipSide="bottom"
+            onClick={() => setAddGroupMemberDialogOpen(true)}
+          >
+            <UserPlus aria-hidden />
+          </IconButton>
         )}
       </div>
       <div className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {isPending && activeGroupChatId !== null && (
+          <ShellListSkeleton label={t("desktop:members.loading")} variant="member" rows={4} />
+        )}
         {sections.map((section) => (
           <section
             key={section.status}
@@ -181,7 +183,7 @@ export function GroupChatMemberSidebar(): JSX.Element {
               status: t(SECTION_KEY[section.status]),
             })}
           >
-            <SectionHeading>
+            <SectionHeading tone="muted">
               {t(SECTION_KEY[section.status])} — {section.rows.length}
             </SectionHeading>
             <ul className="space-y-px">

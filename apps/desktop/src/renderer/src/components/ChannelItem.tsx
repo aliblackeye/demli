@@ -11,7 +11,13 @@ import {
   TooltipTrigger,
   cn,
 } from "@demli/ui";
-import { ActionMenu, type RenderChannelOptions } from "@demli/app-ui";
+import {
+  ActionMenu,
+  shellRowClass,
+  shellRowIconButtonClass,
+  shellUnreadPipClass,
+  type RenderChannelOptions,
+} from "@demli/app-ui";
 import { unreadBadgeText } from "@demli/client-core";
 import type { Channel, ChannelId, GroupId } from "@demli/types";
 import { PERMISSIONS } from "@demli/types";
@@ -156,10 +162,9 @@ function RowIconButton({
             onActivate();
           }}
           className={cn(
-            "grid size-6 shrink-0 place-items-center rounded-md",
-            "text-fg-faint transition-[opacity,color,background-color] motion-instant",
-            "hover:bg-white/[0.06] hover:text-fg",
-            "focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+            shellRowIconButtonClass,
+            // Keyboard focus reveals the control even where hover would not.
+            "focus-visible:pointer-events-auto focus-visible:opacity-100",
             revealClasses,
           )}
         >
@@ -452,10 +457,12 @@ export function ChannelItem({
           // not reorder these are inert no-ops and `draggable` is false.
           {...dragProps}
           className={cn(
-            // Compact 32px rows: the overhaul's 44px rhythm read
-            // as oversized to the founder. 8px radius, surface-lift selected +
-            // hover washes from the shared tokens (not ad-hoc white washes).
-            "group relative flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2",
+            // The shell's one row language (selected coral wash, surface-tone
+            // hover, deeper press, quiet muted) — shared with every other list.
+            shellRowClass({ selected: highlighted, unread: showUnread, muted }),
+            // Compact 32px rows: the overhaul's 44px rhythm read as oversized to
+            // the founder.
+            "group h-8 gap-2 px-2 text-sm",
             // Reserve room on the right for the always-on touch/narrow kebab so it
             // never overlaps the unread/mute/lock badges (kebab is hover-only on a
             // fine pointer, where no reservation is needed).
@@ -463,35 +470,28 @@ export function ChannelItem({
             // Plus one slot per trailing control this row actually renders
             // (voice chat icon, invite icon) — see channelRowControls.
             rowControls.paddingClasses,
-            // Subtle row press (transform-only, CSS not framer — one channel list
-            // can hold many rows, so per-row motion components would be wasteful).
-            "text-sm transition-[color,background-color,transform] motion-instant active:scale-[0.99]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-            highlighted
-              ? "bg-selected text-fg"
-              : showUnread
-                ? "text-fg hover:bg-hover"
-                : "text-fg-muted hover:bg-hover hover:text-fg",
-            // Muted channels read quieter — unless active or carrying a live badge.
-            muted && !highlighted && !showUnread && "opacity-55",
           )}
         >
             {showUnread && !highlighted && !showNumberBadge && (
               <span
                 aria-label={t("desktop:channel.unread")}
-                className={cn(
-                  "absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full",
-                  showMentionBadge ? "bg-accent" : "bg-fg",
-                )}
+                className={shellUnreadPipClass(showMentionBadge)}
               />
             )}
             {/* The glyph is where "your mic is in this room" lives now that the
                 row wash means "your chat is reading this channel". The two
-                states are independent, so they need independent signals. */}
+                states are independent, so they need independent signals — and
+                independent colours: selection is coral (the row wash), a live
+                voice connection is the success green every "connected" state
+                in the app uses. */}
             <Icon
               className={cn(
-                "size-[18px] shrink-0",
-                isVoiceTarget ? "text-accent" : "text-fg-faint",
+                "size-[18px] shrink-0 transition-colors motion-hover",
+                isVoiceTarget
+                  ? "text-success"
+                  : highlighted
+                    ? "text-accent"
+                    : "text-fg-faint group-hover:text-fg-muted",
               )}
               aria-label={isVoiceTarget ? t("desktop:channel.connectedToVoice") : undefined}
             />
@@ -510,7 +510,7 @@ export function ChannelItem({
               <span
                 aria-label={t("desktop:channel.nsfw")}
                 title={t("desktop:channel.nsfw")}
-                className="shrink-0 rounded bg-dnd/15 px-1 py-px text-[9px] font-bold uppercase leading-none tracking-wide text-dnd"
+                className="shrink-0 rounded-[5px] bg-danger-surface px-1 py-0.5 text-badge font-semibold leading-none text-danger"
               >
                 18+
               </span>
@@ -537,6 +537,7 @@ export function ChannelItem({
                 )}
                 {showNumberBadge && countBadge && (
                   <UnreadCountBadge
+                    key={countBadge}
                     text={countBadge}
                     tone={isMentionUnread ? "accent" : "neutral"}
                     aria-label={t("desktop:channel.unread")}

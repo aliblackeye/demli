@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
-import { cn } from "@demli/ui";
-import { toastPop } from "@demli/app-ui";
 import { useAppTranslation } from "../lib/i18n";
 import { setOutboxChannelGoneListener } from "../realtime/outbox";
+import { NoticeToast } from "./NoticeToast";
 
 /** How long the "these messages were not sent" notice lingers. */
 const NOTICE_MS = 8_000;
@@ -22,7 +21,7 @@ const NOTICE_MS = 8_000;
  * in local state rather than a store because nothing else in the app ever needs
  * to read it (§27 — no store subscribers, no re-renders elsewhere).
  */
-export function OutboxChannelGoneToast(): JSX.Element | null {
+export function OutboxChannelGoneToast(): JSX.Element {
   const { t } = useAppTranslation();
   const [count, setCount] = useState(0);
 
@@ -33,41 +32,21 @@ export function OutboxChannelGoneToast(): JSX.Element | null {
     });
   }, []);
 
-  useEffect(() => {
-    if (count === 0) return;
-    const timer = window.setTimeout(() => setCount(0), NOTICE_MS);
-    return () => window.clearTimeout(timer);
-  }, [count]);
-
   return (
     <AnimatePresence>
       {count > 0 && (
-        <div
+        <NoticeToast
           key="outbox-gone"
-          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+          tone="warning"
+          icon={<AlertTriangle />}
+          duration={NOTICE_MS}
+          // A later batch restarts the clock: the count just changed under the reader.
+          timerKey={count}
+          onDismiss={() => setCount(0)}
         >
-          <m.button
-            type="button"
-            role="status"
-            onClick={() => setCount(0)}
-            variants={toastPop}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className={cn(
-              "pointer-events-auto flex max-w-sm items-start gap-2 rounded-lg text-left",
-              "border border-stroke bg-raised px-3.5 py-2.5 text-sm text-fg shadow-lg",
-            )}
-          >
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-idle" />
-            <span>
-              {t("desktop:chat.queueChannelGone")}{" "}
-              <span className="text-fg-muted">
-                ({t("desktop:chat.queuedCount", { count })})
-              </span>
-            </span>
-          </m.button>
-        </div>
+          {t("desktop:chat.queueChannelGone")}{" "}
+          <span className="text-fg-muted">({t("desktop:chat.queuedCount", { count })})</span>
+        </NoticeToast>
       )}
     </AnimatePresence>
   );
