@@ -17,8 +17,9 @@ export const unstable_settings = { initialRouteName: "groups" };
  * have no notification centre, and a dead tab is forbidden (§35).
  *
  * The bar itself is {@link DemliTabBar} — the floating Koyu Masa pill. It sits
- * OVER the screens (content scrolls under it), which is what every tab screen's
- * bottom padding (`TAB_BAR_CONTENT_HEIGHT + insets.bottom`) already reserves.
+ * OVER the screens (content scrolls under it), so each tab screen reserves the
+ * bottom chrome — tab pill plus, during a call, the voice bar stacked above it —
+ * through useTabScreenBottomClearance (lib/use-bottom-chrome).
  *
  * Home owns no native header (its rail spans the full height, so the header
  * lives inside the panel); Friends and You keep the header this navigator

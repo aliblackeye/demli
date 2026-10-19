@@ -2,10 +2,9 @@ import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { Text } from "../ui/Text";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, MoreHorizontal, Search, UserPlus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import { useGroups } from "@/queries/chat-queries";
 import { useHomeShellStore } from "@/stores/home-shell-store";
 import { colors, radius, space } from "@/theme/theme";
@@ -29,7 +28,8 @@ import { ServerChannelList } from "./ServerChannelList";
  */
 export function ServerPanel({ groupId }: { groupId: string }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const selectServer = useHomeShellStore((s) => s.selectServer);
   const [actionsOpen, setActionsOpen] = useState(false);
 
@@ -106,7 +106,7 @@ export function ServerPanel({ groupId }: { groupId: string }) {
 
       <ServerChannelList
         groupId={groupId}
-        contentBottomPadding={insets.bottom + TAB_BAR_CONTENT_HEIGHT + space.xl}
+        contentBottomPadding={bottomClearance + space.xl}
       />
 
       <ServerActionsSheet

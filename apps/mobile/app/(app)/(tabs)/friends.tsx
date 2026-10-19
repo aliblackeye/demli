@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertCircle, Check, MessageSquare, UserPlus, Users, X } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import type { PresenceStatus, User } from "@demli/types";
@@ -20,7 +19,7 @@ import { toast } from "@/components/ui/Toast";
 import type { FieldError } from "@demli/client-core";
 import { addFriendError, validateAddFriendInput } from "@/lib/add-friend";
 import { localizeError, localizeFieldError } from "@/lib/errors";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import {
   useAcceptFriendRequest,
   useFriendRequests,
@@ -114,7 +113,8 @@ function FriendsTab({ onAddFriend }: { onAddFriend: () => void }) {
   const { data: friends, isPending, isError, error, refetch, isRefetching } = useFriends();
   const presence = useChatStore((s) => s.presence);
   const openDm = useOpenDm();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const [openingId, setOpeningId] = useState<string | null>(null);
   /** The friend whose USER menu is open (long press), or null. */
   const [memberTarget, setMemberTarget] = useState<MemberSheetTarget | null>(null);
@@ -186,7 +186,7 @@ function FriendsTab({ onAddFriend }: { onAddFriend: () => void }) {
         keyExtractor={(r) => r.key}
         contentContainerStyle={{
           paddingHorizontal: space.md,
-          paddingBottom: space.xl + insets.bottom + TAB_BAR_CONTENT_HEIGHT,
+          paddingBottom: space.xl + bottomClearance,
           gap: 2,
           flexGrow: 1,
         }}
@@ -259,7 +259,8 @@ function RequestsTab() {
   const outgoing = useFriendRequests("outgoing");
   const accept = useAcceptFriendRequest();
   const remove = useRemoveFriendRequest();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
 
   const inc = incoming.data ?? [];
   const out = outgoing.data ?? [];
@@ -307,7 +308,7 @@ function RequestsTab() {
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: "center",
-          paddingBottom: space.xl * 2 + insets.bottom + TAB_BAR_CONTENT_HEIGHT,
+          paddingBottom: space.xl * 2 + bottomClearance,
         }}
         refreshControl={refreshControl}
       >
@@ -324,7 +325,7 @@ function RequestsTab() {
     <ScrollView
       contentContainerStyle={{
         paddingHorizontal: space.md,
-        paddingBottom: space.xl + insets.bottom + TAB_BAR_CONTENT_HEIGHT,
+        paddingBottom: space.xl + bottomClearance,
         gap: 2,
       }}
       refreshControl={refreshControl}
@@ -408,7 +409,8 @@ function RequestsTab() {
 function AddTab() {
   const { t } = useAppTranslation();
   const send = useSendFriendRequestByUsername();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const [username, setUsername] = useState("");
   /** Field-level rejection (local rule OR server), as a KEY so it re-translates. */
   const [error, setError] = useState<FieldError | null>(null);
@@ -440,7 +442,7 @@ function AddTab() {
     <ScrollView
       contentContainerStyle={{
         padding: space.lg,
-        paddingBottom: space.xl + insets.bottom + TAB_BAR_CONTENT_HEIGHT,
+        paddingBottom: space.xl + bottomClearance,
         gap: space.lg,
       }}
       keyboardShouldPersistTaps="handled"

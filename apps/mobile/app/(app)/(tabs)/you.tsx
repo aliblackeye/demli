@@ -3,7 +3,6 @@ import { RefreshControl, ScrollView, View } from "react-native";
 import Constants from "expo-constants";
 import { Text } from "@/components/ui/Text";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pencil, Phone, Settings, Smile, UserRound, Users, UsersRound } from "lucide-react-native";
 import { visibleCustomStatus } from "@demli/client-core";
 import type { SelectablePresenceStatus } from "@demli/types";
@@ -16,7 +15,7 @@ import { PresenceDot, StatusPicker } from "@/components/StatusPicker";
 import { CountPill } from "@/components/ui/Badge";
 import { Glow } from "@/components/ui/Glow";
 import { Touchable } from "@/components/ui/Touchable";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import { useFriendRequests, useMe } from "@/queries/social-queries";
 import { setSelfPresenceStatus } from "@/realtime/connection";
 import { useAuthStore } from "@/stores/auth-store";
@@ -58,7 +57,8 @@ function RowIcon({ children }: { children: ReactNode }) {
  */
 export default function YouTab() {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const meQuery = useMe();
   const me = meQuery.data;
   const incoming = useFriendRequests("incoming");
@@ -93,7 +93,7 @@ export default function YouTab() {
         contentContainerStyle={{
           paddingHorizontal: space.lg,
           paddingTop: space.sm,
-          paddingBottom: space.xl + insets.bottom + TAB_BAR_CONTENT_HEIGHT,
+          paddingBottom: space.xl + bottomClearance,
           gap: space.md,
         }}
         refreshControl={

@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import type { FriendGroup } from "@demli/types";
@@ -10,7 +9,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Skeleton } from "@/components/Skeleton";
 import type { GroupDetails } from "@/lib/clients";
 import { queryKeys } from "@/lib/query-client";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import { useGroups } from "@/queries/chat-queries";
 import { useChatStore } from "@/stores/chat-store";
 import { useHomeShellStore } from "@/stores/home-shell-store";
@@ -48,7 +47,8 @@ function RailDivider() {
  */
 export function ServerRail({ selectedServerId }: { selectedServerId: string | null }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const queryClient = useQueryClient();
   const selectServer = useHomeShellStore((s) => s.selectServer);
   const [actionsFor, setActionsFor] = useState<FriendGroup | null>(null);
@@ -105,7 +105,7 @@ export function ServerRail({ selectedServerId }: { selectedServerId: string | nu
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           alignItems: "center",
-          paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + space.md,
+          paddingBottom: bottomClearance + space.md,
         }}
       >
         {groups.isPending ? (

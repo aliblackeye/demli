@@ -11,9 +11,12 @@
  * appears and out when it is cleared. Reduced motion jumps every one of these to
  * its end state.
  *
- * Geometry is pinned to TAB_BAR_CONTENT_HEIGHT (lib/tab-bar): the global voice
- * bar and every tab screen's bottom padding already clear exactly that much, so
- * the floating pill fits the space they reserve. The bar slides away while the
+ * Geometry is pinned to TAB_BAR_CONTENT_HEIGHT (lib/tab-bar). The bar is
+ * `position: absolute`, so the scenes run to the screen bottom: the voice bar
+ * stacks on top of it, and every tab screen clears BOTH through lib/bottom-chrome
+ * (useTabScreenBottomClearance) — never by adding the tab height alone, which
+ * left the new-DM button and the last rows under the voice bar during a call.
+ * The bar slides away while the
  * software keyboard is open (the Add-friend field must not be fought for).
  *
  * Navigation semantics are react-navigation's own: `tabPress` is emitted first

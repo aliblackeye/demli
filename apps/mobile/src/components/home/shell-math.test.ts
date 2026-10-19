@@ -32,9 +32,10 @@ describe("tab bar indicator geometry", () => {
     expect(tabIndicatorX(-1, 344, 3)).toBe(0);
   });
 
-  it("fits the floating pill inside the space every tab screen reserves for the bar", () => {
-    // Screens pad their bottom by TAB_BAR_CONTENT_HEIGHT (+ the safe area), and the
-    // global voice bar sits exactly that high: the pill must never be taller.
+  it("fits the floating pill inside the tab bar's content height", () => {
+    // The voice bar stacks at TAB_BAR_CONTENT_HEIGHT above the safe area, so a
+    // taller pill would sit under it. The rest of the bottom chrome (voice bar,
+    // new-DM button, update pill, list padding) is pinned in lib/bottom-chrome.test.
     expect(TAB_PILL_HEIGHT).toBeLessThanOrEqual(TAB_BAR_CONTENT_HEIGHT);
     // A tab is still a 44pt target inside the pill's padding.
     expect(TAB_PILL_HEIGHT - TAB_PILL_PAD * 2).toBeGreaterThanOrEqual(44);

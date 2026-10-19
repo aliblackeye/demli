@@ -3,19 +3,19 @@
  * optional-APK banner — Koyu Masa's raised glass pill (the landing's inset pill
  * line + the soft halo), never a bordered box with a warm lift shadow.
  *
- * It floats above the bottom safe area — and above the floating tab bar on the
- * three tab screens, which it would otherwise cover. It arrives on the toast
+ * It floats above the bottom chrome: the safe area, the floating tab bar on the
+ * three tab screens, and the voice bar while a call is up — it is drawn after
+ * (over) all of them, so anywhere lower would cover the call's mute and leave. It arrives on the toast
  * choreography (12px up + a hair of scale, position spring) and leaves on the
  * fast step; reduced motion drops the travel.
  */
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import Animated, { Easing, FadeOut, Keyframe, ReduceMotion } from "react-native-reanimated";
-import { usePathname } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, type LucideIcon } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { TAB_BAR_CONTENT_HEIGHT, isTabRoute } from "@/lib/tab-bar";
+import { floatingBottom } from "@/lib/bottom-chrome";
+import { useBottomChromeClearance } from "@/lib/use-bottom-chrome";
 import { OVERLAY_MOTION } from "@/theme/motion-presets";
 import { colors, elevation, motion, radius, space } from "@/theme/theme";
 import { Glass } from "../components/ui/Glass";
@@ -54,9 +54,7 @@ export function UpdatePill({
   onDismiss: () => void;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
-  const pathname = usePathname();
-  const clearance = isTabRoute(pathname) ? TAB_BAR_CONTENT_HEIGHT : 0;
+  const clearance = useBottomChromeClearance();
 
   return (
     <View
@@ -66,7 +64,7 @@ export function UpdatePill({
         left: 0,
         right: 0,
         bottom: 0,
-        paddingBottom: insets.bottom + space.md + clearance,
+        paddingBottom: floatingBottom(clearance),
         paddingHorizontal: space.lg,
         alignItems: "center",
       }}
