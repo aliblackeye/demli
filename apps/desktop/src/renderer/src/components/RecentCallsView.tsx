@@ -229,7 +229,7 @@ function RecentCallRow({
       onClick={callBack}
       className={cn(
         iconButtonVariants({ variant: "solid", size: "md" }),
-        "bg-raised text-fg hover:bg-accent hover:text-on-accent active:bg-accent-pressed",
+        "bg-raised text-fg hover:bg-accent hover:text-on-accent active:bg-accent-pressed active:text-on-accent",
         "opacity-0 transition-[opacity,background-color,color] motion-hover group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
       )}
     >

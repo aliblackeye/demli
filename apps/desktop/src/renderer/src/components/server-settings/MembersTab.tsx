@@ -15,7 +15,6 @@ import {
   TooltipContent,
   TooltipTrigger,
   UserAvatar,
-  cn,
 } from "@demli/ui";
 import { EmptyState, FormErrorAlert, springs } from "@demli/app-ui";
 import type { GroupId, Role, RoleId, UserId } from "@demli/types";
