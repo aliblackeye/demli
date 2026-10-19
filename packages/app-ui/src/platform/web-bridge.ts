@@ -41,6 +41,7 @@ import type {
   ProcessAudioEndedEvent,
   ProcessAudioStartRequest,
   ProcessAudioStartResult,
+  ProcessAudioSupport,
   RendererErrorReport,
   TrayVoiceStatus,
   UpdateStatus,
@@ -59,8 +60,18 @@ const WEB_TOKEN_KEY = "demli.token";
  */
 const WEB_VAULT_KEY = "demli.account-vault";
 
-/** Synthetic source id representing the browser's own getDisplayMedia picker. */
-const WEB_DISPLAY_SOURCE_ID = "web:getDisplayMedia";
+/**
+ * Synthetic sources for the browser's own getDisplayMedia picker, one per
+ * display surface. The id carries the surface the picker should OPEN on
+ * (`video.displaySurface`); the browser still lets the user switch panes.
+ * The in-app picker renders its own localized labels for these — `name` is a
+ * plain fallback only.
+ */
+const WEB_DISPLAY_SOURCES: readonly CaptureSource[] = [
+  { id: "web:display:browser", name: "Browser tab", kind: "window", thumbnailDataUrl: "" },
+  { id: "web:display:monitor", name: "Entire screen", kind: "screen", thumbnailDataUrl: "" },
+  { id: "web:display:window", name: "Window", kind: "window", thumbnailDataUrl: "" },
+];
 
 /** Never-fires unsubscribe for the web no-op event subscriptions. */
 const noop = (): void => {};
@@ -155,30 +166,17 @@ export function createWebBridge(options: WebBridgeOptions = {}): PlatformBridge 
     appInfo: { platform: "web", version },
 
     capture: {
-      // The browser owns the source picker (shown by getDisplayMedia itself), so
-      // there is nothing to pre-enumerate. Expose ONE synthetic "share screen"
-      // affordance only when the browser can actually capture; otherwise none.
+      // The browser owns the real source picker (shown by getDisplayMedia
+      // itself). Expose one intent per display surface, only when the browser
+      // can actually capture; otherwise none.
       async listSources(_options?: ListSourcesOptions): Promise<CaptureSource[]> {
         if (!canGetDisplayMedia()) return [];
-        return [
-          {
-            id: WEB_DISPLAY_SOURCE_ID,
-            name: "Screen or window",
-            kind: "screen",
-            thumbnailDataUrl: "",
-          },
-        ];
+        return WEB_DISPLAY_SOURCES.map((source) => ({ ...source }));
       },
       // Web cannot arm a specific source ahead of time; the actual capture flows
-      // through navigator.mediaDevices.getDisplayMedia in the media layer. Echo a
-      // success with no loopback (Windows-only) so a picker UI can proceed.
+      // through navigator.mediaDevices.getDisplayMedia in the media layer.
       async selectSource(request: CaptureSelectionRequest): Promise<CaptureSelectionResult> {
-        return {
-          ok: true,
-          sourceId: request.sourceId,
-          audio: "none",
-          loopbackSupported: false,
-        };
+        return { ok: true, sourceId: request.sourceId };
       },
       async clearSelection(): Promise<void> {},
       onDisplaySourceServed(_listener: (event: DisplaySourceServedEvent) => void): () => void {
@@ -189,6 +187,9 @@ export function createWebBridge(options: WebBridgeOptions = {}): PlatformBridge 
 
     processAudio: {
       // Windows per-process WASAPI loopback has no browser equivalent.
+      async support(): Promise<ProcessAudioSupport> {
+        return { supported: false, reason: "unsupported_platform" };
+      },
       async start(_request: ProcessAudioStartRequest): Promise<ProcessAudioStartResult> {
         return { ok: false, reason: "unsupported_platform" };
       },

@@ -41,9 +41,12 @@ import { api } from "../lib/api-client";
 import {
   loadScreenSharePrefs,
   makeScreenShareAcquire,
+  startOptionsFor,
   superviseFilmAudio,
   type FilmAudioStatus,
   type ScreenShareStartOptions,
+  type ShareAudioNotice,
+  type ShareAudioSource,
 } from "../lib/screen-share";
 import { useMediaSettings } from "./media-settings";
 import {
@@ -60,17 +63,40 @@ import { setLocalScreenPreviewTrack } from "./local-screen-preview-store";
 // imports nothing from here, so this direction stays acyclic.
 import { useWatchPartyStore } from "./watch-party-store";
 
-/** Which ladder tier produced the film audio (mirrors AcquiredScreenShare). */
-type AcquiredFilmSource = "process" | "loopback" | `mixinput:${string}` | null;
+/**
+ * The local share's sound, as the sharer should see it. One object so every
+ * call surface (VoicePanel for voice channels and group calls, CallDock for DM
+ * calls) reads the same truth through the same component.
+ */
+export interface ShareAudioState {
+  /** Measured state of the published share audio (supervisor-owned). */
+  status: FilmAudioStatus;
+  /** Which capture feeds it; null when none is published. */
+  source: ShareAudioSource | null;
+  /** What the sharer must be told (why there is no sound, or a caveat). */
+  notice: ShareAudioNotice | null;
+  /** True when the sharer asked for sound. */
+  requested: boolean;
+}
+
+export const IDLE_SHARE_AUDIO: ShareAudioState = {
+  status: "unavailable",
+  source: null,
+  notice: null,
+  requested: false,
+};
 
 /**
- * Teardown handle for the live film-audio supervisor. Module-level (not store
+ * Teardown handle for the live share-audio supervisor. Module-level (not store
  * state) because it owns an AudioContext + timers — imperative resources that
  * are not React state (§27). Exactly one share can be live at a time, so one
  * handle suffices; it MUST be stopped on every teardown path or the watcher's
  * AudioContext leaks past the share.
  */
 let filmAudioSupervisorStop: (() => void) | null = null;
+
+/** Bumped per startScreenShare so a superseded start never commits its state. */
+let shareAttempt = 0;
 
 function stopFilmAudioSupervisor(): void {
   filmAudioSupervisorStop?.();
@@ -97,27 +123,12 @@ interface VoiceStore extends VoiceState {
    */
   roomLabel: VoiceRoomLabel | null;
   /**
-   * True when the user ASKED to share system/film audio but the loopback capture
-   * produced no usable track, so the share went out video-only — the founder's
-   * "viewers hear nothing" case. Surfaced as a PROMINENT, actionable warning (§26/§35
-   * — no silent dead-behavior) instead of the old console-only note. Set by the
-   * acquire callback, cleared on the next share / when the share ends. Distinct from
-   * `screenShareHasAudio` (which is also false when the user deliberately shared with
-   * audio OFF — that is NOT a failure and must not warn).
+   * The local share's sound (status / source / notice). Reset to
+   * {@link IDLE_SHARE_AUDIO} whenever no share is live. `screenShareHasAudio`
+   * only says "a track exists"; surfaces must read this so a published but
+   * silent track never reads as "viewers hear you" (§35).
    */
-  screenShareSystemAudioFailed: boolean;
-  /** Aktif film-sesi kaynağı etiketi (teşhis; VoicePanel gösterir). */
-  screenShareAudioSource: string | null;
-  /**
-   * Film sesinin GERÇEKTEN duyulup duyulmadığı (supervisor doğrular):
-   *  - "unavailable": hiç film-sesi track'i yok → izleyiciler kesin duymuyor.
-   *  - "searching": track yayında ama henüz ses taşımadı. Paylaşımın hemen
-   *    ardından NORMAL durum — kullanıcı henüz oynat'a basmadı. Hata değil.
-   *  - "live": gerçek sinyal ölçüldü → film izleyicilere gidiyor.
-   * `screenShareHasAudio` yalnız "track var" der; panel bu alanı kullanmalı ki
-   * duyulmayan bir yayın "sesli paylaşıyorsun" diye yalan söylemesin (§35).
-   */
-  screenShareAudioStatus: FilmAudioStatus;
+  screenShareAudio: ShareAudioState;
   /**
    * Join a voice channel (fetches a token, connects the engine). Fire-and-forget.
    * `options.audioBitrateKbps` (the channel's configured mic bitrate, M7c) is
@@ -181,11 +192,11 @@ interface VoiceStore extends VoiceState {
   setScreenShareVolume: (userId: string, volume: number) => void;
   /**
    * Start sharing the given desktop source (screen/window id from the picker)
-   * with the user's share options (quality preset + system-audio toggle, M8).
-   * Acquisition (Electron capture bridge + getDisplayMedia + loopback fallback)
-   * happens in `lib/screen-share`; the engine publishes the tracks with the
-   * preset's encoder ceiling. Omitted options fall back to the persisted
-   * preferences. Fire-and-forget.
+   * with the user's share options (quality preset + share-audio mode).
+   * Acquisition (capture bridge + getDisplayMedia + process audio) happens in
+   * `lib/screen-share`; the engine publishes the tracks with the preset's
+   * encoder ceiling. Omitted options fall back to the persisted preferences.
+   * Fire-and-forget.
    */
   startScreenShare: (sourceId: string, options?: ScreenShareStartOptions) => void;
   /** Stop the local screen share. */
@@ -382,9 +393,7 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
   ...initialVoiceState,
   errorMessage: null,
   roomLabel: null,
-  screenShareSystemAudioFailed: false,
-  screenShareAudioSource: null,
-  screenShareAudioStatus: "unavailable",
+  screenShareAudio: IDLE_SHARE_AUDIO,
 
   join: (channelId, options) => {
     const { roomId, status } = engine.getState();
@@ -481,63 +490,53 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
   },
 
   startScreenShare: (sourceId, options) => {
-    const shareOptions = options ?? loadScreenSharePrefs();
-    // Clear any warning from a previous share before this one arms its capture.
+    const shareOptions = options ?? startOptionsFor(sourceId, loadScreenSharePrefs());
     stopFilmAudioSupervisor();
-    useVoiceStore.setState({
-      screenShareSystemAudioFailed: false,
-      screenShareAudioSource: null,
-      screenShareAudioStatus: "unavailable",
+    useVoiceStore.setState({ screenShareAudio: IDLE_SHARE_AUDIO });
+    const shareToken = ++shareAttempt;
+    // What acquisition decided is STAGED here and committed only after the
+    // engine reports the share live. Writing it during acquisition raced the
+    // state mirror below: every engine notify while the share was still
+    // publishing (screenShareEnabled false) wiped it again, so the "viewers
+    // hear nothing" notice and the self-preview could vanish before showing.
+    let staged: { audio: ShareAudioState; video: MediaStreamTrack } | null = null;
+    const acquire = makeScreenShareAcquire(sourceId, shareOptions, (info, video) => {
+      staged = {
+        audio: {
+          status: "unavailable",
+          source: info.audioSource,
+          notice: info.audioNotice,
+          requested: info.audioRequested,
+        },
+        video,
+      };
     });
-    let acquiredSource: AcquiredFilmSource = null;
-    const baseAcquire = makeScreenShareAcquire(
-      sourceId,
-      shareOptions,
-      ({ systemAudioUnavailable, filmAudioSource }) => {
-        // The user asked for film sound but NO track could be captured at all, so
-        // the share goes out video-only and viewers definitely hear nothing (§35).
-        // Note this is NOT the "published but silent" case — that is the
-        // supervisor's job, because at this moment the user has not pressed play
-        // and no source could possibly be judged audible yet.
-        acquiredSource = filmAudioSource;
-        useVoiceStore.setState({
-          screenShareSystemAudioFailed: systemAudioUnavailable,
-          screenShareAudioSource: filmAudioSource,
-        });
-        if (systemAudioUnavailable) {
-          console.warn("[voice] screen share: system audio unavailable, sharing video-only");
-        }
-      },
-    );
-    // Tee the acquired video track for the optional self-preview (task #72). The
-    // engine still owns the track (publish + stop); we only hold a reference so the
-    // sharer can watch their OWN broadcast on the stage. The state mirror below
-    // clears it on every teardown path (screenShareEnabled → false), so a stopped
-    // track never lingers.
-    const acquire: typeof baseAcquire = async () => {
-      const assets = await baseAcquire();
-      setLocalScreenPreviewTrack(assets.video);
-      return assets;
-    };
     void engine
       .startScreenShare(acquire, { quality: shareOptions.quality })
       .then(() => {
-        // Supervise the film audio for as long as the share lives: confirm it is
-        // actually audible, and hot-swap to a source that IS audible if the
-        // published one stays silent. This is what makes "start share, THEN press
-        // play" work — the flow that made film sound fail three releases running.
         const published = engine.getState();
-        if (!published.screenShareEnabled) return;
+        if (shareToken !== shareAttempt || !published.screenShareEnabled || !staged) return;
+        const audioTrack = engine.getLocalScreenShareAudioTrack();
+        // Tee the published video for the optional self-preview (task #72). The
+        // engine still owns the track; the mirror below clears the reference on
+        // every teardown path.
+        setLocalScreenPreviewTrack(staged.video);
+        useVoiceStore.setState({
+          screenShareAudio: {
+            ...staged.audio,
+            // The engine drops a dead or unpublishable audio track; trust that.
+            source: audioTrack ? staged.audio.source : null,
+          },
+        });
+        // Watch the share sound for as long as the share lives: waiting →
+        // live, or failed if the capture dies. It never swaps the source.
         filmAudioSupervisorStop = superviseFilmAudio({
-          initialTrack: engine.getLocalScreenShareAudioTrack(),
-          initialSource: acquiredSource,
-          replaceAudio: (track) => engine.replaceScreenShareAudio(track),
-          onUpdate: ({ status, filmAudioSource }) => {
+          track: audioTrack,
+          onStatus: (status) => {
             engine.setScreenShareAudioLive(status === "live");
-            useVoiceStore.setState({
-              screenShareAudioStatus: status,
-              screenShareAudioSource: filmAudioSource,
-            });
+            useVoiceStore.setState((prev) => ({
+              screenShareAudio: { ...prev.screenShareAudio, status },
+            }));
           },
         });
       })
@@ -666,15 +665,11 @@ engine.subscribe((s) => {
   }
   useVoiceStore.setState({
     roomId: s.roomId,
-    // The system-audio-failed warning belongs to a LIVE share; once the share ends
-    // (any teardown path flips screenShareEnabled false) it must not linger.
-    ...(s.screenShareEnabled
-      ? {}
-      : {
-          screenShareSystemAudioFailed: false,
-          screenShareAudioStatus: "unavailable" as FilmAudioStatus,
-          screenShareAudioSource: null,
-        }),
+    // Share-sound state belongs to a LIVE share; once it ends (any teardown path
+    // flips screenShareEnabled false) it must not linger. While a share is still
+    // being acquired/published its state is staged, not stored (see
+    // startScreenShare), so this cannot wipe a share that is coming up.
+    ...(s.screenShareEnabled ? {} : { screenShareAudio: IDLE_SHARE_AUDIO }),
     status: s.status,
     micEnabled: s.micEnabled,
     deafened: s.deafened,

@@ -8,7 +8,9 @@
  *  - live connection status (green "Voice/Video connected") + the peer's name;
  *  - camera (preview-before-publish via {@link CameraPreviewDialog}, #101),
  *    screen-share (via {@link SourcePicker}), add-person → seamless group upgrade;
- *  - hang up (or cancel while still ringing out).
+ *  - hang up (or cancel while still ringing out);
+ *  - the same voice-error line and screen-share sound status as the VoicePanel
+ *    ({@link ShareAudioStatus}), so a DM call is never the silent surface.
  *
  * Mic / deafen / voice-settings are NOT duplicated here — they already live in the
  * always-present UserFooter user bar, which drives the same engine. This keeps the
@@ -44,6 +46,7 @@ import { isScreenCaptureAvailable } from "../lib/screen-share";
 import { useVoiceStore } from "../stores/voice-store";
 import { useDmCallSurface } from "../hooks/useDmCallSurface";
 import { AloneCountdownNotice } from "./AloneCountdownNotice";
+import { ShareAudioStatus, VoiceErrorNotice } from "./ShareAudioStatus";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 import { SourcePicker } from "./SourcePicker";
 import { CameraPreviewDialog } from "./CameraPreviewDialog";
@@ -239,6 +242,11 @@ export function CallDock(): JSX.Element | null {
           bu satır o süreyi gösterir. Sayaç yalnız motor kurduğunda görünür (DM
           araması + grup-DM seslisi), sunucu sesli kanalında asla. */}
       <AloneCountdownNotice className="mt-2" />
+
+      {/* Same media notices as the voice-channel panel: a DM call's errors and
+          its screen share's sound status used to be invisible here. */}
+      <VoiceErrorNotice className="mt-2" />
+      <ShareAudioStatus className="mt-2" />
 
       {/* Controls are live from the ringing phase on — the room is already joined.
           Gating is per-control on the ENGINE status, never on the call phase. */}
