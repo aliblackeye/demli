@@ -93,6 +93,7 @@ export const CHANNELS = {
   loading: channel("c-loading", "yavaş-ağ", { position: 3 }),
   error: channel("c-error", "sunucu-hatası", { position: 4 }),
   nsfw: channel("c-nsfw", "gece-kuşları", { nsfw: true, position: 5 }),
+  media: channel("c-media", "fotoğraflar", { position: 6 }),
 } as const;
 
 export const MEMBERS = USERS.map((u) => ({
@@ -130,6 +131,10 @@ export const ATTACHMENT_URLS: Record<string, string> = {
   "att-tea-3": photo(800, 800, "#1d2b3b", "#8aa9d6", "Vapur"),
   "att-pair-1": photo(900, 1200, "#3b2a1d", "#d6b48a", "Masa 1"),
   "att-pair-2": photo(900, 1200, "#2a1d3b", "#b48ad6", "Masa 2"),
+  // The URL signs fine but its BYTES are not an image (expired signature,
+  // 403/404, a cut connection all end the same way: the <img> errors). A corrupt
+  // data URI fails without a network request, so no console noise.
+  "att-broken": "data:image/png;base64,iVBORw0KGgoAAAAAAAAAAA==",
 };
 
 /* ── Messages (#genel, oldest → newest) ──────────────────────────────────── */
@@ -326,3 +331,14 @@ export const DM_STREAM: Channel = {
   position: 0,
   createdAt: BLOCKED_DM.createdAt,
 };
+
+/* ── #fotoğraflar: a picture whose bytes fail after its URL resolved ─────── */
+
+export const MEDIA_MESSAGES: Message[] = [
+  {
+    ...msg("p1", ELIF.id, at(0, 8, 30), "Dünkü akşamdan bir kare:", {
+      attachments: [{ ...attachment("att-broken", "p1", 1200, 800), channelId: CHANNELS.media.id }],
+    }),
+    channelId: CHANNELS.media.id,
+  },
+];

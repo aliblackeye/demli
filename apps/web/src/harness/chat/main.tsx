@@ -16,10 +16,12 @@
  *             channel: slow (slow mode), empty (intro), loading (never
  *             resolves → skeleton), error (500 → error state), nsfw (age gate;
  *             `&age=minor|unknown` for the other two gate stages).
- *   blocked   a DM whose peer YOU blocked — the composer's blocked state.
+ *   blocked   the REAL DmView on an empty DM whose peer YOU blocked — the
+ *             peer intro and the composer's blocked state.
  *   composer  the shared composer with every attachment-draft state, a reply
  *             target and a live slow-mode countdown.
- * `&lang=en` renders English.
+ * `&lang=en` renders English. `&live=1` connects the real realtime client to
+ * ./fake-gateway, so a send walks the real outbox → socket → echo path.
  *
  * The page chrome (scene names) is developer text and stays out of the i18n
  * catalogs on purpose; everything inside the product surface uses real keys.
@@ -27,6 +29,7 @@
 
 import "../../shim/demli-bridge";
 import "./fake-backend";
+import { installFakeGateway } from "./fake-gateway";
 import "../../styles/desktop-shell.css";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -39,7 +42,6 @@ import {
   ComposerServicesProvider,
   MarkdownSlotsProvider,
   MessageComposer as AppMessageComposer,
-  MessageList,
   PlatformProvider,
   createDesktopBridge,
   type ComposerAttachmentDraft,
@@ -47,24 +49,23 @@ import {
 } from "@demli/app-ui";
 import type { Channel, User } from "@demli/types";
 import { ChatView } from "../../../../desktop/src/renderer/src/components/ChatView";
-import { ChatDataProvider } from "../../../../desktop/src/renderer/src/components/ChatDataProvider";
-import { MessageComposer } from "../../../../desktop/src/renderer/src/components/MessageComposer";
-import { TypingIndicator } from "../../../../desktop/src/renderer/src/components/ChatChrome";
+import { DmView } from "../../../../desktop/src/renderer/src/components/DmView";
+import { attachOutbox } from "../../../../desktop/src/renderer/src/realtime/outbox";
+import { startRealtime } from "../../../../desktop/src/renderer/src/realtime/connection";
 import { BlockUserDialog } from "../../../../desktop/src/renderer/src/components/BlockUserDialog";
 import { AttachmentPreviewStrip } from "../../../../desktop/src/renderer/src/components/AttachmentPreviewStrip";
 import { EmojiPicker } from "../../../../desktop/src/renderer/src/components/EmojiPicker";
 import { markdownSlots } from "../../../../desktop/src/renderer/src/components/MarkdownTokens";
 import type { AttachmentDraft } from "../../../../desktop/src/renderer/src/hooks/useAttachmentDrafts";
 import { createDesktopI18n } from "../../../../desktop/src/renderer/src/lib/i18n";
-import { useDms } from "../../../../desktop/src/renderer/src/queries/social-queries";
 import { queryClient, queryKeys } from "../../../../desktop/src/renderer/src/lib/query-client";
 import { useAuthStore } from "../../../../desktop/src/renderer/src/stores/auth-store";
 import { useChatStore } from "../../../../desktop/src/renderer/src/stores/chat-store";
 import {
   ATTACHMENT_URLS,
+  BLOCKED_DM,
   CHANNELS,
   DENIZ,
-  DM_STREAM,
   ELIF,
   GROUP_ID,
   ME,
@@ -88,6 +89,7 @@ const channelKey = (CHANNEL_KEYS.includes(params.get("ch") as keyof typeof CHANN
   ? params.get("ch")
   : "genel") as keyof typeof CHANNELS;
 const age = params.get("age");
+const live = params.get("live") === "1";
 
 /* ── Seed the real stores BEFORE the first render ────────────────────────── */
 
@@ -107,6 +109,7 @@ function seed(): void {
     activeView: "server",
     activeGroupId: GROUP_ID,
     activeChannelId: CHANNELS[channelKey].id,
+    activeDmId: scene === "blocked" ? BLOCKED_DM.id : null,
     memberSidebarOpen: false,
     // Watermark at m15 → the unread line sits above m16 ("YENİ").
     lastReadMessageId: { [CHANNELS.genel.id]: "m15" },
@@ -116,7 +119,9 @@ function seed(): void {
     },
     presence: { [DENIZ.id]: "online", [ELIF.id]: "idle", [MERT.id]: "online", [ZEYNEP.id]: "dnd" },
     slowmodeCooldownUntil: { [CHANNELS.slow.id]: now + 25_000 },
-    outbox: {
+    // Live mode: the real outbox controller owns this projection and would
+    // replace a hand-seeded one on its first publish.
+    outbox: live ? {} : {
       [CHANNELS.genel.id]: [
         {
           nonce: "n-queued",
@@ -141,6 +146,10 @@ function seed(): void {
   });
 }
 seed();
+if (live) {
+  installFakeGateway();
+  void attachOutbox(ME_ID).then(() => startRealtime("harness-token"));
+}
 
 /* ── Scenes ──────────────────────────────────────────────────────────────── */
 
@@ -148,20 +157,9 @@ function ChannelScene(): JSX.Element {
   return <ChatView />;
 }
 
-/** A DM whose peer the viewer blocked: real list + real desktop composer adapter. */
+/** The REAL DmView on an empty DM whose peer the viewer blocked. */
 function BlockedScene(): JSX.Element {
-  // The DM view keeps the DM list in the cache (the composer reads it from
-  // there without fetching) — the harness mounts the same query it does.
-  useDms();
-  return (
-    <div className="flex min-w-0 flex-1 flex-col bg-app">
-      <ChatDataProvider channel={DM_STREAM}>
-        <MessageList key={DM_STREAM.id} />
-      </ChatDataProvider>
-      <TypingIndicator channelId={DM_STREAM.id} />
-      <MessageComposer channel={DM_STREAM} />
-    </div>
-  );
+  return <DmView />;
 }
 
 const DRAFTS: AttachmentDraft[] = [
@@ -325,7 +323,9 @@ function Root(): JSX.Element | null {
     void createDesktopI18n().then(async (instance) => {
       await instance.changeLanguage(params.get("lang") === "en" ? "en" : "tr");
       setI18n(instance);
-      document.documentElement.lang = instance.language;
+      // Deliberately NOT syncing documentElement.lang: the desktop renderer ships
+      // `<html lang="en">` whatever the UI language, and the harness must render
+      // what ships (a CSS `uppercase` would turn Turkish "i" into "I" there).
       (window as unknown as { __chatHarnessReady: boolean }).__chatHarnessReady = true;
     });
   }, []);

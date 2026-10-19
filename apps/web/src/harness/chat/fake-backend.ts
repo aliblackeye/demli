@@ -26,6 +26,7 @@ import {
   GROUP_ID,
   INVITE_PREVIEWS,
   ME,
+  MEDIA_MESSAGES,
   MEMBERS,
   SLOW_MESSAGES,
 } from "./fixtures";
@@ -78,8 +79,28 @@ const MESSAGES_BY_CHANNEL: Record<string, Message[]> = {
   [CHANNELS.slow.id]: SLOW_MESSAGES,
   [CHANNELS.empty.id]: [],
   [CHANNELS.nsfw.id]: [],
+  [CHANNELS.media.id]: MEDIA_MESSAGES,
   [BLOCKED_DM.streamId]: [],
 };
+
+/** Server-side reaction state, seeded from the fixtures and mutated by the verbs. */
+const reactionState = new Map<string, NonNullable<Message["reactions"]>>(
+  GENEL_MESSAGES.map((msg) => [msg.id, (msg.reactions ?? []).map((r) => ({ ...r }))]),
+);
+
+function setReaction(messageId: string, emoji: string, mine: boolean): NonNullable<Message["reactions"]> {
+  const list = reactionState.get(messageId) ?? [];
+  const existing = list.find((r) => r.emoji === emoji);
+  if (existing && existing.reactedByMe !== mine) {
+    existing.count += mine ? 1 : -1;
+    existing.reactedByMe = mine;
+  } else if (!existing && mine) {
+    list.push({ emoji, count: 1, reactedByMe: true });
+  }
+  const next = list.filter((r) => r.count > 0);
+  reactionState.set(messageId, next);
+  return next;
+}
 
 type Handler = (match: RegExpMatchArray, url: URL, body: unknown) => Promise<Response> | Response;
 
@@ -211,6 +232,19 @@ const routes: { method: string; pattern: RegExp; handler: Handler }[] = [
       return apiError(403, "FORBIDDEN", "You can't delete this message.");
     },
   },
+  {
+    // Idempotent reaction verbs (ADR 0011 §4): answer with the message's fresh
+    // summary, like the API, so the client reconciles its optimistic delta.
+    method: "PUT",
+    pattern: /^\/messages\/([^/]+)\/reactions\/([^/]+)$/,
+    handler: (m) => json({ reactions: setReaction(m[1] ?? "", decodeURIComponent(m[2] ?? ""), true) }),
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/messages\/([^/]+)\/reactions\/([^/]+)$/,
+    handler: (m) => json({ reactions: setReaction(m[1] ?? "", decodeURIComponent(m[2] ?? ""), false) }),
+  },
+  { method: "GET", pattern: /^\/friends$/, handler: () => json({ friends: [] }) },
   { method: "GET", pattern: /^\/users\/me\/ignores$/, handler: () => json({ ignores: [] }) },
   { method: "GET", pattern: /^\/users\/me\/nicknames$/, handler: () => json({ nicknames: [] }) },
   {

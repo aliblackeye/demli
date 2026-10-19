@@ -16,7 +16,7 @@
  * playwright-core is deliberately NOT a repo dependency (no lockfile churn for a
  * dev check) — point PLAYWRIGHT_CORE at any install. Exit code 1 on any failure.
  */
-/* global console, process, document, window, getComputedStyle */
+/* global console, process, document, window, getComputedStyle, requestAnimationFrame, performance, MutationObserver */
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 
@@ -98,12 +98,27 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
 
   // Unread line + its coral chip.
   const unread = await page.evaluate(() => {
-    const sep = [...document.querySelectorAll('[role="separator"]')].find((el) => el.querySelector(".uppercase"));
-    if (!sep) return null;
-    const chip = sep.querySelector(".uppercase");
-    return { text: chip.textContent, bg: getComputedStyle(chip).backgroundColor, ink: getComputedStyle(chip).color };
+    const sep = document.querySelector('[role="separator"][aria-label="Yeni mesajlar buradan başlıyor"]');
+    const chip = sep?.querySelector("span");
+    if (!chip) return null;
+    const cs = getComputedStyle(chip);
+    return { lang: document.documentElement.lang, text: chip.textContent, shown: chip.innerText, transform: cs.textTransform, bg: cs.backgroundColor, ink: cs.color };
   });
   check("unread divider renders with the 'Yeni' chip", unread?.text === "Yeni", JSON.stringify(unread));
+  // The page runs under lang="en" exactly like the desktop renderer: a CSS
+  // uppercase would show "YENI" there. Sentence case, no engine case mapping.
+  check(
+    "Turkish labels are never CSS-uppercased (chip reads 'Yeni' under lang=en, as shipped)",
+    unread?.lang === "en" && unread?.transform === "none" && unread?.shown === "Yeni",
+    JSON.stringify(unread),
+  );
+  const caps = await page.evaluate(() =>
+    [...document.querySelectorAll("main *")]
+      .filter((el) => el.childElementCount === 0 && el.textContent.trim() && getComputedStyle(el).textTransform === "uppercase")
+      .map((el) => el.textContent.trim())
+      .slice(0, 5),
+  );
+  check("no CSS-uppercased text anywhere in the chat surface", caps.length === 0, caps.join(" | "));
   check("unread chip is solid coral with dark ink", unread?.bg === TOKENS.accent && unread?.ink === "rgb(23, 23, 23)", JSON.stringify(unread));
 
   const dividers = await page.evaluate(() =>
@@ -193,6 +208,41 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
   check("reaction pills are fully rounded", reactions.length > 0 && reactions.every((r) => r.radius === "50px"), JSON.stringify(reactions[0]));
   check("my reaction = accent-soft wash", mine?.bg === TOKENS.accentSurface, JSON.stringify(mine));
   check("others' reaction = white wash (stays visible on a hovered row)", theirs?.bg === "rgba(255, 255, 255, 0.06)", JSON.stringify(theirs));
+
+  // A MOUSE click inside a row (a reaction pill) focuses inside it, but must not
+  // pin the toolbar once the pointer leaves - only keyboard focus may.
+  await page.evaluate(() => document.querySelector('[data-message-id="m10"]')?.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(400);
+  const fire = page.locator('[data-message-id="m10"] button[aria-pressed]').first();
+  await fire.click();
+  await page.waitForTimeout(150);
+  await page.mouse.move(700, 5);
+  await page.waitForTimeout(450);
+  const sticky = await page.evaluate(() => {
+    const row = document.querySelector('[data-message-id="m10"]');
+    const bar = [...row.children].find((c) => c.className.includes("absolute -top-4"));
+    const cs = getComputedStyle(bar);
+    return { focusInRow: row.contains(document.activeElement), opacity: cs.opacity, vis: cs.visibility };
+  });
+  check(
+    "after a mouse click in a row, the toolbar hides once the pointer leaves",
+    sticky.focusInRow && sticky.opacity === "0" && sticky.vis === "hidden",
+    JSON.stringify(sticky),
+  );
+  await fire.click(); // restore the reaction
+  await page.mouse.move(700, 5);
+  // Keyboard focus inside the row still reveals it (the focus-visible path).
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(400);
+  const kb = await page.evaluate(() => {
+    const row = document.activeElement?.closest("[data-message-id]");
+    if (!row) return null;
+    const bar = [...row.children].find((c) => c.className.includes("absolute -top-4"));
+    return { id: row.getAttribute("data-message-id"), focusVisible: document.activeElement.matches(":focus-visible"), opacity: bar ? getComputedStyle(bar).opacity : null };
+  });
+  check("keyboard focus inside a row still reveals its toolbar", kb?.focusVisible === true && kb.opacity === "1", JSON.stringify(kb));
+  await page.mouse.click(700, 5);
 
   // ↑ in the empty composer edits my last message; Esc hands focus back.
   const composer = page.locator('textarea[aria-label="#genel kanalına mesaj yaz"]');
@@ -291,18 +341,6 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
   await search.press("Escape");
   await page.waitForTimeout(300);
 
-  // Load older: scroll to the top → skeleton row → older page.
-  await page.evaluate(() => {
-    const list = document.querySelector('[aria-label="genel mesajları"]');
-    list.scrollTop = 0;
-  });
-  await page.waitForTimeout(250);
-  const olderSkeleton = await page.locator('[aria-label="Daha eski mesajlar yükleniyor…"]').count();
-  check("scrolling to the top shows the older-page skeleton", olderSkeleton === 1);
-  await page.waitForTimeout(1600);
-  const requests = await page.evaluate(() => window.__chatHarness.requests);
-  check("an older page was fetched with a cursor", requests.filter((r) => r.startsWith("GET /channels/c-genel/messages")).length >= 2);
-
   // The 3-up grid + lightbox.
   await page.evaluate(() => {
     const list = document.querySelector('[aria-label="genel mesajları"]');
@@ -370,6 +408,26 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
   await page.waitForTimeout(500);
   check("Esc closes the lightbox after its fade", (await page.locator('[role="dialog"]').count()) === 0);
 
+  // Clicking the dimmed backdrop BESIDE the picture closes it (not only the gutters).
+  await page.locator('[data-message-id="m08"] button[aria-label="Resmi aç"]').first().click();
+  await page.waitForSelector('[role="dialog"] img');
+  await page.waitForTimeout(600);
+  const imgBox = await page.locator('[role="dialog"] img').boundingBox();
+  const besideX = Math.round(imgBox.x - 60);
+  const besideY = Math.round(imgBox.y + imgBox.height / 2);
+  const hit = await page.evaluate(([x, y]) => String(document.elementFromPoint(x, y)?.className ?? ""), [besideX, besideY]);
+  await page.mouse.click(imgBox.x + imgBox.width / 2, imgBox.y + imgBox.height / 2);
+  await page.waitForTimeout(300);
+  const openAfterImageClick = (await page.locator('[role="dialog"]').count()) === 1;
+  check("a click on the picture keeps the lightbox open", openAfterImageClick);
+  await page.mouse.click(besideX, besideY);
+  await page.waitForTimeout(500);
+  check(
+    "a click on the dimmed backdrop beside the picture closes the lightbox",
+    besideX > 64 && (await page.locator('[role="dialog"]').count()) === 0,
+    `x=${besideX} (gutter ends at 64) hit=${hit.slice(0, 50)}`,
+  );
+
   // Broken attachment = honest error with retry.
   await page.evaluate(() => document.querySelector('[data-message-id="m15"]')?.scrollIntoView({ block: "center" }));
   await page.waitForTimeout(800);
@@ -377,6 +435,43 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
   await page.screenshot({ path: `${SHOTS}/11-history-attachments.png` });
 
   await close(s, "channel");
+}
+
+/* ── 1b. Load older, on a fresh page (section 1's jumps page the history) ── */
+{
+  const s = await open("?scene=channel&ch=genel");
+  // Load older: scroll to the top → skeleton row → older page. Sampled every
+  // frame: the message at the top of the viewport must not move at all — not
+  // while the skeleton row is in, and not in the frame the page lands.
+  const older = await s.page.evaluate(async () => {
+    const list = document.querySelector('[aria-label="genel mesajları"]');
+    list.scrollTop = 0;
+    await new Promise((r) => requestAnimationFrame(r));
+    const anchor = [...list.querySelectorAll("[data-message-id]")][0];
+    const id = anchor?.getAttribute("data-message-id");
+    const frames = [];
+    const t0 = performance.now();
+    while (performance.now() - t0 < 2200) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const el = document.querySelector(`[data-message-id="${id}"]`);
+      frames.push({
+        top: el ? Math.round(el.getBoundingClientRect().top) : null,
+        skeleton: Boolean(document.querySelector('[aria-label="Daha eski mesajlar yükleniyor…"]')),
+      });
+    }
+    const tops = frames.map((f) => f.top);
+    return { id, first: tops[0], min: Math.min(...tops), max: Math.max(...tops), skeletonFrames: frames.filter((f) => f.skeleton).length, frames: frames.length };
+  });
+  check("scrolling to the top shows the older-page skeleton", older.skeletonFrames > 0, JSON.stringify(older));
+  check(
+    "loading an older page never moves the visible thread (skeleton in, page landing)",
+    older.max - older.min <= 1 && older.skeletonFrames < older.frames,
+    `${older.id}: top ${older.min}..${older.max} over ${older.frames} frames`,
+  );
+  const requests = await s.page.evaluate(() => window.__chatHarness.requests);
+  check("an older page was fetched with a cursor", requests.filter((r) => r.startsWith("GET /channels/c-genel/messages")).length >= 2);
+
+  await close(s, "load-older");
 }
 
 /* ── 2. Every other channel state ─────────────────────────────────────────── */
@@ -439,12 +534,108 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
   const status = await s.page.locator('main [role="status"]').last().innerText();
   check("blocked DM: the composer says who you blocked and offers unblock", status.includes("Can adlı kişiyi engelledin"), status);
   check("blocked DM: no textarea to type into", (await s.page.locator("main textarea").count()) === 0);
+  const intro = await s.page.evaluate(() => {
+    const h = document.querySelector("main h2");
+    const block = h?.parentElement;
+    return {
+      title: h?.textContent,
+      body: block?.querySelector("p")?.textContent,
+      avatar: Boolean(block?.querySelector('[class*="size-20"]')),
+      hash: block ? block.textContent.includes("#") : true,
+      font: h ? getComputedStyle(h).fontFamily : "",
+    };
+  });
+  check(
+    "empty DM opens on the peer (avatar + name, DM copy, no '#')",
+    intro.title === "Can" && intro.avatar && !intro.hash && Boolean(intro.body?.includes("özel konuşmanızın")) && intro.font.includes("Onest"),
+    JSON.stringify(intro),
+  );
   await s.page.screenshot({ path: `${SHOTS}/17-blocked.png` });
   await s.page.click('button:has-text("Engeli kaldır")');
   await s.page.waitForTimeout(500);
   check("unblock goes through the ONE confirmation dialog", (await s.page.locator('[role="dialog"]').count()) === 1);
   await s.page.screenshot({ path: `${SHOTS}/18-unblock-confirm.png` });
   await close(s, "blocked");
+}
+
+/* ── 3b. An image whose URL resolved but whose bytes failed ─────────────── */
+{
+  const s = await open("?scene=channel&ch=media");
+  const { page } = s;
+  await page.waitForTimeout(600);
+  const tile = await page.evaluate(() => {
+    const row = document.querySelector('[data-message-id="p1"]');
+    const alert = row?.querySelector('[role="alert"]');
+    return {
+      alert: alert?.textContent ?? null,
+      retry: Boolean(alert?.querySelector("button")),
+      pulsing: Boolean(row?.querySelector(".animate-pulse")),
+      img: Boolean(row?.querySelector('button[aria-label="Resmi aç"] img')),
+    };
+  });
+  check(
+    "broken image bytes: error tile with retry, no endless pulse",
+    Boolean(tile.alert) && tile.retry && !tile.pulsing && !tile.img,
+    JSON.stringify(tile),
+  );
+  await page.screenshot({ path: `${SHOTS}/17b-broken-image-bytes.png` });
+  const signs = () => page.evaluate(() => window.__chatHarness.requests.filter((r) => r.includes("/attachments/urls")).length);
+  const signsBefore = await signs();
+  await page.click('[data-message-id="p1"] [role="alert"] button');
+  await page.waitForTimeout(800);
+  const signsAfter = await signs();
+  check(
+    "retry re-signs the URL (a new sign request), then reports the failure again",
+    signsAfter === signsBefore + 1 && (await page.locator('[data-message-id="p1"] [role="alert"]').count()) === 1,
+    `${signsBefore} → ${signsAfter}`,
+  );
+  await close(s, "broken-bytes");
+}
+
+/* ── 3c. A real send: outbox → socket → echo, one arrival motion ───────── */
+{
+  const s = await open("?scene=channel&ch=empty&live=1");
+  const { page } = s;
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    window.__arrivals = [];
+    const seen = new WeakSet();
+    const record = (el) => {
+      if (el.nodeType !== 1) return;
+      for (const node of [el, ...el.querySelectorAll("*")]) {
+        if (typeof node.className === "string" && node.className.includes("animate-arrival") && !seen.has(node)) {
+          seen.add(node);
+          window.__arrivals.push({ t: Math.round(performance.now()), id: node.closest("[data-message-id]")?.getAttribute("data-message-id") ?? null });
+        }
+      }
+    };
+    new MutationObserver((list) => {
+      for (const m of list) {
+        if (m.type === "childList") m.addedNodes.forEach(record);
+        else record(m.target);
+      }
+    }).observe(document.querySelector("main"), { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+  });
+  const composer = page.locator("textarea[aria-autocomplete]");
+  await composer.click();
+  await composer.type("Akşam sekizde Moda'dayım.");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1300);
+  const sent = await page.evaluate(() => ({
+    ids: [...document.querySelectorAll("[data-message-id]")].map((r) => r.getAttribute("data-message-id")),
+    arrivals: window.__arrivals,
+  }));
+  check(
+    "a send renders optimistically, then confirms under the server id",
+    Boolean(sent.arrivals[0]?.id?.startsWith("outbox-")) && sent.ids.length === 1 && Boolean(sent.ids[0]?.startsWith("m-live-")),
+    `${sent.arrivals[0]?.id} → ${sent.ids.join(",")}`,
+  );
+  check(
+    "the arrival motion starts ONCE for one send (no remount at confirmation)",
+    sent.arrivals.length === 1,
+    JSON.stringify(sent.arrivals),
+  );
+  await close(s, "live-send");
 }
 
 /* ── 4. Composer states ──────────────────────────────────────────────────── */
@@ -480,9 +671,9 @@ async function close({ context, page, logs }, label, { reducedMotion = false } =
 {
   const s = await open("?scene=channel&ch=genel&lang=en");
   const text = await s.page.locator("main").innerText();
-  // innerText applies the chip's text-transform, hence "NEW".
   const placeholder = await s.page.locator("textarea[aria-autocomplete]").getAttribute("placeholder");
-  check("EN: 'NEW' chip, 'Today' divider, English composer", text.includes("NEW") && text.includes("Today") && placeholder === "Message #genel", `${placeholder}`);
+  const chip = await s.page.evaluate(() => document.querySelector('[role="separator"][aria-label="New messages start here"] span')?.innerText);
+  check("EN: 'New' chip (sentence case), 'Today' divider, English composer", chip === "New" && text.includes("Today") && placeholder === "Message #genel", `${chip} / ${placeholder}`);
   await s.page.screenshot({ path: `${SHOTS}/21-english.png` });
   await close(s, "english");
 }
