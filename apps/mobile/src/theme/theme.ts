@@ -281,6 +281,13 @@ export const elevation = {
     shadowRadius: 12,
     elevation: 8,
   },
+  /**
+   * The landing's pill signature — a 1px inset line along the bottom edge
+   * (design system §1.5). Not a lift: the one "shadow" Koyu Masa keeps, drawn
+   * with RN 0.76+ `boxShadow`. Desktop writes the same value inline on the
+   * veil Badge (`shadow-[inset_0_-1px_0_rgb(38_49_64/0.32)]`).
+   */
+  pillInset: { boxShadow: "inset 0 -1px 0 rgba(38,49,64,0.32)" },
   /** A pill or card lifted just off the surface. */
   raised: {
     shadowColor: SHADOW_COLOR,
