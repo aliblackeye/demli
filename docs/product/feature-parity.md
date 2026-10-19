@@ -1548,6 +1548,12 @@ token değişimi bunlara ulaşmıyor (liste tasarım dokümanı §7.3). Mobil sp
 | Üye menüsü: "Moderasyon" bölüm etiketi, rol seçimi gerçek `menuitemcheckbox` | ✅ | — | |
 | Özel durum: üye listesi önizlemesi + kesin temizlenme saati | ✅ | ⛔ Dalga 4 | |
 | Banner yedek rengi: eski sıcak taban (`#1a0806`) kalktı, kişinin tonu + tek mercan ışık | ✅ | ⛔ Dalga 4 | |
+| Profil kartı pencereye sığar: en fazla Radix'in ölçtüğü yükseklik, orta bölüm kayar (alt kenar solar), DM kutusu / "Profili düzenle" sabit | ✅ | — (mobilde tam ekran sayfa) | 1280×800 ve 940×560'ta 8 kartın hepsi ekran içinde |
+| Tehlikeli onaylar (at/yasakla/arkadaşlıktan çıkar/engelle, hesap silme) İptal'e odaklı açılır; açılışta Enter hiçbir şey yapmaz | ✅ | — | yasaklama sebebi alanına odaklanıp tek Enter'la yasaklıyordu |
+| Hesap silme + kaydedilmemiş-değişiklik uyarısı ortak tehlike kabuğunda (ikon diski, sonuç maddeleri, darda alt sayfa) | ✅ | — | `ConfirmLayer` kaldırıldı; tek onay görünümü |
+| Kullanıcı/moderasyon diyalogları her açılışta temiz (vazgeçilen taslak, eski hata, son süre seçimi geri gelmez) | ✅ | — | özel not sorgusu yalnız diyalog açıkken çalışır |
+| Kırpma önizlemesi: async WebP (`toBlob`) — sürüklerken uzun görev yok; yüklenirken/hatada mevcut foto kalır, sütun söner | ✅ | ⛔ Dalga 4 | eski `toDataURL` 54–79 ms uzun görev üretiyordu |
+| Avatar foto geçişi yalnız gerçek ilk yüklemede; çözülmüş URL ilk karede opak (sanal mesaj listesinde kanal değişiminde yanıp sönme yok), `src` değişimi baş harfe düşmeden yer değiştirir | ✅ | — | `packages/ui` eklemeli |
 
 **Doğruluk düzeltmesi:** yasaklama metni "Yasağı sunucu ayarlarından kaldırabilirsin" diyordu;
 masaüstünde yasak listesi/kaldırma ekranı YOK (API `GET/DELETE /groups/:id/bans` var). Metin
