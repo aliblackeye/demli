@@ -1,0 +1,172 @@
+diff --git a/android/src/main/java/com/livekit/reactnative/LiveKitReactNative.kt b/android/src/main/java/com/livekit/reactnative/LiveKitReactNative.kt
+index 01b6e76440744b5ea670e8fc942d74935d281c44..96c014878dd76850c0b84f09068ed5976e989a33 100644
+--- a/android/src/main/java/com/livekit/reactnative/LiveKitReactNative.kt
++++ b/android/src/main/java/com/livekit/reactnative/LiveKitReactNative.kt
+@@ -77,8 +77,55 @@ object LiveKitReactNative {
+ 
+     }
+ 
++    private const val AUDIO_PREFS = "livekit_react_native_audio"
++    private const val KEY_HARDWARE_AUDIO_PROCESSING = "hardware_audio_processing"
++
++    /**
++     * Demli patch: whether the platform (hardware) echo canceller actually runs
++     * in the live ADM. False means WebRTC's own software AEC runs instead —
++     * either by choice, or because libwebrtc refuses the platform effect (the
++     * AOSP AEC is blocklisted and silently replaced by the software one).
++     */
++    @JvmStatic
++    var hardwareAudioProcessingActive: Boolean = false
++        private set
++
++    /** Demli patch: the same for the platform noise suppressor. */
++    @JvmStatic
++    var hardwareNoiseSuppressionActive: Boolean = false
++        private set
++
++    /**
++     * Demli patch: the persisted choice read by [setupAdm]. The ADM is built once
++     * per React instance, so a change applies on the next app start.
++     */
++    @JvmStatic
++    fun isHardwareAudioProcessingPreferred(context: Context): Boolean =
++        context.applicationContext
++            .getSharedPreferences(AUDIO_PREFS, Context.MODE_PRIVATE)
++            .getBoolean(KEY_HARDWARE_AUDIO_PROCESSING, true)
++
++    @JvmStatic
++    fun setHardwareAudioProcessingPreferred(context: Context, preferred: Boolean) {
++        context.applicationContext
++            .getSharedPreferences(AUDIO_PREFS, Context.MODE_PRIVATE)
++            .edit()
++            .putBoolean(KEY_HARDWARE_AUDIO_PROCESSING, preferred)
++            .commit()
++    }
++
+     private fun setupAdm(context: Context) {
+-        val useHardwareAudioProcessing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
++        val useHardwareAudioProcessing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
++            isHardwareAudioProcessingPreferred(context)
++        hardwareAudioProcessingActive = useHardwareAudioProcessing &&
++            JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported()
++        hardwareNoiseSuppressionActive = useHardwareAudioProcessing &&
++            JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported()
++        android.util.Log.i(
++            "LiveKitReactNative",
++            "setupAdm: requested=$useHardwareAudioProcessing hardwareAec=$hardwareAudioProcessingActive " +
++                "hardwareNs=$hardwareNoiseSuppressionActive sdk=${Build.VERSION.SDK_INT}"
++        )
+ 
+         adm = JavaAudioDeviceModule.builder(context)
+             .setUseHardwareAcousticEchoCanceler(useHardwareAudioProcessing)
+diff --git a/android/src/main/java/com/livekit/reactnative/LivekitReactNativeModule.kt b/android/src/main/java/com/livekit/reactnative/LivekitReactNativeModule.kt
+index f78e72896c2acc6ff60a44b1d330c17fd9fc0931..15b9ffffefdec156cd12b85621cb6990c4f3eb23 100644
+--- a/android/src/main/java/com/livekit/reactnative/LivekitReactNativeModule.kt
++++ b/android/src/main/java/com/livekit/reactnative/LivekitReactNativeModule.kt
+@@ -1,6 +1,9 @@
+ package com.livekit.reactnative
+ 
+ import android.media.AudioAttributes
++import android.os.Build
++import android.os.Handler
++import android.os.Looper
+ import android.util.Log
+ import com.facebook.react.bridge.Arguments
+ import com.facebook.react.bridge.Promise
+@@ -18,6 +21,8 @@ import com.livekit.reactnative.audio.processing.AudioSinkProcessor
+ import com.livekit.reactnative.audio.processing.MultibandVolumeProcessor
+ import com.livekit.reactnative.audio.processing.VolumeProcessor
+ import com.oney.WebRTCModule.WebRTCModuleOptions
++import com.twilio.audioswitch.AudioDevice
++import org.webrtc.audio.JavaAudioDeviceModule
+ import org.webrtc.audio.WebRtcAudioTrackHelper
+ import java.lang.Thread.sleep
+ import kotlin.concurrent.thread
+@@ -31,6 +36,30 @@ class LivekitReactNativeModule(reactContext: ReactApplicationContext) : ReactCon
+ 
+     val audioSinkManager = AudioSinkManager(reactContext)
+     val audioManager = AudioSwitchManager(reactContext.applicationContext)
++    private val mainHandler = Handler(Looper.getMainLooper())
++
++    init {
++        // Demli patch: surface audioswitch route changes (user pick, headset or
++        // Bluetooth plugged/unplugged) to JS instead of the upstream no-op.
++        audioManager.audioDeviceChangeListener = { devices, selected ->
++            emitAudioOutputChanged(devices, selected)
++            Unit
++        }
++    }
++
++    private fun emitAudioOutputChanged(devices: List<AudioDevice>, selected: AudioDevice?) {
++        if (!reactApplicationContext.hasActiveReactInstance()) return
++        val event = Arguments.createMap().apply {
++            putString("selected", selected?.let { AudioDeviceKind.fromAudioDevice(it)?.typeName })
++            putArray(
++                "available",
++                Arguments.makeNativeArray(devices.mapNotNull { AudioDeviceKind.fromAudioDevice(it)?.typeName })
++            )
++        }
++        reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
++            .emit(AUDIO_OUTPUT_CHANGED_EVENT, event)
++    }
++
+     override fun getName(): String {
+         return "LivekitReactNativeModule"
+     }
+@@ -139,6 +168,47 @@ class LivekitReactNativeModule(reactContext: ReactApplicationContext) : ReactCon
+         promise.resolve(null)
+     }
+ 
++    /**
++     * Demli patch: the route audioswitch is actually playing on. Posted to the
++     * main looper (where every audioswitch call runs), so it reads the state
++     * AFTER any selectAudioOutput queued before it.
++     */
++    @ReactMethod
++    fun getSelectedAudioOutput(promise: Promise) {
++        mainHandler.post {
++            val kind = audioManager.selectedAudioDevice()?.let { AudioDeviceKind.fromAudioDevice(it) }
++            promise.resolve(kind?.typeName)
++        }
++    }
++
++    /**
++     * Demli patch: echo canceller / noise suppressor state for the settings UI.
++     * Availability uses libwebrtc's own check, which rejects the AOSP effects it
++     * replaces with the software ones, so "available" means a choice exists.
++     */
++    @ReactMethod
++    fun getAudioProcessingInfo(promise: Promise) {
++        val info = Arguments.createMap().apply {
++            putBoolean("hardwareActive", LiveKitReactNative.hardwareAudioProcessingActive)
++            putBoolean("hardwareNsActive", LiveKitReactNative.hardwareNoiseSuppressionActive)
++            putBoolean(
++                "hardwarePreferred",
++                LiveKitReactNative.isHardwareAudioProcessingPreferred(reactApplicationContext)
++            )
++            putBoolean("hardwareSupported", Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
++            putBoolean("aecAvailable", JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
++            putBoolean("nsAvailable", JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
++        }
++        promise.resolve(info)
++    }
++
++    /** Demli patch: persist the choice; the ADM picks it up on the next app start. */
++    @ReactMethod
++    fun setHardwareAudioProcessingPreferred(preferred: Boolean, promise: Promise) {
++        LiveKitReactNative.setHardwareAudioProcessingPreferred(reactApplicationContext, preferred)
++        promise.resolve(null)
++    }
++
+     @ReactMethod(isBlockingSynchronousMethod = true)
+     fun createAudioSinkListener(pcId: Int, trackId: String): String {
+         val processor = AudioSinkProcessor(reactApplicationContext)
+@@ -232,4 +302,8 @@ class LivekitReactNativeModule(reactContext: ReactApplicationContext) : ReactCon
+     override fun invalidate() {
+         LiveKitReactNative.invalidate(reactApplicationContext)
+     }
++
++    companion object {
++        const val AUDIO_OUTPUT_CHANGED_EVENT = "LK_AUDIO_OUTPUT_CHANGED"
++    }
+ }

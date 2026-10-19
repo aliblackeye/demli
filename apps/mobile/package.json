@@ -39,6 +39,7 @@
     "@demli/types": "workspace:*",
     "expo": "^57.0.0",
     "expo-audio": "~57.0.0",
+    "expo-blur": "~57.0.0",
     "expo-build-properties": "~57.0.3",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.3",
@@ -66,10 +67,13 @@
     "lucide-react-native": "^1.23.0",
     "react": "19.2.3",
     "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-svg": "15.15.4",
     "react-native-webview": "13.16.1",
+    "react-native-worklets": "0.10.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

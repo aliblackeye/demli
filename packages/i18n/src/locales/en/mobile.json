@@ -886,6 +886,7 @@
     "routeHeadset": "Headphones",
     "routeBluetooth": "Bluetooth",
     "routeAutomatic": "Automatic",
+    "outputSpeakerEchoHint": "If the other side hears their own voice, switch to the earpiece or headphones: sound from the loudspeaker can travel back into the phone's microphone.",
     "errors": {
       "micPermission": "Microphone access was denied. Allow it in your system settings to talk.",
       "cameraPermission": "Camera access was denied. Allow it in your system settings to turn your camera on.",
@@ -1101,6 +1102,19 @@
     "mediaCancel": "Keep Call",
     "applyNote": "Applies the next time you join a voice room.",
     "activeHint": "You're in a voice room — this takes effect the next time you connect; your current call is left untouched."
+  },
+  "echoCanceller": {
+    "section": "Echo canceller",
+    "optionDevice": "Phone's built-in",
+    "optionSoftware": "WebRTC software",
+    "deviceDesc": "Default. Your phone maker's hardware canceller does the work, and on most phones it gives the cleanest result. On some models the other side can hear their own voice while you're on loudspeaker.",
+    "softwareDesc": "Your phone's hardware echo canceller and noise suppressor are switched off, and WebRTC's software canceller cleans up echo and noise instead. Try this if the other side hears their own voice while you're on loudspeaker.",
+    "restartPending": "Takes effect after you fully close and reopen the app. Your previous choice is still running.",
+    "applied": "This choice is active now.",
+    "noHardware": "This phone has no hardware echo canceller, so WebRTC's software canceller always handles echo.",
+    "oldAndroid": "On Android versions older than 10, WebRTC's software canceller always handles echo.",
+    "saveFailed": "Couldn't save your choice, so nothing changed. Try again in a moment.",
+    "aecOff": "Echo Cancellation is off in your mic settings, so nothing is cancelling echo right now. On loudspeaker the other side may hear their own voice. Turn it back on unless you're using headphones."
   },
   "video": {
     "section": "Video",

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight, Hash, Info, MonitorSmartphone, RefreshCw, ShieldBan } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { AudioProfileSettings } from "@/components/AudioProfileSettings";
+import { EchoCancellerSettings } from "@/components/EchoCancellerSettings";
 import { NotificationPermissionRow } from "@/components/NotificationPermissionRow";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
@@ -199,6 +200,8 @@ export default function SettingsScreen() {
         <MicSettings />
 
         <AudioProfileSettings />
+
+        <EchoCancellerSettings />
 
         <VideoSettings />
 

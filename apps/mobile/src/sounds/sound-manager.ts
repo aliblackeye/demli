@@ -29,6 +29,7 @@
  */
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import { runAudioModeChange } from "./audio-mode-guard";
 import { useSoundSettings } from "./sound-settings";
 
 /** Every UI sound cue the app can play (same set + names as desktop). */
@@ -90,13 +91,20 @@ export function setSoundsSuppressed(next: boolean): void {
  * setup — one config path for every expo-audio playback in the app.
  */
 let audioModeConfigured = false;
-export async function ensureAudioMode(): Promise<void> {
-  if (audioModeConfigured) return;
-  audioModeConfigured = true;
+let audioModePending: Promise<void> | null = null;
+export function ensureAudioMode(): Promise<void> {
+  if (audioModeConfigured) return Promise.resolve();
   // iOS: leave the AVAudioSession to LiveKit (and ogg won't decode there).
-  if (Platform.OS !== "android") return;
-  try {
-    await setAudioModeAsync({
+  if (Platform.OS !== "android") {
+    audioModeConfigured = true;
+    return Promise.resolve();
+  }
+  // On Android setAudioModeAsync rewrites AudioManager.mode + the speakerphone
+  // route, so it must never land inside a call (audio-mode-guard). Refused while
+  // a call owns the session: the cue plays with the ambient mode (mixWithOthers
+  // is expo-audio's default anyway) and the next cue after the call retries.
+  audioModePending ??= runAudioModeChange(() =>
+    setAudioModeAsync({
       // Mix, never steal focus — the voice call keeps playing under our beeps.
       interruptionMode: "mixWithOthers",
       // Play even when the ringer is silent: a user in a voice room wants the
@@ -105,11 +113,20 @@ export async function ensureAudioMode(): Promise<void> {
       playsInSilentMode: true,
       // UI cues are foreground-only; never keep the session alive in background.
       shouldPlayInBackground: false,
+    }),
+  )
+    .then((ran) => {
+      if (ran) audioModeConfigured = true;
+    })
+    .catch((err: unknown) => {
+      // Non-fatal — playback still works with the ambient default mode.
+      audioModeConfigured = true;
+      console.warn("[sounds] audio mode configuration failed", err);
+    })
+    .finally(() => {
+      audioModePending = null;
     });
-  } catch (err) {
-    // Non-fatal — playback still works with the ambient default mode.
-    console.warn("[sounds] audio mode configuration failed", err);
-  }
+  return audioModePending;
 }
 
 function getPlayer(name: UiSound): AudioPlayer {
