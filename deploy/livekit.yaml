@@ -1,8 +1,16 @@
 # LiveKit production config — single node. This file is a TEMPLATE: scripts/
-# deploy.sh renders ${TURN_DOMAIN} into deploy/livekit.runtime.yaml (which is
-# gitignored) before the container starts. Nothing secret lives here — the API
-# key/secret are injected at runtime via the LIVEKIT_KEYS environment variable
-# (see docker-compose.prod.yml).
+# deploy.sh renders the TURN_DOMAIN and LIVEKIT_API_KEY placeholders into
+# deploy/livekit.runtime.yaml (which is gitignored) before the container starts.
+# Nothing secret lives here — the API SECRET is injected at runtime via the
+# LIVEKIT_KEYS environment variable (see docker-compose.prod.yml) and must never
+# appear in this file or its rendered copy (deploy.sh refuses the render if it
+# does). The API KEY is only the key's public ID: it is the `iss` claim of every
+# media token the API hands to clients.
+#
+# Every placeholder on a non-comment line MUST be in deploy.sh's envsubst list;
+# one left unrendered fails the deploy before the SFU is touched (enforced by
+# scripts/check-deploy-scripts.mjs and by deploy.sh itself). Keep placeholder
+# syntax out of comments.
 
 # Internal signaling port. Not published to the host; reached only through Caddy
 # at wss://livekit.<DOMAIN>.
@@ -49,6 +57,28 @@ turn:
   enabled: true
   domain: ${TURN_DOMAIN}
   udp_port: 3478
+
+# Server-side join check (M16). A LiveKit token cannot be revoked: a member who
+# is kicked, banned or timed out is force-removed at that moment, but the token
+# they hold still verifies for up to ten minutes and a modified client can just
+# connect again with it. On every `participant_joined` the SFU posts here; the
+# API (apps/api/src/modules/livekit-webhook) re-runs the token endpoints'
+# authorization against the database as it is NOW and removes anyone who no
+# longer passes it. It fails OPEN on its own errors — a database hiccup never
+# removes a legitimate participant.
+webhook:
+  # The key the SFU signs deliveries with. It MUST be the key the API verifies
+  # with (LIVEKIT_API_KEY — same .env.prod value), or every delivery is a 401 and
+  # the check is silently off. If it names no key in LIVEKIT_KEYS, LiveKit REFUSES
+  # TO START ("api_key is required to use webhooks") — so deploy.sh proves the
+  # rendered value before the SFU is touched, and rolls back if it will not boot.
+  api_key: "${LIVEKIT_API_KEY}"
+  urls:
+    # The `api` service over the internal compose network (both services are on
+    # the stack's default network; api listens on PORT 4000 in
+    # docker-compose.prod.yml). Never through Caddy: the join check must not
+    # depend on DNS, TLS or the public edge.
+    - http://api:4000/hooks/livekit
 
 # No `redis:` block: a single LiveKit node does not need Redis. Add one only
 # when scaling to multiple LiveKit nodes (multi-region / HA).

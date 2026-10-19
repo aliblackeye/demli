@@ -105,7 +105,7 @@ Single source of truth: [`.env.prod.example`](../../.env.prod.example) (copy to
 | `CORS_ORIGIN`                    | `apps/api/src/env.ts`                                         |
 | `SESSION_TTL_HOURS`              | `apps/api/src/env.ts` (default 168 = 7 days)                  |
 | `LIVEKIT_URL`                    | `apps/api/src/env.ts` (returned to clients in the media token)|
-| `LIVEKIT_API_KEY` / `_SECRET`    | `apps/api/src/env.ts`; assembled into `LIVEKIT_KEYS` for the LiveKit server |
+| `LIVEKIT_API_KEY` / `_SECRET`    | `apps/api/src/env.ts`; assembled into `LIVEKIT_KEYS` for the LiveKit server. The KEY (public ID only) is also rendered into `deploy/livekit.yaml`'s `webhook.api_key`; the SECRET never is |
 | `TURN_DOMAIN`                    | `deploy/livekit.yaml` (rendered by deploy.sh)                 |
 | `REDIS_PASSWORD`                 | compose: `redis --requirepass` + assembles the credentialed `REDIS_URL` for api/realtime |
 | `REDIS_URL`                      | `apps/api/src/env.ts`, `apps/realtime/src/env.ts` (presence + mutation bus) — **assembled by compose** from `REDIS_PASSWORD`, not set by hand |
@@ -904,13 +904,15 @@ re-derived at 3am:
 
 | # | Step | If it fails |
 |---|---|---|
-| 1 | preflight: env file, DNS, Caddyfile validation | nothing touched yet |
+| 1 | preflight: env file, DNS; render + **prove** `deploy/livekit.runtime.yaml` (no placeholder left, webhook key = `LIVEKIT_API_KEY`, secret absent) | nothing touched yet |
 | 2 | build images | the running stack keeps serving |
 | 3 | `scripts/backup-db.sh --label predeploy` — the pre-migration dump | **stops here**; an irreversible migration never runs without a recovery point |
 | 4 | `compose run --rm migrate` — schema migrations | **stops here**; the new code never serves against an old schema |
 | 5 | `compose up -d --remove-orphans` | — |
-| 6 | API health, Caddy config proof, real `https://api.…/health` | deploy fails loudly |
-| 7 | release-feed proof: every published artifact answers 200 through the public edge | deploy fails |
+| 6 | API health | deploy fails loudly |
+| 7 | LiveKit: recreate **only if** the running SFU's config differs from the render; prove the SFU reaches the join-check webhook | a config that does not boot is rolled back to the old one and the deploy fails; an unreachable webhook fails the deploy |
+| 8 | Caddy config proof, real `https://api.…/health` | deploy fails loudly |
+| 9 | release-feed proof: every published artifact answers 200 through the public edge | deploy fails |
 
 **Step 3 is the only step whose failure cannot be undone by re-running the
 deploy.** `git reset && redeploy` restores code; it does not un-drop a column. So
@@ -927,6 +929,68 @@ with the mobile self-updater stuck in the endless update loop of CLAUDE.md §32.
 
 Every one of these behaviours is tested against a fake Docker in
 `scripts/test-deploy-migration.sh` (`pnpm test:deploy`).
+
+### The LiveKit join-check webhook (step 7)
+
+A LiveKit token cannot be revoked. A member who is kicked, banned or timed out is
+force-removed at that moment, but the token they hold still verifies for up to ten
+minutes and a modified client can connect again with it — no request reaches the
+token endpoints. The SFU sees that join, so `deploy/livekit.yaml` has it report
+every join:
+
+```yaml
+webhook:
+  api_key: "${LIVEKIT_API_KEY}"        # rendered by deploy.sh; the SECRET stays in LIVEKIT_KEYS
+  urls:
+    - http://api:4000/hooks/livekit    # internal compose network, never the public edge
+```
+
+On `participant_joined` the API (`apps/api/src/modules/livekit-webhook`) re-runs
+the token endpoints' authorization against the database as it is now and removes
+anyone who fails it. It fails OPEN on its own errors (a DB hiccup never removes a
+legitimate participant) and ignores rooms/identities that are not ours.
+
+Three things about this block are not obvious and each has bitten or would bite:
+
+- **A wrong `api_key` takes voice down, not just the check.** If it names no key in
+  `LIVEKIT_KEYS`, LiveKit refuses to start (`api_key is required to use webhooks`,
+  verified on 1.9.12). deploy.sh therefore proves the rendered value in step 1,
+  before anything is touched, and `pnpm lint:deploy` proves that every placeholder
+  in the template is in deploy.sh's (single-quoted) envsubst list.
+- **A new LiveKit config never reached the running SFU on its own.** LiveKit reads
+  its config once, and compose recreates a container only when its *definition*
+  changes — a new `livekit.runtime.yaml` is not that. deploy.sh now moves the
+  render into place as a new inode, so the single-file bind mount keeps showing the
+  container the file it booted with; equal hashes mean nothing to do, different
+  hashes mean `up -d --no-deps --force-recreate livekit` (after the API is healthy)
+  and a wait until the container serves the new hash. If it does not boot, the
+  config the old container was running is restored and recreated, and the deploy
+  fails. (This also means LiveKit config changes made before this — e.g. the
+  active-speaker tuning — only took effect if the container restarted for some
+  other reason.)
+- **Recreating LiveKit interrupts every active call.** livekit-client reconnects
+  on its own with the token it holds — measured on 1.9.12 with raw clients: an
+  abrupt SFU restart with 1.8 s downtime, both peers back after ~5 s. Docker's
+  SIGTERM grace period and the apps' own voice state machine come on top and were
+  **not** measured. It only happens when the config actually changed; ship such a
+  change when nobody is in a call. To defer it, run
+  `DEPLOY_SKIP_LIVEKIT_RECREATE=1 bash scripts/deploy.sh`; the log then says the
+  new config (and the join check) is **not** in effect.
+
+The last proof is an unsigned POST from inside the livekit container to
+`http://api:4000/hooks/livekit`: it must come back **401** from the handler, which
+proves name resolution, the network path and the route at once without being able
+to trigger anything. Anything else fails the deploy.
+
+**Verify after the first deploy that carries it:**
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs livekit | grep 'sent webhook' | tail -3
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs api | grep -c '/hooks/livekit'
+```
+
+A `401` on `/hooks/livekit` in the api log means the SFU signs with a different
+key than the API verifies with — the check is off.
 
 ## App Links (`assetlinks.json`)
 

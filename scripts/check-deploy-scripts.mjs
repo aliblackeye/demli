@@ -19,7 +19,7 @@
 /* global console, process */
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(ROOT, "scripts");
@@ -388,6 +388,207 @@ const shellScripts = [
       );
     } else {
       pass(`backups default to ${dir}, outside every mounted/served host tree`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8. The LiveKit webhook (server-side join check) is wired so it can WORK.
+//
+// A LiveKit token cannot be revoked, so a kicked/banned/timed-out member can
+// rejoin with the one they still hold; the only thing that sees that join is the
+// SFU's `participant_joined` webhook. Every link of that chain fails SILENTLY:
+//   - a placeholder missing from deploy.sh's envsubst list is rendered as the
+//     literal `${…}` text — as the webhook api_key that makes LiveKit refuse to
+//     start ("api_key is required to use webhooks"): voice down everywhere;
+//   - a double-quoted envsubst list expands the VALUES into argv and then
+//     substitutes nothing;
+//   - a webhook URL whose host/port/path is not the api service's means every
+//     delivery is lost and the check is off while every call still works;
+//   - writing the rendered file in place means the running SFU never loads it.
+// ---------------------------------------------------------------------------
+{
+  const template = read("deploy/livekit.yaml");
+  const deploy = read("scripts/deploy.sh");
+  const compose = read("docker-compose.prod.yml");
+  const handler = read("apps/api/src/modules/livekit-webhook/index.ts");
+
+  if (template === null || deploy === null || compose === null || handler === null) {
+    fail(
+      "livekit-webhook",
+      "missing one of deploy/livekit.yaml, scripts/deploy.sh, docker-compose.prod.yml, " +
+        "apps/api/src/modules/livekit-webhook/index.ts",
+    );
+  } else {
+    const templateCode = template
+      .split("\n")
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => !/^\s*#/.test(line));
+    const deployCode = stripComments(deploy);
+
+    // 8a. The rendered config's variables are exactly the substituted ones.
+    const envsubstLines = deployCode.filter(({ line }) => /\benvsubst\b/.test(line) && /livekit/i.test(line));
+    if (envsubstLines.length !== 1) {
+      fail(
+        "livekit-webhook",
+        `scripts/deploy.sh must render the LiveKit config with exactly one envsubst call (found ${envsubstLines.length})`,
+      );
+    } else {
+      const { line, n } = envsubstLines[0];
+      const list = /\benvsubst\s+'([^']*)'/.exec(line)?.[1];
+      if (list === undefined) {
+        fail(
+          "livekit-webhook",
+          `scripts/deploy.sh:${n} — the envsubst SHELL-FORMAT list must be SINGLE-quoted variable names. ` +
+            `Double quotes expand the values into argv and envsubst then substitutes nothing.`,
+        );
+      } else {
+        const substituted = new Set([...list.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((m) => m[1]));
+        const used = new Set();
+        for (const { line: tl } of templateCode) {
+          for (const m of tl.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) used.add(m[1]);
+        }
+        const missing = [...used].filter((v) => !substituted.has(v));
+        if (missing.length) {
+          fail(
+            "livekit-webhook",
+            `deploy/livekit.yaml uses ${missing.map((v) => `\${${v}}`).join(", ")} but scripts/deploy.sh:${n} ` +
+              `does not substitute it — it would reach LiveKit as literal text`,
+          );
+        } else {
+          pass(`every LiveKit template placeholder is substituted (${[...used].join(", ")})`);
+        }
+        if (substituted.has("LIVEKIT_API_SECRET") || used.has("LIVEKIT_API_SECRET")) {
+          fail(
+            "livekit-webhook",
+            "the LiveKit API SECRET must never be rendered into a file — it reaches the SFU only via LIVEKIT_KEYS",
+          );
+        } else {
+          pass("the LiveKit API secret is never rendered into the config file");
+        }
+      }
+    }
+
+    // 8b. The webhook block signs with the API's key and posts to the api service.
+    const webhookStart = templateCode.findIndex(({ line }) => /^webhook:\s*$/.test(line));
+    const block = [];
+    if (webhookStart >= 0) {
+      for (const entry of templateCode.slice(webhookStart + 1)) {
+        if (/^\S/.test(entry.line)) break;
+        block.push(entry.line);
+      }
+    }
+    const blockText = block.join("\n");
+    const apiKey = /^\s+api_key:\s*"?([^"\s#]+)"?\s*(#.*)?$/m.exec(blockText)?.[1];
+    const url = /^\s+-\s*"?(https?:\/\/[^"\s#]+)"?/m.exec(blockText)?.[1];
+    if (webhookStart < 0) {
+      fail("livekit-webhook", "deploy/livekit.yaml has no top-level `webhook:` block — the join check is off");
+    } else if (apiKey !== "${LIVEKIT_API_KEY}") {
+      fail(
+        "livekit-webhook",
+        `deploy/livekit.yaml webhook api_key is '${apiKey ?? "missing"}' — it must be \${LIVEKIT_API_KEY}, ` +
+          `the key the API verifies with (and a key LiveKit knows, or it refuses to start)`,
+      );
+    } else if (!url) {
+      fail("livekit-webhook", "deploy/livekit.yaml webhook block has no urls entry");
+    } else {
+      pass("the LiveKit webhook signs with ${LIVEKIT_API_KEY}");
+      const route = /LIVEKIT_WEBHOOK_ROUTE\s*=\s*"([^"]+)"/.exec(handler)?.[1];
+      const services = {};
+      let current = null;
+      for (const line of compose.split("\n")) {
+        const m = /^ {2}([a-z0-9_-]+):\s*$/.exec(line);
+        if (m) {
+          current = m[1];
+          services[current] = [];
+        } else if (/^\S/.test(line)) {
+          current = null;
+        } else if (current) {
+          services[current].push(line);
+        }
+      }
+      const apiBlock = services.api?.join("\n") ?? "";
+      const lkBlock = services.livekit?.join("\n") ?? "";
+      const apiPort = /^\s+PORT:\s*"?(\d+)"?\s*$/m.exec(apiBlock)?.[1];
+      const parsed = (() => {
+        try {
+          return new URL(url);
+        } catch {
+          return null;
+        }
+      })();
+      if (!parsed) {
+        fail("livekit-webhook", `deploy/livekit.yaml webhook url '${url}' does not parse`);
+      } else if (parsed.protocol !== "http:" || parsed.hostname !== "api") {
+        fail(
+          "livekit-webhook",
+          `webhook url '${url}' must target the api service over the internal network (http://api:<PORT>…), ` +
+            `not the public edge — the join check must not depend on DNS/TLS/Caddy`,
+        );
+      } else if (!apiPort || parsed.port !== apiPort) {
+        fail(
+          "livekit-webhook",
+          `webhook url port '${parsed.port}' is not the api service's PORT ('${apiPort ?? "unset"}') in docker-compose.prod.yml`,
+        );
+      } else if (!route || parsed.pathname !== route) {
+        fail(
+          "livekit-webhook",
+          `webhook url path '${parsed.pathname}' is not the API's LIVEKIT_WEBHOOK_ROUTE ('${route ?? "not found"}')`,
+        );
+      } else if (/network_mode:/.test(apiBlock) || /network_mode:/.test(lkBlock)) {
+        fail("livekit-webhook", "api or livekit sets network_mode — `api` would not resolve from the SFU");
+      } else {
+        const nets = (b) =>
+          /^\s+networks:/m.test(b)
+            ? new Set(
+                [...b.split(/^\s+networks:\s*$/m)[1].matchAll(/^\s{6}-?\s*([A-Za-z0-9_-]+):?\s*$/gm)].map(
+                  (m) => m[1],
+                ),
+              )
+            : new Set(["default"]);
+        const shared = [...nets(apiBlock)].filter((x) => nets(lkBlock).has(x));
+        if (!shared.length) {
+          fail("livekit-webhook", "the api and livekit services share no compose network — `api` would not resolve");
+        } else {
+          pass(`the LiveKit webhook posts to the api service (${url}) on a shared network`);
+        }
+      }
+      // deploy.sh must probe exactly that URL (and the probe must not drift).
+      if (!deploy.includes(`LIVEKIT_WEBHOOK_URL="${url}"`)) {
+        fail(
+          "livekit-webhook",
+          `scripts/deploy.sh does not verify the webhook URL the template configures (${url})`,
+        );
+      } else {
+        pass("deploy.sh verifies the same webhook URL the template configures");
+      }
+    }
+
+    // 8c. The rendered file reaches the RUNNING SFU, and a bad render never does.
+    const lineOf = (re) => deployCode.find(({ line }) => re.test(line))?.n ?? 0;
+    const inPlace = deployCode.find(({ line }) => /envsubst[^\n]*>\s*"?(deploy\/livekit\.runtime\.yaml|\$\{?LIVEKIT_RUNTIME\}?)"?\s*$/.test(line));
+    const guardAt = lineOf(/still contains placeholders/);
+    const buildAt = lineOf(/COMPOSE\[@\]\}"\s+build\b/);
+    const healthAt = lineOf(/Waiting for the API to report healthy/);
+    const recreateAt = lineOf(/--force-recreate livekit(\s|$)/);
+    if (inPlace) {
+      fail(
+        "livekit-webhook",
+        `scripts/deploy.sh:${inPlace.n} renders the LiveKit config IN PLACE — the running container's view ` +
+          `would change under a process that never re-reads it, and the staleness check could never fire`,
+      );
+    } else if (!guardAt || !buildAt || guardAt > buildAt) {
+      fail(
+        "livekit-webhook",
+        "scripts/deploy.sh must refuse an unrendered LiveKit placeholder BEFORE building anything",
+      );
+    } else if (!recreateAt || !healthAt || recreateAt < healthAt) {
+      fail(
+        "livekit-webhook",
+        "scripts/deploy.sh must recreate livekit when its config changed, and only AFTER the API is healthy",
+      );
+    } else {
+      pass("deploy.sh proves the LiveKit render, then makes the running SFU load it after the API is healthy");
     }
   }
 }

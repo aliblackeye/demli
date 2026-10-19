@@ -21,9 +21,11 @@
 #
 # What it does: render LiveKit config -> build images (tagged :${IMAGE_TAG},
 # default `prod`) -> run DB migrations (one-shot) -> start/refresh the stack ->
-# wait for API health -> re-create Caddy if the Caddyfile changed -> PROVE the
-# live proxy is serving the committed config (see the "Caddy" section below;
-# a deploy that cannot prove it fails loudly instead of reporting success).
+# wait for API health -> re-create LiveKit if its rendered config changed (and
+# prove the SFU can reach the join-check webhook) -> re-create Caddy if the
+# Caddyfile changed -> PROVE the live proxy is serving the committed config (see
+# the "Caddy" section below; a deploy that cannot prove it fails loudly instead
+# of reporting success).
 
 set -euo pipefail
 
@@ -52,6 +54,16 @@ log() { printf '\n\033[1;36m[deploy]\033[0m %s\n' "$*"; }
 fail() {
 	printf '\n\033[1;31m[deploy] ERROR:\033[0m %s\n' "$*" >&2
 	exit 1
+}
+
+# sha256 of a host file; empty when neither tool exists. Shared by the LiveKit
+# and Caddy staleness checks.
+file_sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" 2>/dev/null | awk '{print $1}'
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
+	fi
 }
 
 # --- preflight --------------------------------------------------------------
@@ -133,9 +145,77 @@ fi
 TURN_DOMAIN="${TURN_DOMAIN:-turn.${DOMAIN}}"
 export TURN_DOMAIN
 
-# --- render LiveKit config (inject TURN domain; keys stay in env) -----------
-log "Rendering deploy/livekit.runtime.yaml (TURN_DOMAIN=${TURN_DOMAIN})"
-envsubst '${TURN_DOMAIN}' <deploy/livekit.yaml >deploy/livekit.runtime.yaml
+# --- render LiveKit config (TURN domain + webhook key ID; secret stays in env) -
+#
+# The template now carries the webhook block (server-side join check, M16), and
+# a bad render there is not a cosmetic problem: a webhook `api_key` that names no
+# configured key makes LiveKit REFUSE TO START ("api_key is required to use
+# webhooks") — every call on the platform down. So the render is PROVEN here,
+# before anything is built or touched:
+#   - no placeholder survives on a non-comment line (a variable missing from the
+#     envsubst list below would be left as literal `${…}` text);
+#   - the webhook key is exactly LIVEKIT_API_KEY — the key the API verifies with;
+#   - the SECRET is nowhere in the file (it is passed only via LIVEKIT_KEYS).
+#
+# The envsubst argument is a list of variable NAMES in single quotes. It must stay
+# single-quoted: double quotes would expand the values into argv (and envsubst
+# would then substitute nothing). Values reach envsubst through the environment.
+#
+# Written to a temp file and MOVED into place — a new inode, never an in-place
+# truncation. That is what makes the "is the running LiveKit using this config?"
+# check further down exact: the container's single-file bind mount keeps the
+# inode it started with, so the file it sees is the file it loaded. (Writing in
+# place with `>` would update the container's view under a process that never
+# re-reads it, and the check would always say "up to date".)
+LIVEKIT_TEMPLATE="deploy/livekit.yaml"
+LIVEKIT_RUNTIME="deploy/livekit.runtime.yaml"
+LIVEKIT_WEBHOOK_URL="http://api:4000/hooks/livekit"
+livekit_tmp_files=()
+cleanup_livekit_tmp() {
+	local f
+	for f in "${livekit_tmp_files[@]+"${livekit_tmp_files[@]}"}"; do rm -f "${f}"; done
+}
+trap cleanup_livekit_tmp EXIT
+
+log "Rendering ${LIVEKIT_RUNTIME} (TURN_DOMAIN=${TURN_DOMAIN}, webhook -> ${LIVEKIT_WEBHOOK_URL})"
+livekit_next="$(mktemp "${LIVEKIT_RUNTIME}.XXXXXX")"
+livekit_tmp_files+=("${livekit_next}")
+envsubst '${TURN_DOMAIN} ${LIVEKIT_API_KEY}' <"${LIVEKIT_TEMPLATE}" >"${livekit_next}"
+
+unrendered="$(grep -nv '^[[:space:]]*#' "${livekit_next}" | grep -F '${' || true)"
+[ -z "${unrendered}" ] || fail "the rendered LiveKit config still contains placeholders:
+${unrendered}
+  Add the variable to the envsubst list above (and to .env.prod). Nothing has been
+  changed; the running SFU is untouched."
+
+# The `api_key:` inside the top-level `webhook:` block, unquoted.
+rendered_webhook_key="$(
+	awk '
+		/^webhook:[[:space:]]*$/ { inblock = 1; next }
+		inblock && /^[^[:space:]#]/ { inblock = 0 }
+		inblock && /^[[:space:]]+api_key:/ {
+			sub(/^[[:space:]]+api_key:[[:space:]]*/, "")
+			sub(/[[:space:]]+#.*$/, "")
+			gsub(/^"|"$/, "")
+			print
+			exit
+		}
+	' "${livekit_next}"
+)"
+[ "${rendered_webhook_key}" = "${LIVEKIT_API_KEY}" ] || fail "the rendered LiveKit webhook api_key is not LIVEKIT_API_KEY.
+  LiveKit would refuse to start (or sign with a key the API rejects). Check the
+  webhook block in ${LIVEKIT_TEMPLATE}. The running SFU is untouched."
+grep -qF "${LIVEKIT_WEBHOOK_URL}" "${livekit_next}" || fail "the rendered LiveKit config does not post to ${LIVEKIT_WEBHOOK_URL} —
+  the server-side join check would be off. Check ${LIVEKIT_TEMPLATE}."
+if grep -qF -- "${LIVEKIT_API_SECRET}" "${livekit_next}"; then
+	fail "the LiveKit API SECRET appears in the rendered config. It must only ever
+  reach the SFU through LIVEKIT_KEYS (docker-compose.prod.yml). Nothing written."
+fi
+
+# Same permissions an ordinary `>` redirect produced (mktemp is 0600, and the SFU
+# reads the mount as whatever user the image runs as). Nothing secret is in it.
+chmod 0644 "${livekit_next}"
+mv -f "${livekit_next}" "${LIVEKIT_RUNTIME}"
 
 # --- build images -----------------------------------------------------------
 log "Building images (tag: ${IMAGE_TAG})"
@@ -208,6 +288,129 @@ for _ in $(seq 1 30); do
 done
 [ -n "${api_ok}" ] || fail "API did not become healthy. Inspect: ${COMPOSE[*]} logs api"
 
+# --- LiveKit: make the RUNNING SFU match the rendered config ------------------
+#
+# The same trap as Caddy below, one service over. LiveKit reads its config ONCE,
+# at startup, and `up -d` recreates a container only when its service DEFINITION
+# changes — a new livekit.runtime.yaml changes nothing compose can see. Until now
+# a LiveKit config change therefore reached production only whenever the
+# container happened to restart for some other reason; a deploy that added the
+# webhook would have printed success while the join check stayed off.
+#
+# Oracle: the rendered file is moved into place as a NEW inode (see the render
+# step), and a single-file bind mount keeps the inode the container started
+# with — so /etc/livekit/livekit.yaml inside the container is exactly the config
+# the running process loaded. Equal hashes => nothing to do (and no call is
+# touched). Different => recreate.
+#
+# RECREATING LIVEKIT INTERRUPTS EVERY ACTIVE CALL. livekit-client reconnects on
+# its own with the token it holds (measured on 1.9.12: an abrupt SFU restart with
+# 1.8 s downtime -> both peers back after ~5 s); docker's SIGTERM grace and the
+# apps' own voice state machine add to that and were not measured. Deploy a
+# LiveKit config change when nobody is in a call. The recreate happens only when
+# the config really changed, and only AFTER the API is healthy: the rejoin storm
+# lands on a live webhook target, and the API's boot-time call sweep has already
+# seen the old SFU's rooms, so the momentarily empty rooms fall under the
+# sweeper's normal three-minute grace instead of its restart reconciliation.
+#
+# A new config that does not boot (LiveKit exits on an invalid webhook key) is
+# rolled back to the config the old container was running, and the deploy fails.
+#   DEPLOY_SKIP_LIVEKIT_RECREATE=1  defers the recreate (e.g. calls in progress);
+#   the SFU then keeps its OLD config and the deploy says so.
+livekit_container_config_sha256() {
+	"${COMPOSE[@]}" exec -T livekit sha256sum /etc/livekit/livekit.yaml 2>/dev/null | awk '{print $1}'
+}
+livekit_answers() {
+	"${COMPOSE[@]}" exec -T livekit wget -qO- http://127.0.0.1:7880/ >/dev/null 2>&1
+}
+wait_for_livekit() { # $1 = expected config sha256
+	local _
+	for _ in $(seq 1 30); do
+		if [ "$(livekit_container_config_sha256 || true)" = "$1" ] && livekit_answers; then
+			return 0
+		fi
+		sleep 2
+	done
+	return 1
+}
+
+log "Checking whether the running LiveKit has this config"
+host_livekit_hash="$(file_sha256 "${LIVEKIT_RUNTIME}")"
+live_livekit_hash="$(livekit_container_config_sha256 || true)"
+livekit_config_stale=""
+if [ -z "${host_livekit_hash}" ]; then
+	fail "no sha256 tool on this host — cannot tell which config the running LiveKit uses."
+elif [ "${live_livekit_hash}" = "${host_livekit_hash}" ]; then
+	log "LiveKit already runs this config (${host_livekit_hash:0:12})."
+elif [ "${DEPLOY_SKIP_LIVEKIT_RECREATE:-0}" = "1" ]; then
+	livekit_config_stale="yes"
+	log "WARN: DEPLOY_SKIP_LIVEKIT_RECREATE=1 — LiveKit keeps its OLD config
+  (running ${live_livekit_hash:-unknown}, rendered ${host_livekit_hash}).
+  Until it is recreated, config changes — including the webhook join check — are
+  NOT in effect. Apply it when no call is running:
+    ${COMPOSE[*]} up -d --no-deps --force-recreate livekit"
+else
+	# The config the old container is running is the known-good rollback target.
+	livekit_rollback="$(mktemp "${LIVEKIT_RUNTIME}.XXXXXX")"
+	livekit_tmp_files+=("${livekit_rollback}")
+	if [ -n "${live_livekit_hash}" ]; then
+		"${COMPOSE[@]}" exec -T livekit cat /etc/livekit/livekit.yaml >"${livekit_rollback}" 2>/dev/null || : >"${livekit_rollback}"
+	else
+		: >"${livekit_rollback}"
+	fi
+
+	log "LiveKit config changed (live ${live_livekit_hash:-none} -> rendered ${host_livekit_hash:0:12}).
+  Recreating livekit — every active call is interrupted until its clients reconnect."
+	# --no-deps: nothing else restarts (caddy depends_on livekit, not the reverse).
+	"${COMPOSE[@]}" up -d --no-deps --force-recreate livekit
+
+	if ! wait_for_livekit "${host_livekit_hash}"; then
+		if [ -s "${livekit_rollback}" ]; then
+			log "LiveKit did not come up on the new config — ROLLING BACK to the config it was running"
+			chmod 0644 "${livekit_rollback}"
+			mv -f "${livekit_rollback}" "${LIVEKIT_RUNTIME}"
+			"${COMPOSE[@]}" up -d --no-deps --force-recreate livekit
+			if wait_for_livekit "$(file_sha256 "${LIVEKIT_RUNTIME}")"; then
+				fail "the new LiveKit config did not boot; the previous config is restored and
+  LiveKit is serving again. The webhook join check is NOT active. Inspect:
+    ${COMPOSE[*]} logs livekit"
+			fi
+			fail "LiveKit is DOWN: the new config did not boot and neither did the rollback.
+  Voice is unavailable. Inspect immediately:
+    ${COMPOSE[*]} logs livekit"
+		fi
+		fail "LiveKit did not come up on the new config and there was no previous config
+  to roll back to. Voice is unavailable. Inspect: ${COMPOSE[*]} logs livekit"
+	fi
+	log "LiveKit recreated and serving config ${host_livekit_hash:0:12}."
+fi
+
+# --- proof: the SFU can actually reach the join-check webhook -----------------
+# The URL in the config is only worth anything if the livekit container can
+# resolve `api`, reach port 4000, and find the route there. An UNSIGNED POST from
+# inside the livekit container must be answered 401 by the webhook handler: that
+# proves name resolution, the network path and the route in one request, without
+# being able to trigger anything (the signature check runs first). A 404, a DNS
+# failure or a refused connection means every real delivery is being lost — the
+# join check is silently off — so the deploy fails rather than warns.
+if [ -z "${livekit_config_stale}" ]; then
+	log "Verifying LiveKit can reach the join-check webhook (${LIVEKIT_WEBHOOK_URL})"
+	webhook_probe="$(
+		"${COMPOSE[@]}" exec -T livekit wget -q -O- \
+			--header 'Content-Type: application/webhook+json' \
+			--post-data '{}' "${LIVEKIT_WEBHOOK_URL}" 2>&1 || true
+	)"
+	case "${webhook_probe}" in
+	*" 401"*) log "Webhook reachable from the SFU (unsigned probe -> 401, as it must)." ;;
+	*)
+		fail "LiveKit cannot deliver to ${LIVEKIT_WEBHOOK_URL} — the probe from the livekit
+  container got: ${webhook_probe:-no answer}
+  Expected an HTTP 401 from the webhook handler. Until this is fixed, a kicked user
+  can rejoin a call with a still-valid token."
+		;;
+	esac
+fi
+
 # --- Caddy: make the RUNNING proxy match THIS Caddyfile ----------------------
 #
 # THE TRAP THIS CLOSES (production incident, 2026-07-27). New getdemli.com
@@ -238,15 +441,8 @@ done
 # The upside of the inode behaviour: it is a perfect staleness oracle. Whatever
 # /etc/caddy/Caddyfile reads as INSIDE the container is byte-for-byte what the
 # running caddy process parsed at startup, so comparing it with the repo's file
-# answers "is the live proxy running this config?" exactly.
-
-file_sha256() {
-	if command -v sha256sum >/dev/null 2>&1; then
-		sha256sum "$1" 2>/dev/null | awk '{print $1}'
-	elif command -v shasum >/dev/null 2>&1; then
-		shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
-	fi
-}
+# answers "is the live proxy running this config?" exactly. (file_sha256 is
+# defined with the other helpers at the top — the LiveKit check uses it too.)
 
 caddy_container_caddyfile_sha256() {
 	"${COMPOSE[@]}" exec -T caddy sha256sum /etc/caddy/Caddyfile 2>/dev/null | awk '{print $1}'

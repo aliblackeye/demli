@@ -31,6 +31,9 @@ const UPGRADED_VOICE = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const RESTRICTED = "abababab-abab-4bab-8bab-abababababab";
 const LIVE_CALL = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const UPGRADED_CALL = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const RINGING_CALL = "abcdabcd-abcd-4bcd-8bcd-abcdabcdabcd";
+const ENDED_CALL = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+const UNKNOWN_CALL = "efefefef-efef-4fef-8fef-efefefefefef";
 
 const MEMBER = "11111111-1111-4111-8111-111111111111";
 const KICKED = "22222222-2222-4222-8222-222222222222";
@@ -38,6 +41,7 @@ const TIMED_OUT = "33333333-3333-4333-8333-333333333333";
 const CALLER = "44444444-4444-4444-8444-444444444444";
 const CALLEE = "55555555-5555-4555-8555-555555555555";
 const STRANGER = "66666666-6666-4666-8666-666666666666";
+const TIMEOUT_OVER = "77777777-7777-4777-8777-777777777777";
 
 function channel(id: string, kind: Channel["kind"]): Channel {
   return { id, groupId: GROUP, kind, name: id.slice(0, 4), position: 0, createdAt: "" } as Channel;
@@ -50,11 +54,13 @@ const livekitRoomOf: Record<string, string | null> = {
   [UPGRADED_VOICE]: `dmcall:${UPGRADED_CALL}`,
 };
 
-const members = new Set([MEMBER, TIMED_OUT, CALLER, CALLEE]);
+const members = new Set([MEMBER, TIMED_OUT, TIMEOUT_OVER, CALLER, CALLEE]);
 
 const calls: Record<string, Partial<DmCall>> = {
   [LIVE_CALL]: { id: LIVE_CALL, status: "active", callerId: CALLER, calleeId: CALLEE },
   [UPGRADED_CALL]: { id: UPGRADED_CALL, status: "upgraded", callerId: CALLER, calleeId: CALLEE },
+  [RINGING_CALL]: { id: RINGING_CALL, status: "ringing", callerId: CALLER, calleeId: CALLEE },
+  [ENDED_CALL]: { id: ENDED_CALL, status: "ended", callerId: CALLER, calleeId: CALLEE },
 };
 
 const repos = {
@@ -68,7 +74,12 @@ const repos = {
         channel: channel(channelId, channelId === TEXT ? "text" : "voice"),
         role: "member" as const,
         livekitRoom: livekitRoomOf[channelId] ?? null,
-        timedOutUntil: userId === TIMED_OUT ? new Date(Date.now() + 60_000) : null,
+        timedOutUntil:
+          userId === TIMED_OUT
+            ? new Date(Date.now() + 60_000)
+            : userId === TIMEOUT_OVER
+              ? new Date(Date.now() - 60_000)
+              : null,
       };
     },
   },
@@ -214,6 +225,51 @@ describe("LiveKit join check webhook", () => {
       [`dmcall:${UPGRADED_CALL}`, KICKED],
       [`dmcall:${UPGRADED_CALL}`, TIMED_OUT],
     ]);
+  });
+
+  // --- false-eviction guards: every room shape the token endpoints mint ------
+  // A wrong "denied" here is not a security bug, it is a dropped call — the
+  // founder's top priority — so each legitimate path gets its own assertion.
+
+  it("a RINGING call admits its caller (the caller sits in the room while it rings)", async () => {
+    // POST /dm-calls mints the caller's token at start, while the row is
+    // `ringing`; the callee only gets one on accept (row already `active`).
+    await deliver(`dmcall:${RINGING_CALL}`, CALLER);
+    expect(removeParticipant).not.toHaveBeenCalled();
+  });
+
+  it("after an upgrade, the two ORIGINALS reconnecting into the call room stay in", async () => {
+    // The row is `upgraded` (no longer ringing/active), so they pass through the
+    // bound group voice channel — of which the upgrade made them both members.
+    await deliver(`dmcall:${UPGRADED_CALL}`, CALLER);
+    await deliver(`dmcall:${UPGRADED_CALL}`, CALLEE);
+    expect(removeParticipant).not.toHaveBeenCalled();
+  });
+
+  it("a member whose timeout has EXPIRED is allowed back in", async () => {
+    await deliver(LOBBY, TIMEOUT_OVER);
+    expect(removeParticipant).not.toHaveBeenCalled();
+  });
+
+  it("a redelivered (retried) join is judged the same way — no removal for an allowed member", async () => {
+    await deliver(LOBBY, MEMBER);
+    await deliver(LOBBY, MEMBER);
+    await deliver(`dmcall:${LIVE_CALL}`, CALLEE);
+    await deliver(`dmcall:${LIVE_CALL}`, CALLEE);
+    expect(removeParticipant).not.toHaveBeenCalled();
+  });
+
+  it("a call that is OVER no longer admits even its own participants", async () => {
+    // Hung up / declined / swept: the token endpoints would mint nothing now.
+    await deliver(`dmcall:${ENDED_CALL}`, CALLER);
+    expect(removeParticipant).toHaveBeenCalledWith(`dmcall:${ENDED_CALL}`, CALLER);
+  });
+
+  it("a call room we have no row for, or a malformed call id, is not ours to judge", async () => {
+    await deliver(`dmcall:${UNKNOWN_CALL}`, STRANGER);
+    await deliver("dmcall:not-a-uuid", STRANGER);
+    await deliver("dmcall:", STRANGER);
+    expect(removeParticipant).not.toHaveBeenCalled();
   });
 
   it("ignores rooms and identities that are not ours, and events other than a join", async () => {

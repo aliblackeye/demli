@@ -67,12 +67,33 @@ compose)
         *validate*) exit 0 ;;
       esac
       exit 0 ;;
-    up) touch "$state/new-stack-up"; exit 0 ;;
+    up)
+      # LiveKit model: "$state/livekit-mounted" is the config file the running
+      # livekit container has mounted (= what its process loaded). A fresh
+      # container mounts whatever is on disk; a force-recreate re-mounts it.
+      case "$*" in
+        *force-recreate*livekit*) cp deploy/livekit.runtime.yaml "$state/livekit-mounted" ;;
+        *force-recreate*) ;;
+        *) [ -f "$state/livekit-mounted" ] || cp deploy/livekit.runtime.yaml "$state/livekit-mounted" ;;
+      esac
+      touch "$state/new-stack-up"; exit 0 ;;
     down) rm -f "$state/new-stack-up"; exit 0 ;;
     ps) exit 0 ;;
     exec)
       [ -f "$state/new-stack-up" ] || exit 1
       case "$*" in
+        *" livekit sha256sum"*)
+          [ -f "$state/livekit-mounted" ] || exit 1
+          # A config the SFU refuses to boot on leaves no running container.
+          if [ -f "$state/livekit-rejects-webhook" ] && grep -q "hooks/livekit" "$state/livekit-mounted"; then exit 1; fi
+          sha256sum "$state/livekit-mounted" | awk '{print $1 "  /etc/livekit/livekit.yaml"}'; exit 0 ;;
+        *" livekit cat "*) cat "$state/livekit-mounted" 2>/dev/null || exit 1; exit 0 ;;
+        *" livekit wget"*"hooks/livekit"*)
+          if [ -f "$state/webhook-unreachable" ]; then echo "wget: bad address 'api'" >&2; exit 1; fi
+          echo "wget: server returned error: HTTP/1.1 401 Unauthorized" >&2; exit 1 ;;
+        *" livekit wget"*)
+          if [ -f "$state/livekit-rejects-webhook" ] && grep -q "hooks/livekit" "$state/livekit-mounted"; then exit 1; fi
+          echo "OK"; exit 0 ;;
         *sha256sum*) cat "$state/caddy-hash" 2>/dev/null || exit 1; exit 0 ;;
         *2019/config*) cat "$state/caddy-config" 2>/dev/null || exit 1; exit 0 ;;
         *health*) [ -f "$state/api-unhealthy" ] && exit 1; exit 0 ;;
@@ -152,8 +173,21 @@ exit 0
 FAKE
 chmod +x "$WORK/bin/curl"
 
-# envsubst stub so the preflight passes without the real tool.
-printf '#!/usr/bin/env bash\ncat\n' >"$WORK/bin/envsubst"
+# envsubst stand-in: substitutes exactly the ${NAME} placeholders named in its
+# SHELL-FORMAT argument, from the environment — the real tool's contract, so the
+# render checks in deploy.sh run against a real render. `envsubst-broken` makes
+# it a plain `cat` (every placeholder left as literal text).
+cat >"$WORK/bin/envsubst" <<'FAKE'
+#!/usr/bin/env bash
+[ -f "$FAKE_STATE/envsubst-broken" ] && exec cat
+content="$(cat; printf x)"
+content="${content%x}"
+for name in $(printf '%s' "${1:-}" | grep -oE '[A-Za-z_][A-Za-z0-9_]*'); do
+  value="${!name-}"
+  content="${content//"\${$name}"/$value}"
+done
+printf '%s' "$content"
+FAKE
 chmod +x "$WORK/bin/envsubst"
 
 # No-op sleep. deploy.sh's retry loops are 30 x 2s for health and again for the
@@ -255,6 +289,14 @@ gzip -t "$WORK"/s2/srv/demli-backups/demli-*-predeploy.sql.gz 2>/dev/null
 expect "that dump is a valid gzip stream" "$?"
 grep -q "Mobile APK OK" "$WORK/s2/out.log"
 expect "the advertised APK is confirmed present" "$?"
+grep -qE '^[[:space:]]+api_key: "?realkey"?[[:space:]]*$' "$REPO_ROOT/deploy/livekit.runtime.yaml"
+expect "the rendered LiveKit webhook signs with LIVEKIT_API_KEY" "$?"
+! grep -q "realsecret" "$REPO_ROOT/deploy/livekit.runtime.yaml"
+expect "the LiveKit SECRET is not in the rendered config" "$?"
+! grep_log "force-recreate livekit"
+expect "an unchanged LiveKit config does NOT recreate the SFU (no call is dropped)" "$?"
+grep -q "Webhook reachable from the SFU" "$WORK/s2/out.log"
+expect "the SFU -> API webhook path is proven" "$?"
 
 echo ""
 echo "== scenario 3: schema migration fails -> nothing starts =="
@@ -329,6 +371,96 @@ grep -q "NO recovery point" "$WORK/s7/out.log"
 expect "the override says exactly what was given up" "$?"
 ! grep_log "pg_dump"
 expect "no backup is attempted when it is skipped" "$?"
+
+echo ""
+echo "== scenario 8: LiveKit runs an OLDER config -> recreated once, after the API is healthy =="
+# The trap the LiveKit section closes: compose cannot see a changed bind-mounted
+# file, so without an explicit recreate the webhook would never take effect.
+setup8() {
+	write_env
+	seed_feed
+	printf 'port: 7880\n# the config the old container booted with\n' >"$FAKE_STATE/livekit-mounted"
+}
+run_deploy s8 setup8
+[ "$DEPLOY_STATUS" = "0" ]
+expect "deploy succeeds" "$?"
+[ "$(grep -c 'force-recreate livekit' "$WORK/s8/docker.log")" = "1" ]
+expect "livekit is recreated exactly once" "$?"
+health_at="$(line_of 'exec -T api node')"
+lk_at="$(line_of 'force-recreate livekit')"
+[ -n "$health_at" ] && [ -n "$lk_at" ] && [ "$health_at" -lt "$lk_at" ]
+expect "ORDER: the SFU is recreated only AFTER the API is healthy" "$?"
+cmp -s "$FAKE_STATE/livekit-mounted" "$REPO_ROOT/deploy/livekit.runtime.yaml"
+expect "the running LiveKit now has the rendered config" "$?"
+! grep -q "force-recreate caddy" "$WORK/s8/docker.log"
+expect "nothing else is recreated with it" "$?"
+
+echo ""
+echo "== scenario 9: the new LiveKit config does not boot -> rolled back, deploy fails =="
+setup9() {
+	write_env
+	seed_feed
+	printf 'port: 7880\n# known-good config\n' >"$FAKE_STATE/livekit-mounted"
+	touch "$FAKE_STATE/livekit-rejects-webhook"
+}
+run_deploy s9 setup9
+[ "$DEPLOY_STATUS" != "0" ]
+expect "deploy fails loudly" "$?"
+grep -q "ROLLING BACK" "$WORK/s9/out.log"
+expect "it says it rolled back" "$?"
+grep -q "known-good config" "$REPO_ROOT/deploy/livekit.runtime.yaml" &&
+	grep -q "known-good config" "$FAKE_STATE/livekit-mounted"
+expect "the SFU is back on the config it was running before" "$?"
+[ "$(grep -c 'force-recreate livekit' "$WORK/s9/docker.log")" = "2" ]
+expect "exactly one recreate forward and one back" "$?"
+
+echo ""
+echo "== scenario 10: a placeholder the envsubst list misses -> nothing is touched =="
+setup10() {
+	write_env
+	seed_feed
+	touch "$FAKE_STATE/envsubst-broken"
+	sha256sum "$REPO_ROOT/deploy/livekit.runtime.yaml" | awk '{print $1}' >"$SCEN/runtime-before"
+}
+run_deploy s10 setup10
+[ "$DEPLOY_STATUS" != "0" ]
+expect "deploy fails" "$?"
+grep -q "still contains placeholders" "$WORK/s10/out.log"
+expect "it names the unrendered placeholders" "$?"
+! grep_log " build" && ! grep_log "up -d"
+expect "nothing is built or started" "$?"
+[ "$(sha256sum "$REPO_ROOT/deploy/livekit.runtime.yaml" | awk '{print $1}')" = "$(cat "$WORK/s10/runtime-before")" ]
+expect "the existing runtime config is not replaced" "$?"
+
+echo ""
+echo "== scenario 11: the SFU cannot reach the webhook -> deploy must NOT report success =="
+setup11() {
+	write_env
+	seed_feed
+	touch "$FAKE_STATE/webhook-unreachable"
+}
+run_deploy s11 setup11
+[ "$DEPLOY_STATUS" != "0" ]
+expect "deploy fails when the join check would be silently off" "$?"
+grep -q "cannot deliver to http://api:4000/hooks/livekit" "$WORK/s11/out.log"
+expect "it says which URL is unreachable" "$?"
+
+echo ""
+echo "== scenario 12: DEPLOY_SKIP_LIVEKIT_RECREATE=1 defers the SFU restart, loudly =="
+setup12() {
+	write_env
+	seed_feed
+	printf 'port: 7880\n# old\n' >"$FAKE_STATE/livekit-mounted"
+	export DEPLOY_SKIP_LIVEKIT_RECREATE=1
+}
+run_deploy s12 setup12
+unset DEPLOY_SKIP_LIVEKIT_RECREATE
+[ "$DEPLOY_STATUS" = "0" ]
+expect "the deploy completes" "$?"
+! grep_log "force-recreate livekit"
+expect "the SFU is not restarted" "$?"
+grep -q "NOT in effect" "$WORK/s12/out.log"
+expect "it says the new config (and the join check) is not in effect" "$?"
 
 echo ""
 echo "passed=$pass failed=$fail"
