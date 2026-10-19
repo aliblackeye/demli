@@ -37,6 +37,7 @@ export function Slider({
   accessibilityLabel,
   formatValue,
   showValue = false,
+  marks,
   style,
 }: {
   value: number;
@@ -55,6 +56,12 @@ export function Slider({
   formatValue?: (value: number) => string;
   /** Show the value chip at the end of the rail. */
   showValue?: boolean;
+  /**
+   * Values to mark on the rail with a small tick — a reference point the user
+   * should be able to find by eye (the 100% "as they sent it" level on a
+   * 0–200% volume rail). Decorative: the spoken value already says where it is.
+   */
+  marks?: readonly number[];
   style?: StyleProp<ViewStyle>;
 }) {
   const reduced = useReducedMotion();
@@ -174,6 +181,22 @@ export function Slider({
                 style={[{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.accent }, fillStyle]}
               />
             </View>
+            {marks?.map((mark) => (
+              <View
+                key={mark}
+                pointerEvents="none"
+                importantForAccessibility="no"
+                style={{
+                  position: "absolute",
+                  left: `${fractionOf(mark, min, max) * 100}%`,
+                  marginLeft: -1,
+                  width: 2,
+                  height: RAIL + 8,
+                  borderRadius: 1,
+                  backgroundColor: colors.strokeStrong,
+                }}
+              />
+            ))}
             <Animated.View
               style={[
                 {
