@@ -436,7 +436,7 @@ export function MessageComposer({
         <div className="absolute bottom-full left-4 right-4 z-20 mb-2 overflow-hidden rounded-xl surface-glass-strong p-1 animate-pop-in-fast">
           <p
             id={`${listboxId}-heading`}
-            className="px-2.5 pb-1 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-fg-faint"
+            className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-fg-faint"
           >
             {t("desktop:composer.mentionHeading")}
           </p>

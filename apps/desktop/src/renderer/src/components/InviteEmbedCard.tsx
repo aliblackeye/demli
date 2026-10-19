@@ -188,7 +188,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
     if (problem.kind === "dead") {
       return (
         <CardShell faded>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+          <p className="text-xs font-medium text-fg-faint">{label}</p>
           <p className="mt-1.5 text-sm text-fg-muted">{deadReasonText(problem.reason, t)}</p>
         </CardShell>
       );
@@ -217,7 +217,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
   if (deadFromRedeem !== null) {
     return (
       <CardShell faded>
-        <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+        <p className="text-xs font-medium text-fg-faint">{label}</p>
         <p className="mt-1.5 text-sm text-fg-muted">{deadReasonText(deadFromRedeem, t)}</p>
       </CardShell>
     );
@@ -260,7 +260,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
 
   return (
     <CardShell>
-      <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+      <p className="text-xs font-medium text-fg-faint">{label}</p>
       {/* Safari 12 (web surface): no flex gap → space-x-3. */}
       <div className="mt-2 flex items-center space-x-3">
         <GroupIcon

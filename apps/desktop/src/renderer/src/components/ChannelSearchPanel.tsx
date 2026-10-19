@@ -367,7 +367,7 @@ export function ChannelSearchPanel({
           <>
             <p
               aria-live="polite"
-              className="px-2.5 pb-1 pt-1 text-2xs font-semibold uppercase tracking-wider text-fg-faint"
+              className="px-2.5 pb-1 pt-1 text-xs font-medium text-fg-faint"
             >
               {/* `results.length` counts what is LOADED, not what matched. While
                   another page exists, say so ("20+") instead of reporting a
