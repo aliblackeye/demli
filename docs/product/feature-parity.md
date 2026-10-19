@@ -1577,10 +1577,12 @@ bağımlılıklarına bağlı → aynı runtime 2.1.0 APK döngüsü. Medya/FSM 
 |---|---|---|---|
 | Konuşma göstergesi: karo kenarında 2px mercan halka + içe düşen mercan parıltı, ton adımında (200ms) açılıp kapanır; TalkBack "X, konuşuyor" okur | Dalga 3 | ✅ | Eskiden yeşil (`online`) 2px kenar. Sahne karosu, ızgara, şerit ve PiP aynı `SpeakingFrame`'i kullanır. Yalnız o görünüm canlanır, video yeniden çizilmez |
 | Karo dili: kenarsız, radius 16, saf siyah zemin, ad/mikrofon hapı (`scrim` + iç çizgi imzası), basınca beyaz yıkama (yükselme/ölçek yok) | Dalga 3 | ✅ | Odak karosunun ikinci (mercan) halkası kaldırıldı — konuşma halkasıyla yarışıyordu |
+| Kamerası kapalı karo: nötr `surface` zemin + avatarın arkasında kişinin renk tonunda soluk ışık (%16, masaüstü karo diskiyle aynı ton `hsl(h 60% 50%)`); PiP zeminleri de aynı | ✅ | ✅ | Eskiden tam kaplayan doygun kişi-başı gradyan: kamerasız oda doygun bloklara dönüyor, mercan konuşma halkası ve pembe tehlike tonuyla karışıyordu, masaüstüyle de uyuşmuyordu. PiP'teki "Kamera kapalı" yazısı artık her tonda `surface` üstünde |
+| PiP videosu kendi katmanlarının ALTINDA: konuşma halkası, ad şeridi ve kapat düğmesi kameralı PiP'te de görünür | — | ✅ | `zOrder` 2 (`setZOrderOnTop`) → 1 (`setZOrderMediaOverlay`): video ana tam ekran yüzeyinin üstünde, pencerenin altında. Izgaradaki yerel kamera karosuyla aynı katmanlama. **Cihazda doğrulanmadı** |
 | Alt dok — tek tehlike dili: susturulmuş / sağırlaştırılmış = pembe YIKAMA, Ayrıl/Kapat = DOLU pembe disk, açık kamera/paylaşım = mercan yıkama, kapalı kamera nötr (asla kırmızı) | Dalga 3 | ✅ | Eskiden kapalı kamera da kırmızıydı. Dok bir "masa kenarı" paneli (surface, üst radius 24, kenarsız); sesli oda ve özel arama aynı `ControlDock` + `VoiceControls`. Özel aramada kırmızı diskin etiketi artık ne yaptığını söyler (çalarken "İptal", canlıyken "Aramadan ayrıl") |
-| Sahne içi çubuk: cam hap (`glass-strong`), veil diskler, aynı tehlike dili | Dalga 3 | ✅ | Uzun basınca ipucu çıkar (kesilmesin diye `ui/Glass` sarmalayıcısı kullanılmadı; Android'de görünüm aynı) |
+| Sahne içi çubuk: cam hap (`glass-strong`), veil diskler, aynı tehlike dili; çubuğa dokunmak çubuğu GİZLEMEZ (parmak üstündeyken sabit, bırakınca gizlenme sayacı yeniden başlar) | Dalga 3 | ✅ | Uzun basınca ipucu çıkar (kesilmesin diye `ui/Glass` sarmalayıcısı kullanılmadı; Android'de görünüm aynı). Eskiden çubuk aç/kapa dokunuşunu yakalayan görünümün içindeydi: her basış çubuğu da gizliyor, ipucu sönmüş çubuğun içinde açılıyordu |
 | Gelen arama: arayanın arkasında mercan radyal ışık, YALNIZ çalarken 1.4s nefes alır (bağlanıyor/bitti/koltuk uzakta = sabit ışık); Reddet dolu pembe, Kabul dolu MERCAN, Görüntülü nötr | Dalga 3 | ✅ | Tasarım sistemi §5.1 "Katıl mercan / Reddet tehlike" — eski yeşil kabul düğmesi markadan çıktı. Azaltılmış harekette ışık sabit. Örtü yumuşak açılır/kapanır |
-| Özel arama başlığı: çalarken nefes alan mercan nokta, cevaplanınca yeşil "canlı" nokta + tabular süre; küçült ve kişi ekle disk | Dalga 3 | ✅ | Kişi ekle 360dp'de başlığa yer kalsın diye etiketli düğmeden diske geçti (uzun basınca adı) |
+| Özel arama başlığı: çalarken nefes alan mercan nokta, cevaplanınca yeşil "canlı" nokta + tabular süre; küçült ve kişi ekle disk | Dalga 3 | ✅ | Kişi ekle 360dp'de başlığa yer kalsın diye etiketli düğmeden diske geçti (uzun basınca adı). TalkBack süreyi her saniye OKUMAZ: yalnız aşama değişince (çalıyor → bağlanıyor → aramada) bir kez duyurulur; satıra odaklanınca "Aramada, 0:42" |
 | Mini çubuklar (sesli oda · arama · "X seni arıyor"): yüzen cam çubuk, gölgesiz; alttan yükselir / üstten iner, hızlı adımda çıkar | Dalga 3 | ✅ | Ses çubuğundaki "🔊" emoji başlıktan çıktı (glif). Arama çubuğunda koltuk alma = mercan `Button` (yükleniyor durumu var) |
 | Koltuk uzakta bandı: bilgi bandı (sonucu söyler), mercan "Buraya al / Geri katıl", pembe yıkamalı "Kapat" | Dalga 3 | ✅ | Kaynak-değişmez testleri (`seat-model.test.ts`) aynen geçiyor |
 | Bildirimler (yalnız kalma geri sayımı, ses hatası) kit Banner'ı: iner/çekilir; geri sayım her saniye yeniden OKUNMAZ | ✅ VoicePanel | ✅ | `Banner`'a geriye uyumlu `live` özelliği eklendi |
@@ -1588,7 +1590,7 @@ bağımlılıklarına bağlı → aynı runtime 2.1.0 APK döngüsü. Medya/FSM 
 | Sahne boş/yükleniyor/hata: katılırken iki karo iskeleti (bir kez "Sese katılınıyor" okunur), katılma başarısızsa hata bloğu + "Tekrar katıl" | Dalga 3 | ✅ | Yeni metinler `voice.joinFailedTitle/Subtitle`, `voice.rejoin` (TR+EN) |
 | Kişi başı ses: kit Sheet + Slider (UI iş parçacığı, %5 adım, %100 çentiği, değer hapı, TalkBack ayarlanabilir), kişinin yüzü başlıkta | ◑ %100 | ✅ %200 | PanResponder sürgüsü emekli. `Slider`'a geriye uyumlu `marks` eklendi |
 | Ses çıkışı seçici: yüzey çipi (rota + aşağı ok) → kit Sheet radyo satırları (seçili = mercan yıkama + tik), hoparlör yankı uyarısı bilgi bandı | — | ✅ | Mantık aynı: açınca rota tazelenir, seçim `noteUserAudioRoutePick` + `setOutputDevice` |
-| Kişi ekle (gruba yükseltme): kit Sheet; iskelet, boş blok, istek sürerken diğer satırlar %40 + o satırda dönen gösterge; yükseltme reddedilirse tost ("Arama sürüyor. Tekrar deneyebilirsin.") | Dalga 3 | ✅ | Eskiden hata sessizce yutuluyordu |
+| Kişi ekle (gruba yükseltme): kit Sheet; iskelet, arkadaş listesi yüklenemezse hata bloğu + "Tekrar dene" ("Arama sürüyor. Listeyi yeniden yükleyebilirsin."), boş blok, istek sürerken diğer satırlar %40 + o satırda dönen gösterge; yükseltme reddedilirse tost ("Arama sürüyor. Tekrar deneyebilirsin.") | Dalga 3 | ✅ | Eskiden hata sessizce yutuluyordu; yükleme hatası da "eklenecek arkadaş yok" diyordu |
 | Son aramalar: kartsız satırlar, ilk yükleme iskelet, hata bloğu + tekrar dene, sonraki sayfa iskelet satır, geri ara diski | Dalga 3 | ✅ | |
 | Ekran paylaşımı + tam ekran: veil diskler (PiP açık = mercan), başlık hapı, film sesi kit Slider (sürüklerken kontroller sabit kalır, sonra yeniden sayar) | Dalga 3 | ✅ | Tam ekran Modal'ı artık kendi `GestureHandlerRootView`'ını taşıyor. Yatay kilit mantığı aynı |
 | Kamera önizleme + paylaşım kalitesi: kit Sheet; önizleme iskeleti → ilk karede belirerek açılma, hata bloğu + tekrar dene, ön/arka kayan Segmented; çözünürlük/FPS radyo çipleri, Android "tüm ekran" bilgi bandı | ✅ | ✅ | `screen-share-fps-offer.test.ts` aynen geçiyor |
@@ -1596,10 +1598,15 @@ bağımlılıklarına bağlı → aynı runtime 2.1.0 APK döngüsü. Medya/FSM 
 
 **Doğrulama:** `pnpm --filter @demli/mobile typecheck` · `lint` · `test` · `pnpm --filter
 @demli/i18n test` · `npx expo export --platform android` (sonuçlar dal raporunda). **Cihazda /
-emülatörde YAPILMADI** (bu adımda APK ve emülatör yasaktı). **Merge/yayın KAPISI:** 2.1.0
+emülatörde YAPILMADI**: denetim sonrası düzeltme turunda AVD `demli-debug` bu ortamda açılmadı
+(emülatör açılışta sessizce kapanıyor), 2.1.0 dev-client APK'sı yok, ve çok kişilik durumlar (gelen
+arama, paylaşım, birlikte izleme) ikinci bir hesap ister. Ekran görüntüsü kanıtı YOK. **Merge/yayın KAPISI:** 2.1.0
 dev-client yapısında AVD `demli-debug` + gerçek telefon: sesli odaya katıl (iskelet → ızgara),
 konuşurken mercan halka, sustur/sağırlaştır pembe yıkama, kamera önizleme (izin reddi dahil),
 paylaşım kalitesi, ekran paylaşımı izle + tam ekran + film sesi sürgüsü, uzun basış → kişi başı
 ses, ses çıkışı seçici; DM araması: giden çalma (nefes alan nokta), gelen arama ışığı + üç düğme,
 mini çubuk giriş/çıkış, koltuk uzakta bandı, kişi ekle; birlikte izleme bant/sıra/seçici;
-azaltılmış hareket açıkken nefes/parıltı/geçişlerin durduğu; TalkBack ile dok ve sürgüler.
+azaltılmış hareket açıkken nefes/parıltı/geçişlerin durduğu; TalkBack ile dok ve sürgüler;
+kamerası kapalı karo ışığı (çeşitli tonlar), tam ekran paylaşımda KAMERALI PiP'te mercan halka + ad
+şeridi + kapat düğmesi görünüyor mu (`zOrder` 1), sahne çubuğunda uzun basış ipucu ve art arda
+basışlarda çubuğun açık kalması, TalkBack'te süre okunmaması, çevrimdışı "Kişi ekle" hata bloğu.
