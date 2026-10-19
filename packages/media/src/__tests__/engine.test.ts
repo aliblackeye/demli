@@ -112,6 +112,12 @@ class FakeLocalParticipant implements LocalParticipantLike {
   isMicrophoneEnabled = false;
   isScreenShareEnabled = false;
   isCameraEnabled = false;
+  /**
+   * True between a mic unpublish and its republish (FakeRoom.republishMicTrack). In
+   * that window livekit has no mic publication and no pending publish, so
+   * `setMicrophoneEnabled(false)` finds nothing to mute and does nothing.
+   */
+  micUnpublished = false;
   published: TrackPublishOptionsLike[] = [];
   setMicrophoneEnabled = vi.fn(
     async (
@@ -119,6 +125,7 @@ class FakeLocalParticipant implements LocalParticipantLike {
       _captureOptions?: AudioCaptureOptionsLike,
       _publishOptions?: MicPublishOptionsLike,
     ) => {
+      if (!enabled && this.micUnpublished) return;
       this.isMicrophoneEnabled = enabled;
     },
   );
@@ -207,12 +214,31 @@ class FakeRoom implements VoiceRoomAdapter {
    * re-acquire fallback.
    */
   applyMicCaptureConstraints = vi.fn(async (_captureOptions: AudioCaptureOptionsLike) => true);
-  /** Full mic RE-PUBLISH (bitrate/codec change) — optional adapter surface. */
+  /**
+   * Resolves the "SFU negotiation" step of {@link republishMicTrack}. Already
+   * resolved by default; a test replaces it with a pending promise to hold a
+   * republish open mid-flight.
+   */
+  republishGate: Promise<void> = Promise.resolve();
+  /**
+   * Full mic RE-PUBLISH (bitrate/codec change) — optional adapter surface. Modelled
+   * on livekit 2.20 `unpublishTrack` + `setMicrophoneEnabled(true)`: the publication
+   * is dropped and `LocalTrackUnpublished` fires synchronously, then the SFU
+   * negotiation is awaited, then a fresh UNMUTED mic is published.
+   */
   republishMicTrack = vi.fn(
     async (
       _captureOptions: AudioCaptureOptionsLike | undefined,
       _publishOptions: MicPublishOptionsLike | undefined,
-    ) => {},
+    ) => {
+      const lp = this.localParticipant;
+      lp.micUnpublished = true;
+      lp.isMicrophoneEnabled = false;
+      this.emit(ROOM_EVENT.LocalTrackUnpublished, { source: TRACK_SOURCE.Microphone });
+      await this.republishGate;
+      lp.micUnpublished = false;
+      lp.isMicrophoneEnabled = true;
+    },
   );
   /** Attach/detach the RNNoise worklet (Yüksek NS tier) — optional adapter surface. */
   applyNoiseFilter = vi.fn(async (_processor: AudioTrackProcessorLike | null) => {});
@@ -1529,6 +1555,146 @@ describe("configureAudio (Ayarlar → Mikrofon)", () => {
 
     expect(room.applyMicCaptureConstraints).not.toHaveBeenCalled();
     expect(room.republishMicTrack).not.toHaveBeenCalled();
+  });
+
+  it("re-attaches the Yüksek worklet on unmute even when the muted change was reverted", async () => {
+    const createNoiseFilter = vi.fn(makeFakeNoiseFilter);
+    const { engine, room } = setup({ createNoiseFilter });
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    expect(room.applyNoiseFilter).toHaveBeenLastCalledWith(null);
+
+    engine.configureAudio(audioSettings({ noiseSuppression: "standard" }));
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    room.applyNoiseFilter.mockClear();
+    await engine.setMic(true);
+
+    // High drops the browser NS because the worklet does the suppression, so a
+    // live mic without the worklet would send with no noise suppression at all.
+    expect(room.applyNoiseFilter).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "fake-rnnoise" }),
+    );
+    expect(room.republishMicTrack).not.toHaveBeenCalled();
+  });
+
+  it("re-attaches the worklet after a 'Kendini dinle' round trip with a reverted tier change", async () => {
+    const createNoiseFilter = vi.fn(makeFakeNoiseFilter);
+    const { monitor } = makeFakeMicMonitor();
+    const { engine, room } = setup({ createNoiseFilter, createMicMonitor: () => monitor });
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await engine.join("channel-1");
+    await flush();
+    await engine.setSelfMonitoring(true);
+    expect(engine.getState().micEnabled).toBe(false);
+    engine.configureAudio(audioSettings({ noiseSuppression: "standard" }));
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await flush();
+    room.applyNoiseFilter.mockClear();
+    await engine.setSelfMonitoring(false);
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(room.applyNoiseFilter).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "fake-rnnoise" }),
+    );
+  });
+
+  it("a republish on unmute leaves the engine and livekit agreeing the mic is live", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    engine.configureAudio(audioSettings({ quality: "high" }));
+
+    await engine.setMic(true);
+    await flush();
+
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(true);
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(engine.getState().error).toBeNull();
+  });
+
+  it("a live quality change republishes without flagging the mic as lost", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(true);
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(engine.getState().error).toBeNull();
+  });
+
+  it("a push-to-talk release during the unmute republish ends with the mic muted in livekit", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    engine.configureAudio(audioSettings({ musicMode: true }));
+
+    let openGate!: () => void;
+    room.republishGate = new Promise<void>((resolve) => (openGate = resolve));
+    const press = engine.setMic(true);
+    await flush();
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    const release = engine.setMic(false);
+    await flush();
+    openGate();
+    await Promise.all([press, release]);
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(false);
+  });
+
+  it("deafening during a live republish ends with the mic muted in livekit", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+
+    let openGate!: () => void;
+    room.republishGate = new Promise<void>((resolve) => (openGate = resolve));
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    const deafen = engine.setDeafened(true);
+    await flush();
+    openGate();
+    await deafen;
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(false);
+  });
+
+  it("a republish that fails to bring the mic back is reported, not shown as live", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    room.republishMicTrack.mockImplementationOnce(async () => {
+      room.localParticipant.isMicrophoneEnabled = false;
+      room.emit(ROOM_EVENT.LocalTrackUnpublished, { source: TRACK_SOURCE.Microphone });
+      const err = new Error("Could not start audio source");
+      err.name = "NotReadableError";
+      throw err;
+    });
+
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(engine.getState().error).not.toBeNull();
   });
 
   it("an UNCONFIRMED echoCancellation:false never reaches the mic (AEC stays on)", async () => {

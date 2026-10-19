@@ -1022,6 +1022,20 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
    */
   let pendingMicChange: { from: AudioSettings | null } | null = null;
   /**
+   * Number of mic republishes in flight. livekit's unpublish fires
+   * `LocalTrackUnpublished` before the fresh track is published, and that event is
+   * ours, not a lost mic — {@link onLocalTrackUnpublished} ignores it while > 0.
+   */
+  let micRepublishing = 0;
+  /**
+   * Tail of the mic-operation queue ({@link runMicOp}); null when idle. Mute,
+   * unmute and live settings changes each await livekit (a republish includes an
+   * SFU round trip), so without a queue a push-to-talk release could land in the
+   * middle of the press's republish, find no publication to mute, and leave the
+   * fresh track live while the UI says muted.
+   */
+  let micOpTail: Promise<void> | null = null;
+  /**
    * Latched true when the worklet FAILED at runtime (WASM/CSP/load error). Once
    * broken we treat the filter as unavailable for the rest of the session, so the
    * `high` tier degrades to the built-in WebRTC NS instead of leaving NS off with a
@@ -1113,10 +1127,66 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       return;
     }
     try {
-      await room.republishMicTrack(resolveMicCaptureOptions(), resolveMicPublishOptions());
+      await republishMic(resolveMicCaptureOptions(), resolveMicPublishOptions());
     } catch {
       // Best-effort — the fallback NS applies on the next unmute / rejoin regardless.
     }
+  }
+
+  /**
+   * Run a mic operation after every earlier one has settled; starts synchronously
+   * when the queue is idle. A failed operation does not block the ones after it.
+   */
+  function runMicOp<T>(op: () => Promise<T>): Promise<T> {
+    const result = micOpTail ? micOpTail.then(op) : op();
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    micOpTail = tail;
+    void tail.then(() => {
+      if (micOpTail === tail) micOpTail = null;
+    });
+    return result;
+  }
+
+  /**
+   * Unpublish + republish the mic with new options, then make livekit match the
+   * engine's intent: a mute that arrived mid-republish found no publication to
+   * mute, so the fresh track is muted here; a republish that failed to bring the
+   * mic back is reported instead of leaving the button showing a live mic.
+   */
+  async function republishMic(
+    capture: AudioCaptureOptionsLike | undefined,
+    publish: MicPublishOptionsLike | undefined,
+  ): Promise<void> {
+    const target = room;
+    if (!target?.republishMicTrack) return;
+    micRepublishing += 1;
+    let failure: unknown = null;
+    try {
+      await target.republishMicTrack(capture, publish);
+    } catch (err) {
+      failure = err;
+    } finally {
+      micRepublishing -= 1;
+    }
+    // The old track (and any processor attached to it) is gone.
+    noiseFilterActive = false;
+    if (target !== room) return;
+    const live = target.localParticipant.isMicrophoneEnabled;
+    if (!state.micEnabled && live) {
+      await target.localParticipant.setMicrophoneEnabled(false);
+    } else if (state.micEnabled && !live) {
+      setState({
+        micEnabled: false,
+        error: failure
+          ? mapAcquisitionError(failure, "microphone", state.selectedInputDeviceId)
+          : { kind: "track_ended_unexpectedly", track: "mic" },
+      });
+      syncParticipants();
+    }
+    if (failure) throw failure;
   }
 
   /**
@@ -1151,7 +1221,11 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
    * RNNoise worklet (Yüksek tier) is applied AFTER this via {@link syncNoiseFilter},
    * not through capture options — see its docstring for why.
    */
-  async function setRoomMic(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
+  function setRoomMic(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
+    return runMicOp(() => setRoomMicNow(target, enabled));
+  }
+
+  async function setRoomMicNow(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
     const capture = resolveMicCaptureOptions();
     const publish = resolveMicPublishOptions();
     const result =
@@ -1165,12 +1239,11 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       // while muted is applied here, now that the mic is live again.
       const pending = pendingMicChange;
       pendingMicChange = null;
-      if (pending) {
-        await applyAudioChangeToLiveMic(pending.from, audioSettings);
-        return result;
-      }
+      if (pending) await applyAudioChangeToLiveMic(pending.from, audioSettings);
     }
     // Match the worklet to the tier once the track (or its removal) has settled.
+    // Also after a pending change: one that was reverted while muted changes
+    // nothing, yet the mute detached the worklet and it has to come back.
     await syncNoiseFilter();
     return result;
   }
@@ -2126,6 +2199,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     if (state.status !== "connected" && state.status !== "reconnecting") return;
     if (publication.source === TRACK_SOURCE.Microphone) {
       if (!state.micEnabled) return; // we unpublished it on purpose
+      if (micRepublishing > 0) return; // our own republish; republishMic reconciles
       setState({
         micEnabled: false,
         error: { kind: "track_ended_unexpectedly", track: "mic" },
@@ -2254,6 +2328,8 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     noiseFilterBroken = false;
     micPublishedInRoom = false;
     pendingMicChange = null;
+    // A mic operation still awaiting the old room must not hold up the next one.
+    micOpTail = null;
   }
 
   /**
@@ -3146,14 +3222,25 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     // settings writes don't re-open the capture.
     if (changed) rearmSelfMonitoring();
     if (!changed || !room || state.status !== "connected") return;
-    if (!state.micEnabled) {
-      // A muted mic keeps its published track, and unmuting only re-enables that
-      // track — so remember what it still carries and apply on the next unmute
-      // instead of letting the change wait silently for a rejoin.
+    // A muted mic keeps its published track, and unmuting only re-enables that
+    // track — so remember what it still carries and apply on the next unmute
+    // instead of letting the change wait silently for a rejoin.
+    const deferUntilUnmute = (): void => {
       if (micPublishedInRoom && !pendingMicChange) pendingMicChange = { from: previous };
+    };
+    if (!state.micEnabled) {
+      deferUntilUnmute();
       return;
     }
-    void applyAudioChangeToLiveMic(previous, settings);
+    void runMicOp(async () => {
+      if (!room || state.status !== "connected") return;
+      // Queued behind a mute that has since landed: defer like any muted change.
+      if (!state.micEnabled) {
+        deferUntilUnmute();
+        return;
+      }
+      await applyAudioChangeToLiveMic(previous, settings);
+    });
   }
 
   /**
@@ -3221,11 +3308,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         // republish is the only thing that moves them. This is the one path that
         // costs listeners a gap, and it is reached only by an audio-QUALITY or
         // Müzik Modu change, never by a plain noise-suppression switch.
-        await room.republishMicTrack(nextCapture, nextPublish);
-        // The old track (and with it any attached processor) is gone; the flag
-        // must forget the processor that died with it or the re-attach below is
-        // skipped as a no-op.
-        noiseFilterActive = false;
+        await republishMic(nextCapture, nextPublish);
       } else if (captureChanged && nextCapture) {
         await applyMicCaptureLive(nextCapture, prevCapture);
       }
@@ -3273,8 +3356,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       return;
     }
     if (typeof room.republishMicTrack === "function") {
-      await room.republishMicTrack(next, resolveMicPublishOptions());
-      noiseFilterActive = false;
+      await republishMic(next, resolveMicPublishOptions());
     }
   }
 
