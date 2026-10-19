@@ -151,7 +151,14 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
             )}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-label font-semibold text-fg">
+            {/* Two lines, never an ellipsis: at the real w-60 sidebar the TR/EN
+                seat titles are wider than one line, and this is the sentence that
+                says where the call is. */}
+            <p
+              data-testid="call-dock-title"
+              title={elsewhere ? t("desktop:call.seatElsewhere") : t("desktop:call.seatVacant")}
+              className="line-clamp-2 break-words text-label font-semibold leading-snug text-fg"
+            >
               {elsewhere ? t("desktop:call.seatElsewhere") : t("desktop:call.seatVacant")}
             </p>
             <p className="truncate text-2xs text-fg-faint">{peerName}</p>
@@ -173,7 +180,7 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
           <CallControl
             label={t("desktop:call.hangUp")}
             icon={PhoneOff}
-            tone="off"
+            tone="leave"
             size="round-sm"
             onClick={() => void getCallController()?.hangup()}
           />
@@ -193,7 +200,16 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
         <div className="flex min-w-0 items-center gap-2.5 pl-0.5">
           <LiveDot tone={ringing || !connected ? "pending" : "live"} />
           <div className="min-w-0">
-            <p role="status" title={statusText} className={cn("truncate text-label font-semibold", statusClass)}>
+            {/* The connection state is the line a user reads first, so it wraps
+                (two lines max) instead of truncating: "Görüntülü bağlantı kuruldu"
+                does not fit one line of the 240px sidebar next to the bars and
+                the leave control. */}
+            <p
+              role="status"
+              data-testid="call-dock-status"
+              title={statusText}
+              className={cn("line-clamp-2 break-words text-label font-semibold leading-snug", statusClass)}
+            >
               {statusText}
             </p>
             <p className="truncate text-2xs text-fg-faint">{peerName}</p>
@@ -205,7 +221,7 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
           <CallControl
             label={ringing ? t("desktop:call.cancel") : t("desktop:call.leaveRoom")}
             icon={ringing ? PhoneOff : LogOut}
-            tone="off"
+            tone="leave"
             size="round-sm"
             onClick={end}
             data-testid="call-dock-leave"

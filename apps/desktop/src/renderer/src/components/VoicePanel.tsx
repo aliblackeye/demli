@@ -145,7 +145,7 @@ export function VoicePanel(): JSX.Element | null {
           <CallControl
             label={t("desktop:voice.disconnect")}
             icon={PhoneOff}
-            tone="off"
+            tone="leave"
             size="round-sm"
             onClick={leave}
             data-testid="voice-panel-leave"
