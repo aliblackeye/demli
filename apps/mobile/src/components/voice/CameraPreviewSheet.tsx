@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal, Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
+import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { RefreshCw, Video, VideoOff } from "lucide-react-native";
 import {
   mediaDevices,
@@ -12,7 +11,12 @@ import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
 import { ensureCameraPermission, normalizeMediaError } from "@/media/permissions";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
+import { EmptyState } from "../EmptyState";
+import { Segmented } from "../Segmented";
+import { Skeleton } from "../Skeleton";
+import { Button } from "../ui/Button";
+import { Sheet } from "../ui/Sheet";
 import {
   classifyCameras,
   facingModeFor,
@@ -52,6 +56,13 @@ function classifyPreviewError(err: unknown): PreviewError {
  *
  * No effects on mobile MVP (native background blur is a later, 1.7.0-native item);
  * front/back + preview is the shipping value here.
+ *
+ * Every state is drawn: the camera starting (a pulsing frame, never a black box),
+ * the live preview (fading in when the first frame is ready), and a refusal —
+ * permission, no camera, anything else — as the kit's error block with its own
+ * retry. Front/back is the kit's sliding Segmented. Drawn on the draggable Sheet;
+ * every way out (drag, scrim, back, Cancel) goes through `close`, so the preview
+ * track is always stopped.
  */
 export function CameraPreviewSheet({
   visible,
@@ -64,7 +75,6 @@ export function CameraPreviewSheet({
   onConfirm: () => void;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const setVideoDevice = useVoiceStore((s) => s.setVideoDevice);
 
   const [front, setFront] = useState(true);
@@ -173,90 +183,70 @@ export function CameraPreviewSheet({
           : null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <Pressable
-        onPress={close}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-      >
-        {/* Card. Its own Pressable swallows taps so they don't dismiss the sheet. */}
-        <Pressable
-          onPress={() => {}}
+    <Sheet
+      visible={visible}
+      onClose={close}
+      title={t("mobile:voice.cameraPreview.title")}
+      description={t("mobile:voice.cameraPreview.subtitle")}
+      footer={
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <Button
+            variant="secondary"
+            size="lg"
+            label={t("mobile:voice.cameraPreview.cancel")}
+            onPress={close}
+            style={{ flex: 1 }}
+          />
+          <Button
+            variant="accent"
+            size="lg"
+            icon={Video}
+            label={t("mobile:voice.cameraPreview.confirm")}
+            disabled={!!error}
+            onPress={confirm}
+            style={{ flex: 2 }}
+          />
+        </View>
+      }
+    >
+      <View style={{ paddingHorizontal: space.xs, gap: space.md }}>
+        {/* Preview surface (never published). Mirror the front camera — the
+            natural selfie look, consistent with the live self-view tile. */}
+        <View
           style={{
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
+            width: "100%",
+            aspectRatio: 3 / 4,
+            maxHeight: 320,
+            borderRadius: radius.xl,
             borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingTop: space.md,
-            paddingBottom: space.md + insets.bottom,
-            paddingHorizontal: space.lg,
-            gap: space.md,
+            overflow: "hidden",
+            backgroundColor: colors.rail,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          {/* Grab handle. */}
-          <View
-            style={{
-              alignSelf: "center",
-              width: 36,
-              height: 4,
-              borderRadius: radius.pill,
-              backgroundColor: colors.strokeStrong,
-            }}
-          />
-
-          <View style={{ gap: 2 }}>
-            <Text variant="display" style={{ color: colors.fg, fontSize: 17, fontWeight: "800" }}>
-              {t("mobile:voice.cameraPreview.title")}
-            </Text>
-            <Text style={{ color: colors.fgMuted, fontSize: 13 }}>
-              {t("mobile:voice.cameraPreview.subtitle")}
-            </Text>
-          </View>
-
-          {/* Preview surface (never published). Mirror the front camera — the
-              natural selfie look, consistent with the live self-view tile. */}
-          <View
-            style={{
-              width: "100%",
-              aspectRatio: 3 / 4,
-              maxHeight: 320,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              overflow: "hidden",
-              backgroundColor: "#000",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {errorMessage ? (
-              <View style={{ alignItems: "center", gap: space.md, paddingHorizontal: space.lg }}>
-                <VideoOff size={30} color={colors.fgFaint} />
-                <Text style={{ color: colors.fgMuted, fontSize: 13, textAlign: "center" }}>
-                  {errorMessage}
-                </Text>
-                <Pressable
+          {errorMessage ? (
+            <EmptyState
+              compact
+              tone="error"
+              icon={<VideoOff size={22} color={colors.danger} strokeWidth={2} />}
+              title={errorMessage}
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={RefreshCw}
+                  label={t("mobile:voice.cameraPreview.retry")}
                   onPress={() => setAttempt((n) => n + 1)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => ({
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: space.xs,
-                    paddingHorizontal: space.md,
-                    paddingVertical: space.sm,
-                    borderRadius: radius.md,
-                    backgroundColor: colors.surfaceRaised,
-                    opacity: pressed ? 0.8 : 1,
-                  })}
-                >
-                  <RefreshCw size={15} color={colors.fg} />
-                  <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-                    {t("mobile:voice.cameraPreview.retry")}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : streamUrl ? (
+                />
+              }
+            />
+          ) : streamUrl ? (
+            <Animated.View
+              key={streamUrl}
+              entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+              style={{ width: "100%", height: "100%" }}
+            >
               <RTCView
                 streamURL={streamUrl}
                 objectFit="cover"
@@ -264,107 +254,37 @@ export function CameraPreviewSheet({
                 zOrder={1}
                 style={{ width: "100%", height: "100%" }}
               />
-            ) : (
-              <Text style={{ color: colors.fgFaint, fontSize: 13 }}>
-                {t("mobile:voice.cameraPreview.starting")}
-              </Text>
-            )}
-          </View>
-
-          {/* Front/back segmented toggle — only when the phone has two cameras. */}
-          {showToggle && !errorMessage ? (
+            </Animated.View>
+          ) : (
             <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: colors.surfaceRaised,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                padding: 3,
-                gap: 3,
-              }}
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityState={{ busy: true }}
+              accessibilityLabel={t("mobile:voice.cameraPreview.starting")}
+              style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
             >
-              {[true, false].map((isFront) => {
-                const selected = front === isFront;
-                return (
-                  <Pressable
-                    key={isFront ? "front" : "back"}
-                    onPress={() => {
-                      if (front === isFront) return;
-                      haptics.light();
-                      setFront(isFront);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={{
-                      flex: 1,
-                      alignItems: "center",
-                      paddingVertical: space.sm,
-                      borderRadius: radius.sm,
-                      borderCurve: "continuous",
-                      backgroundColor: selected ? colors.accent : "transparent",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? colors.onAccent : colors.fgMuted,
-                        fontSize: 14,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {isFront
-                        ? t("mobile:voice.cameraPreview.front")
-                        : t("mobile:voice.cameraPreview.back")}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              <Skeleton width="100%" height="100%" radius={radius.xl} />
             </View>
-          ) : null}
+          )}
+        </View>
 
-          <View style={{ flexDirection: "row", gap: space.sm }}>
-            <Pressable
-              onPress={close}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                flex: 1,
-                minHeight: 48,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.surfaceRaised,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
-                {t("mobile:voice.cameraPreview.cancel")}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={confirm}
-              disabled={!!error}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                flex: 2,
-                minHeight: 48,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: space.sm,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.online,
-                opacity: error ? 0.4 : pressed ? 0.85 : 1,
-              })}
-            >
-              <Video size={18} color={colors.onAccent} />
-              <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "700" }}>
-                {t("mobile:voice.cameraPreview.confirm")}
-              </Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        {/* Front/back segmented toggle — only when the phone has two cameras. */}
+        {showToggle && !errorMessage ? (
+          <Segmented
+            value={front ? "front" : "back"}
+            onChange={(next) => {
+              const isFront = next === "front";
+              if (front === isFront) return;
+              // Segmented already gives the selection tick.
+              setFront(isFront);
+            }}
+            options={[
+              { value: "front", label: t("mobile:voice.cameraPreview.front") },
+              { value: "back", label: t("mobile:voice.cameraPreview.back") },
+            ]}
+          />
+        ) : null}
+      </View>
+    </Sheet>
   );
 }

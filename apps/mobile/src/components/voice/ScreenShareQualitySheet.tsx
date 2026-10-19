@@ -1,6 +1,4 @@
-import { Modal, Platform, Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, View } from "react-native";
 import { MonitorPlay, ScreenShare } from "lucide-react-native";
 import {
   ANDROID_SCREEN_CAPTURE_MAX_FPS,
@@ -13,10 +11,13 @@ import {
   type ScreenShareResolution,
 } from "@demli/media";
 import { useAppTranslation } from "@/lib/i18n";
-import { haptics } from "@/lib/haptics";
-import { ChipSelect } from "@/components/ChipSelect";
 import { useMediaSettings } from "@/stores/media-settings";
-import { colors, radius, space } from "@/theme/theme";
+import { space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
+import { Button } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { Sheet } from "../ui/Sheet";
+import { Text } from "../ui/Text";
 
 /** Resolution tier → chip label (1440p is marketed as 2K). */
 const SCREEN_RESOLUTION_LABEL: Record<ScreenShareResolution, string> = {
@@ -39,6 +40,10 @@ const SCREEN_RESOLUTION_LABEL: Record<ScreenShareResolution, string> = {
  * bare Alert while adding the quality controls. Engine boundary (CLAUDE.md §11): the
  * sheet only writes the persisted preference + calls the parent toggle; it never
  * touches the engine's VoiceState or acquires a track itself.
+ *
+ * Drawn by the kit: the draggable Sheet, radio Chips for each axis (the chosen one
+ * in the coral wash), the Android guidance as an info Banner, and the primary
+ * action pinned in the footer so it never scrolls away.
  */
 export function ScreenShareQualitySheet({
   visible,
@@ -51,7 +56,6 @@ export function ScreenShareQualitySheet({
   onConfirm: () => void;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const screenShareQuality = useMediaSettings((s) => s.video.screenShareQuality);
   const setScreenShareQuality = useMediaSettings((s) => s.setScreenShareQuality);
 
@@ -63,161 +67,97 @@ export function ScreenShareQualitySheet({
   } Mbps`;
 
   const start = (): void => {
-    haptics.medium();
     onConfirm();
     onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-      >
-        {/* Card. Its own Pressable swallows taps so they don't dismiss the sheet. */}
-        <Pressable
-          onPress={() => {}}
-          style={{
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingTop: space.md,
-            paddingBottom: space.md + insets.bottom,
-            paddingHorizontal: space.lg,
-            gap: space.md,
-          }}
-        >
-        {/* Grab handle. */}
-        <View
-          style={{
-            alignSelf: "center",
-            width: 36,
-            height: 4,
-            borderRadius: radius.pill,
-            backgroundColor: colors.strokeStrong,
-          }}
-        />
-
-        <View style={{ gap: 2 }}>
-          <Text variant="display" style={{ color: colors.fg, fontSize: 17, fontWeight: "800" }}>
-            {t("mobile:voice.shareQuality.title")}
-          </Text>
-          <Text style={{ color: colors.fgMuted, fontSize: 13 }}>
-            {t("mobile:voice.shareQuality.subtitle")}
-          </Text>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={t("mobile:voice.shareQuality.title")}
+      description={t("mobile:voice.shareQuality.subtitle")}
+      footer={
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <Button
+            variant="secondary"
+            size="lg"
+            label={t("mobile:voice.shareScreenHint.cancel")}
+            onPress={onClose}
+            style={{ flex: 1 }}
+          />
+          <Button
+            variant="accent"
+            size="lg"
+            icon={ScreenShare}
+            haptic="medium"
+            label={t("mobile:voice.shareQuality.start")}
+            onPress={start}
+            style={{ flex: 2 }}
+          />
         </View>
-
+      }
+    >
+      <View style={{ paddingHorizontal: space.xs, gap: space.lg }}>
         {/* Resolution axis */}
         <View style={{ gap: space.sm }}>
-          <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
+          <Text type="label" tone="default">
             {t("mobile:voice.shareQuality.resolution")}
           </Text>
-          <ChipSelect
-            options={SCREEN_SHARE_RESOLUTIONS.map((res) => ({
-              key: res,
-              label: SCREEN_RESOLUTION_LABEL[res],
-            }))}
-            selectedKey={resolution}
-            onSelect={(key) =>
-              setScreenShareQuality(
-                screenShareQualityId(key as ScreenShareResolution, frameRate),
-              )
-            }
-          />
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+            {SCREEN_SHARE_RESOLUTIONS.map((res) => (
+              <Chip
+                key={res}
+                role="radio"
+                label={SCREEN_RESOLUTION_LABEL[res]}
+                selected={res === resolution}
+                haptic="light"
+                onPress={() => setScreenShareQuality(screenShareQualityId(res, frameRate))}
+              />
+            ))}
+          </View>
         </View>
 
         {/* Frame-rate axis */}
         <View style={{ gap: space.sm }}>
-          <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
+          <Text type="label" tone="default">
             {t("mobile:voice.shareQuality.frameRate")}
           </Text>
-          <ChipSelect
-            // Android captures the screen at a fixed 30fps, so a 60 chip here
-            // would take the user's money in uplink and give back nothing (see
-            // ANDROID_SCREEN_CAPTURE_MAX_FPS). Filtered, not disabled: a greyed
-            // chip still asks "why not?", and the answer is that it isn't a tier.
-            options={screenShareFrameRatesUpTo(ANDROID_SCREEN_CAPTURE_MAX_FPS).map((fps) => ({
-              key: String(fps),
-              label: `${fps} FPS`,
-            }))}
-            selectedKey={String(frameRate)}
-            onSelect={(key) =>
-              setScreenShareQuality(
-                screenShareQualityId(resolution, Number(key) as 15 | 30 | 60),
-              )
-            }
-          />
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+            {/* Android captures the screen at a fixed 30fps, so a 60 chip here
+                would take the user's money in uplink and give back nothing (see
+                ANDROID_SCREEN_CAPTURE_MAX_FPS). Filtered, not disabled: a greyed
+                chip still asks "why not?", and the answer is that it isn't a tier. */}
+            {screenShareFrameRatesUpTo(ANDROID_SCREEN_CAPTURE_MAX_FPS).map((fps) => (
+              <Chip
+                key={fps}
+                role="radio"
+                label={`${fps} FPS`}
+                selected={fps === frameRate}
+                haptic="light"
+                onPress={() =>
+                  setScreenShareQuality(screenShareQualityId(resolution, fps as 15 | 30 | 60))
+                }
+              />
+            ))}
+          </View>
         </View>
 
         {/* Live summary of the composed cell. */}
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>{summary}</Text>
+        <Text type="meta" tone="faint" style={{ fontVariant: ["tabular-nums"] }}>
+          {summary}
+        </Text>
 
         {/* Android-only "Entire screen" guidance (single-app capture is unreliable). */}
         {Platform.OS === "android" ? (
-          <View
-            style={{
-              flexDirection: "row",
-              gap: space.sm,
-              backgroundColor: colors.surfaceRaised,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              padding: space.md,
-            }}
-          >
-            <MonitorPlay size={18} color={colors.fgMuted} style={{ marginTop: 1 }} />
-            <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
-              {t("mobile:voice.shareScreenHint.message")}
-            </Text>
-          </View>
+          <Banner
+            variant="info"
+            icon={MonitorPlay}
+            title={t("mobile:voice.shareScreenHint.title")}
+            description={t("mobile:voice.shareScreenHint.message")}
+          />
         ) : null}
-
-        <View style={{ flexDirection: "row", gap: space.sm }}>
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            style={({ pressed }) => ({
-              flex: 1,
-              minHeight: 48,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              backgroundColor: colors.surfaceRaised,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
-              {t("mobile:voice.shareScreenHint.cancel")}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={start}
-            accessibilityRole="button"
-            style={({ pressed }) => ({
-              flex: 2,
-              minHeight: 48,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: space.sm,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              backgroundColor: colors.accent,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <ScreenShare size={18} color={colors.onAccent} />
-            <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "700" }}>
-              {t("mobile:voice.shareQuality.start")}
-            </Text>
-          </Pressable>
-        </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </Sheet>
   );
 }
