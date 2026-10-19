@@ -10,6 +10,13 @@ export interface FieldProps {
   error?: React.ReactNode;
   /** Keeps the label for screen readers only (search boxes, composer-like rows). */
   hideLabel?: boolean;
+  /**
+   * Announce the error line the moment it appears (`role="alert"`). For errors
+   * raised by a SUBMIT, where the user may still be on the field (pressing Enter
+   * in it) and a changed description alone would be silent. Leave off for
+   * live-as-you-type validation, which would interrupt on every keystroke.
+   */
+  announceError?: boolean;
   className?: string;
   /** Exactly one form control (Input, Textarea, Select trigger, …). */
   children: React.ReactElement<{
@@ -26,7 +33,15 @@ export interface FieldProps {
  * an error marks the control `aria-invalid` with `aria-errormessage` — so the
  * invalid look (driven by aria-invalid) and the announcement cannot disagree.
  */
-export function Field({ label, help, error, hideLabel = false, className, children }: FieldProps): JSX.Element {
+export function Field({
+  label,
+  help,
+  error,
+  hideLabel = false,
+  announceError = false,
+  className,
+  children,
+}: FieldProps): JSX.Element {
   const generated = React.useId();
   const id = children.props.id ?? `field-${generated}`;
   const helpId = `${id}-help`;
@@ -50,7 +65,7 @@ export function Field({ label, help, error, hideLabel = false, className, childr
       </label>
       {control}
       {hasError ? (
-        <p id={errorId} className="text-label text-danger">
+        <p id={errorId} role={announceError ? "alert" : undefined} className="text-label text-danger">
           {error}
         </p>
       ) : help ? (

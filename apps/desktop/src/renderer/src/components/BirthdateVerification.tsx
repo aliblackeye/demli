@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Button, Field, Input, cn } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
@@ -68,6 +68,15 @@ export function BirthdateVerification({
   const [step, setStep] = useState<Step>("input");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<CommonErrorKey | "desktop:birthdate.invalid" | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Any failure lands the user back on the date field: a bad date is fixed
+  // there, and a failed SAVE unmounts the button that had focus (the confirm
+  // step is replaced by the input step) — without this, focus would fall to
+  // the page and the keyboard user would have to find their way back.
+  useEffect(() => {
+    if (error !== null && step === "input") inputRef.current?.focus();
+  }, [error, step]);
 
   // Age of the typed date. `null` means "not a real, non-future calendar date",
   // which is exactly when the form must refuse to advance.
@@ -114,8 +123,10 @@ export function BirthdateVerification({
             label={t("desktop:birthdate.label")}
             help={t("desktop:birthdate.once")}
             error={error === "desktop:birthdate.invalid" ? t(error) : undefined}
+            announceError
           >
             <Input
+              ref={inputRef}
               id="birthdate-verify"
               type="date"
               value={value}

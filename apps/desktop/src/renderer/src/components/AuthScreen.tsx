@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import demliLogo from "../assets/demli-logo.svg";
@@ -169,6 +169,18 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
   /** A form-level failure from the server (rendered as the band above the fields). */
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * Bumped by every submit that fails validation: after that render (the field
+   * now carries aria-invalid + its error as the description) focus moves to the
+   * first invalid control, so the screen reader reads the error and the user is
+   * already where the fix goes — the submit never appears to "do nothing".
+   */
+  const [invalidSubmit, setInvalidSubmit] = useState(0);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  useEffect(() => {
+    if (invalidSubmit === 0) return;
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [invalidSubmit]);
 
   const switchMode = (next: Mode): void => {
     setMode(next);
@@ -192,6 +204,7 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
     if (validationError) {
       setError(null);
       setFieldError(validationError);
+      setInvalidSubmit((n) => n + 1);
       return;
     }
     setFieldError(null);
@@ -262,7 +275,7 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
           </AnimatePresence>
         </div>
 
-        <form onSubmit={onSubmit} noValidate className="rounded-card bg-app p-6">
+        <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-card bg-app p-6">
           {!isAdd && notice && !error && (
             <FormErrorAlert tone="warning" className="mb-5">
               {t(notice)}
@@ -275,7 +288,7 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
           )}
           {error && <FormErrorAlert className="mb-5">{error}</FormErrorAlert>}
 
-          <Field label={t("desktop:auth.usernameLabel")} error={errorFor("username")}>
+          <Field label={t("desktop:auth.usernameLabel")} error={errorFor("username")} announceError>
             <Input
               value={username}
               onChange={(event) => {
@@ -306,6 +319,7 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
                     label={t("desktop:auth.birthdateLabel")}
                     help={t("desktop:auth.birthdateHint")}
                     error={errorFor("birthdate")}
+                    announceError
                   >
                     <Input
                       type="date"
@@ -326,6 +340,7 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
           <Field
             label={t("desktop:auth.passwordLabel")}
             error={errorFor("password")}
+            announceError
             className="mt-4"
           >
             {/*
