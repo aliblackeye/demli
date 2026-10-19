@@ -19,7 +19,7 @@ import {
 } from "../../queries/chat-queries";
 import { useChatStore } from "../../stores/chat-store";
 import { useUiStore } from "../../stores/ui-store";
-import { DangerZone, HelpWithCount, UnsavedChangesBar } from "../settings-kit";
+import { ChangedElsewhereNotice, DangerZone, HelpWithCount, UnsavedChangesBar } from "../settings-kit";
 import { useReportDirty, type DraftGuard } from "./shared";
 
 const INVITE_POLICIES = [
@@ -79,6 +79,27 @@ function bannerErrorFrom(err: unknown): BannerError {
   return "errors.generic";
 }
 
+/** The editable General fields, as the draft and the server see them. */
+type GeneralSnapshot = {
+  name: string;
+  iconUrl: string;
+  systemChannelId: string;
+  invitePolicy: InvitePolicy;
+};
+
+const snapshotOf = (group: FriendGroup): GeneralSnapshot => ({
+  name: group.name,
+  iconUrl: group.iconUrl ?? "",
+  systemChannelId: group.systemChannelId ?? "",
+  invitePolicy: group.invitePolicy ?? "members",
+});
+
+const sameGeneral = (a: GeneralSnapshot, b: GeneralSnapshot): boolean =>
+  a.name === b.name &&
+  a.iconUrl === b.iconUrl &&
+  a.systemChannelId === b.systemChannelId &&
+  a.invitePolicy === b.invitePolicy;
+
 /** Read a File into `{ mime, dataBase64 }` (strips the `data:...;base64,` prefix). */
 async function fileToUpload(file: File): Promise<{ mime: string; dataBase64: string }> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -118,10 +139,15 @@ export function GeneralTab({
     .filter((c) => c.kind === "text")
     .sort((a, b) => a.position - b.position);
 
+  // The draft is compared against the server value it was SEEDED from
+  // (`baseline`), never against the live prop — a `group.updated` refetch must
+  // not turn an untouched form dirty and lock the dialog (see RolesTab).
+  const [baseline, setBaseline] = useState<GeneralSnapshot>(() => snapshotOf(group));
   const [name, setName] = useState(group.name);
   const [iconUrl, setIconUrl] = useState(group.iconUrl ?? "");
   const [systemChannelId, setSystemChannelId] = useState(group.systemChannelId ?? "");
   const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(group.invitePolicy ?? "members");
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
   const [error, setError] = useState<FormError | null>(null);
   const [nameTouched, setNameTouched] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -137,30 +163,46 @@ export function GeneralTab({
 
   const bannerUrl = group.bannerUrl ?? null;
 
-  const reseed = (): void => {
-    setName(group.name);
-    setIconUrl(group.iconUrl ?? "");
-    setSystemChannelId(group.systemChannelId ?? "");
-    setInvitePolicy(group.invitePolicy ?? "members");
+  const trimmedName = name.trim();
+  const draft: GeneralSnapshot = {
+    name: trimmedName,
+    iconUrl: iconUrl.trim(),
+    systemChannelId,
+    invitePolicy,
+  };
+  const server = snapshotOf(group);
+  const dirty = isOwner && !sameGeneral(draft, baseline);
+
+  /** Seed the draft (and its baseline) from a server value. */
+  const adopt = (next: GeneralSnapshot): void => {
+    setBaseline(next);
+    setName(next.name);
+    setIconUrl(next.iconUrl);
+    setSystemChannelId(next.systemChannelId);
+    setInvitePolicy(next.invitePolicy);
+    setChangedElsewhere(false);
     setError(null);
     setNameTouched(false);
   };
 
-  // Reseed if the underlying server changes (dialog reused across servers).
+  // A different server: start over.
   useEffect(() => {
-    reseed();
+    adopt(snapshotOf(group));
     setBannerError(null);
     setConfirmingDelete(false);
-    // Reseed only when the underlying server changes, not on every refetch.
+    // Only when the underlying server changes (dialog reused across servers).
   }, [group.id]);
 
-  const trimmedName = name.trim();
-  const dirty =
-    isOwner &&
-    (trimmedName !== group.name ||
-      iconUrl.trim() !== (group.iconUrl ?? "") ||
-      systemChannelId !== (group.systemChannelId ?? "") ||
-      invitePolicy !== (group.invitePolicy ?? "members"));
+  // The same server moved underneath the form (group.updated from another
+  // device or manager). Clean → follow it; dirty → keep the draft and say so.
+  // Our own save is adopted from its response in onSave instead.
+  useEffect(() => {
+    if (updateGroup.isPending || sameGeneral(server, baseline)) return;
+    if (!dirty || sameGeneral(server, draft)) adopt(server);
+    else setChangedElsewhere(true);
+    // Keyed on the server fields; draft/baseline are read at that moment.
+  }, [server.name, server.iconUrl, server.systemChannelId, server.invitePolicy, updateGroup.isPending]);
+
   useReportDirty(guard, dirty);
 
   const nameError =
@@ -245,7 +287,10 @@ export function GeneralTab({
         systemChannelId: systemChannelId.length > 0 ? systemChannelId : null,
         invitePolicy,
       },
-      { onError: (err) => setError(errorKey(err)) },
+      {
+        onSuccess: ({ group: saved }) => adopt(snapshotOf(saved)),
+        onError: (err) => setError(errorKey(err)),
+      },
     );
   };
 
@@ -270,6 +315,13 @@ export function GeneralTab({
   return (
     <div className="space-y-7">
       {error && error !== "desktop:serverSettings.nameRequired" && <FormErrorAlert>{t(error)}</FormErrorAlert>}
+      {changedElsewhere && (
+        <ChangedElsewhereNotice
+          message={t("desktop:settingsUi.changedElsewhereServer")}
+          actionLabel={t("desktop:settingsUi.changedElsewhereLoad")}
+          onAction={() => adopt(server)}
+        />
+      )}
 
       {/* ── Server banner ─────────────────────────────────────────────────── */}
       {/* Its own action, above the form: it POSTs bytes to its own endpoint
@@ -445,7 +497,7 @@ export function GeneralTab({
         nudgeMessage={t("desktop:settingsUi.unsavedNudge")}
         resetLabel={t("desktop:settingsUi.unsavedReset")}
         saveLabel={t("desktop:settingsUi.unsavedSave")}
-        onReset={reseed}
+        onReset={() => adopt(server)}
         onSave={() => onSave()}
         saveDisabled={trimmedName.length === 0}
         className="sticky bottom-0 z-10 -mx-1 pb-1 pt-2"

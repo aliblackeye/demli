@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@demli/ui";
 import { PERMISSIONS } from "@demli/types";
 import { useAppTranslation } from "../lib/i18n";
-import { useGroups, useServerPermissions } from "../queries/chat-queries";
+import { useGroupDetails, useGroups, useServerPermissions } from "../queries/chat-queries";
+import { localizeError } from "../lib/errors";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import { GeneralTab } from "./server-settings/GeneralTab";
@@ -11,7 +12,7 @@ import { MembersTab } from "./server-settings/MembersTab";
 import { EmojiTab } from "./server-settings/EmojiTab";
 import { ModerationLogTab } from "./server-settings/ModerationLogTab";
 import type { DraftGuard } from "./server-settings/shared";
-import { SegmentedTabs, TabPanel, type SegmentedTab } from "./settings-kit";
+import { InlineError, SegmentedTabs, TabPanel, type SegmentedTab } from "./settings-kit";
 
 type Tab = "general" | "roles" | "members" | "emoji" | "moderationLog";
 
@@ -37,6 +38,12 @@ export function ServerSettingsDialog(): JSX.Element {
   const group = groups?.find((g) => g.id === activeGroupId);
 
   const { isOwner, can } = useServerPermissions(activeGroupId);
+  // Every tab gate (owner, MANAGE_ROLES, KICK_MEMBERS) is read from the server
+  // details. If they fail to load, the gates are UNKNOWN — rendering the tabs
+  // anyway would silently demote an owner to a read-only General tab with no
+  // Roles/Members, so the failure is said instead.
+  const detailsQuery = useGroupDetails(activeGroupId);
+  const detailsFailed = detailsQuery.isError && !detailsQuery.data;
   const canManageRoles = can(PERMISSIONS.MANAGE_ROLES);
   const canKick = can(PERMISSIONS.KICK_MEMBERS);
 
@@ -99,7 +106,17 @@ export function ServerSettingsDialog(): JSX.Element {
           <DialogDescription>{group?.name ?? t("desktop:leaveServer.thisServer")}</DialogDescription>
         </DialogHeader>
 
-        {group && activeGroupId ? (
+        {group && activeGroupId && detailsFailed ? (
+          <DialogBody>
+            <InlineError
+              title={t("desktop:settingsUi.serverSettingsLoadFailed")}
+              message={localizeError(detailsQuery.error, t)}
+              retryLabel={t("buttons.retry")}
+              onRetry={() => void detailsQuery.refetch()}
+              retrying={detailsQuery.isFetching}
+            />
+          </DialogBody>
+        ) : group && activeGroupId ? (
           <>
             <div className="shrink-0 overflow-x-auto px-6 pb-3 shadow-[inset_0_-1px_0_var(--color-stroke)]">
               <SegmentedTabs

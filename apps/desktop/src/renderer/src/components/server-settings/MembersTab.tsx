@@ -29,8 +29,22 @@ import {
 } from "../../queries/chat-queries";
 import { indexRoles, memberColor } from "../../lib/permissions";
 import { useAuthStore } from "../../stores/auth-store";
-import { SettingsLabel } from "../settings-kit";
+import { InlineError, SettingsLabel } from "../settings-kit";
 import { ROLE_COLOR_FALLBACK } from "./shared";
+
+/**
+ * One sentence for a failed kick. A transport/server failure is already covered
+ * by "… atılamadı. Tekrar dene." — appending the generic line would say "try
+ * again" twice. Only a SPECIFIC reason (no permission, member already gone,
+ * rate limit) is worth adding, and then it replaces the retry advice.
+ */
+function kickFailureMessage(err: unknown, name: string, t: ReturnType<typeof useAppTranslation>["t"]): string {
+  const key = errorKey(err);
+  if (key === "errors.generic" || key === "errors.server" || key === "errors.network") {
+    return t("desktop:settingsUi.kickFailed", { name });
+  }
+  return t("desktop:settingsUi.kickFailedReason", { name, reason: t(key) });
+}
 
 /** Multi-select role assignment for one member. Keeps the menu open per toggle. */
 function RoleAssignMenu({
@@ -216,8 +230,7 @@ function MemberRow({
           {/* A failed kick is said on the row it failed on (§26). */}
           {kick.isError && (
             <p role="alert" className="w-full text-label text-danger">
-              {t("desktop:settingsUi.kickFailed", { name: member.user.displayName })}{" "}
-              {localizeError(kick.error, t)}
+              {kickFailureMessage(kick.error, member.user.displayName, t)}
             </p>
           )}
         </m.div>
@@ -237,8 +250,10 @@ export function MembersTab({
   canKick: boolean;
 }): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: details, isPending } = useGroupDetails(groupId);
-  const { data: roles } = useRoles(groupId);
+  const detailsQuery = useGroupDetails(groupId);
+  const { data: details, isPending } = detailsQuery;
+  const rolesQuery = useRoles(groupId);
+  const { data: roles } = rolesQuery;
   const currentUserId = useAuthStore((s) => s.user?.id);
   const setMemberRoles = useSetMemberRoles(groupId);
   const [error, setError] = useState<CommonErrorKey | null>(null);
@@ -282,13 +297,33 @@ export function MembersTab({
           className="pl-10"
         />
       </div>
-      <SettingsLabel>
-        {canManageRoles
-          ? t("desktop:serverSettings.memberCountAssign", { count: members.length })
-          : t("desktop:serverSettings.memberCount", { count: members.length })}
-      </SettingsLabel>
+      {details && (
+        <SettingsLabel>
+          {canManageRoles
+            ? t("desktop:serverSettings.memberCountAssign", { count: members.length })
+            : t("desktop:serverSettings.memberCount", { count: members.length })}
+        </SettingsLabel>
+      )}
 
-      {isPending ? (
+      {/* Members still list without roles, but the missing chips and an empty
+          role menu are explained rather than passed off as "no roles". */}
+      {details && rolesQuery.isError && !roles && (
+        <InlineError
+          message={t("desktop:settingsUi.memberRolesLoadFailed")}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void rolesQuery.refetch()}
+          retrying={rolesQuery.isFetching}
+        />
+      )}
+      {detailsQuery.isError && !details ? (
+        // A failed load is a failure, not "no member matches" an empty query.
+        <InlineError
+          message={localizeError(detailsQuery.error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void detailsQuery.refetch()}
+          retrying={detailsQuery.isFetching}
+        />
+      ) : isPending ? (
         <ul aria-hidden className="space-y-1">
           {[0, 1, 2, 3].map((i) => (
             <li key={i} className="flex items-center gap-3 px-3 py-2.5">

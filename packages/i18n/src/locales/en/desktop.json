@@ -995,7 +995,13 @@
     "roleDeleteBody_one": "The role is deleted and taken off {{count}} member. This can't be undone.",
     "roleDeleteBody_other": "The role is deleted and taken off {{count}} members. This can't be undone.",
     "logEntryCount_one": "{{count}} entry",
-    "logEntryCount_other": "{{count}} entries"
+    "logEntryCount_other": "{{count}} entries",
+    "changedElsewhereRole": "This role changed somewhere else while you were editing. Saving now overwrites that change.",
+    "changedElsewhereServer": "The server settings changed somewhere else while you were editing. Saving now overwrites that change.",
+    "changedElsewhereLoad": "Load the latest",
+    "kickFailedReason": "Couldn't kick {{name}}. {{reason}}",
+    "memberRolesLoadFailed": "Couldn't load the roles, so members are listed without role tags.",
+    "serverSettingsLoadFailed": "Couldn't load the server settings"
   },
   "accounts": {
     "add": "Add account",

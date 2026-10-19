@@ -995,7 +995,13 @@
     "roleDeleteBody_one": "Rol silinir ve {{count}} üyeden kaldırılır. Geri alınamaz.",
     "roleDeleteBody_other": "Rol silinir ve {{count}} üyeden kaldırılır. Geri alınamaz.",
     "logEntryCount_one": "{{count}} kayıt",
-    "logEntryCount_other": "{{count}} kayıt"
+    "logEntryCount_other": "{{count}} kayıt",
+    "changedElsewhereRole": "Sen düzenlerken bu rol başka bir yerden değişti. Şimdi kaydedersen o değişikliğin üzerine yazılır.",
+    "changedElsewhereServer": "Sen düzenlerken sunucu ayarları başka bir yerden değişti. Şimdi kaydedersen o değişikliğin üzerine yazılır.",
+    "changedElsewhereLoad": "Son hâlini yükle",
+    "kickFailedReason": "{{name}} atılamadı. {{reason}}",
+    "memberRolesLoadFailed": "Roller yüklenemedi, üyeler rol etiketleri olmadan listeleniyor.",
+    "serverSettingsLoadFailed": "Sunucu ayarları yüklenemedi"
   },
   "accounts": {
     "add": "Hesap ekle",

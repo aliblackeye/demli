@@ -3,7 +3,7 @@ import { Check, Pipette, Plus, Shield, ShieldCheck } from "lucide-react";
 import { Button, Field, Input, Skeleton, cn } from "@demli/ui";
 import { EmptyState, FormErrorAlert } from "@demli/app-ui";
 import { PERMISSIONS, type GroupId, type Role, type RoleId } from "@demli/types";
-import { errorKey, type CommonErrorKey } from "../../lib/errors";
+import { errorKey, localizeError, type CommonErrorKey } from "../../lib/errors";
 import { useAppTranslation } from "../../lib/i18n";
 import {
   useCreateRole,
@@ -12,7 +12,15 @@ import {
   useRoles,
   useUpdateRole,
 } from "../../queries/chat-queries";
-import { DangerZone, HelpWithCount, SettingRow, SettingsGroup, UnsavedChangesBar } from "../settings-kit";
+import {
+  ChangedElsewhereNotice,
+  DangerZone,
+  HelpWithCount,
+  InlineError,
+  SettingRow,
+  SettingsGroup,
+  UnsavedChangesBar,
+} from "../settings-kit";
 import { Toggle } from "../Toggle";
 import {
   HEX_COLOR,
@@ -157,6 +165,20 @@ function RoleColorPicker({
   );
 }
 
+/** The editable fields of a role, as the draft and the server see them. */
+type RoleSnapshot = { name: string; color: string | null; permissions: number };
+
+const snapshotOf = (role: Role): RoleSnapshot => ({
+  name: role.name,
+  color: role.color,
+  permissions: role.permissions,
+});
+
+const sameRole = (a: RoleSnapshot, b: RoleSnapshot): boolean =>
+  a.name === b.name &&
+  (a.color ?? "").toLowerCase() === (b.color ?? "").toLowerCase() &&
+  a.permissions === b.permissions;
+
 /** Editor panel for the selected role. */
 function RoleEditor({
   groupId,
@@ -176,9 +198,15 @@ function RoleEditor({
   onDirtyChange: (dirty: boolean) => void;
 }): JSX.Element {
   const { t } = useAppTranslation();
+  // `baseline` is the server value the draft was seeded from. The draft is
+  // compared against IT, never against the live prop: a refetch carrying
+  // someone else's edit must not make an untouched editor look dirty (which
+  // would lock the dialog and invite saving stale values over theirs).
+  const [baseline, setBaseline] = useState<RoleSnapshot>(() => snapshotOf(role));
   const [name, setName] = useState(role.name);
   const [color, setColor] = useState<string | null>(role.color);
   const [bits, setBits] = useState(role.permissions);
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
   const [error, setError] = useState<CommonErrorKey | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -186,22 +214,33 @@ function RoleEditor({
   const deleteRole = useDeleteRole(groupId);
   const busy = updateRole.isPending || deleteRole.isPending;
 
-  const reseed = (): void => {
-    setName(role.name);
-    setColor(role.color);
-    setBits(role.permissions);
+  const trimmed = name.trim();
+  const draft: RoleSnapshot = { name: trimmed, color, permissions: bits };
+  const dirty = canManage && !sameRole(draft, baseline);
+  const server = snapshotOf(role);
+
+  /** Seed the draft (and its baseline) from a server value. */
+  const adopt = (next: RoleSnapshot): void => {
+    setBaseline(next);
+    setName(next.name);
+    setColor(next.color);
+    setBits(next.permissions);
+    setChangedElsewhere(false);
     setError(null);
   };
 
-  // Reseed the editor whenever a different role is selected.
+  // The server value moved (a refetch after someone else's edit). A clean
+  // editor simply follows it; a dirty one keeps the user's draft and says the
+  // role changed underneath it. While our own save is in flight its result is
+  // adopted by onSave's onSuccess instead, so it is never mistaken for a
+  // remote edit (and a server-normalized name never leaves a phantom draft).
   useEffect(() => {
-    reseed();
-    setConfirmingDelete(false);
-    // Reseed only when a different role is selected, not on every refetch.
-  }, [role.id]);
+    if (updateRole.isPending || sameRole(server, baseline)) return;
+    if (!dirty || sameRole(server, draft)) adopt(server);
+    else setChangedElsewhere(true);
+    // Keyed on the server fields; draft/baseline are read at that moment.
+  }, [server.name, server.color, server.permissions, updateRole.isPending]);
 
-  const trimmed = name.trim();
-  const dirty = canManage && (trimmed !== role.name || color !== role.color || bits !== role.permissions);
   useReportDirty(guard, dirty);
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
@@ -211,7 +250,10 @@ function RoleEditor({
     setError(null);
     updateRole.mutate(
       { roleId: role.id, name: trimmed, color, permissions: bits },
-      { onError: (err) => setError(errorKey(err)) },
+      {
+        onSuccess: ({ role: saved }) => adopt(snapshotOf(saved)),
+        onError: (err) => setError(errorKey(err)),
+      },
     );
   };
 
@@ -229,6 +271,13 @@ function RoleEditor({
   return (
     <div className="space-y-6">
       {error && <FormErrorAlert>{t(error)}</FormErrorAlert>}
+      {changedElsewhere && (
+        <ChangedElsewhereNotice
+          message={t("desktop:settingsUi.changedElsewhereRole")}
+          actionLabel={t("desktop:settingsUi.changedElsewhereLoad")}
+          onAction={() => adopt(server)}
+        />
+      )}
 
       {/* Live preview: exactly how a member with this role reads in a list. */}
       <div className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3">
@@ -306,7 +355,7 @@ function RoleEditor({
         nudgeMessage={t("desktop:settingsUi.unsavedNudge")}
         resetLabel={t("desktop:settingsUi.unsavedReset")}
         saveLabel={t("desktop:serverSettings.saveRole")}
-        onReset={reseed}
+        onReset={() => adopt(server)}
         onSave={onSave}
         saveDisabled={trimmed.length === 0}
         className="sticky bottom-0 z-10 -mx-1 pb-1 pt-2"
@@ -326,7 +375,8 @@ export function RolesTab({
   guard?: DraftGuard;
 }): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: roles, isPending } = useRoles(groupId);
+  const rolesQuery = useRoles(groupId);
+  const { data: roles, isPending } = rolesQuery;
   const { data: details } = useGroupDetails(groupId);
   const [selectedId, setSelectedId] = useState<RoleId | null>(null);
   const [createError, setCreateError] = useState<CommonErrorKey | null>(null);
@@ -380,81 +430,112 @@ export function RolesTab({
     ? { onDirtyChange: guard.onDirtyChange, nudge: guard.nudge + localNudge }
     : undefined;
 
+  // A failed load is said as a failure — never as "no roles yet, create one",
+  // which would invite duplicates of roles that really exist.
+  if (rolesQuery.isError && !roles) {
+    return (
+      <InlineError
+        message={localizeError(rolesQuery.error, t)}
+        retryLabel={t("buttons.retry")}
+        onRetry={() => void rolesQuery.refetch()}
+        retrying={rolesQuery.isFetching}
+      />
+    );
+  }
+
   return (
-    <div className="flex min-h-[22rem] gap-5">
-      {/* Role list */}
-      <div className="flex w-48 shrink-0 flex-col gap-2">
-        {canManage && (
-          <Button size="sm" variant="secondary" onClick={onCreate} loading={createRole.isPending} className="w-full justify-start">
-            <Plus className="size-3.5" />
-            {t("desktop:serverSettings.newRole")}
-          </Button>
-        )}
-        {createError && <p className="text-label text-danger">{t(createError)}</p>}
+    // Container query, not a viewport breakpoint: the tab lives in a dialog
+    // whose width is what matters. Narrow (phone web) stacks the role list
+    // above the editor as a wrapping row of role pills; wide is master/detail.
+    <div className="@container">
+      <div className="flex min-h-[22rem] flex-col gap-4 @xl:flex-row @xl:gap-5">
+        {/* Role list */}
+        <div className="flex min-w-0 flex-col gap-2 @xl:w-48 @xl:shrink-0">
+          {canManage && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={onCreate}
+              loading={createRole.isPending}
+              className="justify-start self-start @xl:w-full"
+            >
+              <Plus className="size-3.5" />
+              {t("desktop:serverSettings.newRole")}
+            </Button>
+          )}
+          {createError && <p className="text-label text-danger">{t(createError)}</p>}
 
-        <ul aria-label={t("desktop:serverSettings.roles")} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-          {isPending &&
-            [0, 1, 2].map((i) => (
-              <li key={i} className="flex h-9 items-center gap-2 px-2.5" aria-hidden>
-                <Skeleton shape="circle" width={10} />
-                <Skeleton shape="line" height={12} className={i === 1 ? "w-16" : "w-24"} />
-              </li>
-            ))}
-          {roles?.map((role) => {
-            const active = role.id === selectedId;
-            return (
-              <li key={role.id}>
-                <button
-                  type="button"
-                  onClick={() => select(role.id)}
-                  aria-current={active ? "true" : undefined}
-                  className={cn(
-                    "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-sm transition-colors motion-hover",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                    active ? "bg-accent-surface text-fg" : "text-fg-muted hover:bg-hover hover:text-fg active:bg-raised",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: role.color ?? ROLE_COLOR_FALLBACK }}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-medium">{role.name}</span>
-                  <span className="shrink-0 text-2xs tabular-nums text-fg-faint">{memberCounts.get(role.id) ?? 0}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+          <ul
+            aria-label={t("desktop:serverSettings.roles")}
+            className="flex min-h-0 flex-wrap gap-1 @xl:block @xl:flex-1 @xl:space-y-0.5 @xl:overflow-y-auto"
+          >
+            {isPending &&
+              [0, 1, 2].map((i) => (
+                <li key={i} className="flex h-9 items-center gap-2 px-2.5" aria-hidden>
+                  <Skeleton shape="circle" width={10} />
+                  <Skeleton shape="line" height={12} className={i === 1 ? "w-16" : "w-24"} />
+                </li>
+              ))}
+            {roles?.map((role) => {
+              const active = role.id === selectedId;
+              return (
+                <li key={role.id} className="min-w-0 max-w-full">
+                  <button
+                    type="button"
+                    onClick={() => select(role.id)}
+                    aria-current={active ? "true" : undefined}
+                    className={cn(
+                      "flex h-9 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-sm transition-colors motion-hover",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                      active
+                        ? "bg-accent-surface text-fg"
+                        : // Narrow: a surface pill in a wrapping row (hover one
+                          // step up); wide: a bare list row (hover = surface).
+                          "bg-surface text-fg-muted hover:bg-raised hover:text-fg active:bg-raised-pressed @xl:bg-transparent @xl:hover:bg-hover @xl:active:bg-raised",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: role.color ?? ROLE_COLOR_FALLBACK }}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium">{role.name}</span>
+                    <span className="shrink-0 text-2xs tabular-nums text-fg-faint">{memberCounts.get(role.id) ?? 0}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
-      {/* Editor */}
-      <div className="min-w-0 flex-1">
-        {selected ? (
-          <RoleEditor
-            key={selected.id}
-            groupId={groupId}
-            role={selected}
-            canManage={canManage}
-            memberCount={memberCounts.get(selected.id) ?? 0}
-            onDeleted={() => setSelectedId(null)}
-            guard={editorGuard}
-            onDirtyChange={setEditorDirty}
-          />
-        ) : !isPending ? (
-          <EmptyState
-            icon={canManage ? <ShieldCheck className="size-6" /> : <Shield className="size-6" />}
-            title={canManage ? t("desktop:serverSettings.rolesEmptyManage") : t("desktop:serverSettings.rolesEmpty")}
-            action={
-              canManage ? (
-                <Button size="sm" variant="accent" onClick={onCreate} loading={createRole.isPending}>
-                  <Plus className="size-3.5" />
-                  {t("desktop:serverSettings.newRole")}
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : null}
+        {/* Editor */}
+        <div className="min-w-0 flex-1">
+          {selected ? (
+            <RoleEditor
+              key={selected.id}
+              groupId={groupId}
+              role={selected}
+              canManage={canManage}
+              memberCount={memberCounts.get(selected.id) ?? 0}
+              onDeleted={() => setSelectedId(null)}
+              guard={editorGuard}
+              onDirtyChange={setEditorDirty}
+            />
+          ) : roles && roles.length === 0 ? (
+            <EmptyState
+              icon={canManage ? <ShieldCheck className="size-6" /> : <Shield className="size-6" />}
+              title={canManage ? t("desktop:serverSettings.rolesEmptyManage") : t("desktop:serverSettings.rolesEmpty")}
+              action={
+                canManage ? (
+                  <Button size="sm" variant="accent" onClick={onCreate} loading={createRole.isPending}>
+                    <Plus className="size-3.5" />
+                    {t("desktop:serverSettings.newRole")}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );
