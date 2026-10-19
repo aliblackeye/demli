@@ -1075,14 +1075,19 @@
     "noiseStandard": "Standard",
     "noiseOff": "Off",
     "echoCancellation": "Echo cancellation",
+    "echoOffWarning": "Only turn this off if you're wearing headphones. Without them, sound from the speaker reaches the mic and everyone in the room hears their own voice echo.",
+    "echoOffConfirm": "I'm on headphones, turn off",
+    "echoOffCancel": "Keep it on",
+    "echoOffActive": "Echo cancellation is off. Turn it back on if you switch to the speaker.",
+    "echoMediaProfile": "Audio profile is Media: the phone's hardware echo canceller may not run. If you'll talk on the speaker, set the audio profile to Call.",
     "autoGainControl": "Automatic gain",
     "musicMode": "Music mode",
-    "musicModeDesc": "Turns off audio processing and raises quality so instruments come through clean.",
+    "musicModeDesc": "Turns off noise suppression and automatic gain and raises the quality, so instruments come through clean. Echo cancellation stays on.",
     "quality": "Audio quality",
     "qualityStandard": "Standard",
     "qualityHigh": "High",
     "qualityMusic": "Music",
-    "note": "Applies to your mic the next time you speak. Music mode also applies live in a call."
+    "note": "Audio processing changes made during a call take full effect on your next join — the phone's built-in echo and noise cancellers may not switch while a call is running. Audio quality changes apply right away."
   },
   "audioProfile": {
     "section": "Audio profile",
@@ -1091,6 +1096,9 @@
     "optionMedia": "Media",
     "callDesc": "Default. Tuned for speech: hardware echo cancellation works and Bluetooth mics are reliable. A shared film or music also plays over the call stream, so it can sound quiet and muffled.",
     "mediaDesc": "Shared film and music audio comes through louder and clearer (media volume, no speech filtering, stereo over Bluetooth). In exchange, on some devices speaking on loudspeaker can echo and Bluetooth microphones may be affected.",
+    "mediaWarning": "With the Media profile the phone's hardware echo canceller may not run. Without headphones, sound from the speaker reaches the mic and everyone in the room hears their own voice echo.",
+    "mediaConfirm": "I'm on headphones, switch to Media",
+    "mediaCancel": "Keep Call",
     "applyNote": "Applies the next time you join a voice room.",
     "activeHint": "You're in a voice room — this takes effect the next time you connect; your current call is left untouched."
   },

@@ -1,5 +1,7 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Platform, View } from "react-native";
 import { Text } from "./ui/Text";
+import { HeadphonesConfirm } from "@/components/HeadphonesConfirm";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
 import { ToggleRow } from "@/components/ToggleRow";
@@ -7,6 +9,7 @@ import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
 import {
   AUDIO_QUALITY_BITRATE_KBPS,
+  isEchoCancellationOn,
   type AudioQuality,
   type InputMode,
   type NoiseSuppressionTier,
@@ -52,12 +55,70 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+/**
+ * Yankı Engelleme. Turning it OFF is two steps: the row opens an inline warning and
+ * only "Kulaklık takılı, kapat" turns it off (recording that confirmation). On the
+ * loudspeaker with AEC off, the room hears itself through this phone. Music mode
+ * keeps AEC on; the parent section is locked then.
+ *
+ * On Android the Medya audio profile can switch the phone's hardware echo canceller
+ * off while this toggle still requests AEC, so the row says so instead of showing a
+ * plain "on".
+ */
+function EchoCancellationRow({ music }: { music: boolean }) {
+  const { t } = useAppTranslation();
+  const audio = useMediaSettings((s) => s.audio);
+  const audioProfile = useMediaSettings((s) => s.audioProfile);
+  const setEchoCancellation = useMediaSettings((s) => s.setEchoCancellation);
+  const [confirming, setConfirming] = useState(false);
+  const on = isEchoCancellationOn(audio);
+  const mediaProfile = Platform.OS === "android" && audioProfile === "media";
+
+  const onToggle = () => {
+    if (on) {
+      setConfirming(true);
+    } else {
+      setConfirming(false);
+      setEchoCancellation("on");
+    }
+  };
+
+  const warningStyle = {
+    color: colors.warning,
+    fontSize: 12,
+    paddingHorizontal: space.md,
+    paddingBottom: space.sm,
+  } as const;
+
+  return (
+    <View>
+      <ToggleRow label={t("mobile:mic.echoCancellation")} checked={on} onToggle={onToggle} />
+      {confirming && on && !music ? (
+        <HeadphonesConfirm
+          message={t("mobile:mic.echoOffWarning")}
+          confirmLabel={t("mobile:mic.echoOffConfirm")}
+          cancelLabel={t("mobile:mic.echoOffCancel")}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            setEchoCancellation("off_headphones");
+            setConfirming(false);
+          }}
+        />
+      ) : null}
+      {!on && !music ? <Text style={warningStyle}>{t("mobile:mic.echoOffActive")}</Text> : null}
+      {on && mediaProfile ? (
+        <Text style={warningStyle}>{t("mobile:mic.echoMediaProfile")}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function MicSettings() {
   const { t } = useAppTranslation();
   const audio = useMediaSettings((s) => s.audio);
   const setInputMode = useMediaSettings((s) => s.setInputMode);
   const setVadThreshold = useMediaSettings((s) => s.setVadThreshold);
-  const setProcessing = useMediaSettings((s) => s.setProcessing);
+  const setAutoGainControl = useMediaSettings((s) => s.setAutoGainControl);
   const setNoiseSuppression = useMediaSettings((s) => s.setNoiseSuppression);
   const setMusicMode = useMediaSettings((s) => s.setMusicMode);
   const setAudioQuality = useMediaSettings((s) => s.setAudioQuality);
@@ -141,15 +202,11 @@ export function MicSettings() {
               onSelect={(key) => setNoiseSuppression(key as NoiseSuppressionTier)}
             />
           </View>
-          <ToggleRow
-            label={t("mobile:mic.echoCancellation")}
-            checked={music || audio.processing.echoCancellation}
-            onToggle={() => setProcessing({ echoCancellation: !audio.processing.echoCancellation })}
-          />
+          <EchoCancellationRow music={music} />
           <ToggleRow
             label={t("mobile:mic.autoGainControl")}
             checked={!music && audio.processing.autoGainControl}
-            onToggle={() => setProcessing({ autoGainControl: !audio.processing.autoGainControl })}
+            onToggle={() => setAutoGainControl(!audio.processing.autoGainControl)}
           />
         </View>
       </View>

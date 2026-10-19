@@ -2,8 +2,9 @@
  * Per-participant playback volume (kişi-başı ses seviyesi).
  *
  * A LISTENER-side, client-only control: each user independently turns any OTHER
- * participant's voice up or down (0–200%). It never touches the sender or the
- * SFU — the web adapter scales that remote's own audio elements (livekit
+ * participant's voice up or down (0–200% on mobile, 0–100% where playback runs
+ * through `<audio>` elements — see {@link ELEMENT_PLAYBACK_MAX_VOLUME}). It never
+ * touches the sender or the SFU — the web adapter scales that remote's own audio elements (livekit
  * `RemoteParticipant.setVolume`), so NO media ever crosses the WebSocket gateway
  * (CLAUDE.md §10/§35). It is a personal offset that is orthogonal to deafen:
  * deafen is a master mute (all remotes → 0); per-user volume is what undeafen
@@ -19,8 +20,25 @@
 
 /** Fully muted for this listener (personal) — distinct from deafen (master mute). */
 export const MIN_PARTICIPANT_VOLUME = 0;
-/** 200% boost ceiling — the top of the per-user slider. */
+/**
+ * 200% boost ceiling — the top of the per-user slider where remote audio is played
+ * NATIVELY (React Native: libwebrtc's native gain accepts boosts).
+ */
 export const MAX_PARTICIPANT_VOLUME = 2;
+/**
+ * 100% ceiling where remote audio is played through `<audio>` elements (desktop
+ * Electron + web). `HTMLMediaElement.volume` only accepts [0,1] — livekit's
+ * `RemoteAudioTrack.setVolume` writes it directly unless the room runs with
+ * `webAudioMix` — so a boost above 100% cannot be applied there. The WebAudio route
+ * that could boost (webAudioMix or a per-participant GainNode) is not used: there is
+ * no proof that Chromium's echo canceller still sees WebAudio-rendered remote voices
+ * as its reference (livekit itself sets sinks on the elements "to workaround echo
+ * cancellation not working on chrome", and Chrome-wide AEC is a feature-flag default,
+ * not a guarantee), and the founder's rule is that nothing from the speaker may go
+ * back to the room. So these platforms cap the slider here instead of showing a
+ * level that is not applied.
+ */
+export const ELEMENT_PLAYBACK_MAX_VOLUME = 1;
 /** 100% — unchanged playback; assumed for anyone without a stored level. */
 export const DEFAULT_PARTICIPANT_VOLUME = 1;
 
@@ -40,14 +58,21 @@ export const PARTICIPANT_VOLUME_STORAGE_KEY = "demli.participant-volumes";
  */
 export const SCREEN_SHARE_VOLUME_STORAGE_KEY = "demli.screenshare-volumes";
 
-/** userId → playback volume in [0,2]. An ABSENT key means DEFAULT (100%). */
+/** userId → playback volume in [0, platform ceiling]. An ABSENT key means DEFAULT (100%). */
 export type ParticipantVolumeMap = Record<string, number>;
 
-/** Clamp any number into [0,2]; non-finite input falls back to the 100% default. */
-export function clampParticipantVolume(volume: number): number {
+/**
+ * Clamp any number into [0, max]; non-finite input falls back to the 100% default.
+ * `max` is the platform's playback ceiling ({@link MAX_PARTICIPANT_VOLUME} native,
+ * {@link ELEMENT_PLAYBACK_MAX_VOLUME} for `<audio>`-element playback).
+ */
+export function clampParticipantVolume(
+  volume: number,
+  max: number = MAX_PARTICIPANT_VOLUME,
+): number {
   if (!Number.isFinite(volume)) return DEFAULT_PARTICIPANT_VOLUME;
   if (volume < MIN_PARTICIPANT_VOLUME) return MIN_PARTICIPANT_VOLUME;
-  if (volume > MAX_PARTICIPANT_VOLUME) return MAX_PARTICIPANT_VOLUME;
+  if (volume > max) return max;
   return volume;
 }
 
@@ -69,12 +94,15 @@ export function isDefaultParticipantVolume(volume: number): boolean {
  * brings everyone back audible. (In-session 0 still works — this only filters
  * what gets RE-LOADED.)
  */
-export function normalizeParticipantVolumes(raw: unknown): ParticipantVolumeMap {
+export function normalizeParticipantVolumes(
+  raw: unknown,
+  max: number = MAX_PARTICIPANT_VOLUME,
+): ParticipantVolumeMap {
   const out: ParticipantVolumeMap = {};
   if (!raw || typeof raw !== "object") return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!key || typeof value !== "number" || !Number.isFinite(value)) continue;
-    const clamped = clampParticipantVolume(value);
+    const clamped = clampParticipantVolume(value, max);
     if (isDefaultParticipantVolume(clamped)) continue;
     if (clamped <= MIN_PARTICIPANT_VOLUME + 1e-6) continue; // persisted mute = trap
     out[key] = clamped;

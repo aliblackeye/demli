@@ -164,6 +164,7 @@ import {
   clampParticipantVolume,
   DEFAULT_PARTICIPANT_VOLUME,
   isDefaultParticipantVolume,
+  MAX_PARTICIPANT_VOLUME,
   normalizeParticipantVolumes,
   type ParticipantVolumeMap,
 } from "./participant-volume.js";
@@ -383,6 +384,14 @@ export interface VoiceEngineOptions {
    */
   initialScreenShareVolumes?: ParticipantVolumeMap;
   /**
+   * The highest per-user / per-share playback volume this platform can really
+   * apply. Every stored, seeded and applied level is clamped to it, so the row's
+   * `volume` is always the level actually playing. Defaults to
+   * {@link MAX_PARTICIPANT_VOLUME} (native playout, React Native); `<audio>`-element
+   * playout (desktop + web) passes {@link ELEMENT_PLAYBACK_MAX_VOLUME}.
+   */
+  maxParticipantVolume?: number;
+  /**
    * Injectable clock, used ONLY for the alone-idle deadline
    * ({@link VoiceState.aloneDeadlineAt}). Defaults to `Date.now`; tests pass a
    * fake so the three-minute window is exercised without waiting three minutes.
@@ -528,11 +537,11 @@ export interface VoiceEngine {
    * the mic bitrate (both resolved in audio-settings.ts, music mode overriding).
    * The voice-activity sensitivity re-tunes the local speaking detector live.
    *
-   * The capture constraints + bitrate apply on the NEXT mic publish
-   * (join / unmute). As a best-effort convenience, if the adapter supports
-   * `restartAudioTrack` and the mic is live, the new capture constraints are also
-   * re-applied to the CURRENT mic track (so Müzik Modu takes effect mid-call
-   * without a rejoin). Safe to call in any status.
+   * Connected with the mic live, the change is applied to the CURRENT mic track
+   * right away (retune, re-acquire or republish — whichever the change needs).
+   * Connected with the mic muted, it is applied on the next unmute (unmuting only
+   * re-enables the existing track). Otherwise it applies on the next mic publish.
+   * Best-effort; safe to call in any status.
    */
   configureAudio(settings: AudioSettings): void;
   /**
@@ -881,8 +890,14 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   // DEFAULT. Seeded from the persisted prefs (normalized) and re-applied to a
   // remote on (re)join so a saved level survives leave/rejoin. Client-side only —
   // it scales that remote's own audio playout, never the SFU/WebSocket (§10/§35).
+  const maxParticipantVolume = Math.min(
+    MAX_PARTICIPANT_VOLUME,
+    options.maxParticipantVolume ?? MAX_PARTICIPANT_VOLUME,
+  );
   const participantVolumes = new Map<string, number>(
-    Object.entries(normalizeParticipantVolumes(options.initialParticipantVolumes)),
+    Object.entries(
+      normalizeParticipantVolumes(options.initialParticipantVolumes, maxParticipantVolume),
+    ),
   );
 
   // ── per-SHARE (screen-share / film) playback volume, separate from voice ──
@@ -890,7 +905,9 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   // track only. Same map/normalizer/0-trap as participantVolumes; applied via
   // RemoteParticipant.setVolume(v, "screen_share_audio") so it never touches their mic.
   const screenShareVolumes = new Map<string, number>(
-    Object.entries(normalizeParticipantVolumes(options.initialScreenShareVolumes)),
+    Object.entries(
+      normalizeParticipantVolumes(options.initialScreenShareVolumes, maxParticipantVolume),
+    ),
   );
 
   // ── local speaking detection (task #54) ───────────────────────────────────
@@ -996,6 +1013,28 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   const hasNoiseFilterFactory = typeof options.createNoiseFilter === "function";
   /** Whether an RNNoise processor is currently attached to the live mic track. */
   let noiseFilterActive = false;
+  /** Whether the mic has been published in the current room (a muted mic keeps its track). */
+  let micPublishedInRoom = false;
+  /**
+   * An audio-settings change that arrived while the published mic was muted, with the
+   * settings the live track still carries. Applied on the next unmute
+   * ({@link setRoomMic}); null when nothing is waiting.
+   */
+  let pendingMicChange: { from: AudioSettings | null } | null = null;
+  /**
+   * Number of mic republishes in flight. livekit's unpublish fires
+   * `LocalTrackUnpublished` before the fresh track is published, and that event is
+   * ours, not a lost mic — {@link onLocalTrackUnpublished} ignores it while > 0.
+   */
+  let micRepublishing = 0;
+  /**
+   * Tail of the mic-operation queue ({@link runMicOp}); null when idle. Mute,
+   * unmute and live settings changes each await livekit (a republish includes an
+   * SFU round trip), so without a queue a push-to-talk release could land in the
+   * middle of the press's republish, find no publication to mute, and leave the
+   * fresh track live while the UI says muted.
+   */
+  let micOpTail: Promise<void> | null = null;
   /**
    * Latched true when the worklet FAILED at runtime (WASM/CSP/load error). Once
    * broken we treat the filter as unavailable for the rest of the session, so the
@@ -1088,10 +1127,66 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       return;
     }
     try {
-      await room.republishMicTrack(resolveMicCaptureOptions(), resolveMicPublishOptions());
+      await republishMic(resolveMicCaptureOptions(), resolveMicPublishOptions());
     } catch {
       // Best-effort — the fallback NS applies on the next unmute / rejoin regardless.
     }
+  }
+
+  /**
+   * Run a mic operation after every earlier one has settled; starts synchronously
+   * when the queue is idle. A failed operation does not block the ones after it.
+   */
+  function runMicOp<T>(op: () => Promise<T>): Promise<T> {
+    const result = micOpTail ? micOpTail.then(op) : op();
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    micOpTail = tail;
+    void tail.then(() => {
+      if (micOpTail === tail) micOpTail = null;
+    });
+    return result;
+  }
+
+  /**
+   * Unpublish + republish the mic with new options, then make livekit match the
+   * engine's intent: a mute that arrived mid-republish found no publication to
+   * mute, so the fresh track is muted here; a republish that failed to bring the
+   * mic back is reported instead of leaving the button showing a live mic.
+   */
+  async function republishMic(
+    capture: AudioCaptureOptionsLike | undefined,
+    publish: MicPublishOptionsLike | undefined,
+  ): Promise<void> {
+    const target = room;
+    if (!target?.republishMicTrack) return;
+    micRepublishing += 1;
+    let failure: unknown = null;
+    try {
+      await target.republishMicTrack(capture, publish);
+    } catch (err) {
+      failure = err;
+    } finally {
+      micRepublishing -= 1;
+    }
+    // The old track (and any processor attached to it) is gone.
+    noiseFilterActive = false;
+    if (target !== room) return;
+    const live = target.localParticipant.isMicrophoneEnabled;
+    if (!state.micEnabled && live) {
+      await target.localParticipant.setMicrophoneEnabled(false);
+    } else if (state.micEnabled && !live) {
+      setState({
+        micEnabled: false,
+        error: failure
+          ? mapAcquisitionError(failure, "microphone", state.selectedInputDeviceId)
+          : { kind: "track_ended_unexpectedly", track: "mic" },
+      });
+      syncParticipants();
+    }
+    if (failure) throw failure;
   }
 
   /**
@@ -1126,14 +1221,29 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
    * RNNoise worklet (Yüksek tier) is applied AFTER this via {@link syncNoiseFilter},
    * not through capture options — see its docstring for why.
    */
-  async function setRoomMic(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
+  function setRoomMic(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
+    return runMicOp(() => setRoomMicNow(target, enabled));
+  }
+
+  async function setRoomMicNow(target: VoiceRoomAdapter, enabled: boolean): Promise<unknown> {
     const capture = resolveMicCaptureOptions();
     const publish = resolveMicPublishOptions();
     const result =
       !capture && !publish
         ? await target.localParticipant.setMicrophoneEnabled(enabled)
         : await target.localParticipant.setMicrophoneEnabled(enabled, capture, publish);
+    if (enabled) {
+      micPublishedInRoom = true;
+      // livekit's unmute re-enables the EXISTING track; capture/publish options
+      // passed above are only used for a first publish. A settings change made
+      // while muted is applied here, now that the mic is live again.
+      const pending = pendingMicChange;
+      pendingMicChange = null;
+      if (pending) await applyAudioChangeToLiveMic(pending.from, audioSettings);
+    }
     // Match the worklet to the tier once the track (or its removal) has settled.
+    // Also after a pending change: one that was reverted while muted changes
+    // nothing, yet the mute detached the worklet and it has to come back.
     await syncNoiseFilter();
     return result;
   }
@@ -1545,8 +1655,9 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
    * Best-effort push of ONE remote's playout volume for ONE source. livekit's
    * `RemoteParticipant.setVolume` CAN throw: on the web path it forwards to the
    * `<audio>` element's `volume` setter, which raises `IndexSizeError` for any
-   * value outside [0,1] — i.e. a per-user BOOST above 100% (our range is 0..2) —
-   * and a publication mid-teardown can reject too. An UNGUARDED throw here is
+   * value outside [0,1] (the {@link maxParticipantVolume} ceiling keeps a desktop/web
+   * engine inside it; a misconfigured platform would not be), and a publication
+   * mid-teardown can reject too. An UNGUARDED throw here is
    * load-bearing, NOT cosmetic: it aborts the `applyRemoteVolumes` loop (silencing
    * every remote AFTER the offender) and, on JOIN, escapes `applyRemoteVolumes`
    * BEFORE `applyMicPreference()` runs — so the LOCAL mic never publishes and peers
@@ -2088,6 +2199,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     if (state.status !== "connected" && state.status !== "reconnecting") return;
     if (publication.source === TRACK_SOURCE.Microphone) {
       if (!state.micEnabled) return; // we unpublished it on purpose
+      if (micRepublishing > 0) return; // our own republish; republishMic reconciles
       setState({
         micEnabled: false,
         error: { kind: "track_ended_unexpectedly", track: "mic" },
@@ -2214,6 +2326,10 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     // a rejoin must re-attach from scratch, and may retry a previously-broken worklet.
     noiseFilterActive = false;
     noiseFilterBroken = false;
+    micPublishedInRoom = false;
+    pendingMicChange = null;
+    // A mic operation still awaiting the old room must not hold up the next one.
+    micOpTail = null;
   }
 
   /**
@@ -2627,7 +2743,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
 
   function setParticipantVolume(identity: string, volume: number): void {
     guard("SET_PARTICIPANT_VOLUME"); // legal in any status
-    const clamped = clampParticipantVolume(volume);
+    const clamped = clampParticipantVolume(volume, maxParticipantVolume);
     // Store only NON-default levels so the map (and its persisted round-trip) never
     // accumulates redundant 100% entries — mirrors normalizeParticipantVolumes.
     if (isDefaultParticipantVolume(clamped)) participantVolumes.delete(identity);
@@ -2649,7 +2765,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
 
   function setScreenShareVolume(identity: string, volume: number): void {
     guard("SET_PARTICIPANT_VOLUME"); // same guard family — legal in any status
-    const clamped = clampParticipantVolume(volume);
+    const clamped = clampParticipantVolume(volume, maxParticipantVolume);
     // Store only NON-default levels (mirrors participant volume) so the persisted
     // map never accumulates redundant 100%s. In-session 0 is honored; the platform's
     // load-time normalizer drops a persisted 0 so a mute never survives a restart.
@@ -3099,83 +3215,111 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       speakingThresholdForSensitivity(settings.vadThreshold),
     );
 
-    // Re-apply to the LIVE mic whenever ANYTHING that affects the published track
-    // changed — capture DSP/sample-rate OR publish bitrate/RED/DTX/stereo. The old
-    // code only watched the CAPTURE constraints, so changing the QUALITY tier
-    // (bitrate/codec) did nothing — the founder's "changed the settings and
-    // nothing changed" bug. And even a capture change went through restartAudioTrack,
-    // which keeps the OLD publication's bitrate — so bitrate never actually moved.
-    // Compare on the SIGNATURE form (processor-free); a fresh processor instance is
-    // never serializable-equal, so it can't be part of the diff. Include the effective
-    // NS TIER explicitly: with a filter available `high` and `off` both yield the same
-    // capture booleans (WebRTC NS off), so only the tier distinguishes "run the worklet"
-    // from "stop it" — without this a High→Off switch would never republish and the
-    // worklet would keep running.
-    const nextCapture = resolveMicCaptureOptions();
-    const nextPublish = resolveMicPublishOptions();
-    const prevCapture = micCaptureOptionsFrom(previous);
-    const prevPublish = micPublishOptionsFrom(previous);
-    const nextTier = effectiveNoiseSuppression(settings);
-    const prevTier = previous ? effectiveNoiseSuppression(previous) : null;
-    // Classify the change along its THREE independent axes, because each one has a
-    // different cheapest-correct mechanism and the difference is audible:
-    //  - publish (bitrate / RED / DTX / stereo) lives on the PUBLICATION → only a
-    //    full unpublish+republish can move it (renegotiation, listeners re-subscribe).
-    //  - capture (the DSP booleans, sample rate, channel count) lives on the
-    //    getUserMedia track → retunable in place, or at worst re-acquired.
-    //  - tier (high ↔ not-high) is just the RNNoise worklet → setProcessor /
-    //    stopProcessor, a sender track swap with no renegotiation at all.
-    // The old code collapsed all three into one boolean and answered every change
-    // with a republish, so flipping Gürültü Engelleme tore the mic down and dropped
-    // every listener's audio while the OS reopened the device — the founder's
-    // "filtre hemen yansımıyor". Now each axis pays only its own cost.
-    const publishChanged = JSON.stringify(prevPublish) !== JSON.stringify(nextPublish);
-    const captureChanged = JSON.stringify(prevCapture) !== JSON.stringify(nextCapture);
-    const tierChanged = prevTier !== nextTier;
-    const changed = publishChanged || captureChanged || tierChanged;
+    const { changed } = diffMicSettings(previous, settings);
     // Re-arm a running "kendini dinle" on ANY change — with or without a room.
     // This is the whole point of the feature: flip Yüksek → Standart in Ayarlar
     // and hear the difference immediately. Guarded by `changed` so unrelated
     // settings writes don't re-open the capture.
     if (changed) rearmSelfMonitoring();
-    if (!changed || !room || state.status !== "connected" || !state.micEnabled) return;
-
-    // Apply on the LIVE mic with the lightest mechanism each axis actually needs.
-    // Best-effort throughout — on failure the new options apply on the next
-    // unmute / rejoin, and we never tear the session down to force them.
-    void (async () => {
-      try {
-        // DETACH the worklet FIRST when it is going away. Two reasons, both load-
-        // bearing: the user asked for it to stop, so it must stop before anything
-        // slower happens; and while a processor is attached the adapter's
-        // `mediaStreamTrack` is the worklet's OUTPUT, so an in-place constraint
-        // retune below would target the wrong track entirely.
-        if (noiseFilterActive && !filterCapableForSettings(settings)) {
-          await syncNoiseFilter();
-        }
-
-        if (publishChanged && typeof room.republishMicTrack === "function") {
-          // Bitrate / RED / DTX / stereo genuinely live on the publication — a
-          // republish is the only thing that moves them. This is the one path that
-          // costs listeners a gap, and it is reached only by an audio-QUALITY or
-          // Müzik Modu change, never by a plain noise-suppression switch.
-          await room.republishMicTrack(nextCapture, nextPublish);
-          // The old track (and with it any attached processor) is gone; the flag
-          // must forget the processor that died with it or the re-attach below is
-          // skipped as a no-op.
-          noiseFilterActive = false;
-        } else if (captureChanged && nextCapture) {
-          await applyMicCaptureLive(nextCapture, prevCapture);
-        }
-
-        // Attach / detach the worklet to match the new tier. After a republish this
-        // re-attaches onto the fresh track; after an in-place retune the existing
-        // processor state is already correct and this is a cheap no-op.
-        await syncNoiseFilter();
-      } catch {
-        // Best-effort — the new options apply on the next unmute / rejoin.
+    if (!changed || !room || state.status !== "connected") return;
+    // A muted mic keeps its published track, and unmuting only re-enables that
+    // track — so remember what it still carries and apply on the next unmute
+    // instead of letting the change wait silently for a rejoin.
+    const deferUntilUnmute = (): void => {
+      if (micPublishedInRoom && !pendingMicChange) pendingMicChange = { from: previous };
+    };
+    if (!state.micEnabled) {
+      deferUntilUnmute();
+      return;
+    }
+    void runMicOp(async () => {
+      if (!room || state.status !== "connected") return;
+      // Queued behind a mute that has since landed: defer like any muted change.
+      if (!state.micEnabled) {
+        deferUntilUnmute();
+        return;
       }
-    })();
+      await applyAudioChangeToLiveMic(previous, settings);
+    });
+  }
+
+  /**
+   * What a settings change touches on the mic. Compared on the SIGNATURE form
+   * (processor-free); a fresh processor instance is never serializable-equal, so it
+   * can't be part of the diff. The effective NS TIER is included explicitly: with a
+   * filter available `high` and `off` both yield the same capture booleans (WebRTC
+   * NS off), so only the tier distinguishes "run the worklet" from "stop it".
+   *
+   * Classified along THREE independent axes, because each one has a different
+   * cheapest-correct mechanism and the difference is audible:
+   *  - publish (bitrate / RED / DTX / stereo) lives on the PUBLICATION → only a
+   *    full unpublish+republish can move it (renegotiation, listeners re-subscribe).
+   *  - capture (the DSP booleans, sample rate, channel count) lives on the
+   *    getUserMedia track → retuned in place where the browser really does it,
+   *    otherwise re-acquired.
+   *  - tier (high ↔ not-high) is just the RNNoise worklet → setProcessor /
+   *    stopProcessor, a sender track swap with no renegotiation at all.
+   */
+  function diffMicSettings(previous: AudioSettings | null, next: AudioSettings | null) {
+    const nextCapture = micCaptureOptionsFrom(next);
+    const nextPublish = micPublishOptionsFrom(next);
+    const prevCapture = micCaptureOptionsFrom(previous);
+    const prevPublish = micPublishOptionsFrom(previous);
+    const nextTier = next ? effectiveNoiseSuppression(next) : null;
+    const prevTier = previous ? effectiveNoiseSuppression(previous) : null;
+    const publishChanged = JSON.stringify(prevPublish) !== JSON.stringify(nextPublish);
+    const captureChanged = JSON.stringify(prevCapture) !== JSON.stringify(nextCapture);
+    const tierChanged = prevTier !== nextTier;
+    return {
+      nextCapture,
+      nextPublish,
+      prevCapture,
+      publishChanged,
+      captureChanged,
+      changed: publishChanged || captureChanged || tierChanged,
+    };
+  }
+
+  /**
+   * Move the LIVE mic from `previous` to `next` settings with the lightest mechanism
+   * each axis actually needs ({@link diffMicSettings}). Best-effort throughout — on
+   * failure the new options apply on the next publish / rejoin, and the session is
+   * never torn down to force them. Never rejects.
+   */
+  async function applyAudioChangeToLiveMic(
+    previous: AudioSettings | null,
+    next: AudioSettings | null,
+  ): Promise<void> {
+    const { nextCapture, nextPublish, prevCapture, publishChanged, captureChanged, changed } =
+      diffMicSettings(previous, next);
+    if (!changed || !room) return;
+    try {
+      // DETACH the worklet FIRST when it is going away. Two reasons, both load-
+      // bearing: the user asked for it to stop, so it must stop before anything
+      // slower happens; and while a processor is attached the adapter's
+      // `mediaStreamTrack` is the worklet's OUTPUT, so an in-place constraint
+      // retune below would target the wrong track entirely.
+      if (noiseFilterActive && !filterCapableForSettings(next)) {
+        await syncNoiseFilter();
+      }
+
+      if (publishChanged && typeof room.republishMicTrack === "function") {
+        // Bitrate / RED / DTX / stereo genuinely live on the publication — a
+        // republish is the only thing that moves them. This is the one path that
+        // costs listeners a gap, and it is reached only by an audio-QUALITY or
+        // Müzik Modu change, never by a plain noise-suppression switch.
+        await republishMic(nextCapture, nextPublish);
+      } else if (captureChanged && nextCapture) {
+        await applyMicCaptureLive(nextCapture, prevCapture);
+      }
+
+      // Attach / detach the worklet to match the new tier. After a republish this
+      // re-attaches onto the fresh track; after an in-place retune the existing
+      // processor state is already correct and this is a cheap no-op.
+      await syncNoiseFilter();
+    } catch {
+      // Best-effort — the new options apply on the next publish / rejoin.
+    }
   }
 
   /**
@@ -3184,13 +3328,15 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
    * (otherwise a republish already carried the capture along).
    *
    *  1. `applyMicCaptureConstraints` — retunes the SAME track. Zero gap: no
-   *     re-acquire, no `replaceTrack`, no renegotiation. This is the path a
-   *     Gürültü Engelleme / Yankı Engelleme / Otomatik Seviye change takes.
+   *     re-acquire, no `replaceTrack`, no renegotiation. It reports success only
+   *     when the track's settings really changed; Chromium 130 (Electron 33)
+   *     resolves a DSP `applyConstraints` WITHOUT changing the DSP, so on desktop a
+   *     Yankı Engelleme / Gürültü Engelleme / Otomatik Seviye change lands in 2.
    *  2. `restartAudioTrack` — re-acquires getUserMedia and swaps the sender track,
    *     keeping the SAME publication (livekit `replaceTrack`, and it restarts any
    *     attached processor onto the new track). Listeners keep the track; only the
    *     local device reopen is audible. Required when the change is STRUCTURAL
-   *     (sample rate / channel count), which cannot be retuned in place.
+   *     (sample rate / channel count) or the browser would not retune in place.
    *  3. `republishMicTrack` — last resort for adapters offering nothing lighter.
    */
   async function applyMicCaptureLive(
@@ -3210,8 +3356,7 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       return;
     }
     if (typeof room.republishMicTrack === "function") {
-      await room.republishMicTrack(next, resolveMicPublishOptions());
-      noiseFilterActive = false;
+      await republishMic(next, resolveMicPublishOptions());
     }
   }
 

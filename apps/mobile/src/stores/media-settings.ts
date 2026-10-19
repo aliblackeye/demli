@@ -22,15 +22,18 @@ import {
   type AndroidAudioProfile,
 } from "../media/audio-profile";
 import {
+  AUDIO_SETTINGS_SCHEMA_VERSION,
   DEFAULT_AUDIO_SETTINGS,
   DEFAULT_VIDEO_SETTINGS,
+  migrateAudioSettings,
   normalizeAudioSettings,
   normalizeVideoSettings,
-  type AudioProcessing,
+  withEchoCancellation,
   type AudioQuality,
   type AudioSettings,
   type CameraFrameRate,
   type CameraQuality,
+  type EchoCancellationChoice,
   type InputMode,
   ANDROID_SCREEN_CAPTURE_MAX_FPS,
   clampScreenShareQualityToFps,
@@ -83,14 +86,23 @@ interface MediaSettingsState {
   setInputMode: (mode: InputMode) => void;
   setVadThreshold: (value: number) => void;
   setNoiseSuppression: (tier: NoiseSuppressionTier) => void;
-  setProcessing: (patch: Partial<AudioProcessing>) => void;
+  setAutoGainControl: (on: boolean) => void;
+  /** AEC off only as `"off_headphones"`, after the user confirmed headphones in the UI. */
+  setEchoCancellation: (choice: EchoCancellationChoice) => void;
   setMusicMode: (on: boolean) => void;
   setAudioQuality: (quality: AudioQuality) => void;
   setCameraQuality: (quality: CameraQuality) => void;
   setCameraFrameRate: (fps: CameraFrameRate) => void;
   setScreenShareQuality: (quality: ScreenShareQuality) => void;
-  setAudioProfile: (profile: AndroidAudioProfile) => void;
+  /**
+   * The Medya profile can switch the phone's hardware echo canceller off, so it is
+   * reachable only as `"media_headphones"`, after the user confirmed headphones.
+   */
+  setAudioProfile: (choice: AudioProfileChoice) => void;
 }
+
+/** The only two legal audio-profile transitions; there is deliberately no plain "media". */
+export type AudioProfileChoice = "communication" | "media_headphones";
 
 export const useMediaSettings = create<MediaSettingsState>()(
   persist(
@@ -103,8 +115,12 @@ export const useMediaSettings = create<MediaSettingsState>()(
       setVadThreshold: (vadThreshold) => set((s) => ({ audio: { ...s.audio, vadThreshold } })),
       setNoiseSuppression: (noiseSuppression) =>
         set((s) => ({ audio: { ...s.audio, noiseSuppression } })),
-      setProcessing: (patch) =>
-        set((s) => ({ audio: { ...s.audio, processing: { ...s.audio.processing, ...patch } } })),
+      setAutoGainControl: (autoGainControl) =>
+        set((s) => ({
+          audio: { ...s.audio, processing: { ...s.audio.processing, autoGainControl } },
+        })),
+      setEchoCancellation: (choice) =>
+        set((s) => ({ audio: withEchoCancellation(s.audio, choice) })),
       setMusicMode: (musicMode) => set((s) => ({ audio: { ...s.audio, musicMode } })),
       setAudioQuality: (quality) => set((s) => ({ audio: { ...s.audio, quality } })),
       setCameraQuality: (cameraQuality) => set((s) => ({ video: { ...s.video, cameraQuality } })),
@@ -112,11 +128,23 @@ export const useMediaSettings = create<MediaSettingsState>()(
         set((s) => ({ video: { ...s.video, cameraFrameRate } })),
       setScreenShareQuality: (screenShareQuality) =>
         set((s) => ({ video: { ...s.video, screenShareQuality } })),
-      setAudioProfile: (audioProfile) => set({ audioProfile }),
+      setAudioProfile: (choice) =>
+        set({ audioProfile: choice === "media_headphones" ? "media" : "communication" }),
     }),
     {
       name: "demli.media-settings",
       storage: createJSONStorage(() => secureStorage),
+      version: AUDIO_SETTINGS_SCHEMA_VERSION,
+      // Runs once per install when the stored version is older (a store written
+      // before `version` existed reads as 0): turns echo cancellation back on and
+      // moves a Medya profile, picked before it asked about headphones, back to
+      // Görüşme.
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as { audio?: unknown; audioProfile?: unknown };
+        const audioProfile =
+          version < AUDIO_SETTINGS_SCHEMA_VERSION ? DEFAULT_ANDROID_AUDIO_PROFILE : p.audioProfile;
+        return { ...p, audio: migrateAudioSettings(p.audio, version), audioProfile };
+      },
       partialize: (s) => ({ audio: s.audio, video: s.video, audioProfile: s.audioProfile }),
       // Normalize untrusted persisted values through the media package's guards.
       merge: (persisted, current) => {

@@ -42,7 +42,9 @@ import {
   constrainedCameraPublishOptions,
   DEFAULT_AUDIO_SETTINGS,
   DEFAULT_VIDEO_SETTINGS,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   PRESSURE_CAMERA_MAX_BITRATE_BPS,
+  withEchoCancellation,
 } from "../index.js";
 import {
   connectionQualityLevelFromLiveKit,
@@ -111,6 +113,12 @@ class FakeLocalParticipant implements LocalParticipantLike {
   isMicrophoneEnabled = false;
   isScreenShareEnabled = false;
   isCameraEnabled = false;
+  /**
+   * True between a mic unpublish and its republish (FakeRoom.republishMicTrack). In
+   * that window livekit has no mic publication and no pending publish, so
+   * `setMicrophoneEnabled(false)` finds nothing to mute and does nothing.
+   */
+  micUnpublished = false;
   published: TrackPublishOptionsLike[] = [];
   setMicrophoneEnabled = vi.fn(
     async (
@@ -118,6 +126,7 @@ class FakeLocalParticipant implements LocalParticipantLike {
       _captureOptions?: AudioCaptureOptionsLike,
       _publishOptions?: MicPublishOptionsLike,
     ) => {
+      if (!enabled && this.micUnpublished) return;
       this.isMicrophoneEnabled = enabled;
     },
   );
@@ -206,12 +215,31 @@ class FakeRoom implements VoiceRoomAdapter {
    * re-acquire fallback.
    */
   applyMicCaptureConstraints = vi.fn(async (_captureOptions: AudioCaptureOptionsLike) => true);
-  /** Full mic RE-PUBLISH (bitrate/codec change) — optional adapter surface. */
+  /**
+   * Resolves the "SFU negotiation" step of {@link republishMicTrack}. Already
+   * resolved by default; a test replaces it with a pending promise to hold a
+   * republish open mid-flight.
+   */
+  republishGate: Promise<void> = Promise.resolve();
+  /**
+   * Full mic RE-PUBLISH (bitrate/codec change) — optional adapter surface. Modelled
+   * on livekit 2.20 `unpublishTrack` + `setMicrophoneEnabled(true)`: the publication
+   * is dropped and `LocalTrackUnpublished` fires synchronously, then the SFU
+   * negotiation is awaited, then a fresh UNMUTED mic is published.
+   */
   republishMicTrack = vi.fn(
     async (
       _captureOptions: AudioCaptureOptionsLike | undefined,
       _publishOptions: MicPublishOptionsLike | undefined,
-    ) => {},
+    ) => {
+      const lp = this.localParticipant;
+      lp.micUnpublished = true;
+      lp.isMicrophoneEnabled = false;
+      this.emit(ROOM_EVENT.LocalTrackUnpublished, { source: TRACK_SOURCE.Microphone });
+      await this.republishGate;
+      lp.micUnpublished = false;
+      lp.isMicrophoneEnabled = true;
+    },
   );
   /** Attach/detach the RNNoise worklet (Yüksek NS tier) — optional adapter surface. */
   applyNoiseFilter = vi.fn(async (_processor: AudioTrackProcessorLike | null) => {});
@@ -1317,7 +1345,10 @@ describe("configureAudio (Ayarlar → Mikrofon)", () => {
     room.republishMicTrack.mockClear();
 
     engine.configureAudio(
-      audioSettings({ processing: { echoCancellation: false, autoGainControl: true } }),
+      audioSettings({
+        processing: { echoCancellation: false, autoGainControl: true },
+        headphonesConfirmed: true,
+      }),
     );
     await flush();
 
@@ -1473,8 +1504,225 @@ describe("configureAudio (Ayarlar → Mikrofon)", () => {
     await engine.join("channel-1");
     await engine.setMic(false);
     engine.configureAudio(audioSettings({ musicMode: true }));
+    await flush();
     expect(room.republishMicTrack).not.toHaveBeenCalled();
     expect(room.restartAudioTrack).not.toHaveBeenCalled();
+
+    // Unmuting only re-enables livekit's existing track, so the engine must carry
+    // the change over itself — otherwise it would wait for a rejoin.
+    await engine.setMic(true);
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    expect(room.republishMicTrack.mock.calls[0]?.[1]).toMatchObject({ forceStereo: true });
+
+    // Nothing new while muted again → the next unmute applies nothing.
+    await engine.setMic(false);
+    await engine.setMic(true);
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it("a DSP change made while muted is retuned on the next unmute, not before", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    room.applyMicCaptureConstraints.mockClear();
+    room.restartAudioTrack.mockClear();
+
+    engine.configureAudio(withEchoCancellation(audioSettings(), "off_headphones"));
+    await flush();
+    expect(room.applyMicCaptureConstraints).not.toHaveBeenCalled();
+    expect(room.restartAudioTrack).not.toHaveBeenCalled();
+
+    await engine.setMic(true);
+    expect(room.applyMicCaptureConstraints).toHaveBeenCalledTimes(1);
+    expect(room.applyMicCaptureConstraints.mock.calls[0]?.[0]).toMatchObject({
+      echoCancellation: false,
+    });
+  });
+
+  it("a change while muted is dropped when it is reverted before unmuting", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    room.applyMicCaptureConstraints.mockClear();
+    room.republishMicTrack.mockClear();
+
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    engine.configureAudio(audioSettings());
+    await engine.setMic(true);
+
+    expect(room.applyMicCaptureConstraints).not.toHaveBeenCalled();
+    expect(room.republishMicTrack).not.toHaveBeenCalled();
+  });
+
+  it("re-attaches the Yüksek worklet on unmute even when the muted change was reverted", async () => {
+    const createNoiseFilter = vi.fn(makeFakeNoiseFilter);
+    const { engine, room } = setup({ createNoiseFilter });
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    expect(room.applyNoiseFilter).toHaveBeenLastCalledWith(null);
+
+    engine.configureAudio(audioSettings({ noiseSuppression: "standard" }));
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    room.applyNoiseFilter.mockClear();
+    await engine.setMic(true);
+
+    // High drops the browser NS because the worklet does the suppression, so a
+    // live mic without the worklet would send with no noise suppression at all.
+    expect(room.applyNoiseFilter).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "fake-rnnoise" }),
+    );
+    expect(room.republishMicTrack).not.toHaveBeenCalled();
+  });
+
+  it("re-attaches the worklet after a 'Kendini dinle' round trip with a reverted tier change", async () => {
+    const createNoiseFilter = vi.fn(makeFakeNoiseFilter);
+    const { monitor } = makeFakeMicMonitor();
+    const { engine, room } = setup({ createNoiseFilter, createMicMonitor: () => monitor });
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await engine.join("channel-1");
+    await flush();
+    await engine.setSelfMonitoring(true);
+    expect(engine.getState().micEnabled).toBe(false);
+    engine.configureAudio(audioSettings({ noiseSuppression: "standard" }));
+    engine.configureAudio(audioSettings({ noiseSuppression: "high" }));
+    await flush();
+    room.applyNoiseFilter.mockClear();
+    await engine.setSelfMonitoring(false);
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(room.applyNoiseFilter).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "fake-rnnoise" }),
+    );
+  });
+
+  it("a republish on unmute leaves the engine and livekit agreeing the mic is live", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    engine.configureAudio(audioSettings({ quality: "high" }));
+
+    await engine.setMic(true);
+    await flush();
+
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(true);
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(engine.getState().error).toBeNull();
+  });
+
+  it("a live quality change republishes without flagging the mic as lost", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(true);
+    expect(engine.getState().micEnabled).toBe(true);
+    expect(engine.getState().error).toBeNull();
+  });
+
+  it("a push-to-talk release during the unmute republish ends with the mic muted in livekit", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    await engine.setMic(false);
+    engine.configureAudio(audioSettings({ musicMode: true }));
+
+    let openGate!: () => void;
+    room.republishGate = new Promise<void>((resolve) => (openGate = resolve));
+    const press = engine.setMic(true);
+    await flush();
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    const release = engine.setMic(false);
+    await flush();
+    openGate();
+    await Promise.all([press, release]);
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(false);
+  });
+
+  it("deafening during a live republish ends with the mic muted in livekit", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+
+    let openGate!: () => void;
+    room.republishGate = new Promise<void>((resolve) => (openGate = resolve));
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+    expect(room.republishMicTrack).toHaveBeenCalledTimes(1);
+    const deafen = engine.setDeafened(true);
+    await flush();
+    openGate();
+    await deafen;
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(room.localParticipant.isMicrophoneEnabled).toBe(false);
+  });
+
+  it("a republish that fails to bring the mic back is reported, not shown as live", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    room.republishMicTrack.mockImplementationOnce(async () => {
+      room.localParticipant.isMicrophoneEnabled = false;
+      room.emit(ROOM_EVENT.LocalTrackUnpublished, { source: TRACK_SOURCE.Microphone });
+      const err = new Error("Could not start audio source");
+      err.name = "NotReadableError";
+      throw err;
+    });
+
+    engine.configureAudio(audioSettings({ quality: "high" }));
+    await flush();
+
+    expect(engine.getState().micEnabled).toBe(false);
+    expect(engine.getState().error).not.toBeNull();
+  });
+
+  it("an UNCONFIRMED echoCancellation:false never reaches the mic (AEC stays on)", async () => {
+    const { engine, room } = setup();
+    engine.configureAudio(audioSettings());
+    await engine.join("channel-1");
+    await flush();
+    room.applyMicCaptureConstraints.mockClear();
+    room.restartAudioTrack.mockClear();
+    room.republishMicTrack.mockClear();
+
+    engine.configureAudio(
+      audioSettings({ processing: { echoCancellation: false, autoGainControl: true } }),
+    );
+    await flush();
+
+    // Effective settings did not change, so the live mic is not touched at all.
+    expect(room.applyMicCaptureConstraints).not.toHaveBeenCalled();
+    expect(room.restartAudioTrack).not.toHaveBeenCalled();
+    expect(room.republishMicTrack).not.toHaveBeenCalled();
+
+    // …and a fresh publish still asks for echo cancellation.
+    await engine.setMic(false);
+    await engine.leave();
+    await engine.join("channel-1");
+    const lastPublish = room.localParticipant.setMicrophoneEnabled.mock.calls.at(-1);
+    expect(lastPublish?.[1]).toMatchObject({ echoCancellation: true });
   });
 
   it("does NOT re-apply when nothing that affects the published track changed", async () => {
@@ -3354,29 +3602,25 @@ describe("per-user volume (listener-side, per remote)", () => {
 
 describe("volume apply is fault-isolated (a per-remote setVolume throw must not cascade)", () => {
   /**
-   * Mirrors livekit's WEB playout path: `RemoteParticipant.setVolume` forwards to the
-   * `<audio>` element's `volume` setter, which throws `IndexSizeError` for any value
-   * outside [0,1] — i.e. a per-user BOOST above 100% (our range is 0..2). This is the
-   * exact throw that, UNGUARDED, aborts the `applyRemoteVolumes` loop mid-room and, on
+   * A remote whose playout rejects every volume write — a publication mid-teardown.
+   * UNGUARDED, such a throw aborts the `applyRemoteVolumes` loop mid-room and, on
    * join, escapes before `applyMicPreference()` so the LOCAL mic never publishes.
    */
-  class WebLikeRemote extends FakeRemoteParticipant {
-    setVolume(volume: number, source: "microphone" | "screen_share_audio" = "microphone"): void {
-      if (volume > 1) throw new RangeError("IndexSizeError: volume must be in [0,1]");
-      super.setVolume(volume, source);
+  class TearingDownRemote extends FakeRemoteParticipant {
+    setVolume(): void {
+      throw new Error("InvalidStateError: track is being torn down");
     }
   }
 
-  it("a boosted remote's throw at JOIN does not silence the next remote or wedge the mic", async () => {
+  it("a throwing remote at JOIN does not silence the next remote or wedge the mic", async () => {
     const room = new FakeRoom();
     const engine = createVoiceEngine({
       fetchToken: async () => ({ url: "ws://test:7880", token: "jwt" }),
       createRoom: () => room,
-      // user-a boosted to 150% (its web setVolume throws); user-b at 50% (applies cleanly).
-      initialParticipantVolumes: { "user-a": 1.5, "user-b": 0.5 },
+      initialParticipantVolumes: { "user-a": 0.7, "user-b": 0.5 },
     });
     // Both present at connect; insertion order puts the THROWING remote first.
-    room.remoteParticipants.set("user-a", new WebLikeRemote("user-a"));
+    room.remoteParticipants.set("user-a", new TearingDownRemote("user-a"));
     room.remoteParticipants.set("user-b", new FakeRemoteParticipant("user-b"));
 
     await expect(engine.join("channel-1")).resolves.toBeUndefined();
@@ -3384,22 +3628,21 @@ describe("volume apply is fault-isolated (a per-remote setVolume throw must not 
     // The throw on user-a must NOT abort the loop — user-b's mic level still applied.
     expect(room.remoteParticipants.get("user-b")?.volume).toBe(0.5);
     // …and must NOT escape before applyMicPreference: join is connected AND the LOCAL
-    // mic actually published, so peers can hear us (the symptom-2 wedge this closes).
+    // mic actually published, so peers can hear us.
     expect(engine.getState().status).toBe("connected");
     expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
   });
 
-  it("a boosted remote's throw via ParticipantConnected is swallowed (no unhandled throw)", async () => {
+  it("a throwing remote via ParticipantConnected is swallowed (no unhandled throw)", async () => {
     const room = new FakeRoom();
     const engine = createVoiceEngine({
       fetchToken: async () => ({ url: "ws://test:7880", token: "jwt" }),
       createRoom: () => room,
-      initialParticipantVolumes: { "user-a": 1.5 },
+      initialParticipantVolumes: { "user-a": 0.7 },
     });
     await engine.join("channel-1");
 
-    // user-a joins LATE — onParticipantConnected pushes its stored 1.5 → would throw.
-    const a = new WebLikeRemote("user-a");
+    const a = new TearingDownRemote("user-a");
     room.remoteParticipants.set("user-a", a);
     expect(() => room.emit(ROOM_EVENT.ParticipantConnected, a)).not.toThrow();
 
@@ -3407,6 +3650,107 @@ describe("volume apply is fault-isolated (a per-remote setVolume throw must not 
     const b = room.addRemote("user-b");
     expect(b.volume).toBe(1);
     expect(engine.getState().status).toBe("connected");
+  });
+});
+
+describe("per-user volume ceiling — <audio>-element playback (desktop + web)", () => {
+  /**
+   * Mirrors livekit's WEB playout without webAudioMix: `RemoteAudioTrack.setVolume`
+   * writes `HTMLMediaElement.volume`, which throws `IndexSizeError` above 1. Every
+   * rejected write is recorded: a desktop/web engine must never ask for one.
+   */
+  class ElementPlayoutRemote extends FakeRemoteParticipant {
+    rejected: number[] = [];
+    setVolume(volume: number, source: "microphone" | "screen_share_audio" = "microphone"): void {
+      if (volume > 1) {
+        this.rejected.push(volume);
+        throw new RangeError("IndexSizeError: volume must be in [0,1]");
+      }
+      super.setVolume(volume, source);
+    }
+  }
+
+  function elementEngine(initial?: {
+    voice?: Record<string, number>;
+    share?: Record<string, number>;
+  }) {
+    const room = new FakeRoom();
+    const engine = createVoiceEngine({
+      fetchToken: async () => ({ url: "ws://test:7880", token: "jwt" }),
+      createRoom: () => room,
+      maxParticipantVolume: ELEMENT_PLAYBACK_MAX_VOLUME,
+      ...(initial?.voice ? { initialParticipantVolumes: initial.voice } : {}),
+      ...(initial?.share ? { initialScreenShareVolumes: initial.share } : {}),
+    });
+    return { engine, room };
+  }
+
+  it("a stored 150% boost loads as 100%: the row shows exactly what plays", async () => {
+    const { engine, room } = elementEngine({ voice: { "user-a": 1.5, "user-b": 0.5 } });
+    const a = new ElementPlayoutRemote("user-a");
+    room.remoteParticipants.set("user-a", a);
+    await engine.join("channel-1");
+
+    expect(engine.getParticipantVolume("user-a")).toBe(1);
+    expect(engine.getParticipantVolume("user-b")).toBe(0.5);
+    expect(a.rejected).toEqual([]);
+    const row = engine.getState().participants.find((p) => p.identity === "user-a");
+    expect(row?.volume).toBe(a.volume);
+  });
+
+  it("a slider push above 100% is clamped before it reaches the element", async () => {
+    const { engine, room } = elementEngine();
+    await engine.join("channel-1");
+    const a = new ElementPlayoutRemote("user-a");
+    room.remoteParticipants.set("user-a", a);
+    room.emit(ROOM_EVENT.ParticipantConnected, a);
+
+    engine.setParticipantVolume("user-a", 1.8);
+    engine.setScreenShareVolume("user-a", 2);
+
+    expect(a.rejected).toEqual([]);
+    expect(a.volume).toBe(1);
+    expect(a.screenShareVolume).toBe(1);
+    expect(engine.getParticipantVolume("user-a")).toBe(1);
+    expect(engine.getScreenShareVolume("user-a")).toBe(1);
+
+    engine.setParticipantVolume("user-a", 0.4);
+    expect(a.volume).toBe(0.4);
+    const row = engine.getState().participants.find((p) => p.identity === "user-a");
+    expect(row?.volume).toBe(0.4);
+  });
+
+  it("undeafen restores the clamped level, never a boost", async () => {
+    const { engine, room } = elementEngine({ share: { "user-a": 1.7 } });
+    const a = new ElementPlayoutRemote("user-a");
+    room.remoteParticipants.set("user-a", a);
+    await engine.join("channel-1");
+    await engine.setDeafened(true);
+    expect(a.screenShareVolume).toBe(0);
+    await engine.setDeafened(false);
+    expect(a.screenShareVolume).toBe(1);
+    expect(a.rejected).toEqual([]);
+  });
+
+  it("the native default keeps the 200% range (mobile)", async () => {
+    const { engine, room } = setup();
+    await engine.join("channel-1");
+    const b = room.addRemote("user-b");
+    engine.setParticipantVolume("user-b", 1.8);
+    expect(b.volume).toBe(1.8);
+  });
+
+  it("a ceiling above the shared maximum is not honoured", async () => {
+    const room = new FakeRoom();
+    const engine = createVoiceEngine({
+      fetchToken: async () => ({ url: "ws://test:7880", token: "jwt" }),
+      createRoom: () => room,
+      maxParticipantVolume: 5,
+    });
+    await engine.join("channel-1");
+    const b = room.addRemote("user-b");
+    engine.setParticipantVolume("user-b", 4);
+    expect(b.volume).toBe(2);
   });
 });
 

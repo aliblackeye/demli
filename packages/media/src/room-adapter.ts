@@ -393,10 +393,11 @@ export interface RemoteParticipantLike extends ParticipantLike {
   /**
    * Set this remote's playback volume WITHOUT touching tracks (client-side only):
    *  - deafen uses 0 (master mute) / restore,
-   *  - per-user "User Volume" uses 0..2 (0=muted, 1=100%, 2=200% boost).
+   *  - per-user "User Volume" uses 0..ceiling (0=muted, 1=100%; the engine's
+   *    `maxParticipantVolume` — 2 on native playout, 1 on `<audio>` elements).
    * The web adapter (livekit `RemoteParticipant.setVolume`) scales the remote's own
-   * audio elements — attenuation (<1) always applies; boost (>1) is best-effort per
-   * the platform's audio path. Nothing crosses the SFU or WebSocket (§10/§35).
+   * audio elements, whose `volume` throws above 1 — which is why desktop/web engines
+   * run with a 100% ceiling. Nothing crosses the SFU or WebSocket (§10/§35).
    *
    * The optional `source` targets ONE of the remote's audio publications
    * (`microphone` vs `screen_share_audio`) so the film's audio can be scaled apart

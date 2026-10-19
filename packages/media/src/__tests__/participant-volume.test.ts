@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampParticipantVolume,
   DEFAULT_PARTICIPANT_VOLUME,
+  ELEMENT_PLAYBACK_MAX_VOLUME,
   isDefaultParticipantVolume,
   MAX_PARTICIPANT_VOLUME,
   MIN_PARTICIPANT_VOLUME,
@@ -81,5 +82,25 @@ describe("normalizeParticipantVolumes", () => {
 
   it("exposes a stable shared storage key for both platforms", () => {
     expect(PARTICIPANT_VOLUME_STORAGE_KEY).toBe("demli.participant-volumes");
+  });
+});
+
+describe("platform playback ceiling", () => {
+  it("element playback (desktop + web) tops out at 100%, native at 200%", () => {
+    expect(ELEMENT_PLAYBACK_MAX_VOLUME).toBe(1);
+    expect(MAX_PARTICIPANT_VOLUME).toBe(2);
+  });
+
+  it("clamps to the given ceiling", () => {
+    expect(clampParticipantVolume(1.6, ELEMENT_PLAYBACK_MAX_VOLUME)).toBe(1);
+    expect(clampParticipantVolume(0.6, ELEMENT_PLAYBACK_MAX_VOLUME)).toBe(0.6);
+    expect(clampParticipantVolume(1.6)).toBe(1.6);
+  });
+
+  it("a stored boost normalizes to 100% under the element ceiling and is pruned", () => {
+    expect(
+      normalizeParticipantVolumes({ a: 1.5, b: 0.4 }, ELEMENT_PLAYBACK_MAX_VOLUME),
+    ).toEqual({ b: 0.4 });
+    expect(normalizeParticipantVolumes({ a: 1.5, b: 0.4 })).toEqual({ a: 1.5, b: 0.4 });
   });
 });
