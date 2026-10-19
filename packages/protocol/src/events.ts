@@ -86,6 +86,23 @@ export interface TypingPayload {
  * The distinction matters because availability is per-device: a desktop's
  * auto-away timer only knows about that machine, so its "idle" must not speak for
  * a phone that is wide awake.
+ *
+ * WHO RECEIVES WHICH FORM (M16 — same wire shape, the meaning was always this,
+ * the gateway now actually does it):
+ * - A PEER (co-member / accepted friend) receives the MASKED status: `invisible`
+ *   arrives as `offline`, with no `platform`.
+ * - The SUBJECT's own sockets receive `presence.updated` about themselves with
+ *   the REAL status — `invisible` stays `invisible`, never `offline` — so a status
+ *   picked on one device repaints the user's other devices (ADR 0020 derivation:
+ *   a phone's `dnd`/`invisible` holds for the whole account). The originating
+ *   device gets it too, as the derived answer to its own declaration. The socket
+ *   whose HANDSHAKE triggered a broadcast is the one exception: it learns its
+ *   real status from the echo of its own connect-time re-assert instead.
+ * - The `auth.succeeded` snapshot holds PEERS ONLY (masked); the connecting user
+ *   is never in it, and seeds their own dot from their locally chosen status.
+ *
+ * Clients must still treat a self `offline` as impossible and drop it: they are
+ * reading it on a live socket, and a pre-M16 gateway sent self the peer mask.
  */
 export interface PresencePayload {
   userId: UserId;
@@ -821,11 +838,16 @@ export interface VoiceDisconnectedPayload {
 
 /**
  * Sent once by the server after the WebSocket handshake token is validated.
- * Carries the authenticated user id plus a presence snapshot of every user
- * sharing at least one group with this connection.
+ * Carries the authenticated user id plus a presence snapshot of every OTHER user
+ * in this user's presence audience (group co-members ∪ accepted friends).
  */
 export interface AuthSucceededPayload {
   userId: UserId;
+  /**
+   * Peers only, masked for peers (`invisible` → `offline`). Never contains an
+   * entry for `userId` — see {@link PresencePayload} for where the user's own,
+   * unmasked status comes from.
+   */
   presence: PresencePayload[];
   /**
    * Point-in-time snapshot of WHO is currently in each voice channel this

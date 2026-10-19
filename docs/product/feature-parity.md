@@ -1532,3 +1532,19 @@ mutasyonla doğrulandı (fg-faint #737373, yay süresi, tehlike #ef4444 → kır
 **Bilinen açık:** iki `index.html` önyükleme iskeleti, pencere flaş rengi, BootSplash ve
 VideoStage gradyanları, mobil `app.json` splash/ikon renkleri hâlâ sıcak eski palet —
 token değişimi bunlara ulaşmıyor (liste tasarım dokümanı §7.3). Mobil splash APK ister.
+
+## 2026-10-20 — M16: "Görünmez" seçen kendini "çevrimdışı" görüyordu (sunucu + iki istemci)
+
+Dal `feat/m16-presence-self`. Entegrasyon testleri ilk kez gerçek Postgres/Redis'e karşı
+koşunca çıktı.
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Kendi durum noktan GERÇEK durumu gösterir (görünmez → görünmez, çevrimdışı değil); başka cihazda seçilen durum bu cihazın noktasına gelir | ✅ | ✅ | Kök neden: `groups.listCoMemberUserIds` kullanıcının kendisini içeriyor, gateway bunu `presenceAudience` olarak aynen kullanıyordu → kişi kendi EŞLERE-maskeli durumunu (invisible→offline) canlı ve her handshake snapshot'ında alıyordu. Sözleşme (`PresencePayload` dokümanı): eşler maskeli; kişinin kendi soketleri ADR 0020 türetilmiş GERÇEK durumu alır (telefonda dnd → masaüstü noktası kırmızı); bağlantıyı açan soket kendi connect yayınından hariç; snapshot yalnız eşler; kendine `offline` hiç gönderilmez. Yayın sırası düzeltildi (Redis en son okunur → yavaş bir kitle sorgusu eski durumu en son teslim edemez). Sunucu düzeltmesi yayındaki eski istemcileri de düzeltir; istemciler ayrıca kendine gelen `offline`'ı düşürür (`client-core/self-presence.ts`). Testler: `gateway.presence-self.test.ts` (6; eski gateway'de 6/6 kırmızı), derivation int +2 ve app-state int (grup-başına izolasyon) eski gateway'de kırmızı. |
+
+**Bilinen açık:** (1) Durum seçicideki tik hâlâ BU cihazın seçimi; nokta artık hesabın
+türetilmiş durumunu izliyor, yani "Çevrimiçi ✓ + kırmızı nokta" (telefonda dnd) görülebilir —
+doğru ama açıklamasız (UI işi, ADR 0020 "Known gap"). (2) Tek cihazla görünmez bağlanan
+kullanıcı, istemcinin ilk `presence.update`'ine kadar (~1 RTT) eşlere `online` yayınlanıyor:
+yeni soket sunucuda varsayılan "online" ile kaydediliyor. Kapatmak handshake'te ilk durumu
+taşımayı ister (ayrı iş).

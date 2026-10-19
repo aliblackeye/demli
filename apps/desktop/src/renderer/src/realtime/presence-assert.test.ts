@@ -51,3 +51,38 @@ describe.each(Object.entries(CLIENTS))("%s — presence on connect", (_name, pat
     expect(source).toMatch(/presenceUpdate\(\{\s*userId: me\.id,\s*status: effective\s*\}\)/);
   });
 });
+
+/**
+ * Source-level invariant (M16): BOTH clients route presence about THEIR OWN user
+ * through the shared @demli/client-core rules, so an invisible user's own dot
+ * can never be repainted "offline" — the bug a pre-M16 gateway caused by sending
+ * the user their own PEER-masked presence, live and in the handshake snapshot.
+ * The rules themselves are unit-tested in client-core (self-presence.test.ts);
+ * this pins that both handlers still call them.
+ */
+describe.each(Object.entries(CLIENTS))("%s — presence about ourselves", (_name, path) => {
+  const source = readFileSync(path, "utf8");
+
+  /** The body of one `case SERVER_EVENT.<name>` up to the next `case`. */
+  function caseBody(name: string): string {
+    const start = source.indexOf(`case SERVER_EVENT.${name}:`);
+    expect(start, `case SERVER_EVENT.${name} not found`).toBeGreaterThan(-1);
+    const next = source.indexOf("case SERVER_EVENT.", start + 1);
+    return source.slice(start, next === -1 ? undefined : next);
+  }
+
+  it("drops a self `offline` before painting presence.updated", () => {
+    const body = caseBody("presenceUpdated");
+    const guard = body.indexOf("isStaleSelfPresence(event.payload, useAuthStore.getState().user?.id)");
+    const paint = body.indexOf("chat.setPresence(");
+    expect(guard).toBeGreaterThan(-1);
+    expect(paint).toBeGreaterThan(guard);
+  });
+
+  it("strips any self entry from the auth.succeeded snapshot before seeding our own", () => {
+    const body = caseBody("authSucceeded");
+    expect(body).toContain("withoutSelfPresence(event.payload.presence, me?.id)");
+    // The old shape copied the snapshot verbatim, self entry included.
+    expect(body).not.toContain("[...event.payload.presence]");
+  });
+});
