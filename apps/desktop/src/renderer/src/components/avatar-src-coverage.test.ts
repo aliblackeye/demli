@@ -67,6 +67,12 @@ const JUSTIFIED_NULL: Record<string, { count: number; reason: string }> = {
       "a test fixture asserting the speaking ring and the 30% presence dot on the " +
       "INITIALS avatar — no user record and no photo are involved",
   },
+  "packages/app-ui/src/__tests__/ui-tones.test.tsx": {
+    count: 1,
+    reason:
+      "a test fixture measuring the INITIALS ink against every seed colour — the " +
+      "photo would cover the very thing under test",
+  },
 };
 
 function walk(dir: string, out: string[] = []): string[] {
