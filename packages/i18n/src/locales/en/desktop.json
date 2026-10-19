@@ -35,6 +35,8 @@
     "loadingOlder": "Loading older messages…",
     "introTitle": "Welcome to #{{channel}}",
     "introBody": "This is the start of the <strong>#{{channel}}</strong> channel.",
+    "introDmBody": "This is the beginning of your direct messages with <strong>{{name}}</strong>.",
+    "introGroupBody": "This is the beginning of the <strong>{{name}}</strong> group chat.",
     "jumpToPresent": "New messages — jump to present",
     "newMessages": "New Messages",
     "newMessagesDivider": "New messages start here",

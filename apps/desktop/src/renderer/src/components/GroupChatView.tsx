@@ -41,7 +41,7 @@ import { resubscribeRealtime } from "../realtime/connection";
 import { useAuthStore } from "../stores/auth-store";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
-import { MessageList } from "@demli/app-ui";
+import { MessageList, type ChatIntro } from "@demli/app-ui";
 import { ConnectionBanner, TypingIndicator } from "./ChatChrome";
 import { ChatDataProvider } from "./ChatDataProvider";
 import { ChannelSearchPanel } from "./ChannelSearchPanel";
@@ -128,6 +128,13 @@ export function GroupChatView(): JSX.Element {
   }, [streamId, setActiveStream]);
 
   const streamChannel = useMemo(() => (group ? streamChannelOf(group) : null), [group]);
+  // The empty thread opens on the group, not on a "#name" channel intro.
+  const groupId = group?.id;
+  const groupName = group?.name;
+  const intro = useMemo<ChatIntro | undefined>(
+    () => (groupId && groupName ? { kind: "groupChat", groupId, name: groupName } : undefined),
+    [groupId, groupName],
+  );
 
   // Non-owner self-removal. On success the home surface drops back to its empty
   // state; the gateway re-handshake drops the (now-inaccessible) stream channel.
@@ -308,7 +315,7 @@ export function GroupChatView(): JSX.Element {
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
           {/* key resets scroll/stick state cleanly when switching groups */}
-          <ChatDataProvider channel={streamChannel}>
+          <ChatDataProvider channel={streamChannel} intro={intro}>
             <MessageList key={streamChannel.id} />
           </ChatDataProvider>
           <TypingIndicator channelId={streamChannel.id} />

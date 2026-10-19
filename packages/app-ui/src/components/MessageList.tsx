@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, m } from "framer-motion";
-import { ArrowDown, ArrowUp, CloudOff, Hash, RotateCw, Volume2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CloudOff, Hash, RotateCw, Users, Volume2 } from "lucide-react";
 import { Trans, useTranslation } from "@demli/i18n";
-import { Button, Skeleton, cn } from "@demli/ui";
+import { Button, Skeleton, UserAvatar, cn } from "@demli/ui";
 import type { Channel } from "@demli/types";
-import { useChatData } from "../data/chat-data";
+import { useChatData, type ChatIntro } from "../data/chat-data";
 import { onEditLastRequest, requestMessageEdit } from "../data/edit-request";
 import { useOptionalMessageRowServices } from "../data/message-row-data";
 import { toastPop } from "../motion/presets";
@@ -45,6 +45,12 @@ const ARRIVAL_FRESH_MS = 1200;
  */
 const IGNORED_RUN_ROW_PX = 32;
 
+/**
+ * Rendered height of the older-page loading row: a fixed `h-14` in every state,
+ * so the estimate is exact and the scroll compensation below is exact too.
+ */
+const OLDER_LOADING_ROW_PX = 56;
+
 /** Rendered height of a {@link DateDivider} (pt-5 + 20px pill + pb-1). */
 const DATE_DIVIDER_ROW_PX = 44;
 
@@ -53,23 +59,59 @@ function useNoViewer(): string | undefined {
   return undefined;
 }
 
-function ChannelIntro({ channel }: { channel: Channel }): JSX.Element {
+/**
+ * The start of the thread. A server channel opens on its glyph and "#name"; a DM
+ * opens on the other person (their avatar and name, no "#"); a flat group chat
+ * on the group. A DM and a group chat run on a hidden stream channel named after
+ * the peer / group, so the channel copy would read "#Can kanalına hoş geldin".
+ */
+function ThreadIntro({ channel, intro }: { channel: Channel; intro?: ChatIntro }): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  const Glyph = channel.kind === "voice" ? Volume2 : Hash;
+  const strong = { strong: <span className="font-medium text-fg" /> };
+
+  if (intro?.kind === "dm") {
+    const { peer } = intro;
+    return (
+      <div className="px-4 pb-4 pt-10">
+        <UserAvatar
+          name={peer.displayName}
+          colorSeed={peer.id}
+          src={peer.avatarUrl}
+          size="lg"
+          ring={false}
+        />
+        <h2 className="mt-4 font-display text-2xl font-semibold tracking-[-0.01em] text-fg-display">
+          {peer.displayName}
+        </h2>
+        <p className="mt-1.5 text-sm text-fg-muted">
+          <Trans
+            t={t}
+            i18nKey="desktop:chat.introDmBody"
+            values={{ name: peer.displayName }}
+            components={strong}
+          />
+        </p>
+      </div>
+    );
+  }
+
+  const isGroup = intro?.kind === "groupChat";
+  const name = isGroup ? intro.name : channel.name;
+  const Glyph = isGroup ? Users : channel.kind === "voice" ? Volume2 : Hash;
   return (
     <div className="px-4 pb-4 pt-10">
       <div className="flex size-14 items-center justify-center rounded-xl bg-surface">
         <Glyph className="size-7 text-fg-muted" aria-hidden />
       </div>
       <h2 className="mt-4 font-display text-2xl font-semibold tracking-[-0.01em] text-fg-display">
-        {t("desktop:chat.introTitle", { channel: channel.name })}
+        {isGroup ? name : t("desktop:chat.introTitle", { channel: name })}
       </h2>
       <p className="mt-1.5 text-sm text-fg-muted">
         <Trans
           t={t}
-          i18nKey="desktop:chat.introBody"
-          values={{ channel: channel.name }}
-          components={{ strong: <span className="font-medium text-fg" /> }}
+          i18nKey={isGroup ? "desktop:chat.introGroupBody" : "desktop:chat.introBody"}
+          values={isGroup ? { name } : { channel: name }}
+          components={strong}
         />
       </p>
     </div>
@@ -117,7 +159,9 @@ function DateDivider({ dayStart }: { dayStart: number }): JSX.Element {
 
 /**
  * The "new messages start here" line: a coral hairline with a solid coral
- * "YENİ" chip at its right end. Coral is the colour this thread reserves for
+ * "Yeni" chip at its right end (sentence case:
+ * CSS `uppercase` maps Turkish i→I by the document language, so caps are never
+ * left to the engine — brand-system "case conversion in TS, not CSS"). Coral is the colour this thread reserves for
  * "this is for you" — the same light as a mention of you and your own
  * reactions — so the line reads as a place to resume, never as an error.
  * Non-interactive; positioned by `buildRows` directly above the first message
@@ -132,7 +176,7 @@ function UnreadDivider(): JSX.Element {
       aria-label={t("desktop:chat.newMessagesDivider")}
     >
       <div className="h-px flex-1 bg-accent/50" />
-      <span className="ml-2 flex h-4 items-center rounded-pill bg-accent px-1.5 text-badge font-bold uppercase leading-none tracking-wide text-on-accent">
+      <span className="ml-2 flex h-4 items-center rounded-pill bg-accent px-1.5 text-badge font-semibold leading-none text-on-accent">
         {t("desktop:chat.newChip")}
       </span>
     </div>
@@ -156,6 +200,29 @@ function SkeletonMessage({
         {header && <Skeleton shape="line" width={112} height={12} />}
         <Skeleton shape="line" height={12} className={cn(header && "mt-2", body)} />
         {media && <Skeleton shape="rect" width={260} height={150} className="mt-2 rounded-xl" />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The row above the thread while an older page loads: one compact placeholder
+ * message at a FIXED height ({@link OLDER_LOADING_ROW_PX}). Fixed so that its
+ * insertion can be compensated exactly — the messages on screen must not move
+ * while history loads.
+ */
+function OlderPageLoading(): JSX.Element {
+  const { t } = useTranslation(["common", "desktop"]);
+  return (
+    <div
+      role="status"
+      aria-label={t("desktop:chat.loadingOlder")}
+      className="flex h-14 items-center px-4"
+    >
+      <Skeleton shape="circle" width={32} />
+      <div className="ml-3 flex min-w-0 flex-1 flex-col gap-2">
+        <Skeleton shape="line" width={112} height={10} />
+        <Skeleton shape="line" height={10} className="w-1/2" />
       </div>
     </div>
   );
@@ -194,6 +261,7 @@ export function MessageList(): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
   const {
     channel,
+    intro,
     messages,
     hasMore,
     isLoadingMore,
@@ -276,7 +344,7 @@ export function MessageList(): JSX.Element {
     estimateSize: (index) => {
       const row = rows[index];
       if (!row || row.kind === "intro") return 150;
-      if (row.kind === "older-loading") return 112;
+      if (row.kind === "older-loading") return OLDER_LOADING_ROW_PX;
       if (row.kind === "unread-divider") return 24;
       if (row.kind === "date-divider") return DATE_DIVIDER_ROW_PX;
       // Exact, not an estimate — the fold is a fixed-height bar in every state,
@@ -441,21 +509,95 @@ export function MessageList(): JSX.Element {
     }
   }, [loaded, lastRowKey, scrollToBottom]);
 
+  /**
+   * The older-page row is inserted at the TOP of the virtual flow, which would
+   * push every message on screen down by its height for the whole fetch (and
+   * snap back when the page lands). Shift the scroll position by that exact,
+   * fixed height in the same commit, before paint, so the thread stays put. The
+   * removal needs nothing extra: `loadOlder` re-anchors from the heights it
+   * captured before this row existed.
+   */
+  const olderRowShown = rows[0]?.kind === "older-loading";
+  const olderRowShownRef = useRef(olderRowShown);
+  useLayoutEffect(() => {
+    const was = olderRowShownRef.current;
+    olderRowShownRef.current = olderRowShown;
+    const el = parentRef.current;
+    if (!el || was === olderRowShown || !olderRowShown) return;
+    el.scrollTop += OLDER_LOADING_ROW_PX;
+  }, [olderRowShown]);
+
+  /**
+   * Keep the viewport on the same messages when an older page is prepended.
+   *
+   * Anchored on a ROW, not on scroll heights: the row at the top of the
+   * viewport is remembered with its offset, and once the page has landed the
+   * scroll position is set so that row sits at the same offset again. Applied in
+   * LAYOUT effects — the commit that swaps the loading row for the page, and the
+   * commit right after it in which the virtualizer has measured the new rows —
+   * so the browser never paints the intermediate position. (It used to run in a
+   * rAF after the fetch settled, comparing scrollHeight before/after: the
+   * prepended page was painted at the old position for a few frames first.)
+   * Armed only once the fetch is seen in flight, so an unrelated row change
+   * before that (a new message arriving) cannot consume the anchor early.
+   */
+  const pendingAnchorRef = useRef<{
+    /** The virtual item key of the anchor row (row keys are strings). */
+    key: unknown;
+    offset: number;
+    armed: boolean;
+    settling: boolean;
+  } | null>(null);
+  const totalSize = virtualizer.getTotalSize();
+  useLayoutEffect(() => {
+    const anchor = pendingAnchorRef.current;
+    const el = parentRef.current;
+    if (!anchor || !el) return;
+    if (isLoadingMore) {
+      anchor.armed = true;
+      return;
+    }
+    if (!anchor.armed) return;
+    const index = rows.findIndex((row) => row.key === anchor.key);
+    // getVirtualItems() refreshes the measurement cache with the sizes measured
+    // in this commit (the public read of it is `measurementsCache`).
+    virtualizer.getVirtualItems();
+    const item = index >= 0 ? virtualizer.measurementsCache[index] : undefined;
+    if (!item) {
+      pendingAnchorRef.current = null;
+      return;
+    }
+    el.scrollTop = item.start - anchor.offset;
+    if (!anchor.settling) {
+      // Hold the anchor through the measurement re-render, then let go.
+      anchor.settling = true;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (pendingAnchorRef.current === anchor) pendingAnchorRef.current = null;
+        }),
+      );
+    }
+  }, [rows, isLoadingMore, totalSize, virtualizer]);
+
   const loadOlder = useCallback(() => {
     const el = parentRef.current;
     if (!el || loadingOlderRef.current) return;
     loadingOlderRef.current = true;
-    const previousHeight = el.scrollHeight;
-    const previousTop = el.scrollTop;
+    const top = el.scrollTop;
+    // A MESSAGE row: a date divider's key ("date:<day>") survives the prepend
+    // but moves to the top of the new page when that page starts the same day.
+    const first = virtualizer
+      .getVirtualItems()
+      .find((item) => item.end > top && rowsRef.current[item.index]?.kind === "message");
+    pendingAnchorRef.current = first
+      ? { key: first.key, offset: first.start - top, armed: false, settling: false }
+      : null;
     void loadMore().finally(() => {
-      // Keep the viewport anchored on the same messages after the prepend.
       requestAnimationFrame(() => {
-        const node = parentRef.current;
-        if (node) node.scrollTop = previousTop + (node.scrollHeight - previousHeight);
         loadingOlderRef.current = false;
       });
     });
-  }, [loadMore]);
+  }, [loadMore, virtualizer]);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -554,12 +696,9 @@ export function MessageList(): JSX.Element {
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 {row.kind === "intro" ? (
-                  <ChannelIntro channel={channel} />
+                  <ThreadIntro channel={channel} intro={intro} />
                 ) : row.kind === "older-loading" ? (
-                  <div role="status" aria-label={t("desktop:chat.loadingOlder")} className="pb-2">
-                    <SkeletonMessage header body="w-1/2" />
-                    <SkeletonMessage header body="w-2/3" />
-                  </div>
+                  <OlderPageLoading />
                 ) : row.kind === "unread-divider" ? (
                   <UnreadDivider />
                 ) : row.kind === "date-divider" ? (

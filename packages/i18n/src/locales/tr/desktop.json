@@ -35,6 +35,8 @@
     "loadingOlder": "Daha eski mesajlar yükleniyor…",
     "introTitle": "#{{channel}} kanalına hoş geldin",
     "introBody": "Burası <strong>#{{channel}}</strong> kanalının başlangıcı.",
+    "introDmBody": "Burası <strong>{{name}}</strong> ile özel konuşmanızın başlangıcı.",
+    "introGroupBody": "Burası <strong>{{name}}</strong> grup sohbetinin başlangıcı.",
     "jumpToPresent": "Yeni mesajlar — en sona atla",
     "newMessages": "Yeni Mesajlar",
     "newMessagesDivider": "Yeni mesajlar buradan başlıyor",
