@@ -1,27 +1,46 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Ban, Clock, LogOut, UserMinus } from "lucide-react";
 import {
   Button,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
+  RadioGroup,
+  RadioItem,
   Textarea,
   cn,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { FormErrorAlert, formatTimeoutUntil } from "@demli/app-ui";
+import { TIMEOUT_PRESET_MINUTES } from "@demli/client-core";
 import {
+  BAN_REASON_MAX_LENGTH,
   MEMBER_NICKNAME_MAX_LENGTH,
   USER_NICKNAME_MAX_LENGTH,
   USER_NOTE_MAX_LENGTH,
 } from "@demli/config";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
-import { useBanMember, useKickMember, useSetMemberNickname } from "../queries/chat-queries";
+import {
+  useBanMember,
+  useKickMember,
+  useSetMemberNickname,
+  useTimeoutMember,
+} from "../queries/chat-queries";
 import {
   useSetPrivateNickname,
   useSetUserNote,
@@ -29,6 +48,8 @@ import {
   useUserNote,
 } from "../queries/social-queries";
 import { useUiStore, type MemberDialog } from "../stores/ui-store";
+
+type T = ReturnType<typeof useAppTranslation>["t"];
 
 /**
  * Every dialog the user context menu can open, in one host mounted once at the
@@ -42,11 +63,26 @@ import { useUiStore, type MemberDialog } from "../stores/ui-store";
  */
 export function MemberDialogs(): JSX.Element {
   const dialog = useUiStore((s) => s.memberDialog);
+  // The LAST dialog stays rendered (closed) after the slot clears, so Radix can
+  // play the card's pop-out and the scrim's fade instead of the dialog
+  // vanishing mid-frame. A new target remounts through the key below.
+  const [shown, setShown] = useState<MemberDialog | null>(dialog);
+  useEffect(() => {
+    if (dialog) setShown(dialog);
+  }, [dialog]);
+  const current = dialog ?? shown;
   // Keyed remount per target+kind so a dialog never opens seeded with the
   // PREVIOUS user's note or nickname still in its input.
-  const key = dialog ? `${dialog.kind}:${dialog.userId}` : "none";
-  return <MemberDialogBody key={key} dialog={dialog} />;
+  const key = current ? `${current.kind}:${current.userId}` : "none";
+  return (
+    <DialogOpenContext.Provider value={dialog !== null}>
+      <MemberDialogBody key={key} dialog={current} />
+    </DialogOpenContext.Provider>
+  );
 }
+
+/** Whether the member dialog slot is open (false while the last one animates out). */
+const DialogOpenContext = createContext(true);
 
 function MemberDialogBody({ dialog }: { dialog: MemberDialog | null }): JSX.Element {
   switch (dialog?.kind) {
@@ -62,44 +98,70 @@ function MemberDialogBody({ dialog }: { dialog: MemberDialog | null }): JSX.Elem
       return <KickDialog dialog={dialog} />;
     case "ban":
       return <BanDialog dialog={dialog} />;
+    case "timeout":
+      return <TimeoutDialog dialog={dialog} />;
     default:
       return <></>;
   }
 }
 
-/** Shared chrome so all five dialogs share one layout, one close path, one busy rule. */
-function MemberDialogShell({
+/**
+ * The shared chrome of every user / moderation confirmation (also used by
+ * {@link BlockUserDialog}): title, description, an optional list of exactly
+ * what will happen, the form body, and the action row bottom-right — Cancel
+ * first, the action last.
+ *
+ * DANGER is legible before a word is read, and never by colour alone (the
+ * design system's danger pink is chosen to stay apart from coral and from the
+ * online green, so it is placed and marked rather than shouted): a pink-washed
+ * icon disc beside the title, a pink bullet per consequence, and the danger
+ * button. Focus opens on the FIRST control of the body — Cancel, in a pure
+ * confirmation — so a stray Enter can never fire a kick or a ban.
+ */
+export function ConfirmDialogShell({
+  open = true,
   title,
   description,
   error,
   busy,
   submitLabel,
-  submitVariant = "default",
+  submitVariant = "primary",
+  tone = "default",
+  icon,
+  consequences,
   onSubmit,
+  onClose,
   children,
   footer,
 }: {
+  /** False while the dialog animates out (the caller keeps it mounted). */
+  open?: boolean;
   title: string;
   description: string;
   error: unknown;
   busy: boolean;
   submitLabel: string;
-  submitVariant?: "default" | "danger";
+  submitVariant?: "primary" | "danger" | "accent";
+  /** `danger` adds the pink icon disc and bullets. */
+  tone?: "default" | "danger";
+  icon?: ReactNode;
+  /** One line per concrete effect of the action, in plain words. */
+  consequences?: string[];
   onSubmit: () => void;
+  onClose: () => void;
   children?: ReactNode;
-  /** Extra control below the primary row (e.g. "Remove nickname"). */
+  /** Extra control below the action row (e.g. "Remove nickname"). */
   footer?: ReactNode;
 }): JSX.Element {
   const { t } = useAppTranslation();
-  const setMemberDialog = useUiStore((s) => s.setMemberDialog);
+  const danger = tone === "danger";
   const close = (): void => {
-    if (busy) return;
-    setMemberDialog(null);
+    if (!busy) onClose();
   };
 
   return (
-    <Dialog open onOpenChange={(next) => !next && close()}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
+      <DialogContent closeLabel={t("buttons.close")}>
         {/* The form — not DialogContent — is the flex parent of the header/body
             here, so it has to carry the column contract itself. Without
             `min-h-0 flex-1 flex-col` the DialogBody inside it never becomes the
@@ -112,36 +174,65 @@ function MemberDialogShell({
             if (!busy) onSubmit();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
+          <DialogHeader className={cn(icon && "flex-row items-start gap-3")}>
+            {icon && (
+              <span
+                aria-hidden
+                className={cn(
+                  "grid size-10 shrink-0 place-items-center rounded-full [&_svg]:size-5",
+                  danger ? "bg-danger-surface text-danger" : "bg-raised text-fg-muted",
+                )}
+              >
+                {icon}
+              </span>
+            )}
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <DialogTitle className="break-words">{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </div>
           </DialogHeader>
-          <DialogBody>
-            {error != null && (
-              <FormErrorAlert className="mb-3">{localizeError(error, t)}</FormErrorAlert>
+          <DialogBody className="space-y-4">
+            {error != null && <FormErrorAlert>{localizeError(error, t)}</FormErrorAlert>}
+            {consequences && consequences.length > 0 && (
+              <ul className="space-y-2 rounded-xl bg-surface p-3.5">
+                {consequences.map((line) => (
+                  <li key={line} className="flex items-start gap-2.5 text-label text-fg">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-[7px] size-1.5 shrink-0 rounded-full",
+                        danger ? "bg-danger" : "bg-fg-subtle",
+                      )}
+                    />
+                    {line}
+                  </li>
+                ))}
+              </ul>
             )}
             {children}
-            <div className="mt-5 flex gap-2">
-              <Button type="submit" variant={submitVariant} disabled={busy} className="flex-1">
-                {busy && <Loader2 className="size-4 animate-spin" />}
-                {submitLabel}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={busy}
-                onClick={close}
-                className="flex-1"
-              >
-                {t("buttons.cancel")}
-              </Button>
-            </div>
-            {footer}
           </DialogBody>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            {footer && <div className="mr-auto">{footer}</div>}
+            <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+              {t("buttons.cancel")}
+            </Button>
+            <Button type="submit" variant={submitVariant} loading={busy}>
+              {submitLabel}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The member-dialog flavour of the shell: closing clears the ui-store slot. */
+function MemberDialogShell(
+  props: Omit<Parameters<typeof ConfirmDialogShell>[0], "onClose">,
+): JSX.Element {
+  const setMemberDialog = useUiStore((s) => s.setMemberDialog);
+  const open = useContext(DialogOpenContext);
+  return <ConfirmDialogShell {...props} open={open} onClose={() => setMemberDialog(null)} />;
 }
 
 /**
@@ -168,34 +259,25 @@ function RemoveValueButton({
   onRemove: () => void;
 }): JSX.Element {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       disabled={disabled}
       onClick={onRemove}
-      className={cn(
-        "mt-3 w-full cursor-pointer rounded-md py-1.5 text-xs font-medium",
-        "text-danger/85 transition-colors motion-instant hover:bg-danger/10 hover:text-danger",
-        "disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-      )}
+      className="text-danger hover:bg-danger/12 hover:text-danger"
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
-/** Live "n / max" counter under a field, turning danger once the cap is hit. */
-function CharCount({ value, max }: { value: string; max: number }): JSX.Element {
+/** Live "n / max" help line under a field, turning danger once the cap is hit. */
+function charCount(value: string, max: number): ReactNode {
   return (
-    <p
-      className={
-        value.length >= max
-          ? "mt-1 text-right text-2xs text-danger"
-          : "mt-1 text-right text-2xs text-fg-faint"
-      }
-    >
+    <span className={cn("tabular-nums", value.length >= max && "text-danger")}>
       {value.length} / {max}
-    </p>
+    </span>
   );
 }
 
@@ -259,19 +341,21 @@ function NoteDialog({
         ) : null
       }
     >
-      <Textarea
-        autoFocus
-        rows={4}
-        value={body}
-        maxLength={USER_NOTE_MAX_LENGTH}
-        placeholder={t("desktop:userMenu.notePlaceholder")}
-        onChange={(event) => setBody(event.target.value)}
-        aria-label={t("desktop:userMenu.noteTitle", { name: dialog.displayName })}
-      />
-      <CharCount value={body} max={USER_NOTE_MAX_LENGTH} />
-      <p className="mt-2 text-xs leading-relaxed text-fg-faint">
-        {t("desktop:userMenu.notePrivacy")}
-      </p>
+      <Field
+        hideLabel
+        label={t("desktop:userMenu.noteTitle", { name: dialog.displayName })}
+        help={charCount(body, USER_NOTE_MAX_LENGTH)}
+      >
+        <Textarea
+          autoFocus
+          rows={4}
+          value={body}
+          maxLength={USER_NOTE_MAX_LENGTH}
+          placeholder={t("desktop:userMenu.notePlaceholder")}
+          onChange={(event) => setBody(event.target.value)}
+        />
+      </Field>
+      <p className="text-label text-fg-faint">{t("desktop:userMenu.notePrivacy")}</p>
     </MemberDialogShell>
   );
 }
@@ -323,18 +407,20 @@ function FriendNicknameDialog({
         ) : null
       }
     >
-      <Input
-        autoFocus
-        value={value}
-        maxLength={USER_NICKNAME_MAX_LENGTH}
-        placeholder={dialog.realName}
-        onChange={(event) => setValue(event.target.value)}
-        aria-label={t("desktop:userMenu.friendNicknameTitle", { name: dialog.realName })}
-      />
-      <CharCount value={value} max={USER_NICKNAME_MAX_LENGTH} />
-      <p className="mt-2 text-xs leading-relaxed text-fg-faint">
-        {t("desktop:userMenu.friendNicknamePrivacy")}
-      </p>
+      <Field
+        hideLabel
+        label={t("desktop:userMenu.friendNicknameTitle", { name: dialog.realName })}
+        help={charCount(value, USER_NICKNAME_MAX_LENGTH)}
+      >
+        <Input
+          autoFocus
+          value={value}
+          maxLength={USER_NICKNAME_MAX_LENGTH}
+          placeholder={dialog.realName}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </Field>
+      <p className="text-label text-fg-faint">{t("desktop:userMenu.friendNicknamePrivacy")}</p>
     </MemberDialogShell>
   );
 }
@@ -388,18 +474,20 @@ function ServerNicknameDialog({
         ) : null
       }
     >
-      <Input
-        autoFocus
-        value={value}
-        maxLength={MEMBER_NICKNAME_MAX_LENGTH}
-        placeholder={dialog.realName}
-        onChange={(event) => setValue(event.target.value)}
-        aria-label={t("desktop:userMenu.serverNicknameTitle", { name: dialog.realName })}
-      />
-      <CharCount value={value} max={MEMBER_NICKNAME_MAX_LENGTH} />
-      <p className="mt-2 text-xs leading-relaxed text-fg-faint">
-        {t("desktop:userMenu.serverNicknamePrivacy")}
-      </p>
+      <Field
+        hideLabel
+        label={t("desktop:userMenu.serverNicknameTitle", { name: dialog.realName })}
+        help={charCount(value, MEMBER_NICKNAME_MAX_LENGTH)}
+      >
+        <Input
+          autoFocus
+          value={value}
+          maxLength={MEMBER_NICKNAME_MAX_LENGTH}
+          placeholder={dialog.realName}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </Field>
+      <p className="text-label text-fg-faint">{t("desktop:userMenu.serverNicknamePrivacy")}</p>
     </MemberDialogShell>
   );
 }
@@ -424,6 +512,8 @@ function UnfriendDialog({
 
   return (
     <MemberDialogShell
+      tone="danger"
+      icon={<UserMinus />}
       title={t("desktop:userMenu.unfriendTitle", { name: dialog.displayName })}
       description={t("desktop:userMenu.unfriendDescription", { name: dialog.displayName })}
       error={unfriend.error}
@@ -456,8 +546,15 @@ function KickDialog({
 
   return (
     <MemberDialogShell
+      tone="danger"
+      icon={<LogOut />}
       title={t("desktop:userMenu.kickTitle", { name: dialog.displayName })}
       description={t("desktop:userMenu.kickDescription", { name: dialog.displayName })}
+      consequences={[
+        t("desktop:userMenu.kickConsequence1"),
+        t("desktop:userMenu.kickConsequence2"),
+        t("desktop:userMenu.kickConsequence3"),
+      ]}
       error={kick.error}
       busy={kick.isPending}
       submitLabel={t("desktop:userMenu.kickConfirm")}
@@ -481,8 +578,15 @@ function BanDialog({ dialog }: { dialog: Extract<MemberDialog, { kind: "ban" }> 
 
   return (
     <MemberDialogShell
+      tone="danger"
+      icon={<Ban />}
       title={t("desktop:userMenu.banTitle", { name: dialog.displayName })}
       description={t("desktop:userMenu.banDescription", { name: dialog.displayName })}
+      consequences={[
+        t("desktop:userMenu.banConsequence1"),
+        t("desktop:userMenu.banConsequence2"),
+        t("desktop:userMenu.banConsequence3"),
+      ]}
       error={ban.error}
       busy={ban.isPending}
       submitLabel={t("desktop:userMenu.banConfirm")}
@@ -494,16 +598,100 @@ function BanDialog({ dialog }: { dialog: Extract<MemberDialog, { kind: "ban" }> 
         )
       }
     >
-      <label className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-        {t("desktop:userMenu.banReasonLabel")}
-      </label>
-      <Input
-        autoFocus
-        value={reason}
-        maxLength={200}
-        placeholder={t("desktop:userMenu.banReasonPlaceholder")}
-        onChange={(event) => setReason(event.target.value)}
-      />
+      <Field
+        label={t("desktop:userMenu.banReasonLabel")}
+        help={charCount(reason, BAN_REASON_MAX_LENGTH)}
+      >
+        <Input
+          value={reason}
+          maxLength={BAN_REASON_MAX_LENGTH}
+          placeholder={t("desktop:userMenu.banReasonPlaceholder")}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </Field>
+    </MemberDialogShell>
+  );
+}
+
+/** "60 seconds" / "5 minutes" / "1 hour" / "1 day" / "1 week", localized. */
+export function formatTimeoutDuration(minutes: number, t: T): string {
+  if (minutes < 60) return t("desktop:userMenu.durationMinutes", { count: minutes });
+  if (minutes < 1440) return t("desktop:userMenu.durationHours", { count: minutes / 60 });
+  if (minutes < 10080) return t("desktop:userMenu.durationDays", { count: minutes / 1440 });
+  return t("desktop:userMenu.durationWeeks", { count: minutes / 10080 });
+}
+
+/**
+ * Timeout (ADR 0019 §3): silence someone for a chosen duration. The duration
+ * is picked HERE, with what a timeout cuts spelled out and the exact end time
+ * shown for the choice — not fired from a submenu row with no confirmation,
+ * which is how a "1 week" lands when "1 minute" was meant. The reason is
+ * optional and, like a ban's, only ever read in the moderation log.
+ */
+function TimeoutDialog({
+  dialog,
+}: {
+  dialog: Extract<MemberDialog, { kind: "timeout" }>;
+}): JSX.Element {
+  const { t, i18n } = useAppTranslation();
+  const setMemberDialog = useUiStore((s) => s.setMemberDialog);
+  const timeout = useTimeoutMember(dialog.groupId);
+  const [minutes, setMinutes] = useState<number>(TIMEOUT_PRESET_MINUTES[1] ?? 5);
+  const [reason, setReason] = useState("");
+  // Recomputed on each choice (not on a timer): the line answers "if I press
+  // now, when does it end?", and the press is what starts the clock.
+  const endsAt = useMemo(
+    () => formatTimeoutUntil(new Date(Date.now() + minutes * 60_000).toISOString(), i18n.language),
+    [minutes, i18n.language],
+  );
+
+  return (
+    <MemberDialogShell
+      tone="danger"
+      icon={<Clock />}
+      title={t("desktop:userMenu.timeoutTitle", { name: dialog.displayName })}
+      description={t("desktop:userMenu.timeoutDescription", { name: dialog.displayName })}
+      error={timeout.error}
+      busy={timeout.isPending}
+      submitLabel={t("desktop:userMenu.timeoutConfirm")}
+      submitVariant="danger"
+      onSubmit={() =>
+        void timeout.mutate(
+          { userId: dialog.userId, minutes, reason: reason.trim() || undefined },
+          { onSuccess: () => setMemberDialog(null) },
+        )
+      }
+    >
+      <fieldset className="space-y-2">
+        <legend className="pb-2 text-label font-medium text-fg-muted">
+          {t("desktop:userMenu.timeoutDuration")}
+        </legend>
+        <RadioGroup
+          value={String(minutes)}
+          onValueChange={(value) => setMinutes(Number(value))}
+          aria-label={t("desktop:userMenu.timeoutDuration")}
+          className="grid grid-cols-2 gap-1"
+        >
+          {TIMEOUT_PRESET_MINUTES.map((preset) => (
+            <RadioItem key={preset} value={String(preset)} label={formatTimeoutDuration(preset, t)} />
+          ))}
+        </RadioGroup>
+        <p className="text-label text-fg-faint" aria-live="polite">
+          {t("desktop:userMenu.timeoutEnds", { date: endsAt })}
+        </p>
+      </fieldset>
+      <Field
+        label={t("desktop:userMenu.banReasonLabel")}
+        help={charCount(reason, BAN_REASON_MAX_LENGTH)}
+      >
+        <Textarea
+          rows={2}
+          value={reason}
+          maxLength={BAN_REASON_MAX_LENGTH}
+          placeholder={t("desktop:userMenu.banReasonPlaceholder")}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </Field>
     </MemberDialogShell>
   );
 }
