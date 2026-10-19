@@ -373,3 +373,17 @@ export function toPaletteRows(items: readonly PaletteItem[]): PaletteRow[] {
   }
   return rows;
 }
+
+/**
+ * The row the keyboard's "search"/Enter key runs — the first ITEM of a filtered
+ * list (cmdk's highlighted first result on the desktop). Only while the user has
+ * typed something: on the unfiltered list there is no single obvious target, so
+ * Enter must not fire whatever happens to be listed first.
+ */
+export function primaryPaletteItem(rows: readonly PaletteRow[], query: string): PaletteItem | null {
+  if (query.trim().length === 0) return null;
+  for (const row of rows) {
+    if (row.type === "item") return row.item;
+  }
+  return null;
+}

@@ -388,6 +388,7 @@
     "openSettings": "Open settings"
   },
   "search": {
+    "startTitle": "Search this channel",
     "title": "Search",
     "placeholder": "Search messages",
     "hint": "Type at least {{count}} characters to search this channel.",

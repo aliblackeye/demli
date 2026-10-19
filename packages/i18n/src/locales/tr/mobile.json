@@ -388,6 +388,7 @@
     "openSettings": "Ayarları aç"
   },
   "search": {
+    "startTitle": "Bu kanalda ara",
     "title": "Ara",
     "placeholder": "Mesajlarda ara",
     "hint": "Bu kanalda aramak için en az {{count}} karakter yaz.",
