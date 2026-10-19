@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Animated as RNAnimated, View } from "react-native";
+import { Keyboard, Animated as RNAnimated, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   interpolate,
@@ -13,6 +13,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { AlertCircle, Clock, Pin, Reply, RotateCcw } from "lucide-react-native";
+import { messagePreviewText } from "@demli/client-core";
 import { Text } from "./ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
@@ -33,6 +34,7 @@ import { MessageMarkdown } from "./MessageMarkdown";
 import { MessageReactions } from "./MessageReactions";
 import { formatClock } from "./chat/thread-rows";
 import { useChatStore } from "../stores/chat-store";
+import { useAuthStore } from "../stores/auth-store";
 import { PRESS } from "../theme/motion-presets";
 import { colors, motion, radius, space, typography } from "../theme/theme";
 import { motionTo, useArrivalStyle, useReducedMotion } from "../theme/motion";
@@ -298,6 +300,10 @@ export function MessageBubble({
         <GestureDetector gesture={swipe}>
           <Animated.View style={[slideStyle, tintStyle]}>
             <Touchable
+              // The thread keeps taps for its children ("handled"), so a tap on
+              // the row closes the keyboard itself — as tapping the chat always
+              // did. A long press never reaches onPress.
+              onPress={() => Keyboard.dismiss()}
               onLongPress={
                 onLongPress
                   ? () => {
@@ -491,6 +497,22 @@ export function MessageBubble({
  */
 function ReplyLine({ reply }: { reply: ReplyPreviewProps }) {
   const { t } = useAppTranslation();
+  const me = useAuthStore((s) => s.user);
+  // The quote as a person reads it (@Name, no `**`), resolved inside the store
+  // selector: it returns a string, so this line re-renders only when the text
+  // it shows changes — never the row, and never on unrelated store updates.
+  const unknown = t("mobile:chat.unknownAuthor");
+  const emptyLabel = t("mobile:search.attachmentOnly");
+  const quoted = useChatStore((s) =>
+    messagePreviewText(
+      reply.content,
+      (id) => {
+        const user = s.users[id] ?? (me !== null && me.id === id ? me : undefined);
+        return user?.displayName ?? user?.username ?? unknown;
+      },
+      emptyLabel,
+    ),
+  );
   return (
     <View style={{ flexDirection: "row", alignItems: "center", height: 20, marginBottom: 2 }}>
       {/* The elbow starts at the avatar's centre line and turns into the quote. */}
@@ -516,7 +538,7 @@ function ReplyLine({ reply }: { reply: ReplyPreviewProps }) {
         pressedTone={colors.wash}
         accessibilityRole={reply.onPress ? "button" : undefined}
         accessibilityLabel={`${t("mobile:message.replyTo", { name: reply.authorName })}: ${
-          reply.deleted ? t("mobile:message.replyDeleted") : reply.content
+          reply.deleted ? t("mobile:message.replyDeleted") : quoted
         }`}
         hitSlop={{ top: 8, bottom: 8 }}
         style={{
@@ -535,7 +557,7 @@ function ReplyLine({ reply }: { reply: ReplyPreviewProps }) {
           {reply.deleted ? (
             <Text style={{ color: colors.fgFaint, fontStyle: "italic" }}>{t("mobile:message.replyDeleted")}</Text>
           ) : (
-            <Text style={{ color: colors.fgFaint }}>{reply.content}</Text>
+            <Text style={{ color: colors.fgFaint }}>{quoted}</Text>
           )}
         </Text>
       </Touchable>

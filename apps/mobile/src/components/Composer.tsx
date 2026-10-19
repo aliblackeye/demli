@@ -43,7 +43,7 @@ import {
   BROADCAST_MENTION_CANDIDATES,
   type MentionCandidate,
   type PendingMention,
-  replyPreviewText,
+  messagePreviewText,
 } from "@demli/client-core";
 import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
@@ -700,7 +700,11 @@ export function Composer({
               detail={
                 activeReply.preview.deleted
                   ? t("mobile:message.replyDeleted")
-                  : replyPreviewText(activeReply.preview.content, t("mobile:search.attachmentOnly"))
+                  : messagePreviewText(
+                      activeReply.preview.content,
+                      (id) => usersDir[id]?.displayName ?? usersDir[id]?.username ?? t("mobile:chat.unknownAuthor"),
+                      t("mobile:search.attachmentOnly"),
+                    )
               }
               closeLabel={t("mobile:composer.cancelReply")}
               onClose={clearReplyDraft}

@@ -122,6 +122,7 @@ function ServerRow({
   mentioned,
   arriving,
   highlighted,
+  canReply,
   actions,
 }: {
   message: Message;
@@ -132,6 +133,8 @@ function ServerRow({
   mentioned: boolean;
   arriving: boolean;
   highlighted: boolean;
+  /** False in a DM with a blocked peer: no swipe-to-reply (there is no composer). */
+  canReply: boolean;
   actions: RowActions;
 }) {
   const rt = message.replyTo;
@@ -169,7 +172,7 @@ function ServerRow({
         highlighted={highlighted}
         arriving={arriving}
         onLongPress={() => actions.openActions(message)}
-        onReply={() => actions.reply(message)}
+        onReply={canReply ? () => actions.reply(message) : undefined}
         onPressAuthor={() => actions.openAuthor(message.authorId)}
         onLongPressAuthor={() => actions.openAuthorMenu(message.authorId)}
         onToggleReaction={(emoji, reactedByMe) => actions.toggleReaction(message.id, emoji, reactedByMe)}

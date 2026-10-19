@@ -14,6 +14,7 @@ import * as Clipboard from "expo-clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloudOff, Hash, MessagesSquare } from "lucide-react-native";
 import { REACTION_EMOJI, REPLY_PREVIEW_MAX } from "@demli/config";
+import { messagePlainText } from "@demli/client-core";
 import { contentMentionsUser } from "@demli/protocol";
 import { useAppTranslation } from "@/lib/i18n";
 import type {
@@ -51,6 +52,7 @@ import {
   type RowDisplay,
 } from "./chat/MessageRows";
 import { buildThreadRows, itemKey, type ChatItem } from "./chat/thread-rows";
+import { messageAffordances, shouldDropDraft } from "./chat/message-affordances";
 import { useChannelMessages, useTogglePin } from "../queries/chat-queries";
 import { friendlyErrorMessage, getApi } from "../lib/clients";
 import { localizeError } from "../lib/errors";
@@ -530,15 +532,27 @@ export function ChatThread({
     );
   }, [actionTarget, togglePin, t]);
 
-  // Own-message gating for the sheet's edit/delete rows (server enforces the
-  // same). Edit needs text content (an attachment-only message has none).
-  const targetIsOwn =
-    actionTarget !== null && meId !== undefined && actionTarget.authorId === meId;
-  const targetHasText = (actionTarget?.content.length ?? 0) > 0;
-  const canEditTarget = targetIsOwn && targetHasText;
-  // §35: an unauthorized member never sees the pin row at all.
-  const canPinTarget =
-    actionTarget !== null && canPinMessage(canManageMessages, actionTarget.authorId, meId);
+  const isBlockedDm = blocked !== undefined;
+  // The sheet's rows (server enforces the same): edit/delete are own-message
+  // only, edit and copy need text, an unauthorized member never sees pin, and
+  // a DM with a blocked peer offers nothing that writes through the composer
+  // (message-affordances.ts). §35: no row that cannot work.
+  const targetAffordances = messageAffordances({
+    isOwn: actionTarget !== null && meId !== undefined && actionTarget.authorId === meId,
+    hasText: (actionTarget?.content.length ?? 0) > 0,
+    canPin: actionTarget !== null && canPinMessage(canManageMessages, actionTarget.authorId, meId),
+    blocked: isBlockedDm,
+  });
+  const canReplyInThread = !isBlockedDm;
+
+  // Blocking the peer while a reply or edit is in progress (or opening a DM
+  // that already had one) drops it: there is no field left to show it in, and
+  // it must not resurface after an unblock.
+  useEffect(() => {
+    const state = useChatStore.getState();
+    if (shouldDropDraft(state.replyDraft, channelId, isBlockedDm)) state.clearReplyDraft();
+    if (shouldDropDraft(state.editDraft, channelId, isBlockedDm)) state.clearEditDraft();
+  }, [isBlockedDm, channelId]);
   const targetReactions = useMemo(
     () => new Set((actionTarget?.reactions ?? []).filter((r) => r.reactedByMe).map((r) => r.emoji)),
     [actionTarget],
@@ -617,6 +631,7 @@ export function ChatThread({
             // played the arrival; playing it again would flash the row twice.
             arriving={item.message.authorId !== meId && isArriving(item.message.createdAt)}
             highlighted={highlightId === item.message.id}
+            canReply={canReplyInThread}
             actions={actions}
           />
         );
@@ -632,7 +647,7 @@ export function ChatThread({
         />
       );
     },
-    [rows, displayFor, meId, cid, serverGroupId, highlightId, actions],
+    [rows, displayFor, meId, cid, serverGroupId, highlightId, canReplyInThread, actions],
   );
 
   const showInitialSkeleton = query.isLoading && items.length === 0;
@@ -696,7 +711,11 @@ export function ChatThread({
                 // Lets the empty card centre itself in the free space.
                 items.length === 0 ? { flexGrow: 1 } : null,
               ]}
-              keyboardDismissMode="interactive"
+              // Android only dismisses on drag with "on-drag" ("interactive"
+              // is iOS-only and a no-op there). Taps: "handled" lets a reaction
+              // chip, link or retry work on the first tap while typing; a tap
+              // on the message row itself closes the keyboard (MessageBubble).
+              keyboardDismissMode={Platform.OS === "android" ? "on-drag" : "interactive"}
               keyboardShouldPersistTaps="handled"
               onEndReachedThreshold={0.4}
               onEndReached={() => {
@@ -773,7 +792,8 @@ export function ChatThread({
             ? {
                 authorName: resolveName(actionTarget.authorId),
                 authorAvatarUrl: resolveUser(actionTarget.authorId)?.avatarUrl,
-                content: actionTarget.content,
+                // Read as a person reads it: @Name, not the <@id> wire form.
+                content: messagePlainText(actionTarget.content, resolveName),
               }
             : null
         }
@@ -781,12 +801,12 @@ export function ChatThread({
         myReactions={targetReactions}
         onReact={reactFromSheet}
         onMore={openReactionPicker}
-        onReply={replyFromSheet}
-        onCopy={targetHasText ? copyFromSheet : undefined}
-        onTogglePin={canPinTarget ? pinFromSheet : undefined}
+        onReply={targetAffordances.reply ? replyFromSheet : undefined}
+        onCopy={targetAffordances.copy ? copyFromSheet : undefined}
+        onTogglePin={targetAffordances.pin ? pinFromSheet : undefined}
         pinned={actionTarget?.pinned ?? false}
-        onEdit={canEditTarget ? editFromSheet : undefined}
-        onDelete={targetIsOwn ? deleteFromSheet : undefined}
+        onEdit={targetAffordances.edit ? editFromSheet : undefined}
+        onDelete={targetAffordances.delete ? deleteFromSheet : undefined}
         onClose={() => setActionTarget(null)}
       />
       {/* The FULL reaction picker (all unicode + this surface's custom emoji),
