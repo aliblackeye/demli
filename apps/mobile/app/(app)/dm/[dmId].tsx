@@ -1,61 +1,23 @@
-import { useState, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { useMemo, useState } from "react";
+import { Alert, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { Phone, Pin, UserRound, Video } from "lucide-react-native";
+import { MessageCircleOff, Phone, Pin, UserRound, Video } from "lucide-react-native";
 import { isCallLive } from "@demli/client-core";
 import type { DmId, UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
+import { friendlyErrorMessage } from "@/lib/clients";
 import { ChatThread } from "@/components/ChatThread";
 import { DmHeaderTitle } from "@/components/ChatHeaderTitle";
+import { EmptyState } from "@/components/EmptyState";
 import { MemberActionSheet, type MemberSheetTarget } from "@/components/member/MemberActionSheet";
 import { Screen } from "@/components/Screen";
+import { IconButton } from "@/components/ui/IconButton";
+import { toast } from "@/components/ui/Toast";
 import { openPinsSheet } from "@/lib/pins-sheet";
+import { useBlocks, useUnblockUser } from "@/queries/member-queries";
 import { useFriends } from "@/queries/social-queries";
 import { getCallController, useCallState } from "@/stores/call-store";
 import { colors, space } from "@/theme/theme";
-
-/**
- * A header action rendered as a full 44×44 touch target (Apple/Material minimum)
- * with the glyph centered — the bare icons were ~37px, below the guideline.
- */
-function HeaderIconButton({
-  onPress,
-  onLongPress,
-  disabled,
-  label,
-  hint,
-  children,
-}: {
-  onPress: () => void;
-  onLongPress?: () => void;
-  disabled?: boolean;
-  label: string;
-  /** Spoken hint for a secondary long-press action, when the button has one. */
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: pressed && !disabled ? 0.6 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
-  );
-}
 
 /**
  * A 1:1 direct message (ADR 0010 §1): a `kind='dm'` friend group whose single
@@ -63,6 +25,11 @@ function HeaderIconButton({
  * a text channel or a flat group chat does (ADR 0005) — no duplicated message
  * pipeline. The header opens the other participant's profile and, when the two
  * are still friends, starts a voice or video call (ADR 0012).
+ *
+ * If the viewer has blocked the peer, the composer says so and offers the
+ * unblock (the same confirm the profile and the user menu use). Only the
+ * viewer's OWN block is ever known — whether the peer blocked the viewer is
+ * never queryable, so no UI can reveal it (§28).
  */
 export default function DmScreen() {
   const { t } = useAppTranslation();
@@ -84,6 +51,41 @@ export default function DmScreen() {
   const canCall = isFriend && !isCallLive(callState);
   /** The peer, when their user menu is open from the header (long press). */
   const [memberTarget, setMemberTarget] = useState<MemberSheetTarget | null>(null);
+
+  // The viewer's own block list — fetched only while a DM is open.
+  const blocks = useBlocks(!!userId);
+  const unblock = useUnblockUser();
+  const peerBlocked = !!userId && (blocks.data ?? []).some((b) => b.user.id === userId);
+  const blocked = useMemo(
+    () =>
+      peerBlocked && userId
+        ? {
+            name: title,
+            busy: unblock.isPending,
+            onUnblock: () =>
+              Alert.alert(
+                t("mobile:block.unblockConfirmTitle", { name: title }),
+                t("mobile:block.unblockConfirmBody"),
+                [
+                  { text: t("common:buttons.cancel"), style: "cancel" },
+                  {
+                    text: t("mobile:block.unblockConfirmAction"),
+                    onPress: () =>
+                      unblock.mutate(userId as UserId, {
+                        onError: (err) =>
+                          toast({
+                            title: t("mobile:userProfile.actionErrorTitle"),
+                            description: friendlyErrorMessage(err),
+                            variant: "danger",
+                          }),
+                      }),
+                  },
+                ],
+              ),
+          }
+        : undefined,
+    [peerBlocked, userId, title, unblock, t],
+  );
 
   const startCall = (media: "audio" | "video") => {
     if (!canCall || !dmId) return;
@@ -108,7 +110,7 @@ export default function DmScreen() {
           // line, fed by the presence the store already tracks — no new request.
           headerTitle: () => <DmHeaderTitle userId={userId} name={title} />,
           headerRight: () => (
-            // 44pt targets already carry their own padding, so a small gap and a
+            // 44pt+ kit targets carry their own padding, so a small gap and a
             // negative right margin keep the icons visually tight and edge-aligned.
             <View
               style={{
@@ -118,26 +120,30 @@ export default function DmScreen() {
                 marginRight: -space.sm,
               }}
             >
-              <HeaderIconButton
-                onPress={() => startCall("audio")}
-                disabled={!canCall}
+              <IconButton
+                icon={Phone}
                 label={t("mobile:call.a11yVoiceCall")}
-              >
-                <Phone size={21} color={canCall ? colors.accent : colors.fgFaint} />
-              </HeaderIconButton>
-              <HeaderIconButton
-                onPress={() => startCall("video")}
+                size="lg"
+                haptic="light"
                 disabled={!canCall}
+                onPress={() => startCall("audio")}
+              />
+              <IconButton
+                icon={Video}
                 label={t("mobile:call.a11yVideoCall")}
-              >
-                <Video size={22} color={canCall ? colors.accent : colors.fgFaint} />
-              </HeaderIconButton>
+                size="lg"
+                haptic="light"
+                disabled={!canCall}
+                onPress={() => startCall("video")}
+              />
               {/* A DM has no role system, so every participant may pin (M17). */}
-              <HeaderIconButton onPress={openPinsSheet} label={t("mobile:pins.open")}>
-                <Pin size={21} color={colors.accent} />
-              </HeaderIconButton>
+              <IconButton icon={Pin} label={t("mobile:pins.open")} size="lg" onPress={openPinsSheet} />
               {userId ? (
-                <HeaderIconButton
+                <IconButton
+                  icon={UserRound}
+                  label={t("mobile:dm.viewProfile")}
+                  size="lg"
+                  accessibilityHint={t("mobile:userMenu.moreActions")}
                   onPress={() =>
                     router.push({ pathname: "/user/[userId]", params: { userId, name: title } })
                   }
@@ -146,11 +152,7 @@ export default function DmScreen() {
                   onLongPress={() =>
                     setMemberTarget({ userId: userId as UserId, displayName: title })
                   }
-                  label={t("mobile:dm.viewProfile")}
-                  hint={t("mobile:userMenu.moreActions")}
-                >
-                  <UserRound size={22} color={colors.accent} />
-                </HeaderIconButton>
+                />
               ) : null}
             </View>
           ),
@@ -171,12 +173,14 @@ export default function DmScreen() {
           groupId={dmId}
           name={title}
           allowMentionBroadcast={false}
+          blocked={blocked}
         />
       ) : (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl }}>
-          <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-            {t("mobile:dm.unavailable")}
-          </Text>
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <EmptyState
+            icon={<MessageCircleOff size={22} color={colors.fgMuted} />}
+            title={t("mobile:dm.unavailable")}
+          />
         </View>
       )}
     </Screen>
