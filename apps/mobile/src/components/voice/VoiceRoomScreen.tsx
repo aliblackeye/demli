@@ -22,13 +22,12 @@ import { useWatchSearchEnabled, useWatchVideoSearch } from "@/queries/watch-quer
 import { WatchPartyStage } from "@/components/watch/WatchPartyStage";
 import { WatchVideoPickerSheet } from "@/components/watch/WatchVideoPickerSheet";
 import { colors, radius, space } from "@/theme/theme";
-import { AloneCountdownNotice } from "./AloneCountdownNotice";
 import { AudioOutputControl } from "./AudioOutputControl";
+import { VoiceNotices } from "./VoiceNotices";
 import { useStageTiles } from "./use-stage-tiles";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 import { VoiceControls } from "./VoiceControls";
 import { VoiceStage } from "./VoiceStage";
-import { localizeVoiceError } from "./voice-error";
 import {
   initialVoiceView,
   shouldAutoJoinOnMount,
@@ -156,7 +155,6 @@ export function VoiceRoomScreen({
   const deafened = useVoiceStore((s) => s.deafened);
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
-  const error = useVoiceStore((s) => s.error);
   const participants = useVoiceStore((s) => s.participants);
   const join = useVoiceStore((s) => s.join);
   const leave = useVoiceStore((s) => s.leave);
@@ -211,7 +209,6 @@ export function VoiceRoomScreen({
     reset: resetWatchSearch,
   } = useWatchVideoSearch(channelId);
 
-  const errorMessage = localizeVoiceError(error, t);
 
   // Resolve participant display names from the group roster (authoritative),
   // falling back to the realtime user directory, then a short id.
@@ -499,29 +496,9 @@ export function VoiceRoomScreen({
             <VoiceConnectionBars />
           </View>
 
-          {/* "Odada tek kişi sensin" uyarısı — sunucunun yalnız-kalma süpürmesinin
-              istemci karşılığı. Motor sayacı yalnız DM araması ve grup-DM seslisinde
-              kurar; sunucu sesli kanalında hiç kurmaz, bu yüzden orada hiç çıkmaz. */}
-          <AloneCountdownNotice />
-
-          {/* Error banner (§26 friendly message, never a stack trace) */}
-          {errorMessage ? (
-            <View
-              accessibilityRole="alert"
-              style={{
-                marginHorizontal: space.lg,
-                marginTop: space.sm,
-                padding: space.md,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.dangerSurface,
-              }}
-            >
-              <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-                {errorMessage}
-              </Text>
-            </View>
-          ) : null}
+          {/* Özel aramayla aynı bildirim bileşeni: yalnız kalma geri sayımı (sunucu
+              sesli kanalında motor hiç kurmaz) + §26 ses hatası. */}
+          <VoiceNotices />
 
           {/* Main area: screen-share focus view (with a collapsible participant strip)
               when the host is sharing; else the unified participant grid (grid ⇄ focus)

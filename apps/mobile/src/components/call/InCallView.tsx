@@ -11,10 +11,10 @@ import { getCallController } from "@/stores/call-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useRemoteScreenShares, useVoiceStore } from "@/stores/voice-store";
-import { AloneCountdownNotice } from "@/components/voice/AloneCountdownNotice";
 import { AudioOutputControl } from "@/components/voice/AudioOutputControl";
 import { useStageTiles } from "@/components/voice/use-stage-tiles";
 import { VoiceControls } from "@/components/voice/VoiceControls";
+import { VoiceNotices } from "@/components/voice/VoiceNotices";
 import { VoiceStage } from "@/components/voice/VoiceStage";
 import { colors, radius, space, typography } from "@/theme/theme";
 import { AddPersonSheet } from "./AddPersonSheet";
@@ -342,11 +342,11 @@ export function InCallView({
         </View>
       ) : null}
 
-      {/* Aramada tek başına kaldıysan sunucu belli bir süre sonra aramayı kapatıyor;
-          bu satır kalan süreyi gösterir. Motor sayacı yalnız DM araması ve grup-DM
-          seslisinde kurar — sunucu sesli kanalında hiç görünmez. Paylaşım tam
-          ekrandayken gizli: o görüntüleyici ekranın tamamını sahipleniyor. */}
-      {shareFullscreen ? null : <AloneCountdownNotice />}
+      {/* Sesli odayla aynı bildirimler: yalnız kalma geri sayımı (motor yalnız DM
+          araması ve grup-DM seslisinde kurar) ve mikrofon/kamera/ekran/yeniden
+          bağlanma hatası. Paylaşım tam ekrandayken gizli: o görüntüleyici ekranın
+          tamamını sahipleniyor. */}
+      {shareFullscreen ? null : <VoiceNotices />}
 
       {/* One-line affordance note while ringing: the controls below are live. */}
       {ringing && !shareFullscreen ? (
