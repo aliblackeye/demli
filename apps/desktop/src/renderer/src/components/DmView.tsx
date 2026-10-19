@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from "react";
+import { m } from "framer-motion";
 import { MessagesSquare, Search, X } from "lucide-react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, UserAvatar, cn } from "@demli/ui";
+import { UserAvatar } from "@demli/ui";
 import type { Channel, Dm } from "@demli/types";
 import { useAppTranslation } from "../lib/i18n";
 import { useDms, useHideDm } from "../queries/social-queries";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
-import { MessageList } from "@demli/app-ui";
+import { MessageList, springs } from "@demli/app-ui";
 import { ConnectionBanner, TypingIndicator } from "./ChatChrome";
 import { ChatDataProvider } from "./ChatDataProvider";
 import { ChannelSearchPanel } from "./ChannelSearchPanel";
@@ -18,6 +19,7 @@ import { CallButtons } from "./CallButtons";
 import { PinnedMessagesButton } from "./PinnedMessagesPanel";
 import { EmbeddedCallStage } from "./EmbeddedCallStage";
 import { UpdateBadge } from "./UpdateBadge";
+import { HeaderAction } from "./HeaderAction";
 
 /** A DM's hidden stream is a normal text channel — reuse the message pipeline. */
 function streamChannelOf(dm: Dm): Channel {
@@ -31,18 +33,45 @@ function streamChannelOf(dm: Dm): Channel {
   };
 }
 
+function EmptyPane({
+  icon,
+  title,
+  body,
+}: {
+  icon: JSX.Element;
+  title: string;
+  body: string;
+}): JSX.Element {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center bg-app px-6">
+      <m.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0, transition: springs.position }}
+        className="relative max-w-xs text-center"
+      >
+        {/* The single warm light of the empty table. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -top-10 left-1/2 size-32 -translate-x-1/2 rounded-full bg-accent-glow blur-3xl"
+        />
+        <div className="relative mx-auto flex size-14 items-center justify-center rounded-2xl bg-surface text-fg-muted">
+          {icon}
+        </div>
+        <h2 className="relative mt-5 font-display text-xl font-medium text-fg-display">{title}</h2>
+        <p className="relative mt-1.5 text-sm leading-relaxed text-fg-muted">{body}</p>
+      </m.div>
+    </div>
+  );
+}
+
 function EmptyDm(): JSX.Element {
   const { t } = useAppTranslation();
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-center bg-app">
-      <div className="max-w-xs text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-raised">
-          <MessagesSquare className="size-7 text-fg-muted" />
-        </div>
-        <h2 className="mt-4 text-lg font-semibold text-fg">{t("desktop:social.dmEmptyTitle")}</h2>
-        <p className="mt-1 text-sm text-fg-muted">{t("desktop:social.dmEmptyBody")}</p>
-      </div>
-    </div>
+    <EmptyPane
+      icon={<MessagesSquare className="size-7" />}
+      title={t("desktop:social.dmEmptyTitle")}
+      body={t("desktop:social.dmEmptyBody")}
+    />
   );
 }
 
@@ -87,7 +116,7 @@ export function DmView(): JSX.Element {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-app">
-      <header className="flex h-12 shrink-0 items-center gap-2.5 border-b border-stroke px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2.5 border-b border-stroke px-4">
         {/* The DM header's avatar/name carries the SAME user menu as the roster
             (right-click / long-press) — one component, one set of rules. */}
         <MemberContextMenu
@@ -102,7 +131,7 @@ export function DmView(): JSX.Element {
             <ProfileCard userId={dm.participant.id}>
               <button
                 type="button"
-                className="flex min-w-0 items-center gap-2.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                className="-ml-1.5 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg py-1 pl-1.5 pr-2.5 text-left transition-colors motion-hover hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <UserAvatar
                   name={dm.participant.displayName}
@@ -113,9 +142,10 @@ export function DmView(): JSX.Element {
                   presencePlatform={platform}
                 />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-fg">
+                  <span className="block truncate font-display text-base font-medium text-fg-display">
                     {dm.participant.displayName}
                   </span>
+                  <span className="block truncate text-label text-fg-faint">@{dm.participant.username}</span>
                 </span>
               </button>
             </ProfileCard>
@@ -129,35 +159,21 @@ export function DmView(): JSX.Element {
           {/* Message search — the same panel the server channels use, on the same
               channel-scoped endpoint. A DM's stream IS a text channel, so this
               needed an entry point, not a feature. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("desktop:search.title")}
-                aria-pressed={searchOpen}
-                onClick={toggleChannelSearch}
-                className={cn(searchOpen && "bg-white/[0.06] text-fg")}
-              >
-                <Search className="size-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("desktop:search.tooltip")}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("desktop:social.closeDm")}
-                disabled={hideDm.isPending}
-                onClick={() => hideDm.mutate(dm.id)}
-              >
-                <X className="size-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("desktop:social.closeDm")}</TooltipContent>
-          </Tooltip>
+          <HeaderAction
+            label={t("desktop:search.title")}
+            tooltip={t("desktop:search.tooltip")}
+            pressed={searchOpen}
+            onClick={toggleChannelSearch}
+          >
+            <Search />
+          </HeaderAction>
+          <HeaderAction
+            label={t("desktop:social.closeDm")}
+            disabled={hideDm.isPending}
+            onClick={() => hideDm.mutate(dm.id)}
+          >
+            <X />
+          </HeaderAction>
           {/* Desktop app-update badge — the top-right corner on every surface. */}
           <UpdateBadge />
         </div>
