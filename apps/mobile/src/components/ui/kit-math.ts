@@ -144,3 +144,44 @@ export function rubberBand(overshoot: number, dimension: number): number {
   const c = 0.55;
   return (overshoot * dimension * c) / (dimension + c * overshoot);
 }
+
+export type TooltipPlacement = {
+  /** Left edge of the tooltip pill, relative to the anchor's own left edge. */
+  left: number;
+  /** Top edge of the tooltip pill, relative to the anchor's own top edge. */
+  top: number;
+  side: "above" | "below";
+};
+
+/**
+ * Where an anchored tooltip goes: centred over its anchor, nudged sideways so
+ * it never leaves the screen (a header button at the right edge), and flipped
+ * below the anchor when there is no room above it (a button in the top bar).
+ * All inputs are window coordinates; the result is relative to the anchor so
+ * it can be applied as `left`/`top` of an absolutely positioned child.
+ */
+export function placeTooltip(input: {
+  anchorX: number;
+  anchorY: number;
+  anchorWidth: number;
+  anchorHeight: number;
+  tipWidth: number;
+  tipHeight: number;
+  screenWidth: number;
+  /** The top area the tooltip must stay out of (status bar inset). */
+  safeTop: number;
+  margin: number;
+  gap: number;
+}): TooltipPlacement {
+  const { anchorX, anchorY, anchorWidth, anchorHeight, tipWidth, tipHeight, screenWidth, safeTop, margin, gap } =
+    input;
+  const centred = anchorX + anchorWidth / 2 - tipWidth / 2;
+  const maxLeft = screenWidth - margin - tipWidth;
+  const absLeft = maxLeft < margin ? margin : Math.min(Math.max(centred, margin), maxLeft);
+  const fitsAbove = anchorY - gap - tipHeight >= safeTop + margin;
+  return {
+    left: absLeft - anchorX,
+    top: fitsAbove ? -gap - tipHeight : anchorHeight + gap,
+    side: fitsAbove ? "above" : "below",
+  };
+}

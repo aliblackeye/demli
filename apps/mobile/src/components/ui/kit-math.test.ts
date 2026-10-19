@@ -3,6 +3,7 @@ import {
   DISMISS_VELOCITY,
   formatCount,
   fractionOf,
+  placeTooltip,
   resolveRelease,
   resolveSnapHeights,
   rubberBand,
@@ -118,5 +119,47 @@ describe("rubberBand", () => {
     expect(r).toBeGreaterThan(0);
     expect(r).toBeLessThan(100);
     expect(rubberBand(400, 600) - rubberBand(300, 600)).toBeLessThan(r);
+  });
+});
+
+describe("placeTooltip", () => {
+  const base = {
+    anchorWidth: 40,
+    anchorHeight: 40,
+    tipHeight: 26,
+    screenWidth: 400,
+    safeTop: 24,
+    margin: 8,
+    gap: 8,
+  };
+
+  it("centres a wide label over a small button instead of squeezing it to the button width", () => {
+    // "Daha fazla eylem" ≈ 120px over a 40px button in mid-screen.
+    const p = placeTooltip({ ...base, anchorX: 180, anchorY: 500, tipWidth: 120 });
+    expect(p.left).toBe(-40); // 40/2 - 120/2
+    expect(p.side).toBe("above");
+    expect(p.top).toBe(-8 - 26);
+  });
+
+  it("keeps the pill on screen at the right edge (header buttons)", () => {
+    const p = placeTooltip({ ...base, anchorX: 344, anchorY: 500, tipWidth: 120 });
+    // Centred it would end at 344 + 20 + 60 = 424 > 400 - 8.
+    expect(344 + p.left + 120).toBe(392);
+  });
+
+  it("keeps the pill on screen at the left edge", () => {
+    const p = placeTooltip({ ...base, anchorX: 8, anchorY: 500, tipWidth: 160 });
+    expect(8 + p.left).toBe(8);
+  });
+
+  it("flips below the button when the top bar leaves no room above", () => {
+    const p = placeTooltip({ ...base, anchorX: 180, anchorY: 40, tipWidth: 80 });
+    expect(p.side).toBe("below");
+    expect(p.top).toBe(40 + 8);
+  });
+
+  it("pins to the margin when the pill is wider than the screen allows", () => {
+    const p = placeTooltip({ ...base, screenWidth: 150, anchorX: 100, anchorY: 500, tipWidth: 200 });
+    expect(100 + p.left).toBe(8);
   });
 });

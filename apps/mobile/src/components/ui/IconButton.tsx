@@ -7,15 +7,21 @@
  * `onLongPress` and the tooltip steps aside.
  *
  * `active` turns it into a toggle (mute, camera, deafen): announced as
- * selected, drawn in the variant's active tone.
+ * selected, drawn in the coral wash (see TONES).
+ *
+ * The tooltip is a child of this button, placed in window coordinates
+ * (kit-math `placeTooltip`): centred, kept inside the screen, flipped below
+ * the button when the top bar leaves no room above. An ancestor with
+ * `overflow: "hidden"` would still clip it — none of the toolbars do.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import { View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import type { LucideIcon } from "lucide-react-native";
 import { PRESS } from "@/theme/motion-presets";
 import { colors, motion, radius, space } from "@/theme/theme";
-import { withAlpha } from "./kit-math";
+import { placeTooltip, withAlpha } from "./kit-math";
 import { Text } from "./Text";
 import { CLEAR, Touchable, type HapticKind } from "./Touchable";
 
@@ -29,36 +35,55 @@ export type IconButtonVariant =
 
 export type IconButtonSize = "sm" | "md" | "lg" | "xl";
 
-const TONES: Record<
-  IconButtonVariant,
-  { tone: string; pressed: string; ink: string; activeTone: string; activeInk: string }
-> = {
+/**
+ * `active` (a toggle that is ON — muted, camera live, a selected tool) is the
+ * coral wash with coral ink on every non-danger variant: the desktop
+ * IconButton's `bg-accent-surface`, and the language the shipped mobile stage
+ * controls already speak. Over video (`veil`) the wash is the strong one so it
+ * still reads on a bright frame. Each state has its own pressed tone, so a
+ * press always answers — an active control never flashes back to a neutral
+ * tone, and an active danger control never drops to a faint wash.
+ */
+type Tones = {
+  tone: string;
+  pressed: string;
+  ink: string;
+  activeTone: string;
+  activePressed: string;
+  activeInk: string;
+};
+
+const CORAL_ACTIVE = {
+  activeTone: colors.accentSurface,
+  activePressed: colors.accentSurfaceStrong,
+  activeInk: colors.accent,
+} as const;
+
+const TONES: Record<IconButtonVariant, Tones> = {
   ghost: {
     tone: CLEAR,
     pressed: colors.washStrong,
     ink: colors.fgMuted,
-    activeTone: colors.accentSurface,
-    activeInk: colors.accent,
+    ...CORAL_ACTIVE,
   },
   secondary: {
     tone: colors.surfaceRaised,
     pressed: colors.raisedHover,
     ink: colors.fg,
-    activeTone: colors.inverse,
-    activeInk: colors.onInverse,
+    ...CORAL_ACTIVE,
   },
   accent: {
     tone: colors.accent,
     pressed: colors.accentDeep,
     ink: colors.onAccent,
-    activeTone: colors.accentDeep,
-    activeInk: colors.onAccent,
+    ...CORAL_ACTIVE,
   },
   danger: {
     tone: colors.dangerSurface,
     pressed: withAlpha(colors.danger, 0.28),
     ink: colors.danger,
     activeTone: colors.danger,
+    activePressed: withAlpha(colors.danger, 0.8),
     activeInk: colors.onAccent,
   },
   dangerSolid: {
@@ -66,6 +91,7 @@ const TONES: Record<
     pressed: withAlpha(colors.danger, 0.8),
     ink: colors.onAccent,
     activeTone: colors.danger,
+    activePressed: withAlpha(colors.danger, 0.8),
     activeInk: colors.onAccent,
   },
   /** Over video / images: the translucent veil pill. */
@@ -73,8 +99,9 @@ const TONES: Record<
     tone: colors.veil,
     pressed: withAlpha(colors.rail, 0.4),
     ink: colors.fgDisplay,
-    activeTone: colors.inverse,
-    activeInk: colors.onInverse,
+    activeTone: colors.accentSurfaceStrong,
+    activePressed: withAlpha(colors.accent, 0.36),
+    activeInk: colors.accent,
   },
 };
 
@@ -87,6 +114,8 @@ const SIZES: Record<IconButtonSize, { box: number; icon: number; slop: number }>
 };
 
 const TOOLTIP_MS = 1500;
+/** The widest a tooltip pill may grow before its label wraps (2 lines max). */
+const TOOLTIP_MAX_W = 200;
 
 export type IconButtonProps = {
   icon: LucideIcon;
@@ -133,7 +162,14 @@ export function IconButton({
 }: IconButtonProps) {
   const t = TONES[variant];
   const s = SIZES[size];
-  const [tip, setTip] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const host = useRef<View>(null);
+  // Two steps: the anchor is measured in window coordinates on long press,
+  // then the pill measures itself (invisible) and is placed — clamped inside
+  // the screen and flipped below when there is no room above.
+  const [anchor, setAnchor] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [pill, setPill] = useState<{ w: number; h: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -143,21 +179,51 @@ export function IconButton({
     [],
   );
 
-  const showTip = () => {
-    setTip(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setTip(false), TOOLTIP_MS);
+  const hideTip = () => {
+    setAnchor(null);
+    setPill(null);
   };
 
+  const showTip = () => {
+    host.current?.measureInWindow((x, y, w, h) => {
+      setPill(null);
+      setAnchor({ x, y, w, h });
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(hideTip, TOOLTIP_MS);
+    });
+  };
+
+  const onPillLayout = (e: LayoutChangeEvent) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    if (!pill || pill.w !== w || pill.h !== h) setPill({ w, h });
+  };
+
+  const tipWidthCap = Math.min(TOOLTIP_MAX_W, screenWidth - 2 * space.sm);
+  const placement =
+    anchor && pill
+      ? placeTooltip({
+          anchorX: anchor.x,
+          anchorY: anchor.y,
+          anchorWidth: anchor.w,
+          anchorHeight: anchor.h,
+          tipWidth: pill.w,
+          tipHeight: pill.h,
+          screenWidth,
+          safeTop: insets.top,
+          margin: space.sm,
+          gap: space.sm,
+        })
+      : null;
+
   return (
-    <View style={[{ alignItems: "center" }, style]}>
+    <View ref={host} collapsable={false} style={[{ alignItems: "center" }, style]}>
       <Touchable
         onPress={onPress}
         onLongPress={onLongPress ?? showTip}
         disabled={disabled}
         haptic={haptic}
         tone={active ? t.activeTone : t.tone}
-        pressedTone={t.pressed}
+        pressedTone={active ? t.activePressed : t.pressed}
         pressScale={PRESS.scale.icon}
         hitSlop={s.slop}
         accessibilityRole={toggle ? "togglebutton" : "button"}
@@ -181,25 +247,51 @@ export function IconButton({
           {badge}
         </View>
       ) : null}
-      {tip ? (
+      {anchor ? (
+        // The box is as wide as the pill may grow and is NOT sized by this
+        // 32-56px button (an absolute child is otherwise capped to its
+        // parent's width, which squeezed the label to a few letters).
         <Animated.View
-          entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
           exiting={FadeOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
           pointerEvents="none"
           importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
           style={{
             position: "absolute",
-            bottom: s.box + space.sm,
-            backgroundColor: colors.glassStrong,
-            borderRadius: radius.sm,
-            paddingHorizontal: space.sm,
-            paddingVertical: space.xs,
-            maxWidth: 200,
+            top: placement ? placement.top : 0,
+            left: placement ? placement.left : 0,
+            width: tipWidthCap,
+            alignItems: "flex-start",
+            opacity: placement ? 1 : 0,
           }}
         >
-          <Text type="meta" tone="default" numberOfLines={2} style={{ textAlign: "center" }}>
-            {label}
-          </Text>
+          {placement ? (
+            <Animated.View
+              entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+              style={{
+                width: pill?.w,
+                backgroundColor: colors.glassStrong,
+                borderRadius: radius.sm,
+                borderCurve: "continuous",
+                paddingHorizontal: space.sm,
+                paddingVertical: space.xs,
+              }}
+            >
+              <Text type="meta" tone="default" numberOfLines={2} style={{ textAlign: "center" }}>
+                {label}
+              </Text>
+            </Animated.View>
+          ) : (
+            // Invisible measuring pass: shrink-wraps the label up to the cap.
+            <View
+              onLayout={onPillLayout}
+              style={{ maxWidth: tipWidthCap, paddingHorizontal: space.sm, paddingVertical: space.xs }}
+            >
+              <Text type="meta" tone="default" numberOfLines={2} style={{ textAlign: "center" }}>
+                {label}
+              </Text>
+            </View>
+          )}
         </Animated.View>
       ) : null}
     </View>
