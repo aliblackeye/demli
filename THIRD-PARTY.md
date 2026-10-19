@@ -18,9 +18,21 @@ electron-builder `extraResources`).
 
 The helper is Demli's own code, adapted from Microsoft's `ApplicationLoopback`
 sample in [Windows-classic-samples](https://github.com/microsoft/Windows-classic-samples)
-(MIT, Copyright (c) Microsoft Corporation). The full notice is in
+(MIT, Copyright (c) Microsoft Corporation). It is compiled with MinGW-w64 GCC and
+linked statically, so the binary also contains:
+
+- the **MinGW-w64 runtime** (mingw-w64-crt) — ZPL 2.1 plus the BSD/MIT-style notices
+  in `COPYING.MinGW-w64-runtime.txt`, which require the notices in binary copies;
+- **mingw-w64 winpthreads** — MIT (Copyright (c) 2011 mingw-w64 project), with
+  parts BSD-3-Clause (Copyright (C) 2010 Lockless Inc.);
+- the **GCC runtime libraries** libstdc++ and libgcc — GPL-3.0-or-later with the
+  GCC Runtime Library Exception 3.1, which lets the compiled program ship under
+  any terms and requires no notice.
+
+All of these notices are reproduced verbatim in
 [`apps/desktop/resources/process-audio/LICENSE`](apps/desktop/resources/process-audio/LICENSE),
-which ships next to the binary.
+which ships next to the binary. `apps/desktop/scripts/build-process-audio.mjs`
+fails while the binary embeds code whose notice is missing from that file.
 
 Builds before M16 (2026-10) shipped prebuilt `ApplicationLoopback.exe` /
 `ProcessList.exe` from the `application-loopback` npm package by **Matin Tat**

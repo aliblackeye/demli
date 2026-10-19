@@ -2,6 +2,8 @@
 
 - **Status:** Accepted — Option A (include + exclude) IMPLEMENTED in M16 (2026-10-19);
   see "Update 2026-10-19" at the end. Endpoint loopback is no longer used anywhere.
+  The in-call echo check on real machines (founder setup, a plain Windows install,
+  Windows 10) is still pending.
 - **Date:** 2026-07-07 (updated 2026-10-19)
 - **Owner:** media-webrtc
 - **Related:** CLAUDE.md §6/§11/§26
@@ -164,19 +166,41 @@ Decision now in code:
    exclude(main PID) leaves the Electron tone at −118.8 dBFS while another
    process's tone stays at −12.0 dBFS (`scripts/verify-process-audio.mjs`).
 3. **"App" mode refuses trees that contain Demli** (Demli itself, or an
-   ancestor such as Explorer, which launches it) and falls back to the exclude
-   mode with a notice.
+   ancestor such as Explorer, which launches it). An "app" capture that cannot
+   run (that refusal, an unresolvable window, a refused activation) is never
+   widened to "system" automatically: the share goes out without sound and the
+   panel offers a one-click "send system sound (Demli excluded)", which hot-swaps
+   the share audio through `engine.replaceScreenShareAudio` on the sharer's
+   click only. A packaged (UWP) window resolves to the app behind its CoreWindow,
+   not to ApplicationFrameHost.exe, which plays nothing (measured: include of
+   the frame host −152.7 dBFS, of the resolved app −30.0 dBFS on a −30 dBFS
+   tone); a minimized packaged app has no CoreWindow and counts as unresolvable.
 4. **No endpoint loopback, no mix inputs, no hot-swap.** The display-media
    handler serves video only; the supervisor only reports waiting / live /
    failed.
-5. **Unsupported Windows (build < 20348, i.e. Windows 10)**: the share goes out
-   without sound and says why. Endpoint loopback was rejected even as an opt-in
+5. **Unsupported Windows (build < 19041)**: the share goes out without sound
+   and says why. Microsoft documents process loopback from 20348, but the
+   activation type exists from 19041 and OBS and GStreamer gate on 19041, so
+   Windows 10 2004–22H2 is tried; a refused activation reports
+   `activation_failed` through the helper's ready handshake, never a silent
+   track. Not yet checked on a real Windows 10 machine. Endpoint loopback was rejected even as an opt-in
    fallback: it echoes the call on every utterance, headphones do not prevent it
    (loopback taps the render endpoint, not the speakers), and Option D needs a
    second output device most users do not have.
 6. **Web** (Chromium ≥141 available there, unlike Electron 33): the request sets
    `restrictOwnAudio: true` (Option B) and `selfBrowserSurface: "exclude"`;
    window audio (Option C, `windowAudio: "window"`) is sent as a hint only.
+
+Known limit of the exclude mode: it removes what Demli's own processes render,
+nothing more. A mixer that takes Demli's output and renders it again from its
+own process (Voicemeeter on an MME/WDM-shared output, SteelSeries Sonar,
+Windows "Listen to this device") can bring the call back into "system" sound.
+The picker copy says so and points to "only this app"; detecting known mixer
+processes is not built.
+
+The statically linked helper embeds the MinGW-w64 runtime and winpthreads; both
+notices ship in `resources/process-audio/LICENSE`, and the build fails when a
+notice for embedded code is missing.
 
 Still open: Option B/C on desktop once Electron reaches Chromium ≥141. Unverified
 risk: a browser that Demli itself starts (`shell.openExternal` when no browser is
