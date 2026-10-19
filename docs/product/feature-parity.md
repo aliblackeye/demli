@@ -1532,3 +1532,29 @@ mutasyonla doğrulandı (fg-faint #737373, yay süresi, tehlike #ef4444 → kır
 **Bilinen açık:** iki `index.html` önyükleme iskeleti, pencere flaş rengi, BootSplash ve
 VideoStage gradyanları, mobil `app.json` splash/ikon renkleri hâlâ sıcak eski palet —
 token değişimi bunlara ulaşmıyor (liste tasarım dokümanı §7.3). Mobil splash APK ister.
+
+## 2026-10-20 — M16 Dalga 3: ses / arama yüzeyleri "Koyu Masa"da (masaüstü + web)
+
+Dal `feat/m16-ui-voice`. Yalnız görünüm ve etkileşim; medya mantığı, FSM ve
+çağrı denetleyicisi değişmedi. Mobil karşılıkları Dalga 4'te (⏳).
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Tek çağrı kontrol dili (`CallControl`: nötr / açık-mercan / kapalı-pembe / ayrıl-dolu pembe / kabul-yeşil) — ses paneli, DM kutusu, arama hapı, sahne çubuğu, gelen arama aynı düğmeyi kullanır | ✅ | ⏳ Dalga 4 | renk tek başına anlam taşımaz: ikon + ad + `aria-pressed` |
+| Ses paneli / DM kutusu: kenarsız yüzey kartı, canlı durum noktası (bekleyen durum nefes alır), durum satırı geçişli | ✅ | ⏳ | |
+| Konuşma ışığı mercan: kenar çubuğu avatarında halka + yumuşak parıltı, karoda kenar içi parıltı (videonun ÜSTÜNDE) | ✅ | ⏳ (Dalga 2 avatar halkası mobilde de bekliyor) | eski yeşil halka kalktı |
+| Ekran paylaşan kişinin satırında "CANLI" hapı; paylaşım karosunda ölçülen çözünürlük ("1080p" — çözülen kareden, istenen değerden değil) | ✅ | ⏳ | |
+| Sahne: saf siyah zemin + tek mercan ışık, kenarsız taban kartı; sahne çubuğu cam hap, "ayrıl" geniş dolu pembe; PiP köşeye yayla kayar | ✅ | ⏳ | VideoStage sıcak gradyanı kaldırıldı (Dalga 2 bilinen açığı) |
+| Gelen arama kartı: nefes alan mercan hale, etiketli üç daire, odak kart içine (Enter yanlışlıkla yanıtlamaz) | ✅ | ⏳ | azaltılmış harekette hale durur |
+| Kaynak seçici: iskelet yükleme, seçili kart mercan, ses seçimi radyo satırları (ok tuşlarıyla), kalite bölmeli seçim (ok tuşlarıyla) | ✅ | — (mobilde seçici yok) | Dalga 1'in üç ses seçeneği mantığı aynen |
+| Kamera önizleme iskeletle başlar, aygıt seçimi `Select` atomu; aygıt ayarları radyo grupları | ✅ | ⏳ | |
+| Aramaya ekle: yükleniyor iskeleti, hata + tekrar dene, "eşleşen arkadaş yok" | ✅ | ⏳ | eskiden yüklenirken "eklenecek arkadaş yok" diyordu |
+| Kişi başı ses + yayın sesi sürgüsü tasarım sisteminin `Slider` atomu | ✅ | ✅ (zaten kendi sürgüsü) | |
+| Birlikte izle bandı, sıra paneli ve video seçici kenarsız | ✅ | ⏳ | |
+| Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (55 kontrol, headless Chrome) | ✅ web dev sunucusu | — | build'e girmez |
+
+**Kapılar:** desktop typecheck · desktop test · app-ui test · i18n parite · web
+typecheck/build · desktop build · eslint; harness doğrulaması dört kipte (varsayılan,
+masaüstü seçici, hata/izin yok, azaltılmış hareket) 0 konsol hatası/uyarısı — tek
+istisna azaltılmış hareket kipinde framer-motion'ın yalnız dev build'de yazdığı
+"Reduced Motion enabled" bildirimi (üretimde `NODE_ENV` ile silinir).
