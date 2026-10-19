@@ -11,6 +11,7 @@ import { toTranslateFn, useAppTranslation } from "@/lib/i18n";
 import { motionTo, useReducedMotion } from "@/theme/motion";
 import { OVERLAY_MOTION } from "@/theme/motion-presets";
 import { colors, motion, radius, space } from "@/theme/theme";
+import { bannerRelease } from "./in-app-banner-gesture";
 import { Glass } from "./ui/Glass";
 import { rubberBand } from "./ui/kit-math";
 import { Touchable } from "./ui/Touchable";
@@ -21,9 +22,6 @@ import {
 
 /** How long a banner stays before it slides away (paused while a finger is on it). */
 const VISIBLE_MS = 4500;
-/** Past this upward travel (px) or speed (px/s) a release dismisses. */
-const SWIPE_DISTANCE = 28;
-const SWIPE_VELOCITY = 600;
 
 /** Per-kind glyph. */
 function kindIcon(kind: InAppNotificationKind) {
@@ -84,7 +82,12 @@ export function InAppNotificationBanner() {
 
   const arm = () => {
     clearTimer();
-    if (id) timer.current = setTimeout(() => leave(id), VISIBLE_MS);
+    // Only for the banner still on screen: a gesture that finalizes after a tap
+    // already dismissed it (or a newer one replaced it) must not start a timer
+    // that would slide the NEXT banner away early.
+    if (id && useInAppNotificationStore.getState().current?.id === id) {
+      timer.current = setTimeout(() => leave(id), VISIBLE_MS);
+    }
   };
 
   useEffect(() => {
@@ -118,13 +121,16 @@ export function InAppNotificationBanner() {
       "worklet";
       dy.value = e.translationY < 0 ? e.translationY : rubberBand(e.translationY, 80);
     })
-    .onEnd((e) => {
+    // onFinalize, not onEnd: it runs for EVERY ending (an activated pan, a failed
+    // one — a sideways swipe — and an OS cancel), so the timer paused in onBegin
+    // is always either restarted or replaced by the dismissal.
+    .onFinalize((e, success) => {
       "worklet";
-      if (id && (e.translationY < -SWIPE_DISTANCE || e.velocityY < -SWIPE_VELOCITY)) {
-        dy.value = motionTo(-160, "position", { velocity: e.velocityY });
+      if (id && bannerRelease(success, e.translationY, e.velocityY) === "dismiss") {
+        dy.value = motionTo(-160, "position", { velocity: e.velocityY, reduced });
         scheduleOnRN(leave, id);
       } else {
-        dy.value = motionTo(0, "position", { velocity: e.velocityY });
+        dy.value = motionTo(0, "position", { velocity: e.velocityY, reduced });
         scheduleOnRN(arm);
       }
     });
