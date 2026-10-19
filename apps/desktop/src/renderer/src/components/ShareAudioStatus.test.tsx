@@ -30,9 +30,11 @@ const voiceState = {
     notice: "unsupported_os",
     requested: true,
   } as ShareAudioState,
+  shareAudioSwitching: false,
   toggleCamera: () => undefined,
   startScreenShare: () => undefined,
   stopScreenShare: () => undefined,
+  sendSystemShareSound: vi.fn(),
 };
 
 // lucide-react ships its own nested React copy that escapes the test aliases
@@ -129,6 +131,30 @@ describe("CallDock shows the share sound like the voice panel", () => {
     voiceState.error = null;
   });
 
+  it("when the window's own sound cannot be isolated, offers system sound and sends it only on click", async () => {
+    voiceState.screenShareAudio = { status: "unavailable", source: null, notice: "app_unavailable", requested: true };
+    voiceState.sendSystemShareSound.mockClear();
+    const el = await renderCallDock();
+    const status = el.querySelector('[data-testid="share-audio-status"]');
+    expect(status?.querySelector('[role="alert"]')?.textContent).toContain(
+      i18n.t("desktop:shareAudio.notice.app_unavailable"),
+    );
+    expect(voiceState.sendSystemShareSound).not.toHaveBeenCalled();
+    const button = status?.querySelector<HTMLButtonElement>('[data-testid="share-audio-send-system"]');
+    expect(button?.textContent).toBe(i18n.t("desktop:shareAudio.sendSystemSound"));
+    act(() => button?.click());
+    expect(voiceState.sendSystemShareSound).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the system-sound button while the capture is starting", async () => {
+    voiceState.screenShareAudio = { status: "unavailable", source: null, notice: "app_unavailable", requested: true };
+    voiceState.shareAudioSwitching = true;
+    const el = await renderCallDock();
+    const button = el.querySelector<HTMLButtonElement>('[data-testid="share-audio-send-system"]');
+    expect(button?.disabled).toBe(true);
+    voiceState.shareAudioSwitching = false;
+  });
+
   it("renders nothing about share sound while not sharing", async () => {
     voiceState.screenShareEnabled = false;
     const el = await renderCallDock();
@@ -153,15 +179,28 @@ describe("shareAudioView", () => {
     expect(waiting.alert).toBeNull();
   });
 
-  it("a fallback to system sound is shown as a caveat, an echo risk as a warning", async () => {
+  it("'only this app' that cannot be isolated is a warning with the system-sound offer; an echo risk is a warning", async () => {
     const { shareAudioView } = await import("./ShareAudioStatus");
-    const fallback = shareAudioView({
-      status: "live",
-      source: "system",
-      notice: "app_fell_back_to_system",
+    const unavailable = shareAudioView({
+      status: "unavailable",
+      source: null,
+      notice: "app_unavailable",
       requested: true,
     });
-    expect(fallback.alert).toMatchObject({ tone: "muted", titleKey: null });
+    expect(unavailable.statusKey).toBe("desktop:shareAudio.statusNone");
+    expect(unavailable.alert).toMatchObject({
+      tone: "warn",
+      titleKey: "desktop:shareAudio.noSoundTitle",
+      bodyKey: "desktop:shareAudio.notice.app_unavailable",
+      action: "sendSystemSound",
+    });
+    const otherReason = shareAudioView({
+      status: "unavailable",
+      source: null,
+      notice: "capture_failed",
+      requested: true,
+    });
+    expect(otherReason.alert?.action).toBeNull();
     const echo = shareAudioView({ status: "live", source: "browser-system", notice: "web_echo_risk", requested: true });
     expect(echo.alert).toMatchObject({ tone: "warn", titleKey: "desktop:shareAudio.echoRiskTitle" });
   });

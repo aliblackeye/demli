@@ -20,9 +20,12 @@
  * Voicemeeter Out, CABLE Output…) are gone for good: both carry Demli's own
  * playback, and a mix input can be the user's microphone bus. No path here
  * calls getUserMedia, so a microphone can never be published as share sound.
- * Where process capture is impossible (not Windows, or Windows older than build
- * 20348), the share goes out without sound and the sharer is told why — a
- * share that echoes everyone's voice back is worse than a silent one.
+ * Where process capture is impossible (not Windows, Windows older than build
+ * 19041, or Windows refused the capture), the share goes out without sound and
+ * the sharer is told why — a share that echoes everyone's voice back is worse
+ * than a silent one. An "app" capture that cannot be isolated is never widened
+ * to "system" automatically: the sharer chose one app's sound, so everything
+ * else on the PC goes out only when they ask for it ({@link captureSystemShareAudio}).
  *
  * On the WEB build the browser owns the picker and the sound: see
  * {@link acquireWebScreenShare}.
@@ -75,14 +78,15 @@ export type WebDisplaySurface = "browser" | "window" | "monitor";
  * to its own copy (desktop:shareAudio.notice.*).
  *
  * No sound is published:
- *  - `unsupported_os`:        Windows older than build 20348 (no process capture).
+ *  - `unsupported_os`:        Windows older than build 19041 (no process capture).
  *  - `unsupported_platform`:  a desktop OS without process capture (macOS/Linux).
  *  - `capture_failed`:        process capture could not start.
+ *  - `app_unavailable`:       the shared window's own sound could not be isolated
+ *    (its process could not be resolved, its tree contains Demli, or Windows
+ *    refused the capture). The sharer may send the system sound instead.
  *  - `web_unsupported_browser`, `web_tab_unticked`, `web_monitor_unticked`,
  *    `web_window_no_audio`, `web_no_audio`: the browser returned no sound, and why.
  * Sound IS published, with a caveat:
- *  - `app_fell_back_to_system`: the window's own sound could not be isolated, so
- *    the system sound (Demli excluded) is shared instead.
  *  - `web_echo_risk`: browser system/window audio without own-audio filtering —
  *    people in the call may hear themselves.
  */
@@ -90,7 +94,7 @@ export type ShareAudioNotice =
   | "unsupported_os"
   | "unsupported_platform"
   | "capture_failed"
-  | "app_fell_back_to_system"
+  | "app_unavailable"
   | "web_unsupported_browser"
   | "web_tab_unticked"
   | "web_monitor_unticked"
@@ -361,7 +365,7 @@ type ProcessAudioStartRequest = Parameters<ProcessAudioBridge["start"]>[0];
 type ProcessAudioStartResult = Awaited<ReturnType<ProcessAudioBridge["start"]>>;
 
 /** A live process-loopback capture: the rebuilt track + a teardown handle. */
-interface ProcessAudioCapture {
+export interface ProcessAudioCapture {
   track: MediaStreamTrack;
   stop: () => void;
 }
@@ -527,9 +531,10 @@ function processRequestFor(
 }
 
 /**
- * Get the share sound for `mode`. "app" that cannot be isolated (the window's
- * process could not be resolved, or its tree contains Demli) falls back to
- * "system" — still Demli-free — and says so. Nothing else is ever tried.
+ * Get the share sound for `mode`. Exactly one capture is tried: "app" that
+ * cannot be isolated (the window's process could not be resolved, its tree
+ * contains Demli, Windows refused it) sends no sound and says so — it is never
+ * widened to the whole system behind the sharer's back.
  */
 async function acquireShareAudio(
   mode: Exclude<ShareAudioMode, "none">,
@@ -542,17 +547,27 @@ async function acquireShareAudio(
   const capability = await getShareAudioCapability();
   if (!capability.supported) return { capture: null, source: null, notice: capability.notice };
 
-  const first = processRequestFor(mode, sourceId);
-  if (first) {
-    const outcome = await captureProcessAudio(first);
-    if (outcome.ok) return { capture: outcome.capture, source: first.mode, notice: null };
-    if (first.mode === "system") return { capture: null, source: null, notice: "capture_failed" };
-  }
-  const fallback = await captureProcessAudio({ mode: "system" });
-  if (fallback.ok) {
-    return { capture: fallback.capture, source: "system", notice: "app_fell_back_to_system" };
-  }
-  return { capture: null, source: null, notice: "capture_failed" };
+  const request = processRequestFor(mode, sourceId);
+  if (!request) return { capture: null, source: null, notice: "app_unavailable" };
+  const outcome = await captureProcessAudio(request);
+  if (outcome.ok) return { capture: outcome.capture, source: request.mode, notice: null };
+  return {
+    capture: null,
+    source: null,
+    notice: request.mode === "app" ? "app_unavailable" : "capture_failed",
+  };
+}
+
+/**
+ * The system sound (Demli excluded) for a share that is already live — only
+ * ever called on the sharer's explicit request, after "app" could not be
+ * isolated. Null when the capture cannot start.
+ */
+export async function captureSystemShareAudio(): Promise<ProcessAudioCapture | null> {
+  const capability = await getShareAudioCapability();
+  if (!capability.supported) return null;
+  const outcome = await captureProcessAudio({ mode: "system" });
+  return outcome.ok ? outcome.capture : null;
 }
 
 export async function acquireScreenShare(

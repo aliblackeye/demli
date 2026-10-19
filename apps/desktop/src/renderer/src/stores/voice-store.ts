@@ -39,6 +39,7 @@ import type { CallVoiceEngine } from "@demli/client-core";
 import type { ChannelId } from "@demli/types";
 import { api } from "../lib/api-client";
 import {
+  captureSystemShareAudio,
   loadScreenSharePrefs,
   makeScreenShareAcquire,
   startOptionsFor,
@@ -104,6 +105,24 @@ function stopFilmAudioSupervisor(): void {
 }
 
 /**
+ * Watch the published share sound for as long as the share lives: waiting →
+ * live, or failed if the capture dies. The supervisor only reports; it never
+ * swaps the source.
+ */
+function watchShareAudio(track: MediaStreamTrack | null): void {
+  stopFilmAudioSupervisor();
+  filmAudioSupervisorStop = superviseFilmAudio({
+    track,
+    onStatus: (status) => {
+      engine.setScreenShareAudioLive(status === "live");
+      useVoiceStore.setState((prev) => ({
+        screenShareAudio: { ...prev.screenShareAudio, status },
+      }));
+    },
+  });
+}
+
+/**
  * UI-side label for the room we are connected to, captured at JOIN time so the
  * voice panel names the room correctly even while the user is looking at a
  * DIFFERENT group (where a channel-list lookup would miss it, task #2). Not
@@ -129,6 +148,8 @@ interface VoiceStore extends VoiceState {
    * silent track never reads as "viewers hear you" (§35).
    */
   screenShareAudio: ShareAudioState;
+  /** True while {@link VoiceStore.sendSystemShareSound} is starting the capture. */
+  shareAudioSwitching: boolean;
   /**
    * Join a voice channel (fetches a token, connects the engine). Fire-and-forget.
    * `options.audioBitrateKbps` (the channel's configured mic bitrate, M7c) is
@@ -201,6 +222,13 @@ interface VoiceStore extends VoiceState {
   startScreenShare: (sourceId: string, options?: ScreenShareStartOptions) => void;
   /** Stop the local screen share. */
   stopScreenShare: () => void;
+  /**
+   * The sharer's explicit answer to `app_unavailable`: send the system sound
+   * (Demli excluded) on the live share instead of no sound. Never called
+   * automatically — "only this app" must not widen to everything on the PC
+   * behind the sharer's back. Fire-and-forget; a refusal sets `capture_failed`.
+   */
+  sendSystemShareSound: () => void;
   /**
    * Toggle the local camera (task #18). Independent of mic and screen share —
    * all three can be on at once. Connected-only; the engine surfaces permission
@@ -394,6 +422,7 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
   errorMessage: null,
   roomLabel: null,
   screenShareAudio: IDLE_SHARE_AUDIO,
+  shareAudioSwitching: false,
 
   join: (channelId, options) => {
     const { roomId, status } = engine.getState();
@@ -528,19 +557,46 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
             source: audioTrack ? staged.audio.source : null,
           },
         });
-        // Watch the share sound for as long as the share lives: waiting →
-        // live, or failed if the capture dies. It never swaps the source.
-        filmAudioSupervisorStop = superviseFilmAudio({
-          track: audioTrack,
-          onStatus: (status) => {
-            engine.setScreenShareAudioLive(status === "live");
-            useVoiceStore.setState((prev) => ({
-              screenShareAudio: { ...prev.screenShareAudio, status },
-            }));
-          },
-        });
+        watchShareAudio(audioTrack);
       })
       .catch(reportVoiceError);
+  },
+
+  sendSystemShareSound: () => {
+    const current = useVoiceStore.getState();
+    if (
+      !current.screenShareEnabled ||
+      current.shareAudioSwitching ||
+      current.screenShareAudio.notice !== "app_unavailable"
+    ) {
+      return;
+    }
+    const shareToken = shareAttempt;
+    const sameShare = (): boolean =>
+      shareToken === shareAttempt && engine.getState().screenShareEnabled;
+    useVoiceStore.setState({ shareAudioSwitching: true });
+    void (async () => {
+      const capture = await captureSystemShareAudio();
+      const swapped =
+        capture !== null && sameShare() && (await engine.replaceScreenShareAudio(capture.track));
+      if (!swapped) {
+        capture?.stop();
+        if (sameShare()) {
+          useVoiceStore.setState((prev) => ({
+            shareAudioSwitching: false,
+            screenShareAudio: { ...prev.screenShareAudio, notice: "capture_failed" },
+          }));
+        } else {
+          useVoiceStore.setState({ shareAudioSwitching: false });
+        }
+        return;
+      }
+      useVoiceStore.setState({
+        shareAudioSwitching: false,
+        screenShareAudio: { status: "unavailable", source: "system", notice: null, requested: true },
+      });
+      watchShareAudio(capture.track);
+    })();
   },
 
   stopScreenShare: () => {
@@ -669,7 +725,7 @@ engine.subscribe((s) => {
     // flips screenShareEnabled false) it must not linger. While a share is still
     // being acquired/published its state is staged, not stored (see
     // startScreenShare), so this cannot wipe a share that is coming up.
-    ...(s.screenShareEnabled ? {} : { screenShareAudio: IDLE_SHARE_AUDIO }),
+    ...(s.screenShareEnabled ? {} : { screenShareAudio: IDLE_SHARE_AUDIO, shareAudioSwitching: false }),
     status: s.status,
     micEnabled: s.micEnabled,
     deafened: s.deafened,

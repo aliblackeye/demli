@@ -7,7 +7,8 @@
  * APIs (vitest runs in `node`). What they pin:
  *  - the desktop ladder only ever asks main for process capture ("app" include
  *    or "system" exclude) and never arms endpoint loopback or calls getUserMedia;
- *  - "app" that cannot be isolated falls back to "system" and says so;
+ *  - "app" that cannot be isolated sends NO sound (never everything else) and
+ *    leaves "system" to the sharer's explicit choice;
  *  - an unsupported OS gets no sound and an honest notice;
  *  - the supervisor only reports (waiting / live / failed), never captures;
  *  - pre-M16 storage (the poisoned film-audio memory) is migrated away;
@@ -233,21 +234,46 @@ describe("desktop share-audio ladder", () => {
     expect(h.stopped).toEqual([]);
   });
 
-  it("'app' whose tree contains Demli falls back to 'system' and says so", async () => {
-    const h = install({
-      start: (req) =>
-        req.mode === "app"
-          ? { ok: false, reason: "includes_demli" }
-          : { ok: true, captureId: 9, mode: "system", format: { sampleRate: 48000, channels: 2, bitDepth: 16 } },
-    });
-    const { acquireScreenShare } = screenShare;
-    const acquired = await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "app" });
+  it.each(["includes_demli", "pid_unresolved", "activation_failed"])(
+    "'app' that cannot be isolated (%s) sends no sound — never the whole system unasked",
+    async (reason) => {
+      const h = install({
+        start: (req) =>
+          req.mode === "app"
+            ? { ok: false, reason }
+            : { ok: true, captureId: 9, mode: "system", format: { sampleRate: 48000, channels: 2, bitDepth: 16 } },
+      });
+      const { acquireScreenShare } = screenShare;
+      const acquired = await acquireScreenShare("window:123:0", { quality: "1080p30", audioMode: "app" });
 
-    expect(h.startRequests).toEqual([{ mode: "app", sourceId: "window:123:0" }, { mode: "system" }]);
-    expect(acquired.audioSource).toBe("system");
-    expect(acquired.audioNotice).toBe("app_fell_back_to_system");
+      expect(h.startRequests).toEqual([{ mode: "app", sourceId: "window:123:0" }]);
+      expect(acquired.audio).toBeNull();
+      expect(acquired.audioSource).toBeNull();
+      expect(acquired.audioNotice).toBe("app_unavailable");
+      expect(acquired.audioRequested).toBe(true);
+      expectNoMicrophone(h);
+      expectNoEndpointLoopback(h);
+    },
+  );
+
+  it("system sound for a live share starts only on request, Demli excluded", async () => {
+    const h = install({});
+    const { captureSystemShareAudio } = screenShare;
+    const capture = await captureSystemShareAudio();
+
+    expect(h.startRequests).toEqual([{ mode: "system" }]);
+    expect(capture).not.toBeNull();
+    capture?.stop();
+    expect(h.stopped).toEqual([1]);
     expectNoMicrophone(h);
     expectNoEndpointLoopback(h);
+  });
+
+  it("a refused on-request system capture returns null", async () => {
+    const h = install({ start: () => ({ ok: false, reason: "activation_failed" }) });
+    const { captureSystemShareAudio } = screenShare;
+    expect(await captureSystemShareAudio()).toBeNull();
+    expect(h.startRequests).toEqual([{ mode: "system" }]);
   });
 
   it("a refused 'system' capture shares picture only — nothing else is tried", async () => {
@@ -264,7 +290,7 @@ describe("desktop share-audio ladder", () => {
     expectNoEndpointLoopback(h);
   });
 
-  it("Windows older than 20348: no capture attempt, honest notice", async () => {
+  it("Windows older than 19041: no capture attempt, honest notice", async () => {
     const h = install({ support: { supported: false, reason: "unsupported_os" } });
     const { acquireScreenShare } = screenShare;
     const acquired = await acquireScreenShare("screen:0:0", { quality: "1080p30", audioMode: "system" });
@@ -394,12 +420,23 @@ describe("share-audio supervisor (watch-only)", () => {
     expect(statuses).toEqual(["waiting", "live", "failed"]);
   });
 
-  it("the store wires no source swap: replaceScreenShareAudio is never called", () => {
+  it("the share sound is swapped only by the sharer's explicit action, never by the supervisor", () => {
     const store = readFileSync(
       fileURLToPath(new URL("../stores/voice-store.ts", import.meta.url)),
       "utf8",
-    );
-    expect(store).not.toContain("replaceScreenShareAudio");
+    ).replace(/\r\n/g, "\n");
+    expect(store.match(/replaceScreenShareAudio/g) ?? []).toHaveLength(1);
+    const actionStart = store.indexOf("  sendSystemShareSound: () => {");
+    expect(actionStart).toBeGreaterThan(-1);
+    const action = store.slice(actionStart, store.indexOf("\n  },\n", actionStart));
+    expect(action).toContain("engine.replaceScreenShareAudio(");
+    // Only as the answer to "this window's sound could not be isolated".
+    expect(action).toContain('screenShareAudio.notice !== "app_unavailable"');
+    const watcherStart = store.indexOf("function watchShareAudio(");
+    expect(watcherStart).toBeGreaterThan(-1);
+    const watcher = store.slice(watcherStart, store.indexOf("\n}\n", watcherStart));
+    expect(watcher).not.toContain("replaceScreenShareAudio");
+    expect(watcher).not.toContain("captureSystemShareAudio");
   });
 });
 

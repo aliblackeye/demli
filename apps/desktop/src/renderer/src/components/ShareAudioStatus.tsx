@@ -7,7 +7,7 @@
  */
 
 import { AlertTriangle, Loader2, Volume2, VolumeX } from "lucide-react";
-import { cn } from "@demli/ui";
+import { Button, cn } from "@demli/ui";
 import type { ShareAudioNotice, ShareAudioSource } from "../lib/screen-share";
 import { localizeVoiceError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
@@ -30,6 +30,8 @@ export interface ShareAudioView {
     titleKey: "desktop:shareAudio.noSoundTitle" | "desktop:shareAudio.echoRiskTitle" | null;
     bodyKey: `desktop:shareAudio.notice.${ShareAudioNotice}` | "desktop:shareAudio.failedHint";
     tone: Tone;
+    /** A one-click way out the sharer can choose; never taken for them. */
+    action: "sendSystemSound" | null;
   } | null;
 }
 
@@ -52,7 +54,7 @@ export function shareAudioView(state: ShareAudioState): ShareAudioView {
       statusTone: "warn",
       icon: "none",
       sourceKey,
-      alert: { titleKey: null, bodyKey: "desktop:shareAudio.failedHint", tone: "warn" },
+      alert: { titleKey: null, bodyKey: "desktop:shareAudio.failedHint", tone: "warn", action: null },
     };
   }
 
@@ -69,6 +71,7 @@ export function shareAudioView(state: ShareAudioState): ShareAudioView {
               titleKey: "desktop:shareAudio.noSoundTitle",
               bodyKey: `desktop:shareAudio.notice.${state.notice}`,
               tone: "warn",
+              action: state.notice === "app_unavailable" ? "sendSystemSound" : null,
             }
           : null,
     };
@@ -86,8 +89,9 @@ export function shareAudioView(state: ShareAudioState): ShareAudioView {
             titleKey: "desktop:shareAudio.echoRiskTitle",
             bodyKey: "desktop:shareAudio.notice.web_echo_risk",
             tone: "warn",
+            action: null,
           }
-        : { titleKey: null, bodyKey: `desktop:shareAudio.notice.${state.notice}`, tone: "muted" }
+        : { titleKey: null, bodyKey: `desktop:shareAudio.notice.${state.notice}`, tone: "muted", action: null }
       : null,
   };
 }
@@ -102,9 +106,13 @@ const TONE_TEXT: Record<Tone, string> = {
 export function ShareAudioStatusView({
   view,
   className,
+  onSendSystemSound,
+  switching = false,
 }: {
   view: ShareAudioView;
   className?: string;
+  onSendSystemSound?: () => void;
+  switching?: boolean;
 }): JSX.Element {
   const { t } = useAppTranslation();
   const Icon = view.icon === "live" ? Volume2 : view.icon === "waiting" ? Loader2 : VolumeX;
@@ -135,6 +143,19 @@ export function ShareAudioStatusView({
           <p className={cn("text-2xs leading-snug text-fg-muted", view.alert.titleKey && "mt-1")}>
             {t(view.alert.bodyKey)}
           </p>
+          {view.alert.action === "sendSystemSound" && onSendSystemSound && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="share-audio-send-system"
+              className="mt-1.5 w-full"
+              disabled={switching}
+              onClick={onSendSystemSound}
+            >
+              {t("desktop:shareAudio.sendSystemSound")}
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -145,8 +166,17 @@ export function ShareAudioStatusView({
 export function ShareAudioStatus({ className }: { className?: string }): JSX.Element | null {
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const shareAudio = useVoiceStore((s) => s.screenShareAudio);
+  const switching = useVoiceStore((s) => s.shareAudioSwitching);
+  const sendSystemShareSound = useVoiceStore((s) => s.sendSystemShareSound);
   if (!screenShareEnabled) return null;
-  return <ShareAudioStatusView view={shareAudioView(shareAudio)} className={className} />;
+  return (
+    <ShareAudioStatusView
+      view={shareAudioView(shareAudio)}
+      className={className}
+      onSendSystemSound={sendSystemShareSound}
+      switching={switching}
+    />
+  );
 }
 
 /** The current voice/media error, localized (§26). Renders nothing without one. */
