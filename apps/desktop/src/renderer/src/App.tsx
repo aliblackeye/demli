@@ -21,10 +21,7 @@ import {
   CriticalUpdateOverlay,
   GlobalUpdateBanner,
 } from "./components/UpdateSettings";
-import { VoiceEvictionToast } from "./components/VoiceEvictionToast";
-import { OutboxChannelGoneToast } from "./components/OutboxChannelGoneToast";
-import { ImageActionToast } from "./components/ImageActionToast";
-import { BlockedSendToast } from "./components/BlockedSendToast";
+import { AppNoticeStack } from "./components/AppNoticeStack";
 import { CallLayer } from "./components/CallLayer";
 import { VoiceJoinGuardDialog } from "./components/VoiceJoinGuardDialog";
 import { markdownSlots } from "./components/MarkdownTokens";
@@ -57,7 +54,6 @@ function BootScreen(): JSX.Element {
  * mocked until Milestone 3.
  */
 export function App(): JSX.Element {
-  const { t } = useAppTranslation();
   const status = useAuthStore((s) => s.status);
   const addingAccount = useAccountsStore((s) => s.addingAccount);
 
@@ -147,35 +143,9 @@ export function App(): JSX.Element {
           header) owns optional updates — showing both would be two controls for
           one job, and the founder asked for the badge. */}
       {status !== "authenticated" && <GlobalUpdateBanner />}
-      {/* The app-root NOTICE STACK — one bottom-centre column that owns the
-          position of every root notice, so two that fire together stack (newest
-          nearest the edge) instead of drawing on top of each other. Above the
-          dialog/lightbox layer (z-50) on purpose: an image saved from the
-          lightbox must be confirmed while the lightbox is still open. Each
-          notice is the shared NoticeToast card and owns its own timer. */}
-      <div
-        aria-label={t("common:a11y.notifications")}
-        role="region"
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex flex-col-reverse items-center gap-2 px-4"
-      >
-        {/* Single-active-session notice: shows "you joined voice on another
-            device" when this device is evicted, and survives the voice panel
-            unmounting. */}
-        <VoiceEvictionToast />
-        {/* Offline queue (M17): tells the user when queued messages had to be
-            abandoned because their channel is gone — by definition there is no
-            channel view left to show it in. */}
-        <OutboxChannelGoneToast />
-        {/* "Görsel kaydedildi / kopyalandı" (and the honest failure line) for the
-            attachment save/copy actions. Root-level because the action can start
-            from the full-screen lightbox, which unmounts on close. A CANCELLED
-            save stays silent. */}
-        <ImageActionToast />
-        {/* Blocking (M18): a DM send the gateway refused because a block exists.
-            Root-level for the same reason — the queue row can only show its
-            generic "rejected" copy, so the neutral reason is given once, here. */}
-        <BlockedSendToast />
-      </div>
+      {/* The app-root notice stack (voice handoff, abandoned queue, image
+          saved/copied, blocked send) — one positioned column, see the component. */}
+      <AppNoticeStack />
       {/* DM calls (ADR 0012): global incoming-call ring + in-call surface, on
           every screen. Mounted at the root so a call is never missed. */}
       <CallLayer />

@@ -140,7 +140,7 @@ function DmRow({
         {highlightUnread && !hasNumber && (
           <span
             aria-label={t("desktop:channel.unread")}
-            className={shellUnreadPipClass(showMentionBadge)}
+            className={shellUnreadPipClass(showMentionBadge, "inset")}
           />
         )}
         <UserAvatar
@@ -214,7 +214,7 @@ function GroupChatRow({
       {highlightUnread && !hasNumber && (
         <span
           aria-label={t("desktop:channel.unread")}
-          className={shellUnreadPipClass(showMentionBadge)}
+          className={shellUnreadPipClass(showMentionBadge, "inset")}
         />
       )}
       <span

@@ -244,7 +244,10 @@ export function MemberSidebar({
     >
       <div className="flex h-16 shrink-0 items-center px-4">
         <h2 className="font-display text-base font-semibold text-fg-display">
-          {t("desktop:members.headerCount", { count: total })}
+          {/* No count until the roster has landed — "Üyeler — 0" would be a lie. */}
+          {serverDetailsLoading && members.length === 0
+            ? t("desktop:members.membersNav")
+            : t("desktop:members.headerCount", { count: total })}
         </h2>
       </div>
       <div className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 pb-4">

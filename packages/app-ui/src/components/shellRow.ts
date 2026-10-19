@@ -45,13 +45,17 @@ export function shellRowClass({ selected = false, unread = false, muted = false 
 }
 
 /**
- * The unread pip on a row's left edge: a short white pill that peeks out of the
- * column's gutter — the same signal, at the same edge, as the rail's short
- * unread pill. `mention` swaps it to coral, the colour of every mention badge.
+ * The unread pip on a row's left edge: a short white pill at the column's edge
+ * — the same signal, at the same edge, as the rail's short unread pill.
+ * `mention` swaps it to coral, the colour of every mention badge.
  */
-export function shellUnreadPipClass(mention: boolean): string {
+export function shellUnreadPipClass(mention: boolean, placement: "gutter" | "inset" = "gutter"): string {
   return cn(
-    "pointer-events-none absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full",
+    "pointer-events-none absolute top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full",
+    // `gutter` peeks out into the column's 8px gutter (channel rows). `inset`
+    // sits on the row's own left edge — for rows that use `content-visibility`,
+    // whose implied paint containment would clip anything drawn outside them.
+    placement === "gutter" ? "-left-2" : "left-0",
     "animate-pop-in-fast",
     mention ? "bg-accent" : "bg-fg",
   );

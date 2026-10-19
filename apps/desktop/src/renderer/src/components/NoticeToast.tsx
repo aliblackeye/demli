@@ -70,6 +70,7 @@ export function NoticeToast({
   className,
 }: NoticeToastProps): JSX.Element {
   const { t } = useAppTranslation();
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const remaining = useRef(duration);
   const startedAt = useRef(0);
   const timer = useRef<number | null>(null);
@@ -91,6 +92,28 @@ export function NoticeToast({
       dismissRef.current();
     }, remaining.current);
   }, []);
+
+  // Pause while pointed at or focused, resume on leave. NATIVE listeners on the
+  // card itself, not React's synthetic onPointerEnter/Leave: those are derived
+  // from pointerover/out pairs across the whole tree, and when a sibling notice
+  // unmounts under the pointer they were observed pausing the wrong card.
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const onFocusOut = (event: FocusEvent): void => {
+      if (!card.contains(event.relatedTarget as Node | null)) start();
+    };
+    card.addEventListener("pointerenter", stop);
+    card.addEventListener("pointerleave", start);
+    card.addEventListener("focusin", stop);
+    card.addEventListener("focusout", onFocusOut);
+    return () => {
+      card.removeEventListener("pointerenter", stop);
+      card.removeEventListener("pointerleave", start);
+      card.removeEventListener("focusin", stop);
+      card.removeEventListener("focusout", onFocusOut);
+    };
+  }, [start, stop]);
 
   useEffect(() => {
     remaining.current = duration;
@@ -117,12 +140,7 @@ export function NoticeToast({
       initial="initial"
       animate="animate"
       exit="exit"
-      onPointerEnter={stop}
-      onPointerLeave={start}
-      onFocus={stop}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) start();
-      }}
+      ref={cardRef}
       onKeyDown={(event) => {
         if (event.key === "Escape") onDismiss();
       }}

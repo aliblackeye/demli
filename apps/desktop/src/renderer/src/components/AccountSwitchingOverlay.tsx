@@ -58,7 +58,7 @@ export function AccountSwitchingOverlay(): JSX.Element {
         // on the notice never clash with a centering transform.
         <div
           key="switch-offline"
-          className="pointer-events-none fixed inset-x-0 bottom-6 z-[100] flex justify-center px-4"
+          className="pointer-events-none fixed inset-x-0 bottom-24 z-[100] flex justify-center px-4"
         >
           <NoticeToast
             tone="danger"

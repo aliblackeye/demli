@@ -35,8 +35,7 @@ import { SettingsShell } from "./SettingsShell";
 import { InAppNotificationToast } from "./InAppNotificationToast";
 import { PushToTalkListener } from "./PushToTalkListener";
 import { DesktopShellDataProvider } from "./DesktopShellDataProvider";
-import { DownloadPrompt } from "./DownloadPrompt";
-import { AgeVerifyPrompt } from "./AgeVerifyPrompt";
+import { ShellNudges } from "./ShellNudges";
 import { TraySyncController } from "./TraySyncController";
 
 /** Keeps the active server group/channel selection consistent with server data. */
@@ -198,17 +197,11 @@ export function AppShell(): JSX.Element {
             rail can never disagree. */}
         <TraySyncController />
       </DesktopShellDataProvider>
-      {/* Corner pill stack. Fixed-position, so these sit OUTSIDE the column /
-          drawer layout: they can never push, cover or resize chat, and each one
-          renders nothing at all once it does not apply.
-            - AgeVerifyPrompt: the one-time "verify your age" reminder for an
-              account with no date of birth (dismissed once = gone for good).
-            - DownloadPrompt: WEB ONLY "get the native app" (nothing on the
-              Electron desktop / native mobile builds or on iOS). */}
-      <div className="fixed bottom-4 left-4 z-30 flex flex-col items-start gap-2">
-        <AgeVerifyPrompt />
-        <DownloadPrompt variant="floating" />
-      </div>
+      {/* The age-verify reminder and the web-only "get the app" pill. On the
+          wide shell they sit in flow at the foot of the second column (see the
+          sidebar bindings); on the narrow web shell they float above the
+          composer. Either way they cover nothing — see ShellNudges. */}
+      <ShellNudges placement="floating" />
     </TooltipProvider>
   );
 }
