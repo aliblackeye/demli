@@ -30,6 +30,7 @@ import {
   Mic,
   MicOff,
   MoreHorizontal,
+  Pencil,
   PhoneOff,
   Plus,
   Search,
@@ -132,6 +133,8 @@ function Kit() {
   const [loading, setLoading] = useState(true);
   const [bannerOpen, setBannerOpen] = useState(true);
   const [menu, setMenu] = useState(false);
+  const [menuMode, setMenuMode] = useState<"menu" | "note">("menu");
+  const [note, setNote] = useState("");
   const [tall, setTall] = useState(false);
   const [locked, setLocked] = useState(false);
   const [selectedRow, setSelectedRow] = useState(0);
@@ -352,7 +355,7 @@ function Kit() {
           <Row title={t("mobile:connection.offline")} disabled onPress={() => {}} />
         </Section>
 
-        <Section title="Durumlar" note="Yükleniyor (ışık süpürmesi, azaltılmış harekette durağan) → boş / hata">
+        <Section title="Durumlar" note="Yükleniyor (nabız, masaüstüyle aynı; azaltılmış harekette durağan) → boş / hata">
           <Button variant="secondary" size="sm" label={loading ? t("common:buttons.close") : t("common:buttons.retry")} onPress={() => setLoading((l) => !l)} />
           {loading ? (
             <SkeletonList count={3} />
@@ -409,7 +412,7 @@ function Kit() {
           </Wrap>
         </Section>
 
-        <Section title="Sayfalar (sheet)" note="Yaylı açılış · sürükle/fırlat = kapat · çoklu durak · klavye kaçınma">
+        <Section title="Sayfalar (sheet)" note="Yaylı açılış · sürükle/fırlat = kapat · not modunda kapatma menüye döner · sheet içinden tost · çoklu durak · klavye kaçınma">
           <Wrap>
             <Button variant="secondary" label={t("common:a11y.moreActions")} onPress={() => setMenu(true)} />
             <Button variant="secondary" label={t("mobile:search.title")} onPress={() => setTall(true)} />
@@ -418,12 +421,34 @@ function Kit() {
         </Section>
       </ScrollView>
 
-      <ActionSheet visible={menu} title="Ali Karagöz" onClose={() => setMenu(false)}>
-        <ActionRow icon={<Users size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.profile")} onPress={() => setMenu(false)} />
-        <ActionRow icon={<Bell size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.ignore")} hint={t("mobile:userMenu.ignoreHint")} onPress={() => setMenu(false)} />
-        <ActionRow icon={<UserPlus size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.addFriend")} trailing={<Badge label={t("mobile:presence.online")} variant="success" />} onPress={() => setMenu(false)} />
-        <ActionDivider />
-        <ActionRow icon={<LogOut size={20} color={colors.danger} />} label={t("mobile:userMenu.removeFriend")} labelColor={colors.danger} onPress={() => setMenu(false)} />
+      {/* The member-menu shape: an editor inside the sheet INTERCEPTS close
+          (drag, flick, scrim, back step back to the menu instead of discarding
+          typed text) — the dismissal handshake must spring the card back. */}
+      <ActionSheet
+        visible={menu}
+        title={menuMode === "menu" ? "Ali Karagöz" : t("mobile:userMenu.noteTitle", { name: "Ali" })}
+        onClose={menuMode === "menu" ? () => setMenu(false) : () => setMenuMode("menu")}
+        onClosed={() => setMenuMode("menu")}
+      >
+        {menuMode === "menu" ? (
+          <>
+            <ActionRow icon={<Users size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.profile")} onPress={() => setMenu(false)} />
+            <ActionRow icon={<Pencil size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.noteTitle", { name: "Ali" })} onPress={() => setMenuMode("note")} />
+            {/* Toast raised while the sheet stays open: drawn by the sheet's own host, above it. */}
+            <ActionRow icon={<Copy size={20} color={colors.fgMuted} />} label={t("common:buttons.copy")} onPress={() => toast({ title: t("common:buttons.copied"), key: "copy" })} />
+            <ActionRow icon={<UserPlus size={20} color={colors.fgMuted} />} label={t("mobile:userMenu.addFriend")} trailing={<Badge label={t("mobile:presence.online")} variant="success" />} onPress={() => setMenu(false)} />
+            <ActionDivider />
+            <ActionRow icon={<LogOut size={20} color={colors.danger} />} label={t("mobile:userMenu.removeFriend")} labelColor={colors.danger} onPress={() => setMenu(false)} />
+          </>
+        ) : (
+          <View style={{ gap: space.sm, paddingHorizontal: space.sm }}>
+            <Text type="ui" tone="muted">
+              {t("mobile:userMenu.noteDescription")}
+            </Text>
+            <TextField value={note} onChangeText={setNote} placeholder={t("mobile:userMenu.notePlaceholder")} autoFocus />
+            <Button variant="accent" label={t("common:buttons.save")} onPress={() => setMenuMode("menu")} />
+          </View>
+        )}
       </ActionSheet>
 
       <Sheet visible={tall} onClose={() => setTall(false)} title={t("mobile:search.title")} snapPoints={["55%", "92%"]}>

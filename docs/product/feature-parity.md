@@ -1516,7 +1516,7 @@ yeniden stillenen ortak atomlar kadar değişir.
 | Inter (gövde) + Onest (başlık), OFL, paketli | ✅ değişken woff2 | ✅ statik TTF (OTA) | Instrument Sans + Space Grotesk kaldırıldı |
 | Hover = 200ms ton geçişi; konum yayı {500,60,1} | ✅ CSS `linear()` + framer `springs` | ✅ `motion.spring` + `MOTION_PRESETS` (RN Animated + Reanimated `motionTo`/`pressTo`/`toneTo`) | Reanimated adaptörü Dalga 4 mobil kitiyle geldi; basış yayı + overlay koreografisi masaüstü `presets.ts`'ten testle okunuyor |
 | Atomlar: Button (5×3 + yükleniyor), IconButton+ipucu, Avatar/AvatarGroup, Field/Input/Textarea doğrulama, Switch, Checkbox, Radio, Slider, Select, Menü/Bağlam menüsü, Dialog/Sheet, Toast, Skeleton, Badge/CountBadge, Kbd, Chip'ler | ✅ `packages/ui` | ◑ Dalga 4 kit (`components/ui/**`) | Mobil kit indi (aşağıdaki Dalga 4 bölümü); Select/Menü/Kbd mobilde ayrı atom değil (menü = ActionSheet, seçim = RadioGroup/Chip/Segmented, klavye kısayolu yok). Ekranlar henüz kite taşınmadı |
-| Avatar konuşma halkası yeşil → mercan; durum noktası avatarın %30'u | ✅ | ✅ Dalga 4 (`speaking` prop'u) | Mobil `Avatar`: 2px yüzey halkası, solan mercan konuşma halkası, nokta max(10, %30). Sesli oda tile'ları prop'u henüz geçmiyor (ekran dalgası) |
+| Avatar konuşma halkası yeşil → mercan; durum noktası avatarın %30'u | ✅ | ◑ atom hazır, ekranlar YEŞİL | Mobil `Avatar` `speaking` prop'u (2px yüzey halkası, solan mercan halka, nokta max(10, %30)) var, ama hiçbir ekran onu geçmiyor: sesli odada kullanıcı hâlâ yeşil halka görüyor — `voice/ParticipantTile.tsx`, `voice/CameraTile.tsx`, `voice/DraggableCameraPip.tsx`, `voice/VoiceParticipant.tsx` (`speaking ? colors.online`). Dalga 5 ekran işi: bu 4 dosya `Avatar speaking`'e ya da `colors.accent`'e taşınacak |
 | Menü vurgusu mercan dolgu → raised ton; tehlike satırı pembe yıkama | ✅ | — | StatusPicker vurgulu satır mürekkebi uyarlandı |
 | Dev-only UI kiti `/ui-kit.html` (G2 kapısı) | ✅ web dev sunucusu | ✅ `demli://ui-kit` (yalnız `__DEV__`) | web: build'e girmez · mobil: release'de rota ana sayfaya yönlenir |
 | Dolgusuz kontrol hover/basılı + iskelet = göreli beyaz yıkama (`wash` .06 / `wash-strong` .10) | ✅ | ✅ token (`colors.wash`) | mesaj araç çubuğu, güncelleme/sabit mesaj popover'ı ve profil kartı iskeleti `#171717` üstünde görünmüyordu; `ui-tones.test.tsx` her kap tonunda ölçer |
@@ -1543,18 +1543,26 @@ expo-blur native modül). Ekranlar henüz taşınmadı; değişen ortak bileşen
 |---|---|---|---|
 | Basış = ton (120ms içeri / 200ms dışarı) + buton ölçeği (0.97, ikon 0.92); satır yalnız ton | ✅ CSS + framer `pressable` | ✅ `ui/Touchable` | UI iş parçacığında; donanım klavyesi/D-pad odağında 2px mercan `outline` |
 | Button 7 varyant × 3 boy (+ yükleniyor genişliği korur, meşgul ≠ devre dışı) | ✅ | ✅ `ui/Button` | Eski `components/Button` adaptör: eski `primary` → `accent`, `ghost` → `outline` (anlam korunur) |
-| IconButton (aç/kapa duyurusu, uzun bas → ipucu, köşe rozeti) | ✅ | ✅ `ui/IconButton` | `label` zorunlu (erişilebilir ad + ipucu) |
+| IconButton (aç/kapa duyurusu, uzun bas → ipucu, köşe rozeti); açık durum = mercan yıkama + mercan mürekkep, her durumun kendi basılı tonu | ✅ | ✅ `ui/IconButton` | `label` zorunlu (erişilebilir ad + ipucu). İpucu pencere koordinatında yerleşir: ortalı, ekran içinde kalır, üstte yer yoksa alta döner (`placeTooltip` testli). Açık durum masaüstü `bg-accent-surface` ve mobil `StageControlBar` ile aynı dil |
 | Badge / CountBadge (0'da yok, 99+, tabular) / Chip (radyo/onay/kaldırılabilir) | ✅ | ✅ `ui/Badge`, `ui/Chip` | `UnreadCountBadge` API'si aynen, kit `CountPill` ile çiziliyor |
 | Switch 44×24 konum yayı · Checkbox (karışık) · RadioGroup (seçili satır mercan yıkama) · Slider · Segmented (kayan hap) | ✅ | ✅ | Slider gesture-handler + Reanimated, dikey kaydırmayı çalmaz, TalkBack ayarlanabilir |
 | TextField: yüzey → odakta raised ton, mercan imleç/seçim; hata = alan zemini pembe yıkama + 13px satır (çerçeve yok) | ✅ | ✅ | Mercan imleç `ui/Text` `TextInput`'ta, uygulamanın BÜTÜN alanlarında |
 | Avatar: adlı boylar, 2px halka, konuşma halkası, URL başına yükleme hatası → baş harf, expo-image önbellek + geçiş · AvatarStack (−%30, +N) | ✅ | ✅ | `uri` zorunluluğu ve kapsam testi aynen |
-| İskelet: wash-strong blok + ışık süpürmesi (tek paylaşılan değer, azaltılmış harekette durağan) · EmptyState nötr/hata | ✅ | ✅ | Liste iskeletleri tek "Yükleniyor" olarak duyurulur (`mobile:ui.loading`) |
-| Toast kuyruğu (`toast()`, aynı anahtar = değiştir, en fazla 3, yana kaydır = kapat, parmak üstündeyken süre durur) · Banner (form/ekran uyarısı) | ✅ | ✅ `ui/Toast` + kökte `<Toaster/>` | Henüz hiçbir ekran `toast()` çağırmıyor; `ImageActionSheet` hâlâ `ToastAndroid` (ekran dalgası) |
-| Sürüklenebilir sheet: yaylı açılış, hız projeksiyonlu durak seçimi, fırlat/sürükle = kapat, yukarı lastik, perde konumdan türetilir, klavye kaçınma, geri tuşu | ✅ Dialog/Sheet | ✅ `ui/Sheet` | `ActionSheet`/`ActionRow` aynı API ile Sheet üstünde → 6 çağrı yeri değişmeden geçti. Kalan ~20 elle yazılmış RN `<Modal>` sheet'i ekran dalgasında |
+| İskelet: wash-strong blok + opaklık nabzı (1 → .5 → 1, 2s, masaüstü `animate-pulse` ile aynı eğri; tek paylaşılan değer, azaltılmış harekette durağan) · EmptyState nötr/hata | ✅ `animate-pulse` | ✅ | Liste iskeletleri tek "Yükleniyor" olarak duyurulur (`mobile:ui.loading`). Önceki mobil zemin `surfaceRaised` idi → `wash-strong` (her kap tonunda görünür) |
+| Toast kuyruğu (`toast()`, aynı anahtar = değiştir, en fazla 3, yana kaydır = kapat, parmak üstündeyken süre durur) · Banner (form/ekran uyarısı) | ✅ | ✅ `ui/Toast` + kökte ve her Sheet'te `<Toaster/>` | Android'de her RN `Modal` ayrı pencere: kuyruğu en son açılan host çizer, böylece açık sheet'in ÜSTÜNDE görünür (TalkBack bir kez okur). Henüz hiçbir ekran `toast()` çağırmıyor; `ImageActionSheet`/`ImageViewer` `ToastAndroid`'de KALMALI ya da ImageViewer `<Modal>`'ı kendi `<Toaster/>`'ını almalı — yoksa "Kaydedildi" görünmez |
+| Sürüklenebilir sheet: yaylı açılış, hız projeksiyonlu durak seçimi, fırlat/sürükle = kapat, yukarı lastik, perde konumdan türetilir, klavye kaçınma, geri tuşu; kapatma bir İSTEK (çağıran reddederse kart bırakıldığı yerden geri yaylanır) | ✅ Dialog/Sheet | ✅ `ui/Sheet` | `ActionSheet`/`ActionRow` aynı API ile Sheet üstünde → 6 çağrı yeri değişmeden geçti. Kalan ~20 elle yazılmış RN `<Modal>` sheet'i ekran dalgasında |
 | Cam yüzey | ✅ `backdrop-filter` | ◑ `ui/Glass` | iOS gerçek bulanıklık; Android yalnız `blurTarget` verilirse (expo-blur Modal pencereleri arasında bulanıklaştıramıyor), yoksa opak `glass-strong` |
 
 **Doğrulama:** typecheck, lint, 62+ test dosyası (yeni: `kit-math` snap/sürgü/sayaç/renk,
 `toast-store`, `motion-presets` masaüstü `pressable`/`toastPop`/`bannerDrop`/`popIn`
 kaynağına karşı — basış yayı 520→521 mutasyonuyla kırmızıya döndüğü görüldü),
 `expo export --platform android`. **Cihazda/emülatörde dokunma, sürükleme ve TalkBack
-denemesi YAPILMADI** — APK runtime 2.1.0 döngüsünde `demli://ui-kit` üzerinden yapılmalı.
+denemesi YAPILMADI** — AVD'deki tek kurulu yapı release 2.1.0 (versionCode 11, Metro'dan
+JS yükleyemez, `demli://ui-kit` `__DEV__` dışında ana sayfaya yönlenir) ve bu adımda APK
+kurmak yasaktı. **Merge/yayın KAPISI:** 2.1.0 debug/dev-client yapısında AVD `demli-debug`
+üzerinde `demli://ui-kit`'in her bölümü ve durumu (basılı, D-pad odağı, devre dışı, meşgul,
+hata, boş, yükleniyor, azaltılmış hareket) + kitin dokunduğu canlı ekranlar (giriş/profil
+alanları, ayar satırları, ana sayfa Segmented, üye/sunucu/görsel ActionSheet'leri, sohbet
+iskeleti) ekran görüntüsüyle; çok duraklı sheet'i içerik kaydırılmışken sürükleme, sheet
+içinde klavye açık alan, not modunda kapatmanın menüye dönmesi, sheet içinden tost,
+TalkBack ile Slider/Switch/Sheet, tost kaydırma.
