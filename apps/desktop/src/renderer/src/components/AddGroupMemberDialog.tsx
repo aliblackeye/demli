@@ -1,13 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
 import {
   Button,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
 } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
@@ -29,6 +30,7 @@ export function AddGroupMemberDialog(): JSX.Element {
 
   const [username, setUsername] = useState("");
   const [error, setError] = useState<FormError | null>(null);
+  const [touched, setTouched] = useState(false);
 
   const addMember = useAddGroupChatMember(activeGroupChatId);
   const busy = addMember.isPending;
@@ -37,6 +39,7 @@ export function AddGroupMemberDialog(): JSX.Element {
     if (!open) {
       setUsername("");
       setError(null);
+      setTouched(false);
     }
   }, [open]);
 
@@ -45,6 +48,7 @@ export function AddGroupMemberDialog(): JSX.Element {
     if (busy) return;
     const trimmed = username.trim().replace(/^@/, "");
     if (trimmed.length === 0) {
+      setTouched(true);
       setError("desktop:addMember.usernameRequired");
       return;
     }
@@ -61,35 +65,51 @@ export function AddGroupMemberDialog(): JSX.Element {
     );
   };
 
+  const usernameError =
+    error === "desktop:addMember.usernameRequired" ||
+    (touched && username.trim().replace(/^@/, "").length === 0)
+      ? t("desktop:addMember.usernameRequired")
+      : undefined;
+  const formError = error !== null && error !== "desktop:addMember.usernameRequired" ? t(error) : null;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{t("desktop:addMember.title")}</DialogTitle>
           <DialogDescription>{t("desktop:addMember.description")}</DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          <form onSubmit={onSubmit}>
-            {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
-
-            <Input
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              maxLength={USERNAME_MAX_LENGTH + 1}
-              autoFocus
-              spellCheck={false}
-              placeholder={t("desktop:addMember.placeholder")}
-              aria-label={t("desktop:addMember.usernameLabel")}
-              className="font-mono"
-            />
-
-            <Button type="submit" disabled={busy} className="mt-4 w-full">
-              {busy && <Loader2 className="size-4 animate-spin" />}
+        <form onSubmit={onSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
+            {formError && <FormErrorAlert>{formError}</FormErrorAlert>}
+            <Field label={t("desktop:addMember.usernameLabel")} error={usernameError}>
+              <Input
+                value={username}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  if (error !== null) setError(null);
+                }}
+                onBlur={() => setTouched(true)}
+                maxLength={USERNAME_MAX_LENGTH + 1}
+                autoFocus
+                spellCheck={false}
+                autoCapitalize="none"
+                autoComplete="off"
+                placeholder={t("desktop:addMember.placeholder")}
+                className="font-mono"
+              />
+            </Field>
+          </DialogBody>
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
+              {t("buttons.cancel")}
+            </Button>
+            <Button type="submit" variant="accent" loading={busy}>
               {t("desktop:addMember.submit")}
             </Button>
-          </form>
-        </DialogBody>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

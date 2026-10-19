@@ -212,7 +212,9 @@ export function RadioCard({
         >
           {label}
         </span>
-        {detail && <span className="truncate text-2xs leading-4 text-fg-faint">{detail}</span>}
+        {detail && (
+          <span className={cn("text-2xs leading-4 text-fg-faint", align === "center" && "truncate")}>{detail}</span>
+        )}
       </span>
     </button>
   );

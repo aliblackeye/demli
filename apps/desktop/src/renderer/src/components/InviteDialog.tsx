@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import {
-  Button,
   Dialog,
   DialogBody,
   DialogContent,
@@ -9,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { buildInviteLink } from "../lib/invite-link";
@@ -18,10 +15,12 @@ import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import {
   CopyField,
-  inviteLimits,
+  InviteLimits,
+  InviteSkeleton,
   INVITE_EXPIRES_HOURS,
   INVITE_MAX_USES,
 } from "./invite-shared";
+import { InlineError } from "./settings-kit";
 
 export function InviteDialog(): JSX.Element {
   const { t } = useAppTranslation();
@@ -46,9 +45,11 @@ export function InviteDialog(): JSX.Element {
 
   const invite = createInvite.data?.invite;
 
+  const retry = (): void => mutate({ expiresInHours: INVITE_EXPIRES_HOURS, maxUses: INVITE_MAX_USES });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>
             {t("desktop:invite.title", {
@@ -59,46 +60,27 @@ export function InviteDialog(): JSX.Element {
         </DialogHeader>
 
         <DialogBody>
-          {createInvite.isPending && (
-            <div role="status" className="flex items-center gap-2 py-2 text-sm text-fg-muted">
-              <Loader2 className="size-4 animate-spin" />
-              {t("desktop:invite.creating")}
-            </div>
-          )}
-
-          {createInvite.isError && (
-            <div className="space-y-3">
-              <FormErrorAlert>{localizeError(createInvite.error, t)}</FormErrorAlert>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  mutate({ expiresInHours: INVITE_EXPIRES_HOURS, maxUses: INVITE_MAX_USES })
-                }
-              >
-                {t("buttons.retry")}
-              </Button>
-            </div>
-          )}
-
-          {invite && (
+          {createInvite.isError ? (
+            <InlineError
+              message={localizeError(createInvite.error, t)}
+              retryLabel={t("buttons.retry")}
+              onRetry={retry}
+              retrying={createInvite.isPending}
+            />
+          ) : invite ? (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-fg-muted">
-                  {t("desktop:invite.linkLabel")}
-                </p>
-                <CopyField
-                  label={t("desktop:invite.linkLabel")}
-                  value={buildInviteLink(invite.code)}
-                />
+                <p className="text-label font-medium text-fg-muted">{t("desktop:invite.linkLabel")}</p>
+                <CopyField label={t("desktop:invite.linkLabel")} value={buildInviteLink(invite.code)} />
               </div>
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-fg-muted">
-                  {t("desktop:invite.codeLabel")}
-                </p>
+                <p className="text-label font-medium text-fg-muted">{t("desktop:invite.codeLabel")}</p>
                 <CopyField label={t("desktop:invite.codeLabel")} value={invite.code} />
               </div>
-              <p className="text-xs text-fg-faint">{inviteLimits(invite, t)}.</p>
+              <InviteLimits invite={invite} />
             </div>
+          ) : (
+            <InviteSkeleton rows={2} label={t("desktop:invite.creating")} />
           )}
         </DialogBody>
       </DialogContent>

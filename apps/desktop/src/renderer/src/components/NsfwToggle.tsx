@@ -1,5 +1,6 @@
+import { useId } from "react";
 import { EyeOff } from "lucide-react";
-import { cn } from "@demli/ui";
+import { Switch, cn } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 
 /**
@@ -7,6 +8,9 @@ import { useAppTranslation } from "../lib/i18n";
  * settings dialogs (text channels only). Marking a channel NSFW gates it behind
  * an age check for viewers (see {@link NsfwChannelGate}) and lets the server
  * accept NSFW-classified image uploads there.
+ *
+ * A setting row: the whole row is the hit target (a <label> around the real
+ * `Switch`), the switch is named by the row title and described by the hint.
  */
 export function NsfwToggle({
   checked,
@@ -18,45 +22,41 @@ export function NsfwToggle({
   disabled?: boolean;
 }): JSX.Element {
   const { t } = useAppTranslation();
+  const id = useId();
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
+    <label
+      htmlFor={id}
       className={cn(
-        "flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors motion-instant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        "disabled:pointer-events-none disabled:opacity-50",
-        checked
-          ? "border-accent/50 bg-accent/[0.06]"
-          : "border-stroke bg-raised/40 hover:bg-raised",
+        "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3.5 py-3 transition-colors motion-hover",
+        checked ? "bg-accent-surface" : "bg-surface hover:bg-raised/60",
+        disabled && "pointer-events-none opacity-40",
       )}
     >
-      <EyeOff className={cn("size-4 shrink-0", checked ? "text-accent" : "text-fg-faint")} />
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-medium text-fg">
-          {t("desktop:channelNsfw.toggleLabel")}
-        </span>
-        <span className="block text-2xs text-fg-faint">
-          {t("desktop:channelNsfw.toggleHint")}
-        </span>
-      </span>
       <span
         aria-hidden
         className={cn(
-          "relative h-5 w-9 shrink-0 rounded-full transition-colors motion-instant",
-          checked ? "bg-accent" : "bg-stroke-strong",
+          "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors motion-hover",
+          checked ? "bg-accent/20 text-accent" : "bg-raised/60 text-fg-muted",
         )}
       >
-        <span
-          className={cn(
-            "absolute top-0.5 size-4 rounded-full bg-white transition-transform motion-instant",
-            checked ? "translate-x-[18px]" : "translate-x-0.5",
-          )}
-        />
+        <EyeOff className="size-4" />
       </span>
-    </button>
+      <span className="min-w-0 flex-1">
+        <span id={`${id}-label`} className="block text-sm font-medium text-fg">
+          {t("desktop:channelNsfw.toggleLabel")}
+        </span>
+        <span id={`${id}-hint`} className="block text-label text-fg-faint">
+          {t("desktop:channelNsfw.toggleHint")}
+        </span>
+      </span>
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+      />
+    </label>
   );
 }

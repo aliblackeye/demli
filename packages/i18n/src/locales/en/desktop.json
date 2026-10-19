@@ -438,7 +438,7 @@
     "textLabel": "Text",
     "textHint": "Messages, links, media",
     "voiceLabel": "Voice",
-    "voiceHint": "Talk together (Milestone 3)",
+    "voiceHint": "Talk and share your screen",
     "textPlaceholder": "e.g. general",
     "voicePlaceholder": "e.g. Lobby",
     "nameLabel": "Channel name",

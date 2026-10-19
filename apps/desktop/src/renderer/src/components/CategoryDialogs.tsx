@@ -1,13 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
 import {
   Button,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
 } from "@demli/ui";
 import { CATEGORY_NAME_MAX_LENGTH, FormErrorAlert } from "@demli/app-ui";
@@ -21,6 +22,7 @@ import {
 } from "../queries/chat-queries";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
+import { ConfirmDialog, HelpWithCount } from "./settings-kit";
 
 type FormError = CommonErrorKey | "desktop:category.nameRequired";
 
@@ -49,6 +51,7 @@ export function CategoryDialogs(): JSX.Element {
 
   const [name, setName] = useState("");
   const [error, setError] = useState<FormError | null>(null);
+  const [touched, setTouched] = useState(false);
 
   // Destructured so the effect below depends on STABLE reset identities rather
   // than the whole mutation objects (which change on every state transition and
@@ -60,6 +63,7 @@ export function CategoryDialogs(): JSX.Element {
   // Seed the field from whichever dialog opened, and clear the error/mutation
   // state on close so reopening never shows the previous attempt's failure.
   useEffect(() => {
+    setTouched(false);
     if (!dialog) {
       setName("");
       setError(null);
@@ -81,6 +85,7 @@ export function CategoryDialogs(): JSX.Element {
     if (!dialog || busy) return;
     const trimmed = name.trim();
     if (trimmed.length === 0) {
+      setTouched(true);
       setError("desktop:category.nameRequired");
       return;
     }
@@ -110,76 +115,79 @@ export function CategoryDialogs(): JSX.Element {
   };
 
   const isNameForm = dialog?.mode === "create" || dialog?.mode === "rename";
+  const nameError =
+    error === "desktop:category.nameRequired" || (touched && name.trim().length === 0)
+      ? t("desktop:category.nameRequired")
+      : undefined;
+  const formError = error !== null && error !== "desktop:category.nameRequired" ? t(error) : null;
+  // Renaming to the same name is not a change worth a request.
+  const unchanged = dialog?.mode === "rename" && name.trim() === dialog.name;
 
   return (
     <>
       <Dialog open={isNameForm} onOpenChange={(next) => !next && close()}>
-        <DialogContent>
+        <DialogContent closeLabel={t("buttons.close")}>
           <DialogHeader>
             <DialogTitle>
-              {dialog?.mode === "rename"
-                ? t("desktop:category.renameTitle")
-                : t("desktop:category.createTitle")}
+              {dialog?.mode === "rename" ? t("desktop:category.renameTitle") : t("desktop:category.createTitle")}
             </DialogTitle>
             <DialogDescription>
-              {dialog?.mode === "rename"
-                ? dialog.name
-                : t("desktop:category.createDescription")}
+              {dialog?.mode === "rename" ? dialog.name : t("desktop:category.createDescription")}
             </DialogDescription>
           </DialogHeader>
-          <DialogBody>
-            <form onSubmit={onSubmitName}>
-              {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={CATEGORY_NAME_MAX_LENGTH}
-                autoFocus
-                spellCheck={false}
-                placeholder={t("desktop:category.namePlaceholder")}
-                aria-label={t("desktop:category.nameLabel")}
-              />
-              <Button type="submit" disabled={busy} className="mt-4 w-full">
-                {busy && <Loader2 className="size-4 animate-spin" />}
-                {dialog?.mode === "rename"
-                  ? t("desktop:category.rename")
-                  : t("desktop:category.create")}
+          <form onSubmit={onSubmitName} noValidate className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="space-y-4">
+              {formError && <FormErrorAlert>{formError}</FormErrorAlert>}
+              <Field
+                label={t("desktop:category.nameLabel")}
+                error={nameError}
+                help={<HelpWithCount value={name} max={CATEGORY_NAME_MAX_LENGTH} />}
+              >
+                <Input
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    if (error === "desktop:category.nameRequired") setError(null);
+                  }}
+                  onBlur={() => setTouched(true)}
+                  maxLength={CATEGORY_NAME_MAX_LENGTH}
+                  autoFocus
+                  spellCheck={false}
+                  placeholder={t("desktop:category.namePlaceholder")}
+                />
+              </Field>
+            </DialogBody>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+                {t("buttons.cancel")}
               </Button>
-            </form>
-          </DialogBody>
+              <Button type="submit" variant="accent" loading={busy} disabled={unchanged}>
+                {dialog?.mode === "rename" ? t("desktop:category.rename") : t("desktop:category.create")}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialog?.mode === "delete"} onOpenChange={(next) => !next && close()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("desktop:category.deleteTitle", {
-                name: dialog?.mode === "delete" ? dialog.name : "",
-              })}
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
-            <p className="text-sm leading-relaxed text-fg-muted">
-              <Trans
-                t={t}
-                i18nKey="desktop:category.deleteBody"
-                components={{ strong: <span className="font-medium text-fg" /> }}
-              />
-            </p>
-            <div className="mt-5 flex gap-2">
-              <Button variant="danger" disabled={busy} onClick={onDelete} className="flex-1">
-                {deleteCategory.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("desktop:category.deleteConfirm")}
-              </Button>
-              <Button variant="secondary" disabled={busy} onClick={close} className="flex-1">
-                {t("buttons.cancel")}
-              </Button>
-            </div>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={dialog?.mode === "delete"}
+        onOpenChange={(next) => !next && close()}
+        title={t("desktop:category.deleteTitle", { name: dialog?.mode === "delete" ? dialog.name : "" })}
+        confirmLabel={t("desktop:category.deleteConfirm")}
+        cancelLabel={t("buttons.cancel")}
+        closeLabel={t("buttons.close")}
+        onConfirm={onDelete}
+        pending={deleteCategory.isPending}
+        error={error ? <FormErrorAlert>{t(error)}</FormErrorAlert> : undefined}
+      >
+        <p className="text-sm leading-relaxed text-fg-muted">
+          <Trans
+            t={t}
+            i18nKey="desktop:category.deleteBody"
+            components={{ strong: <span className="font-medium text-fg" /> }}
+          />
+        </p>
+      </ConfirmDialog>
     </>
   );
 }

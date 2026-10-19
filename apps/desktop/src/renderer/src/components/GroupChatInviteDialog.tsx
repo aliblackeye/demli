@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link2, Loader2, Trash2 } from "lucide-react";
+import { m } from "framer-motion";
+import { Link2, Trash2 } from "lucide-react";
 import {
   Button,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { FormErrorAlert, springs } from "@demli/app-ui";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { buildInviteLink } from "../lib/invite-link";
@@ -23,10 +25,12 @@ import { useAuthStore } from "../stores/auth-store";
 import { useUiStore } from "../stores/ui-store";
 import {
   CopyField,
-  inviteLimits,
+  InviteLimits,
+  InviteSkeleton,
   INVITE_EXPIRES_HOURS,
   INVITE_MAX_USES,
 } from "./invite-shared";
+import { InlineError } from "./settings-kit";
 
 /**
  * Invite links for a flat group chat (M18, ADR 0005).
@@ -69,11 +73,14 @@ export function GroupChatInviteDialog(): JSX.Element {
   const close = (): void => setGroupChatInviteId(null);
   const invites = invitesQuery.data ?? [];
   const busy = createInvite.isPending || revokeInvite.isPending;
-  const error = invitesQuery.error ?? createInvite.error ?? revokeInvite.error ?? null;
+  const error = createInvite.error ?? revokeInvite.error ?? null;
+
+  const create = (): void =>
+    createInvite.mutate({ expiresInHours: INVITE_EXPIRES_HOURS, maxUses: INVITE_MAX_USES });
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>
             {t("desktop:groupChatInvite.title", {
@@ -83,108 +90,102 @@ export function GroupChatInviteDialog(): JSX.Element {
           <DialogDescription>{t("desktop:groupChatInvite.description")}</DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          {error && <FormErrorAlert className="mb-3">{localizeError(error, t)}</FormErrorAlert>}
+        <DialogBody className="space-y-4">
+          {invitesQuery.isError ? (
+            <InlineError
+              message={localizeError(invitesQuery.error, t)}
+              retryLabel={t("buttons.retry")}
+              onRetry={() => void invitesQuery.refetch()}
+              retrying={invitesQuery.isFetching}
+            />
+          ) : (
+            error && <FormErrorAlert>{localizeError(error, t)}</FormErrorAlert>
+          )}
 
-          {invitesQuery.isPending && (
-            <div role="status" className="flex items-center gap-2 py-2 text-sm text-fg-muted">
-              <Loader2 className="size-4 animate-spin" />
-              {t("desktop:moderationLog.loading")}
+          {invitesQuery.isPending && <InviteSkeleton label={t("desktop:moderationLog.loading")} />}
+
+          {!invitesQuery.isPending && !invitesQuery.isError && invites.length === 0 && (
+            <div className="flex flex-col items-center gap-2 rounded-xl bg-surface px-4 py-6 text-center">
+              <span className="flex size-10 items-center justify-center rounded-full bg-raised text-fg-muted">
+                <Link2 aria-hidden className="size-5" />
+              </span>
+              <p className="text-sm text-fg-muted">{t("desktop:groupChatInvite.empty")}</p>
             </div>
           )}
 
-          {!invitesQuery.isPending && invites.length === 0 && (
-            <p className="py-2 text-sm text-fg-muted">{t("desktop:groupChatInvite.empty")}</p>
-          )}
-
           {invites.length > 0 && (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {invites.map((invite) => (
-                <li key={invite.id} className="space-y-1.5">
+                <li key={invite.id} className="space-y-2 rounded-xl bg-surface p-3.5">
                   <CopyField
                     label={t("desktop:groupChatInvite.linkLabel")}
                     value={buildInviteLink(invite.code)}
+                    inputClassName="bg-app hover:bg-app/70"
                   />
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 text-xs text-fg-faint">
-                      {inviteLimits(invite, t)}
-                    </p>
-                    {isOwner &&
-                      (confirmingRevoke === invite.id ? (
-                        <>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() =>
-                              revokeInvite.mutate(invite.id, {
-                                onSuccess: () => setConfirmingRevoke(null),
-                              })
-                            }
-                          >
-                            {revokeInvite.isPending && (
-                              <Loader2 className="size-4 animate-spin" />
-                            )}
-                            {t("desktop:groupChatInvite.revokeConfirm")}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => setConfirmingRevoke(null)}
-                          >
-                            {t("buttons.cancel")}
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => setConfirmingRevoke(invite.id)}
-                        >
-                          <Trash2 className="size-4" />
-                          {t("desktop:groupChatInvite.revoke")}
-                        </Button>
-                      ))}
+                  <div className="flex min-h-[29px] items-center gap-2">
+                    <InviteLimits invite={invite} className="min-w-0 flex-1" />
+                    {isOwner && confirmingRevoke !== invite.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => {
+                          revokeInvite.reset();
+                          setConfirmingRevoke(invite.id);
+                        }}
+                        className="hover:bg-danger-surface hover:text-danger"
+                      >
+                        <Trash2 className="size-3.5" />
+                        {t("desktop:groupChatInvite.revoke")}
+                      </Button>
+                    )}
                   </div>
-                  {confirmingRevoke === invite.id && (
-                    <p className="text-2xs text-fg-faint">
-                      {t("desktop:groupChatInvite.revokeBody")}
-                    </p>
+                  {isOwner && confirmingRevoke === invite.id && (
+                    <m.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0, transition: springs.position }}
+                      className="flex flex-wrap items-center gap-2 rounded-lg bg-danger-surface px-3 py-2"
+                    >
+                      <p className="min-w-0 flex-1 text-label text-fg">{t("desktop:groupChatInvite.revokeBody")}</p>
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmingRevoke(null)}>
+                        {t("buttons.cancel")}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        loading={revokeInvite.isPending}
+                        onClick={() =>
+                          revokeInvite.mutate(invite.id, {
+                            onSuccess: () => setConfirmingRevoke(null),
+                          })
+                        }
+                      >
+                        {t("desktop:groupChatInvite.revokeConfirm")}
+                      </Button>
+                    </m.div>
                   )}
                 </li>
               ))}
             </ul>
           )}
 
-          <Button
-            variant={invites.length > 0 ? "secondary" : "default"}
-            disabled={busy}
-            onClick={() =>
-              createInvite.mutate({
-                expiresInHours: INVITE_EXPIRES_HOURS,
-                maxUses: INVITE_MAX_USES,
-              })
-            }
-            className="mt-4 w-full"
-          >
-            {createInvite.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Link2 className="size-4" />
-            )}
-            {createInvite.isPending
-              ? t("desktop:groupChatInvite.creating")
-              : t("desktop:groupChatInvite.create")}
-          </Button>
-
           {!isOwner && invites.length > 0 && (
-            <p className="mt-2 text-2xs text-fg-faint">
-              {t("desktop:groupChatInvite.ownerOnlyRevoke")}
-            </p>
+            <p className="text-label text-fg-faint">{t("desktop:groupChatInvite.ownerOnlyRevoke")}</p>
           )}
         </DialogBody>
+
+        <DialogFooter className="pt-4">
+          <Button
+            variant={invites.length > 0 ? "secondary" : "accent"}
+            loading={createInvite.isPending}
+            disabled={revokeInvite.isPending || invitesQuery.isPending}
+            onClick={create}
+            className="w-full"
+          >
+            <Link2 className="size-4" />
+            {t("desktop:groupChatInvite.create")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

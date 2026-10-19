@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { AnimatePresence, m } from "framer-motion";
+import { ArrowLeft, Check, ChevronRight, Sparkles, Ticket } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -8,10 +9,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
   cn,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { FormErrorAlert, springs, transitions } from "@demli/app-ui";
 import { GROUP_NAME_MAX_LENGTH } from "@demli/config";
 import { ApiClientError } from "../lib/api-client";
 import { errorKey, type CommonErrorKey } from "../lib/errors";
@@ -19,6 +21,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { INVITE_LINK_PREFIX, parseInviteCode } from "../lib/invite-link";
 import { useCreateGroup, useRedeemInvite } from "../queries/chat-queries";
 import { useUiStore } from "../stores/ui-store";
+import { HelpWithCount } from "./settings-kit";
 
 /**
  * "Add a server" — the rail's `+` entry point, as one dialog with three steps
@@ -82,28 +85,35 @@ function ChooserRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-stroke bg-raised p-3 text-left",
-        "transition-colors motion-instant hover:border-stroke-strong hover:bg-overlay",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        "group flex w-full cursor-pointer items-center gap-3.5 rounded-xl bg-surface p-3.5 text-left",
+        "transition-colors motion-hover hover:bg-raised active:bg-raised-pressed",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app",
       )}
     >
       <span
         aria-hidden
-        className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-surface text-accent"
+        className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent-surface text-accent"
       >
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-fg">{title}</span>
-        <span className="mt-0.5 block truncate text-2xs text-fg-muted">{hint}</span>
+        <span className="mt-0.5 block truncate text-label text-fg-muted">{hint}</span>
       </span>
       <ChevronRight
         aria-hidden
-        className="size-4 shrink-0 text-fg-faint transition-colors motion-instant group-hover:text-fg"
+        className="size-4 shrink-0 text-fg-subtle transition-colors motion-hover group-hover:text-fg"
       />
     </button>
   );
 }
+
+/** Step content travels in from the side of its step (forward right, back left). */
+const stepMotion = (direction: 1 | -1) => ({
+  initial: { opacity: 0, x: 20 * direction },
+  animate: { opacity: 1, x: 0, transition: springs.position },
+  exit: { opacity: 0, x: -12 * direction, transition: transitions.instant },
+});
 
 /** Create/join a server — see the file header for the step model. */
 export function AddServerDialog(): JSX.Element {
@@ -118,6 +128,7 @@ export function AddServerDialog(): JSX.Element {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<FormError | null>(null);
+  const [touched, setTouched] = useState(false);
 
   const createGroup = useCreateGroup();
   const redeemInvite = useRedeemInvite();
@@ -129,6 +140,7 @@ export function AddServerDialog(): JSX.Element {
       setName("");
       setCode("");
       setError(null);
+      setTouched(false);
     }
   }, [open]);
 
@@ -143,6 +155,7 @@ export function AddServerDialog(): JSX.Element {
 
   const goTo = (next: "choose" | "create" | "join"): void => {
     setError(null);
+    setTouched(false);
     setStep(next);
   };
 
@@ -151,6 +164,7 @@ export function AddServerDialog(): JSX.Element {
     if (busy) return;
     const trimmed = name.trim();
     if (trimmed.length === 0) {
+      setTouched(true);
       setError("desktop:addServer.nameRequired");
       return;
     }
@@ -169,6 +183,7 @@ export function AddServerDialog(): JSX.Element {
     if (busy) return;
     const normalized = parseInviteCode(code);
     if (normalized.length < 4) {
+      setTouched(true);
       setError("desktop:addServer.codeRequired");
       return;
     }
@@ -192,96 +207,146 @@ export function AddServerDialog(): JSX.Element {
         ? t("desktop:addServer.joinDescription")
         : t("desktop:addServer.chooseDescription");
 
+  // Field-level errors sit under their field; anything else (network, server)
+  // is a form-level band above it.
+  const nameError =
+    step === "create" && (error === "desktop:addServer.nameRequired" || (touched && name.trim().length === 0))
+      ? t("desktop:addServer.nameRequired")
+      : undefined;
+  const parsedCode = parseInviteCode(code);
+  const codeError =
+    step === "join" &&
+    (error === "desktop:addServer.codeRequired" ||
+      error === "desktop:addServer.invalidCode" ||
+      (touched && parsedCode.length < 4))
+      ? t(error === "desktop:addServer.invalidCode" ? error : "desktop:addServer.codeRequired")
+      : undefined;
+  const formError =
+    error !== null &&
+    error !== "desktop:addServer.nameRequired" &&
+    error !== "desktop:addServer.codeRequired" &&
+    error !== "desktop:addServer.invalidCode"
+      ? t(error)
+      : null;
+  // A pasted LINK resolves to a code: show which one, so the user sees the
+  // paste was understood before pressing Join.
+  const detectedCode = parsedCode.length >= 4 && parsedCode !== code.trim() ? parsedCode : null;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
+        <DialogBody className="overflow-x-hidden">
+          {formError && <FormErrorAlert className="mb-3">{formError}</FormErrorAlert>}
 
-          {step === "choose" && (
-            <div className="space-y-4">
-              <ChooserRow
-                icon={<Sparkles className="size-5" />}
-                title={t("desktop:addServer.createOwn")}
-                hint={t("desktop:addServer.createOwnHint")}
-                onClick={() => goTo("create")}
-              />
-              <div className="rounded-xl border border-stroke bg-surface/60 p-3 text-center">
-                <p className="text-sm font-medium text-fg">{t("desktop:addServer.haveInvite")}</p>
-                <Button
-                  variant="secondary"
-                  className="mt-2.5 w-full"
-                  onClick={() => goTo("join")}
+          <AnimatePresence mode="wait" initial={false}>
+            {step === "choose" && (
+              <m.div key="choose" {...stepMotion(-1)} className="space-y-3">
+                <ChooserRow
+                  icon={<Sparkles className="size-5" />}
+                  title={t("desktop:addServer.createOwn")}
+                  hint={t("desktop:addServer.createOwnHint")}
+                  onClick={() => goTo("create")}
+                />
+                <div className="rounded-xl bg-surface/60 p-4 text-center">
+                  <p className="font-display text-base font-medium text-fg-display">
+                    {t("desktop:addServer.haveInvite")}
+                  </p>
+                  <Button variant="secondary" className="mt-3 w-full" onClick={() => goTo("join")}>
+                    <Ticket className="size-4" />
+                    {t("desktop:addServer.joinCta")}
+                  </Button>
+                </div>
+              </m.div>
+            )}
+
+            {step === "create" && (
+              <m.form key="create" {...stepMotion(1)} onSubmit={onCreate} noValidate className="space-y-5">
+                <Field
+                  label={t("desktop:addServer.nameLabel")}
+                  error={nameError}
+                  help={<HelpWithCount value={name} max={GROUP_NAME_MAX_LENGTH} />}
                 >
-                  {t("desktop:addServer.joinCta")}
-                </Button>
-              </div>
-            </div>
-          )}
+                  <Input
+                    value={name}
+                    onChange={(event) => {
+                      setName(event.target.value);
+                      if (error === "desktop:addServer.nameRequired") setError(null);
+                    }}
+                    onBlur={() => setTouched(true)}
+                    maxLength={GROUP_NAME_MAX_LENGTH}
+                    autoFocus
+                    placeholder={t("desktop:addServer.namePlaceholder")}
+                  />
+                </Field>
+                <div className="flex justify-between gap-2">
+                  <Button type="button" variant="ghost" onClick={() => goTo("choose")}>
+                    <ArrowLeft className="size-4" />
+                    {t("desktop:addServer.back")}
+                  </Button>
+                  <Button type="submit" variant="accent" loading={busy}>
+                    {t("desktop:addServer.submitCreate")}
+                  </Button>
+                </div>
+              </m.form>
+            )}
 
-          {step === "create" && (
-            <form onSubmit={onCreate}>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={GROUP_NAME_MAX_LENGTH}
-                autoFocus
-                placeholder={t("desktop:addServer.namePlaceholder")}
-                aria-label={t("desktop:addServer.nameLabel")}
-              />
-              <div className="mt-4 flex gap-2">
-                <Button type="button" variant="ghost" onClick={() => goTo("choose")}>
-                  {t("desktop:addServer.back")}
-                </Button>
-                <Button type="submit" disabled={busy} className="flex-1">
-                  {busy && <Loader2 className="size-4 animate-spin" />}
-                  {t("desktop:addServer.submitCreate")}
-                </Button>
-              </div>
-            </form>
-          )}
+            {step === "join" && (
+              <m.form key="join" {...stepMotion(1)} onSubmit={onJoin} noValidate className="space-y-4">
+                <Field
+                  label={t("desktop:addServer.codeLabel")}
+                  error={codeError}
+                  help={
+                    detectedCode ? (
+                      <span className="inline-flex items-center gap-1.5 text-success">
+                        <Check aria-hidden className="size-3.5" />
+                        {t("desktop:settingsUi.codeDetected", { code: detectedCode })}
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  <Input
+                    value={code}
+                    onChange={(event) => {
+                      setCode(event.target.value);
+                      if (error !== null) setError(null);
+                    }}
+                    autoFocus
+                    spellCheck={false}
+                    placeholder={t("desktop:addServer.codePlaceholder")}
+                    className="font-mono"
+                  />
+                </Field>
 
-          {step === "join" && (
-            <form onSubmit={onJoin}>
-              <Input
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                autoFocus
-                spellCheck={false}
-                placeholder={t("desktop:addServer.codePlaceholder")}
-                aria-label={t("desktop:addServer.codeLabel")}
-                className="font-mono"
-              />
+                {/* The formats we ADVERTISE: the branded https link + the bare
+                    code. The other accepted shapes (demli://join/…, /kat/…) still
+                    parse (lib/invite-link.ts) but are never shown. */}
+                <div className="rounded-xl bg-surface p-3.5">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
+                    {t("desktop:addServer.formatsTitle")}
+                  </p>
+                  <ul className="mt-2 space-y-1 font-mono text-label text-fg-muted">
+                    <li className="truncate">{`${INVITE_LINK_PREFIX}hJ3kPq7t`}</li>
+                    <li className="truncate">hJ3kPq7t</li>
+                  </ul>
+                </div>
 
-              {/* The formats we ADVERTISE: the branded https link + the bare
-                  code. The other accepted shapes (demli://join/…, /kat/…) still
-                  parse (lib/invite-link.ts) but are never shown. */}
-              <div className="mt-3 rounded-lg border border-stroke bg-surface/60 p-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-                  {t("desktop:addServer.formatsTitle")}
-                </p>
-                <ul className="mt-1.5 space-y-1 font-mono text-2xs text-fg-muted">
-                  <li className="truncate">{`${INVITE_LINK_PREFIX}hJ3kPq7t`}</li>
-                  <li className="truncate">hJ3kPq7t</li>
-                </ul>
-              </div>
-
-              <div className="mt-4 flex gap-2">
-                <Button type="button" variant="ghost" onClick={() => goTo("choose")}>
-                  {t("desktop:addServer.back")}
-                </Button>
-                <Button type="submit" disabled={busy} className="flex-1">
-                  {busy && <Loader2 className="size-4 animate-spin" />}
-                  {t("desktop:addServer.submitJoin")}
-                </Button>
-              </div>
-            </form>
-          )}
+                <div className="flex justify-between gap-2 pt-1">
+                  <Button type="button" variant="ghost" onClick={() => goTo("choose")}>
+                    <ArrowLeft className="size-4" />
+                    {t("desktop:addServer.back")}
+                  </Button>
+                  <Button type="submit" variant="accent" loading={busy}>
+                    {t("desktop:addServer.submitJoin")}
+                  </Button>
+                </div>
+              </m.form>
+            )}
+          </AnimatePresence>
         </DialogBody>
       </DialogContent>
     </Dialog>

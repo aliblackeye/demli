@@ -26,7 +26,7 @@
  * error, no crash, no dead control (see `readInviteTargetChannel`).
  */
 import { useEffect, useMemo, useState } from "react";
-import { Check, Hash, Loader2, Volume2 } from "lucide-react";
+import { Check, Hash, Search, Volume2 } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -36,7 +36,9 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Skeleton,
   UserAvatar,
+  cn,
 } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
 import type { Channel, User, UserId } from "@demli/types";
@@ -49,10 +51,12 @@ import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import {
   CopyField,
-  inviteLimits,
+  InviteLimits,
+  InviteSkeleton,
   INVITE_EXPIRES_HOURS,
   INVITE_MAX_USES,
 } from "./invite-shared";
+import { InlineError } from "./settings-kit";
 
 /** Per-friend send state. One map in the parent; a row only reads its own entry. */
 type SendState = "idle" | "sending" | "sent" | "failed";
@@ -80,23 +84,23 @@ function FriendInviteRow({
   const sent = state === "sent";
 
   return (
-    <li className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+    <li className="flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors motion-hover content-visibility-row hover:bg-hover">
       <UserAvatar name={user.displayName} colorSeed={user.id} src={user.avatarUrl} size="sm" presence={presence} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium text-fg">{user.displayName}</span>
-        <span className="truncate text-2xs text-fg-faint">@{user.username}</span>
+        <span className="truncate text-label text-fg-faint">@{user.username}</span>
       </span>
       <Button
         size="sm"
         // A sent invite stays visibly sent rather than reverting to "Invite":
         // the whole risk of this list is spamming the same person twice because
         // the row gave no memory of the first send.
-        variant={sent ? "secondary" : "default"}
+        variant={sent ? "ghost" : state === "failed" ? "secondary" : "accent"}
         disabled={sent || disabled}
+        loading={state === "sending"}
         onClick={() => onSend(user.id)}
-        className="w-28 shrink-0"
+        className={cn("w-28 shrink-0", sent && "text-success [&:disabled:not([aria-busy])]:opacity-100")}
       >
-        {state === "sending" && <Loader2 className="size-4 animate-spin" />}
         {sent && <Check className="size-4" />}
         {sent ? t("desktop:channelInvite.sent") : t("desktop:channelInvite.send")}
       </Button>
@@ -184,17 +188,29 @@ export function ChannelInviteDialog(): JSX.Element {
 
   const ChannelIcon = channel?.kind === "voice" ? Volume2 : Hash;
 
+  const retryMint = (): void => {
+    if (!channelId) return;
+    mintInvite({
+      expiresInHours: INVITE_EXPIRES_HOURS,
+      maxUses: INVITE_MAX_USES,
+      targetChannelId: channelId,
+    });
+  };
+  const term = query.trim();
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && setChannelInviteChannelId(null)}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{t("desktop:channelInvite.title", { group: groupName })}</DialogTitle>
           <DialogDescription>
-            {/* The founder's "Alıcılar # genel konumuna gelecek" line. It is the
+            {/* The founder "Alıcılar # genel konumuna gelecek" line. It is the
                 only thing that distinguishes this from a plain server invite, so
                 it names the channel rather than describing the feature. */}
-            <span className="inline-flex items-center gap-1 align-middle">
-              <ChannelIcon className="size-3.5 shrink-0" aria-hidden />
+            <span className="inline-flex items-center gap-1.5 align-middle">
+              <span className="inline-flex size-5 items-center justify-center rounded-md bg-raised text-fg-muted">
+                <ChannelIcon className="size-3.5 shrink-0" aria-hidden />
+              </span>
               <span>
                 {t("desktop:channelInvite.destination", {
                   channel: channel?.name ?? t("desktop:channelInvite.thisChannel"),
@@ -204,46 +220,39 @@ export function ChannelInviteDialog(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          {createInvite.isError && (
-            <div className="mb-3 space-y-3">
-              <FormErrorAlert>{localizeError(createInvite.error, t)}</FormErrorAlert>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (!channelId) return;
-                  mintInvite({
-                    expiresInHours: INVITE_EXPIRES_HOURS,
-                    maxUses: INVITE_MAX_USES,
-                    targetChannelId: channelId,
-                  });
-                }}
-              >
-                {t("buttons.retry")}
-              </Button>
-            </div>
-          )}
+        <DialogBody className="space-y-3">
+          {sendError !== null && <FormErrorAlert>{localizeError(sendError, t)}</FormErrorAlert>}
 
-          {sendError !== null && (
-            <FormErrorAlert className="mb-3">{localizeError(sendError, t)}</FormErrorAlert>
-          )}
-
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            autoFocus
-            spellCheck={false}
-            placeholder={t("desktop:channelInvite.searchPlaceholder")}
-            aria-label={t("desktop:channelInvite.searchPlaceholder")}
-          />
+          <div className="relative">
+            <Search aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-fg-faint" />
+            <Input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+              spellCheck={false}
+              placeholder={t("desktop:channelInvite.searchPlaceholder")}
+              aria-label={t("desktop:channelInvite.searchPlaceholder")}
+              className="pl-10"
+            />
+          </div>
 
           <ul
-            className="mt-3 max-h-64 space-y-0.5 overflow-y-auto"
+            className="max-h-64 space-y-0.5 overflow-y-auto overscroll-contain"
             aria-label={t("desktop:channelInvite.friendsLabel")}
           >
-            {candidates.length === 0 ? (
-              <li className="px-1 py-6 text-center text-sm text-fg-muted">
-                {t("desktop:channelInvite.noFriends")}
+            {friends === undefined ? (
+              [0, 1, 2].map((i) => (
+                <li key={i} aria-hidden className="flex items-center gap-3 px-2.5 py-2">
+                  <Skeleton shape="circle" width={32} />
+                  <Skeleton shape="line" height={13} className={i === 1 ? "w-24" : "w-32"} />
+                </li>
+              ))
+            ) : candidates.length === 0 ? (
+              <li className="px-1 py-8 text-center text-sm text-fg-muted">
+                {term.length > 0
+                  ? t("desktop:settingsUi.friendsNoMatch", { query: term })
+                  : t("desktop:channelInvite.noFriends")}
               </li>
             ) : (
               candidates.map((friend) => (
@@ -261,20 +270,22 @@ export function ChannelInviteDialog(): JSX.Element {
             )}
           </ul>
 
-          <div className="mt-4 space-y-1.5 border-t border-stroke pt-4">
-            <p className="text-xs font-medium text-fg-muted">
-              {t("desktop:channelInvite.linkLabel")}
-            </p>
-            {inviteLink ? (
+          <div className="space-y-1.5 pt-3 shadow-[inset_0_1px_0_var(--color-stroke)]">
+            <p className="pt-1 text-label font-medium text-fg-muted">{t("desktop:channelInvite.linkLabel")}</p>
+            {createInvite.isError ? (
+              <InlineError
+                message={localizeError(createInvite.error, t)}
+                retryLabel={t("buttons.retry")}
+                onRetry={retryMint}
+                retrying={createInvite.isPending}
+              />
+            ) : inviteLink ? (
               <>
                 <CopyField label={t("desktop:channelInvite.linkLabel")} value={inviteLink} />
-                {invite && <p className="text-2xs text-fg-faint">{inviteLimits(invite, t)}.</p>}
+                {invite && <InviteLimits invite={invite} />}
               </>
             ) : (
-              <div role="status" className="flex items-center gap-2 py-2 text-sm text-fg-muted">
-                <Loader2 className="size-4 animate-spin" />
-                {t("desktop:invite.creating")}
-              </div>
+              <InviteSkeleton label={t("desktop:invite.creating")} />
             )}
           </div>
         </DialogBody>
