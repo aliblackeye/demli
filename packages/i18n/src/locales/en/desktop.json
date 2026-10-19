@@ -523,6 +523,8 @@
     "deleteConfirmTitle": "Delete your account?",
     "deleteConfirmBody": "Your account will be frozen for 14 days. Sign in again within 14 days to restore it — after that it's permanently deleted.",
     "deleteConfirmAction": "Delete my account",
+    "deleteConsequence1": "You're signed out on every device right away.",
+    "deleteConsequence2": "Your profile disappears from member lists and search right away.",
     "previewHeading": "Preview",
     "previewNote": "This is how your profile card will look once you save.",
     "avatarSection": "Avatar",

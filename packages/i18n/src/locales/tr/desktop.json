@@ -523,6 +523,8 @@
     "deleteConfirmTitle": "Hesabın silinsin mi?",
     "deleteConfirmBody": "Hesabın 14 gün donacak. 14 gün içinde tekrar giriş yaparsan geri gelir; sonra kalıcı olarak silinir.",
     "deleteConfirmAction": "Hesabımı sil",
+    "deleteConsequence1": "Bütün cihazlarında oturumun hemen kapanır.",
+    "deleteConsequence2": "Profilin üye listelerinden ve aramadan hemen kalkar.",
     "previewHeading": "Önizleme",
     "previewNote": "Kaydedince profil kartın böyle görünecek.",
     "avatarSection": "Avatar",

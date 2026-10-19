@@ -10,16 +10,13 @@ import { AnimatePresence, m } from "framer-motion";
 import { Camera, Check, ImagePlus, Loader2, Trash2, TriangleAlert } from "lucide-react";
 import {
   Button,
-  Dialog,
-  DialogPortal,
-  DialogPrimitive,
   Field,
   Input,
   Textarea,
   UserAvatar,
   cn,
 } from "@demli/ui";
-import { FormErrorAlert, overlayFade, popIn, toastPop } from "@demli/app-ui";
+import { FormErrorAlert, toastPop } from "@demli/app-ui";
 import { USERNAME_MAX_LENGTH } from "@demli/config";
 import { errorKey, type CommonErrorKey } from "../lib/errors";
 import { userBannerUrl } from "../lib/banner";
@@ -38,6 +35,7 @@ import { useAuthStore } from "../stores/auth-store";
 import { useUiStore } from "../stores/ui-store";
 import { BirthdateVerification } from "./BirthdateVerification";
 import { ImageCropDialog } from "./ImageCropDialog";
+import { ConfirmDialogShell } from "./MemberDialogs";
 import { ProfileIdentityPreview } from "./ProfileCard";
 
 const DISPLAY_NAME_MAX_LENGTH = 48;
@@ -115,18 +113,18 @@ const SAVE_STEP_LABEL = {
  * "Danger zone" — permanently delete the account. Deletion FREEZES the account for
  * 14 days (signing in again within that window reactivates it); after that it is
  * removed for good. A confirmation dialog spells this out; on success we sign the
- * user out. Rendered ABOVE the settings modal (z-[58] > settings z-[55]).
+ * user out. The confirmation is the same danger chrome as kick / ban
+ * ({@link ConfirmDialogShell}: icon disc, stated consequences, Cancel focused,
+ * a bottom sheet on a narrow window), layered above the settings modal.
  */
 function DangerZone(): JSX.Element {
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<CommonErrorKey | null>(null);
   const closeSettings = useUiStore((s) => s.closeSettings);
   const deleteAccount = useDeleteAccount();
 
   const onConfirm = (): void => {
     if (deleteAccount.isPending) return;
-    setError(null);
     deleteAccount.mutate(undefined, {
       onSuccess: () => {
         setOpen(false);
@@ -136,7 +134,6 @@ function DangerZone(): JSX.Element {
         closeSettings();
         void logoutActiveAccount();
       },
-      onError: (err) => setError(errorKey(err)),
     });
   };
 
@@ -149,92 +146,42 @@ function DangerZone(): JSX.Element {
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-fg">{t("desktop:profile.deleteHeading")}</h3>
           <p className="mt-1 text-label text-fg-muted">{t("desktop:profile.deleteDescription")}</p>
-          <Button variant="danger" size="sm" className="mt-4" onClick={() => setOpen(true)}>
+          <Button
+            variant="danger"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              // A fresh confirmation every time: a failed attempt's error must
+              // not greet the next one.
+              deleteAccount.reset();
+              setOpen(true);
+            }}
+          >
             <Trash2 className="size-4" aria-hidden />
             {t("desktop:profile.deleteAction")}
           </Button>
         </div>
       </div>
 
-      <ConfirmLayer
+      <ConfirmDialogShell
+        layer="overSettings"
         open={open}
-        onDismiss={() => !deleteAccount.isPending && setOpen(false)}
+        tone="danger"
+        icon={<Trash2 />}
         title={t("desktop:profile.deleteConfirmTitle")}
-        body={t("desktop:profile.deleteConfirmBody")}
-        error={error ? t(error) : null}
-        actions={
-          <>
-            <Button variant="secondary" onClick={() => setOpen(false)} disabled={deleteAccount.isPending}>
-              {t("buttons.cancel")}
-            </Button>
-            <Button variant="danger" onClick={onConfirm} loading={deleteAccount.isPending}>
-              {t("desktop:profile.deleteConfirmAction")}
-            </Button>
-          </>
-        }
+        description={t("desktop:profile.deleteConfirmBody")}
+        consequences={[
+          t("desktop:profile.deleteConsequence1"),
+          t("desktop:profile.deleteConsequence2"),
+        ]}
+        error={deleteAccount.error}
+        busy={deleteAccount.isPending}
+        submitLabel={t("desktop:profile.deleteConfirmAction")}
+        submitVariant="danger"
+        onSubmit={onConfirm}
+        onClose={() => setOpen(false)}
       />
     </section>
-  );
-}
-
-/**
- * A confirmation card that layers ABOVE the settings modal (z-[58] > z-[55]),
- * framer-animated in both directions while keeping Radix's focus trap and Esc.
- * Used by the delete-account confirmation and the unsaved-changes guard.
- */
-function ConfirmLayer({
-  open,
-  onDismiss,
-  title,
-  body,
-  error,
-  actions,
-}: {
-  open: boolean;
-  onDismiss: () => void;
-  title: string;
-  body: string;
-  error?: string | null;
-  actions: JSX.Element;
-}): JSX.Element {
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>
-      <AnimatePresence>
-        {open && (
-          <DialogPortal forceMount>
-            <DialogPrimitive.Overlay asChild forceMount>
-              <m.div
-                variants={overlayFade}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="fixed inset-0 z-[58] surface-scrim"
-              />
-            </DialogPrimitive.Overlay>
-            <DialogPrimitive.Content asChild forceMount>
-              <div className="fixed inset-0 z-[58] flex items-center justify-center p-6 focus:outline-none">
-                <m.div
-                  variants={popIn}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="w-full max-w-md overflow-hidden rounded-card bg-app p-6"
-                >
-                  <DialogPrimitive.Title className="font-display text-xl font-medium leading-tight text-fg-display">
-                    {title}
-                  </DialogPrimitive.Title>
-                  <DialogPrimitive.Description className="mt-2 text-sm leading-relaxed text-fg-muted">
-                    {body}
-                  </DialogPrimitive.Description>
-                  {error && <FormErrorAlert className="mt-3">{error}</FormErrorAlert>}
-                  <div className="mt-6 flex justify-end gap-2">{actions}</div>
-                </m.div>
-              </div>
-            </DialogPrimitive.Content>
-          </DialogPortal>
-        )}
-      </AnimatePresence>
-    </Dialog>
   );
 }
 
@@ -676,27 +623,24 @@ export function ProfileSettings(): JSX.Element {
           Raised when the user tries to close settings (Esc, backdrop, X) or
           switch section with a draft open. Discarding here is the ONLY way an
           edit is silently dropped, and the user asked for it explicitly. */}
-      <ConfirmLayer
+      <ConfirmDialogShell
+        layer="overSettings"
         open={pendingSettingsNav !== null}
-        onDismiss={cancelSettingsNav}
         title={t("desktop:profile.unsavedTitle")}
-        body={t("desktop:profile.unsavedBody")}
-        actions={
-          <>
-            <Button variant="secondary" onClick={cancelSettingsNav}>
-              {t("desktop:profile.unsavedKeepEditing")}
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                discardDraft();
-                confirmSettingsNav();
-              }}
-            >
-              {t("desktop:profile.unsavedDiscard")}
-            </Button>
-          </>
-        }
+        description={t("desktop:profile.unsavedBody")}
+        error={null}
+        busy={false}
+        cancelLabel={t("desktop:profile.unsavedKeepEditing")}
+        // Losing the draft is the destructive answer, so the safe one —
+        // keep editing — holds focus, exactly like a danger confirmation.
+        initialFocus="cancel"
+        submitLabel={t("desktop:profile.unsavedDiscard")}
+        submitVariant="danger"
+        onSubmit={() => {
+          discardDraft();
+          confirmSettingsNav();
+        }}
+        onClose={cancelSettingsNav}
       />
 
       <ImageCropDialog
