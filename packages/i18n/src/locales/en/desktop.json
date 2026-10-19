@@ -806,7 +806,8 @@
     "empty": "No shareable screens or windows were found.",
     "screensHeading": "Screens",
     "windowsHeading": "Windows",
-    "screensHint": "For a film, pick the window it plays in: only its sound is sent."
+    "screensHint": "For a film, pick the window it plays in: only its sound is sent.",
+    "loading": "Listing your screens and windows…"
   },
   "shareAudio": {
     "statusLive": "Sharing your screen with sound",
@@ -865,7 +866,8 @@
     "selfViewOff": "Hide your camera",
     "selfViewCameraOff": "Your camera is off",
     "quietParticipants_one": "{{count}} more — appears when they speak",
-    "quietParticipants_other": "{{count}} more — appear when they speak"
+    "quietParticipants_other": "{{count}} more — appear when they speak",
+    "live": "LIVE"
   },
   "devices": {
     "description": "Pick which microphone, output, and camera Demli should use.",
@@ -878,7 +880,9 @@
     "speakerN": "Speaker {{number}}",
     "cameraN": "Camera {{number}}",
     "cameraNote": "Camera names appear once you grant camera access.",
-    "note": "Device names appear once you grant microphone access. Output switching depends on your system — if a selection has no effect, audio stays on the system default."
+    "note": "Device names appear once you grant microphone access. Output switching depends on your system — if a selection has no effect, audio stays on the system default.",
+    "inputEmpty": "No microphone found. Plug one in and it shows up here.",
+    "outputEmpty": "No audio output found. Plug in speakers or headphones and they show up here."
   },
   "sound": {
     "heading": "Interface sounds",
@@ -1188,7 +1192,10 @@
     "busyCallingYou": "{{name}} is calling you",
     "busyVideoCallingYou": "{{name}} is video calling you",
     "busySwitchHint": "Answering will end your current call",
-    "returnToCall": "Return to call"
+    "returnToCall": "Return to call",
+    "addPersonLoading": "Loading your friends…",
+    "addPersonNoMatch": "No friends match “{{query}}”.",
+    "addPersonLoadFailed": "Couldn't load your friends. You can try again."
   },
   "recentCalls": {
     "navLabel": "Recent Calls",

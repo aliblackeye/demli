@@ -6,7 +6,7 @@
  * used to lack entirely.
  */
 
-import { AlertTriangle, Loader2, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, AlertTriangle, Loader2, Volume2, VolumeX } from "lucide-react";
 import { Button, cn } from "@demli/ui";
 import type { ShareAudioNotice, ShareAudioSource } from "../lib/screen-share";
 import { localizeVoiceError } from "../lib/errors";
@@ -99,7 +99,20 @@ export function shareAudioView(state: ShareAudioState): ShareAudioView {
 const TONE_TEXT: Record<Tone, string> = {
   ok: "text-online",
   muted: "text-fg-muted",
-  warn: "text-idle",
+  warn: "text-warning",
+};
+
+/**
+ * The box follows the state it reports. It used to be green in every state —
+ * including "viewers hear nothing" — so the colour contradicted the words. Now:
+ * live sound sits on a quiet green wash, a waiting / deliberately silent share on
+ * the neutral wash, and a share that FAILED or was asked for sound and has none
+ * on the amber warning wash. Borderless, like every Koyu Masa notice.
+ */
+const TONE_BOX: Record<Tone, string> = {
+  ok: "bg-success/10",
+  muted: "bg-wash",
+  warn: "bg-warning/12",
 };
 
 /** Presentational half — renders a {@link ShareAudioView}. */
@@ -116,27 +129,43 @@ export function ShareAudioStatusView({
 }): JSX.Element {
   const { t } = useAppTranslation();
   const Icon = view.icon === "live" ? Volume2 : view.icon === "waiting" ? Loader2 : VolumeX;
+  // A warning ALERT below a muted status still paints the box amber: the
+  // sharer's eye goes to the box, and the box has to say "something is wrong".
+  const boxTone: Tone = view.alert?.tone === "warn" ? "warn" : view.statusTone;
   return (
     <div
       data-testid="share-audio-status"
-      className={cn("rounded-md border border-online/25 bg-online/10 px-2 py-1.5", className)}
+      data-tone={boxTone}
+      className={cn(
+        "rounded-lg px-2.5 py-2 transition-colors motion-hover animate-fade-in",
+        TONE_BOX[boxTone],
+        className,
+      )}
     >
-      <p className={cn("flex items-center gap-1.5 text-2xs", TONE_TEXT[view.statusTone])}>
-        <Icon className={cn("size-3.5 shrink-0", view.icon === "waiting" && "animate-spin")} />
+      <p className={cn("flex items-center gap-1.5 text-2xs font-medium", TONE_TEXT[view.statusTone])}>
+        <Icon
+          aria-hidden
+          className={cn(
+            "size-3.5 shrink-0",
+            view.icon === "waiting" && "animate-spin motion-reduce:animate-none",
+          )}
+        />
         {t(view.statusKey)}
       </p>
-      {view.sourceKey && <p className="mt-1 text-badge text-fg-faint">{t(view.sourceKey)}</p>}
+      {view.sourceKey && (
+        <p className="mt-1 pl-5 text-badge leading-snug text-fg-faint">{t(view.sourceKey)}</p>
+      )}
       {view.alert && (
         <div
           role={view.alert.tone === "warn" ? "alert" : "status"}
           className={cn(
-            "mt-1.5 rounded-md border px-2 py-1.5",
-            view.alert.tone === "warn" ? "border-idle/40 bg-idle/10" : "border-stroke bg-surface",
+            "mt-2 rounded-md px-2 py-1.5",
+            view.alert.tone === "warn" ? "bg-warning/12" : "bg-wash",
           )}
         >
           {view.alert.titleKey && (
-            <p className="flex items-start gap-1.5 text-2xs font-semibold text-idle">
-              <AlertTriangle className="mt-px size-3.5 shrink-0" />
+            <p className="flex items-start gap-1.5 text-2xs font-semibold text-warning">
+              <AlertTriangle aria-hidden className="mt-px size-3.5 shrink-0" />
               {t(view.alert.titleKey)}
             </p>
           )}
@@ -149,8 +178,9 @@ export function ShareAudioStatusView({
               variant="secondary"
               size="sm"
               data-testid="share-audio-send-system"
-              className="mt-1.5 w-full"
+              className="mt-2 w-full"
               disabled={switching}
+              loading={switching}
               onClick={onSendSystemSound}
             >
               {t("desktop:shareAudio.sendSystemSound")}
@@ -187,12 +217,16 @@ export function VoiceErrorNotice({ className }: { className?: string }): JSX.Ele
   return (
     <p
       role="alert"
+      data-testid="voice-error"
+      // Borderless pink wash (danger-surface) with the glyph, so the error is
+      // recognised by shape as well as colour (design doc §1.4).
       className={cn(
-        "rounded-md border border-danger/30 bg-danger/10 px-2 py-1.5 text-2xs leading-snug text-danger",
+        "flex items-start gap-2 rounded-lg bg-danger-surface px-2.5 py-2 text-2xs leading-snug text-danger animate-fade-in",
         className,
       )}
     >
-      {localizeVoiceError(voiceError, t)}
+      <AlertCircle aria-hidden className="mt-px size-3.5 shrink-0" />
+      <span>{localizeVoiceError(voiceError, t)}</span>
     </p>
   );
 }
