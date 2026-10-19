@@ -63,9 +63,10 @@ import {
   PanelRightOpen,
   PictureInPicture2,
   Tv,
+  Video,
   Volume2,
 } from "lucide-react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
+import { IconButton, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
 import { staggerContainer, staggerItem, transitions } from "@demli/app-ui";
 import type { RemoteScreenShare } from "@demli/media";
 import type { GroupId } from "@demli/types";
@@ -241,33 +242,26 @@ function lastRowCenteringStyle(
   return leading > 0 ? { gridColumnStart: leading + 1 } : undefined;
 }
 
+/**
+ * Stage-header action: the design system's ghost IconButton (bare glyph, white
+ * wash on hover). A toggle passes `pressed`, which both announces `aria-pressed`
+ * and paints the coral "on" wash — a plain action leaves it undefined.
+ */
 function ToolbarButton({
   label,
   icon: Icon,
-  active = false,
+  pressed,
   onClick,
 }: {
   label: string;
   icon: LucideIcon;
-  active?: boolean;
+  pressed?: boolean;
   onClick: () => void;
 }): JSX.Element {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="secondary"
-          size="icon-sm"
-          aria-label={label}
-          aria-pressed={active}
-          onClick={onClick}
-          className={cn(active && "bg-accent/20 text-accent hover:bg-accent/30")}
-        >
-          <Icon className="size-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
+    <IconButton variant="ghost" size="sm" label={label} tooltipSide="bottom" pressed={pressed} onClick={onClick}>
+      <Icon aria-hidden />
+    </IconButton>
   );
 }
 
@@ -581,19 +575,21 @@ export function VideoStage(): JSX.Element {
 
   const toolbar: ReactNode = (
     <div className="flex shrink-0 items-center justify-between gap-2 pb-3">
-      {/* Demli Voice v2 header: channel glyph + name (display font) · a separator ·
+      {/* Stage header: channel glyph + name (Onest display) · a dot separator ·
           the contextual hint. The room name comes from the join-time label. */}
-      <div className="flex min-w-0 items-center gap-2.5">
-        <Volume2 className="size-4 shrink-0 text-fg-muted" />
+      <div className="flex min-w-0 items-center gap-2.5 pl-1">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-fg-muted">
+          <Volume2 aria-hidden className="size-4" />
+        </span>
         {channelName && (
           <>
-            <span className="shrink-0 truncate font-display text-sm font-semibold text-fg">
+            <span className="shrink-0 truncate font-display text-base font-medium text-fg-display">
               {channelName}
             </span>
-            <span aria-hidden className="h-4 w-px shrink-0 bg-stroke-strong" />
+            <span aria-hidden className="size-1 shrink-0 rounded-full bg-fg-subtle" />
           </>
         )}
-        <p className="truncate text-xs font-medium text-fg-muted">
+        <p className="truncate text-label text-fg-faint">
           {layout.mode === "grid" ? t("desktop:stage.focusHint") : t("desktop:stage.regionLabel")}
         </p>
       </div>
@@ -639,7 +635,7 @@ export function VideoStage(): JSX.Element {
                 : t("desktop:stage.collapseCameras")
             }
             icon={filmstripCollapsed ? PanelRightOpen : PanelRightClose}
-            active={!filmstripCollapsed}
+            pressed={!filmstripCollapsed}
             onClick={toggleFilmstrip}
           />
         )}
@@ -657,7 +653,7 @@ export function VideoStage(): JSX.Element {
                 : t("desktop:stage.selfViewOn")
             }
             icon={PictureInPicture2}
-            active={pipEnabled}
+            pressed={pipEnabled}
             onClick={togglePip}
           />
         )}
@@ -669,7 +665,7 @@ export function VideoStage(): JSX.Element {
               fullscreen ? t("desktop:stage.fullscreenExit") : t("desktop:stage.fullscreenEnter")
             }
             icon={fullscreen ? Minimize2 : Maximize2}
-            active={fullscreen}
+            pressed={fullscreen}
             onClick={toggleFullscreen}
           />
         )}
@@ -689,8 +685,14 @@ export function VideoStage(): JSX.Element {
 
   const gridView: ReactNode =
     layout.grid.length === 0 ? (
-      <div className="flex h-full w-full items-center justify-center">
-        <p className="text-sm text-fg-muted">{t("desktop:stage.empty")}</p>
+      <div
+        data-testid="stage-empty"
+        className="flex h-full w-full flex-col items-center justify-center gap-3 text-center animate-fade-in"
+      >
+        <span className="flex size-12 items-center justify-center rounded-full bg-surface text-fg-faint">
+          <Video aria-hidden className="size-5" />
+        </span>
+        <p className="text-label text-fg-muted">{t("desktop:stage.empty")}</p>
       </div>
     ) : gridShape.scroll ? (
       // Tiles resolve in a gentle stagger (framer) on mount; a later join animates
@@ -838,15 +840,18 @@ export function VideoStage(): JSX.Element {
             {stageIsTheater && pinnable && tile.kind === "participant" && tile.camera && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="icon-sm"
+                  <button
+                    type="button"
                     aria-label={t("desktop:stage.pinToOverlay")}
                     onClick={() => setPipSource(tile.camera!.key)}
-                    className="absolute right-1 top-1 z-10 size-6 bg-black/60 text-white hover:bg-black/80"
+                    className={cn(
+                      "absolute right-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-full surface-glass-strong text-fg",
+                      "transition-colors motion-hover hover:bg-raised",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                    )}
                   >
-                    <PictureInPicture2 className="size-3.5" />
-                  </Button>
+                    <PictureInPicture2 aria-hidden className="size-3.5" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">{t("desktop:stage.pinToOverlay")}</TooltipContent>
               </Tooltip>
@@ -861,7 +866,7 @@ export function VideoStage(): JSX.Element {
       {layout.hiddenBySpeakerRule.length > 0 && (
         <p
           data-testid="filmstrip-quiet-count"
-          className="shrink-0 rounded-lg border border-stroke bg-black/25 px-2 py-2 text-center text-2xs font-medium text-fg-muted"
+          className="shrink-0 rounded-xl bg-wash px-2 py-2.5 text-center text-2xs font-medium text-fg-muted"
         >
           {t("desktop:stage.quietParticipants", {
             count: layout.hiddenBySpeakerRule.length,
@@ -874,15 +879,17 @@ export function VideoStage(): JSX.Element {
   return (
     <section
       aria-label={t("desktop:stage.regionLabel")}
-      // Demli Voice v2 (founder .dc.html): the voice room sits on a warm vertical
-      // gradient (#2A0F07 → #180806 → #0C0403), not a flat fill — the stage card,
-      // tiles and panel float over it. Legacy comma rgb → Safari 12 (web) safe.
-      style={{
-        backgroundImage: "linear-gradient(180deg, #2a0f07 0%, #180806 50%, #0c0403 100%)",
-      }}
+      data-testid="video-stage"
+      data-mode={layout.mode}
+      data-fullscreen={fullscreen || undefined}
+      // Koyu Masa: the room sits on the page black, with ONE warm light — a faint
+      // coral wash from the top edge (the "dem" light), mixed from the accent
+      // token so it follows the palette. Fullscreen arrives with a short fade so
+      // the jump to the whole window is a transition, not a cut.
       className={cn(
-        "flex min-w-0 flex-col",
-        fullscreen ? "fixed inset-0 z-50 p-3" : "min-h-0 flex-1 p-4",
+        "flex min-w-0 flex-col bg-rail",
+        "bg-[radial-gradient(80%_45%_at_50%_0%,color-mix(in_oklab,var(--color-accent)_7%,transparent),transparent_75%)]",
+        fullscreen ? "fixed inset-0 z-50 p-3 animate-fade-in" : "min-h-0 flex-1 p-4",
       )}
     >
       {toolbar}
@@ -890,12 +897,10 @@ export function VideoStage(): JSX.Element {
         ref={rowRef}
         className={cn(
           "flex min-h-0 flex-1",
-          // Sunken glass stage card (Demli Voice v2): a darker warm inset panel with
-          // a cream hairline, an inset top highlight and a soft drop, so the stage
-          // reads as a distinct premium surface floating over the shell. Dropped in
-          // fullscreen, where the stage fills the window edge-to-edge.
-          !fullscreen &&
-            "rounded-[20px] border border-stroke bg-rail/40 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_24px_-12px_rgba(0,0,0,0.62)]",
+          // The stage card: the base tone (#0d0d0d) on the page black, radius 24,
+          // no border and no shadow — Koyu Masa separates by tone alone. Dropped
+          // in fullscreen, where the stage fills the window edge-to-edge.
+          !fullscreen && "rounded-card bg-app p-3",
         )}
       >
         {stageArea}

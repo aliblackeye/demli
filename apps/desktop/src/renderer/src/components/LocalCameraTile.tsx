@@ -35,6 +35,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { useAuthStore } from "../stores/auth-store";
 import { startLocalPreviewPlayback } from "../lib/video-playback";
 import { VideoTileLabel } from "./VideoTileLabel";
+import { SpeakingGlow } from "./AvatarTile";
 
 export interface LocalCameraTileProps {
   /** Selected camera device (null = platform default). */
@@ -127,15 +128,16 @@ export const LocalCameraTile = memo(function LocalCameraTile({
             },
           }
         : {})}
+      data-testid="local-camera-tile"
+      data-speaking={speaking || undefined}
       className={cn(
-        "group/tile relative flex items-center justify-center overflow-hidden",
-        "rounded-lg border border-accent/40 bg-black",
+        "group/tile relative flex items-center justify-center overflow-hidden rounded-xl bg-rail",
+        "[--avatar-ring:var(--color-rail)]",
         // Inset rings — same reason as CameraTile/AvatarTile: a scroll container
         // clips on all four sides, so an outset ring loses its outer edge.
         interactive &&
-          "cursor-pointer outline-none transition hover:border-accent/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        speaking && "border-online ring-2 ring-inset ring-online",
-        active && "border-accent ring-2 ring-inset ring-accent",
+          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
+        active && "ring-2 ring-inset ring-accent",
         className,
       )}
     >
@@ -152,6 +154,12 @@ export const LocalCameraTile = memo(function LocalCameraTile({
           className="relative h-full w-full object-contain"
         />
       )}
+      {interactive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-wash opacity-0 transition-opacity motion-hover group-hover/tile:opacity-100"
+        />
+      )}
       {showName && (
         <VideoTileLabel
           name={name}
@@ -159,6 +167,7 @@ export const LocalCameraTile = memo(function LocalCameraTile({
           deafened={participant?.deafened ?? false}
         />
       )}
+      <SpeakingGlow on={speaking} />
     </div>
   );
 });

@@ -75,6 +75,11 @@ export function StageHeightHandle({
       role="separator"
       aria-orientation="horizontal"
       aria-label={ariaLabel}
+      // A focusable separator is a value control (WAI-ARIA window splitter):
+      // it announces where it is between its bounds.
+      aria-valuenow={Math.round(heightPx)}
+      aria-valuemin={minPx}
+      aria-valuemax={maxPx}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -82,15 +87,17 @@ export function StageHeightHandle({
       onPointerCancel={endDrag}
       onKeyDown={onKeyDown}
       className={cn(
-        "group/resize relative flex h-2 shrink-0 cursor-row-resize touch-none items-center justify-center",
-        "border-b border-stroke bg-app outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        // A 12px hit strip on the conversation tone — no rule line (Koyu Masa is
+        // borderless); the grip alone marks it, and lights coral on hover/focus.
+        "group/resize relative flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center",
+        "bg-app outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
       )}
     >
       {/* Slim grip line that thickens/accents on hover or focus. */}
       <span
         className={cn(
-          "h-0.5 w-10 rounded-full bg-stroke transition-colors",
-          "group-hover/resize:bg-accent group-focus-visible/resize:bg-accent",
+          "h-1 w-10 rounded-full bg-stroke-strong transition-colors motion-hover",
+          "group-hover/resize:bg-accent group-focus-visible/resize:bg-accent group-active/resize:bg-accent-pressed",
         )}
       />
     </div>

@@ -25,6 +25,7 @@ import type { RemoteCamera, VoiceParticipant } from "@demli/media";
 import { useChatStore } from "../stores/chat-store";
 import { VideoTileLabel } from "./VideoTileLabel";
 import { ParticipantVolumeMenu } from "./ParticipantVolumeMenu";
+import { SpeakingGlow } from "./AvatarTile";
 
 export interface CameraTileProps {
   camera: RemoteCamera;
@@ -108,17 +109,18 @@ export const CameraTile = memo(function CameraTile({
             },
           }
         : {})}
+      data-testid="camera-tile"
+      data-speaking={speaking || undefined}
       className={cn(
-        "group/tile relative flex items-center justify-center overflow-hidden",
-        "rounded-lg border border-stroke bg-black",
+        // Borderless: the video sits on the page-black tone, letterboxed whole.
+        "group/tile relative flex items-center justify-center overflow-hidden rounded-xl bg-rail",
+        "[--avatar-ring:var(--color-rail)]",
         // Rings are INSET: these tiles sit in scroll containers (the grid and the
         // camera panel), and a scroll container clips on all four sides, so an
-        // outset ring is sheared off the edge tiles. Drawing inside the border box
-        // leaves nothing to clip. See AvatarTile for the full reasoning.
+        // outset ring is sheared off the edge tiles. See AvatarTile.
         interactive &&
-          "cursor-pointer outline-none transition hover:border-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        speaking && "border-online ring-2 ring-inset ring-online",
-        active && "border-accent ring-2 ring-inset ring-accent",
+          "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
+        active && "ring-2 ring-inset ring-accent",
         className,
       )}
     >
@@ -138,6 +140,14 @@ export const CameraTile = memo(function CameraTile({
         muted
         className="relative h-full w-full object-contain"
       />
+      {/* Hover veil: a tone change over the picture (the video itself is never
+          dimmed by a filter), so the tile answers the pointer like every row. */}
+      {interactive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-wash opacity-0 transition-opacity motion-hover group-hover/tile:opacity-100"
+        />
+      )}
       {showName && (
         <VideoTileLabel
           name={name}
@@ -146,6 +156,9 @@ export const CameraTile = memo(function CameraTile({
           screenSharing={participant?.screenSharing ?? false}
         />
       )}
+      {/* The speaking light sits ABOVE the video — an inset ring on the tile's
+          own box would be painted underneath the picture. */}
+      <SpeakingGlow on={speaking} />
     </div>
   );
 

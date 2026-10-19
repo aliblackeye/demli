@@ -3,10 +3,15 @@
  * local self-preview, cameraless avatar tile) so a person is labelled the same
  * way everywhere: name + a muted / screen-sharing indicator. Kept tiny and
  * presentational — the tiles own the video/avatar, this only draws the chip.
+ *
+ * Koyu Masa media pill: the design system's `veil` badge (pill radius, backdrop
+ * blur, the inset signature line) — darkened to the scrim tone, because this
+ * chip sits on ARBITRARY camera video and the name has to stay readable over a
+ * bright frame, where the plain 24% veil would let a white wall wash it out.
  */
 
 import { HeadphoneOff, MicOff, MonitorUp } from "lucide-react";
-import { cn } from "@demli/ui";
+import { badgeVariants, cn } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 
 export interface VideoTileLabelProps {
@@ -35,36 +40,33 @@ export function VideoTileLabel({
   const { t } = useAppTranslation();
   return (
     <span
+      data-testid="tile-label"
       className={cn(
-        "pointer-events-none absolute bottom-2 left-2 z-10 flex max-w-[calc(100%-0.75rem)] items-center gap-1.5",
-        // Warm "cam glass" pill (Demli Voice v2): translucent near-black warm base
-        // + cream hairline + inset top highlight, so a tile's identity chip reads as
-        // frosted glass over both video and the gradient avatar. Text stays white for
-        // legibility over arbitrary camera video.
-        "rounded-lg border border-stroke bg-[rgba(16,6,3,0.55)] px-2 py-1 text-2xs font-medium text-white backdrop-blur",
-        // Shared frosted-rim edge (glass-edge): 1px top highlight + faint inner
-        // ring — the single-source "true glassmorphism" treatment (was an inline
-        // inset shadow here).
-        "glass-edge",
+        badgeVariants({ variant: "veil" }),
+        "pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-1rem)] gap-1.5",
+        "bg-scrim px-2.5 py-1 text-2xs text-fg-display",
         className,
       )}
     >
       {muted && (
         <MicOff
+          role="img"
           aria-label={t("desktop:voice.mutedIndicator")}
           className="size-3 shrink-0 text-danger"
         />
       )}
       {deafened && (
         <HeadphoneOff
+          role="img"
           aria-label={t("desktop:voice.deafenedIndicator")}
           className="size-3 shrink-0 text-danger"
         />
       )}
       {screenSharing && (
         <MonitorUp
+          role="img"
           aria-label={t("desktop:voice.sharingIndicator")}
-          className="size-3 shrink-0 text-online"
+          className="size-3 shrink-0 text-accent"
         />
       )}
       <span className="truncate">{name}</span>
