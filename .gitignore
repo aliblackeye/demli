@@ -21,6 +21,8 @@ release/
 
 # Production infra: rendered (non-committed) config + local data dirs
 deploy/livekit.runtime.yaml
+# deploy.sh's render/rollback temp files (mktemp), if a deploy is killed mid-way
+deploy/livekit.runtime.yaml.*
 deploy/data/
 caddy-data/
 caddy-config/
