@@ -15,12 +15,14 @@
 //       stop:    close stdin (EOF) or kill the process
 //       failure: one "error: ..." line on stderr, non-zero exit code
 //   demli-audio-capture.exe --window-pid <hwnd>
-//       prints the owning PID of a top-level window handle (decimal)
+//       prints the PID that renders a top-level window (decimal): its owner,
+//       or for a packaged app's frame, the app behind its CoreWindow
 //   demli-audio-capture.exe --ancestors <pid>
 //       prints the parent chain of <pid>, nearest first, one PID per line
 //
 // Exit codes: 0 ok · 2 usage · 3 COM init · 4 activation unsupported/failed ·
-//             5 audio client init · 6 capture runtime failure · 7 lookup failed
+//             5 audio client init · 6 capture runtime failure · 7 lookup failed ·
+//             8 packaged app window without a content process
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -97,6 +99,7 @@ enum ExitCode : int {
   kExitClientInit = 5,
   kExitRuntime = 6,
   kExitLookup = 7,
+  kExitPackagedUnresolved = 8,
 };
 
 int Fail(int code, const char* what, HRESULT hr) {
@@ -389,6 +392,28 @@ int RunCapture(DWORD pid, PROCESS_LOOPBACK_MODE mode) {
   return exitCode;
 }
 
+struct CoreWindowSearch {
+  DWORD framePid;
+  DWORD contentPid;
+};
+
+BOOL CALLBACK FindCoreWindow(HWND child, LPARAM param) {
+  auto* search = reinterpret_cast<CoreWindowSearch*>(param);
+  wchar_t className[64] = {};
+  if (GetClassNameW(child, className, 64) == 0) return TRUE;
+  if (std::wcscmp(className, L"Windows.UI.Core.CoreWindow") != 0) return TRUE;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(child, &pid);
+  if (pid == 0 || pid == search->framePid) return TRUE;
+  search->contentPid = pid;
+  return FALSE;
+}
+
+// The process that renders a window's content. A packaged (UWP) app's
+// top-level window is an ApplicationFrameWindow owned by
+// ApplicationFrameHost.exe, which plays no sound; the app itself owns the
+// Windows.UI.Core.CoreWindow child. That app is a sibling of the frame host,
+// not its child, so including the frame host's tree would capture silence.
 int RunWindowPid(const wchar_t* hwndText) {
   unsigned long long raw = 0;
   if (!ParseUnsigned(hwndText, &raw) || raw == 0) {
@@ -399,6 +424,20 @@ int RunWindowPid(const wchar_t* hwndText) {
   DWORD pid = 0;
   GetWindowThreadProcessId(hwnd, &pid);
   if (pid == 0) return FailMessage(kExitLookup, "window has no owning process");
+
+  wchar_t className[64] = {};
+  if (GetClassNameW(hwnd, className, 64) != 0 &&
+      std::wcscmp(className, L"ApplicationFrameWindow") == 0) {
+    CoreWindowSearch search = {pid, 0};
+    EnumChildWindows(hwnd, FindCoreWindow, reinterpret_cast<LPARAM>(&search));
+    if (search.contentPid == 0) {
+      // Minimized or suspended packaged apps detach their CoreWindow.
+      return FailMessage(kExitPackagedUnresolved,
+                         "packaged app window has no content process (minimized or suspended)");
+    }
+    pid = search.contentPid;
+  }
+
   std::printf("%lu\n", static_cast<unsigned long>(pid));
   return kExitOk;
 }

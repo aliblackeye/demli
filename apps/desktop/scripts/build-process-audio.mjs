@@ -11,6 +11,11 @@
 // deterministic flags, so rebuilding unchanged source reproduces the committed
 // file byte for byte (checked by `--check`).
 //
+// Static linking embeds the MinGW-w64 runtime and winpthreads in the binary,
+// and both licences require their notices in every binary copy. The build and
+// `--check` fail unless resources/process-audio/LICENSE contains the
+// toolchain's own copy of each notice whose code the binary carries.
+//
 //   node scripts/build-process-audio.mjs --check   # rebuild to a temp file, compare
 /* global console, process */
 import { execFileSync } from "node:child_process";
@@ -26,6 +31,7 @@ const source = join(desktopDir, "native", "process-audio", "src", "main.cpp");
 const destDir = join(desktopDir, "resources", "process-audio", "win32-x64");
 const exeName = "demli-audio-capture.exe";
 const dest = join(destDir, exeName);
+const licenseFile = join(desktopDir, "resources", "process-audio", "LICENSE");
 
 const mingwBin = process.env.DEMLI_MINGW_BIN ?? "C:/msys64/ucrt64/bin";
 const gxx = join(mingwBin, process.platform === "win32" ? "g++.exe" : "g++");
@@ -70,6 +76,43 @@ function sha256(file) {
   return createHash("sha256").update(readFileSync(file)).digest("hex");
 }
 
+const licensesDir = join(mingwBin, "..", "share", "licenses");
+
+// Each statically linked component: a byte marker that proves its code is in
+// the binary, and the toolchain file holding the notice that must ship with it.
+const embeddedNotices = [
+  {
+    name: "MinGW-w64 runtime",
+    marker: "Mingw-w64 runtime failure",
+    notice: join(licensesDir, "crt", "COPYING.MinGW-w64-runtime.txt"),
+  },
+  {
+    name: "mingw-w64 winpthreads",
+    marker: "winpthreads",
+    notice: join(licensesDir, "winpthreads", "COPYING"),
+  },
+];
+
+const normalize = (text) => text.replace(/\s+/g, " ").trim();
+
+/** Names of embedded components whose notice is missing from LICENSE. */
+function missingNotices(binary) {
+  const bytes = readFileSync(binary).toString("latin1");
+  const license = normalize(readFileSync(licenseFile, "utf8"));
+  const missing = [];
+  for (const component of embeddedNotices) {
+    if (!bytes.includes(component.marker)) continue;
+    if (!existsSync(component.notice)) {
+      missing.push(`${component.name} (toolchain notice ${component.notice} not found)`);
+      continue;
+    }
+    if (!license.includes(normalize(readFileSync(component.notice, "utf8")))) {
+      missing.push(component.name);
+    }
+  }
+  return missing;
+}
+
 try {
   // g++ resolves its own runtime pieces through PATH on Windows.
   const env = { ...process.env, PATH: `${mingwBin}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}` };
@@ -83,6 +126,13 @@ try {
   const forbidden = imports.filter((dll) => /libstdc\+\+|libgcc|libwinpthread/.test(dll));
   if (forbidden.length > 0) {
     throw new Error(`binary still depends on MinGW runtime DLLs: ${forbidden.join(", ")}`);
+  }
+
+  const missing = missingNotices(built);
+  if (missing.length > 0) {
+    throw new Error(
+      `the binary embeds code whose notice is missing from ${licenseFile}: ${missing.join(", ")}`,
+    );
   }
 
   const hash = sha256(built);
