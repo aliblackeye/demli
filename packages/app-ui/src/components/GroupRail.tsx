@@ -346,68 +346,73 @@ function ServerTile({
               (a server inside an open folder sits in the folder's well; it keeps
               its corner dot instead). */}
           {isTopLevel && <RailPill selected={isActive} unread={unread.unread && !isActive} />}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <m.button
-                {...RAIL_TAP}
-                type="button"
-                onClick={onOpen}
-                aria-label={group.name}
-                aria-current={isActive ? "true" : undefined}
-                className={cn(
-                  TILE,
-                  "text-xs font-semibold text-fg-display",
-                  // Hover = a tone change on the seeded colour (and on a photo).
-                  "transition-[filter,opacity,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
-                  TILE_FOCUS,
-                  // A server being dragged onto → the coral drop cue.
-                  isCombineTarget && "ring-2 ring-accent ring-offset-2 ring-offset-rail brightness-115",
-                  muted && !isActive && "opacity-45 hover:opacity-100",
-                )}
-                style={{ backgroundColor: seedColor(group.id) }}
+          {/* Tile-sized anchor: corner markers (count, dot, muted bell) sit on
+              the TILE's corner, not the 72px row's — anchored to the row they
+              overhung the rail by 4px and were clipped by its scroller. */}
+          <div className="relative size-11">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <m.button
+                  {...RAIL_TAP}
+                  type="button"
+                  onClick={onOpen}
+                  aria-label={group.name}
+                  aria-current={isActive ? "true" : undefined}
+                  className={cn(
+                    TILE,
+                    "text-xs font-semibold text-fg-display",
+                    // Hover = a tone change on the seeded colour (and on a photo).
+                    "transition-[filter,opacity,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
+                    TILE_FOCUS,
+                    // A server being dragged onto → the coral drop cue.
+                    isCombineTarget && "ring-2 ring-accent ring-offset-2 ring-offset-rail brightness-115",
+                    muted && !isActive && "opacity-45 hover:opacity-100",
+                  )}
+                  style={{ backgroundColor: seedColor(group.id) }}
+                >
+                  {groupInitials(group.name)}
+                  {showIcon && (
+                    <img
+                      src={iconUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                      onError={() => setFailedIcon(iconUrl)}
+                      className="absolute inset-0 size-full object-cover"
+                    />
+                  )}
+                </m.button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{group.name}</TooltipContent>
+            </Tooltip>
+            {muted && (
+              <span
+                aria-label={t("desktop:mute.mutedA11y")}
+                className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-rail text-fg-faint"
               >
-                {groupInitials(group.name)}
-                {showIcon && (
-                  <img
-                    src={iconUrl}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                    onError={() => setFailedIcon(iconUrl)}
-                    className="absolute inset-0 size-full object-cover"
-                  />
-                )}
-              </m.button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{group.name}</TooltipContent>
-          </Tooltip>
-          {muted && (
-            <span
-              aria-label={t("desktop:mute.mutedA11y")}
-              className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-rail text-fg-faint"
-            >
-              <BellOff className="size-2.5" />
-            </span>
-          )}
-          {/* Corner marker: a count when there is a real number (coral when it
-              is about YOU), else a dot for a mention or a nested server. A plain
-              uncounted unread at the top level is carried by the short edge pill
-              alone — the rail's quiet signal. */}
-          {unread.unread &&
-            (showNumberBadge ? (
-              <UnreadCountBadge
-                key={badge!}
-                text={badge!}
-                tone={unread.mention ? "accent" : "neutral"}
-                aria-label={t("desktop:channel.unread")}
-                className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
-              />
-            ) : unread.mention || !isTopLevel ? (
-              <TileDot mention={unread.mention} label={t("desktop:channel.unread")} />
-            ) : (
-              <span className="sr-only">{t("desktop:channel.unread")}</span>
-            ))}
+                <BellOff className="size-2.5" />
+              </span>
+            )}
+            {/* Corner marker: a count when there is a real number (coral when it
+                is about YOU), else a dot for a mention or a nested server. A plain
+                uncounted unread at the top level is carried by the short edge pill
+                alone — the rail's quiet signal. */}
+            {unread.unread &&
+              (showNumberBadge ? (
+                <UnreadCountBadge
+                  key={badge!}
+                  text={badge!}
+                  tone={unread.mention ? "accent" : "neutral"}
+                  aria-label={t("desktop:channel.unread")}
+                  className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
+                />
+              ) : unread.mention || !isTopLevel ? (
+                <TileDot mention={unread.mention} label={t("desktop:channel.unread")} />
+              ) : (
+                <span className="sr-only">{t("desktop:channel.unread")}</span>
+              ))}
+          </div>
         </div>
     </ActionMenu>
   );
@@ -536,59 +541,62 @@ function FolderView({
         onDrop={onDrop}
       >
           <RailPill selected={containsActive && !folder.open} unread={agg.unread && !folder.open} />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <m.button
-                {...RAIL_TAP}
-                type="button"
-                onClick={onToggle}
-                aria-label={label}
-                aria-expanded={folder.open}
-                className={cn(
-                  TILE,
-                  "p-1",
-                  "transition-[filter,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
-                  TILE_FOCUS,
-                  canAccept && "brightness-115",
-                )}
-                style={{
-                  backgroundColor: withAlpha(accent, folder.open ? 0.32 : 0.24),
-                  ...(canAccept ? { boxShadow: `0 0 0 2px ${accent}` } : null),
-                }}
-              >
-                {folder.open ? (
-                  <Folder className="size-5" style={{ color: accent }} />
-                ) : (
-                  <span className="grid size-full grid-cols-2 grid-rows-2 gap-0.5">
-                    {preview.map((g) => (
-                      <MiniServerIcon key={g.id} group={g} />
-                    ))}
-                    {/* Pad to a full 2×2 so a 2- or 3-server folder stays square. */}
-                    {Array.from({ length: Math.max(0, 4 - preview.length) }).map((_, i) => (
-                      <span key={`pad-${i}`} className="rounded-[5px] bg-wash" />
-                    ))}
-                  </span>
-                )}
-              </m.button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{label}</TooltipContent>
-          </Tooltip>
-          {/* Aggregate unread only while collapsed — open folders show per-server. */}
-          {!folder.open &&
-            agg.unread &&
-            (showNumberBadge ? (
-              <UnreadCountBadge
-                key={badge!}
-                text={badge!}
-                tone={agg.mention ? "accent" : "neutral"}
-                aria-label={t("desktop:channel.unread")}
-                className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
-              />
-            ) : agg.mention ? (
-              <TileDot mention label={t("desktop:channel.unread")} />
-            ) : (
-              <span className="sr-only">{t("desktop:channel.unread")}</span>
-            ))}
+          {/* Tile-sized anchor for the aggregate badge (see ServerTile). */}
+          <div className="relative size-11">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <m.button
+                  {...RAIL_TAP}
+                  type="button"
+                  onClick={onToggle}
+                  aria-label={label}
+                  aria-expanded={folder.open}
+                  className={cn(
+                    TILE,
+                    "p-1",
+                    "transition-[filter,box-shadow] motion-hover hover:brightness-115 active:brightness-95",
+                    TILE_FOCUS,
+                    canAccept && "brightness-115",
+                  )}
+                  style={{
+                    backgroundColor: withAlpha(accent, folder.open ? 0.32 : 0.24),
+                    ...(canAccept ? { boxShadow: `0 0 0 2px ${accent}` } : null),
+                  }}
+                >
+                  {folder.open ? (
+                    <Folder className="size-5" style={{ color: accent }} />
+                  ) : (
+                    <span className="grid size-full grid-cols-2 grid-rows-2 gap-0.5">
+                      {preview.map((g) => (
+                        <MiniServerIcon key={g.id} group={g} />
+                      ))}
+                      {/* Pad to a full 2×2 so a 2- or 3-server folder stays square. */}
+                      {Array.from({ length: Math.max(0, 4 - preview.length) }).map((_, i) => (
+                        <span key={`pad-${i}`} className="rounded-[5px] bg-wash" />
+                      ))}
+                    </span>
+                  )}
+                </m.button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{label}</TooltipContent>
+            </Tooltip>
+            {/* Aggregate unread only while collapsed — open folders show per-server. */}
+            {!folder.open &&
+              agg.unread &&
+              (showNumberBadge ? (
+                <UnreadCountBadge
+                  key={badge!}
+                  text={badge!}
+                  tone={agg.mention ? "accent" : "neutral"}
+                  aria-label={t("desktop:channel.unread")}
+                  className="pointer-events-none absolute -bottom-1 -right-1 ring-[3px] ring-rail"
+                />
+              ) : agg.mention ? (
+                <TileDot mention label={t("desktop:channel.unread")} />
+              ) : (
+                <span className="sr-only">{t("desktop:channel.unread")}</span>
+              ))}
+          </div>
         </div>
     </ActionMenu>
   );
@@ -811,7 +819,9 @@ export function GroupRail({
             text={homeBadge}
             tone={homeUnread.mention ? "accent" : "neutral"}
             aria-label={t("desktop:channel.unread")}
-            className="pointer-events-none absolute -bottom-1 right-2 ring-[3px] ring-rail"
+            // right-2.5: the same 4px past the tile corner as every server/folder
+            // badge (tile right edge = 58px of the 72px rail).
+            className="pointer-events-none absolute -bottom-1 right-2.5 ring-[3px] ring-rail"
           />
         )}
       </div>
@@ -821,7 +831,7 @@ export function GroupRail({
       {/* py-1: the active-server accent ring draws OUTSIDE the avatar box, so
           the scroll container needs breathing room or the first/last item's
           ring clips at the container edge (founder bug report). */}
-      <div className="flex w-full flex-col items-center space-y-2 overflow-y-auto py-1.5">
+      <div className="flex w-full flex-col items-center space-y-2 overflow-y-auto overflow-x-hidden py-1.5">
         {railNodes.map((node) => {
           const key = node.kind === "server" ? `server:${node.group.id}` : `folder:${node.id}`;
           return (
