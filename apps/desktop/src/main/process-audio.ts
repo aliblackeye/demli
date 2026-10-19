@@ -108,8 +108,9 @@ function helperLookup(args: string[]): Promise<number[]> {
       helperPath(),
       args,
       { timeout: 4000, windowsHide: true, maxBuffer: 64 * 1024 },
-      (err, stdout) => {
+      (err, stdout, stderr) => {
         if (err || !stdout) {
+          plog(`lookup ${args[0]} failed: ${String(stderr || err).trim().slice(0, 200)}`);
           resolve([]);
           return;
         }

@@ -9,7 +9,7 @@
  *
  * WHY: screen-share sound must never contain Demli's own playback of the other
  * people in the call, or they hear themselves (M16 H1). The Windows WASAPI
- * process-loopback API (AUDCLNT activation on a process tree, build 20348+)
+ * process-loopback API (AUDCLNT activation on a process tree, build 19041+)
  * captures by PROCESS, not by output device, which gives two echo-free modes:
  *
  *   - "app":    INCLUDE the shared window's process tree — only that app's sound.
@@ -19,8 +19,10 @@
  *               every remote voice Demli plays (measured by
  *               scripts/verify-process-audio.mjs --electron).
  *
- * Capturing by process also bypasses the render endpoint, so it works when the
- * default output is a virtual mixer (Voicemeeter / VB-CABLE). The capture runs
+ * Limit: "system" removes only what Demli's own processes render. A mixer that
+ * takes Demli's output and renders it again from its own process (Voicemeeter
+ * on an MME/WDM output, SteelSeries Sonar, Windows "Listen to this device")
+ * can put the call back into the capture, outside Demli's tree. The capture runs
  * in Demli's own helper (`native/process-audio`, built from source), which
  * streams raw PCM to stdout; main forwards the chunks to the renderer, which
  * rebuilds a MediaStreamTrack for the LiveKit publish.
@@ -69,11 +71,15 @@ export const PROCESS_AUDIO_FORMAT: ProcessAudioFormat = {
 } as const;
 
 /**
- * Lowest Windows build with the process-loopback activation type
- * (Windows Server 2022 / Windows 11 = 20348+). Windows 10 client builds stop at
- * 1904x and cannot capture by process.
+ * Lowest Windows build on which a process-loopback capture is attempted:
+ * Windows 10 2004 (19041). Microsoft documents 20348, but the activation type
+ * is present from 19041 on, and OBS (application audio capture) and GStreamer
+ * (wasapi2 include/exclude loopback) both gate on 19041. Below the documented
+ * floor the helper's activation result decides: a refusal becomes
+ * `activation_failed`, never a silent capture. Older builds have no such
+ * activation type at all.
  */
-export const PROCESS_LOOPBACK_MIN_WINDOWS_BUILD = 20348;
+export const PROCESS_LOOPBACK_MIN_WINDOWS_BUILD = 19041;
 
 /** Which process tree the capture follows. See the module doc. */
 export type ProcessAudioMode = "app" | "system";
@@ -100,7 +106,10 @@ export type ProcessAudioUnavailableReason =
   | "not_a_window"
   /** The source id was not in main's latest enumeration. */
   | "unknown_source"
-  /** The window's owning process could not be found (it closed). */
+  /**
+   * The process rendering the window could not be found: the window closed, or
+   * it is a packaged (UWP) app frame whose app is minimized or suspended.
+   */
   | "pid_unresolved"
   /**
    * The window belongs to Demli itself or to one of Demli's ancestors (for

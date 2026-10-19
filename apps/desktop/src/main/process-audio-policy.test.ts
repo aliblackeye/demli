@@ -16,10 +16,12 @@ describe("process-audio policy", () => {
     expect(windowsBuildFromRelease("garbage")).toBeNull();
   });
 
-  it("supports process capture only on Windows build 20348+", () => {
+  it("tries process capture from Windows 10 2004 (build 19041) on; the helper's activation decides", () => {
     expect(platformSupport("win32", "10.0.22631")).toEqual({ supported: true });
     expect(platformSupport("win32", "10.0.20348")).toEqual({ supported: true });
-    expect(platformSupport("win32", "10.0.19045")).toEqual({ supported: false, reason: "unsupported_os" });
+    expect(platformSupport("win32", "10.0.19045")).toEqual({ supported: true });
+    expect(platformSupport("win32", "10.0.19041")).toEqual({ supported: true });
+    expect(platformSupport("win32", "10.0.18363")).toEqual({ supported: false, reason: "unsupported_os" });
     expect(platformSupport("darwin", "23.1.0")).toEqual({ supported: false, reason: "unsupported_platform" });
   });
 
