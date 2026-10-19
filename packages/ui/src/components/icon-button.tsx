@@ -22,6 +22,8 @@ export const iconButtonVariants = cva(
         danger: "bg-danger/12 text-danger hover:bg-danger/20 active:bg-danger/28",
       },
       size: {
+        /** Dense bars where every pixel goes to text (the user footer): 28px box, 16px glyph. */
+        xs: "size-7 [&_svg]:size-4",
         sm: "size-8 [&_svg]:size-4",
         md: "size-10 [&_svg]:size-5",
         lg: "size-12 [&_svg]:size-6",

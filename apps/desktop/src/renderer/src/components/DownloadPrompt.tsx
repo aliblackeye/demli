@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download, Monitor, Smartphone, X } from "lucide-react";
 import { cn } from "@demli/ui";
+import { floatingPillClass, floatingPillItemClass } from "@demli/app-ui";
 import { detectDevicePlatform } from "../lib/device-platform";
 import { downloadTarget, openDownloadUrl } from "../lib/download-links";
 import { useAppTranslation } from "../lib/i18n";
@@ -112,11 +113,12 @@ export function DownloadPrompt({ variant }: DownloadPromptProps): JSX.Element | 
             openDownloadUrl(href);
           }}
           className={cn(
-            "inline-flex items-center gap-1.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg",
-            "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+            "inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-label font-medium text-fg-muted",
+            "transition-colors motion-hover hover:bg-wash hover:text-fg",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
           )}
         >
-          <Download className="size-3.5" />
+          <Download aria-hidden className="size-3.5" />
           {label}
         </a>
       </div>
@@ -133,12 +135,7 @@ export function DownloadPrompt({ variant }: DownloadPromptProps): JSX.Element | 
   };
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-0.5 rounded-full",
-        "border border-stroke bg-surface/95 py-1 pl-1 pr-1 shadow-lg backdrop-blur-sm",
-      )}
-    >
+    <div className={floatingPillClass}>
       {/* Same contract as the footer anchor above: markup href, click routed
           through `openDownloadUrl` → `openExternalUrl`, web-surface only. */}
       <a
@@ -149,24 +146,19 @@ export function DownloadPrompt({ variant }: DownloadPromptProps): JSX.Element | 
           event.preventDefault();
           openDownloadUrl(href);
         }}
-        className={cn(
-          "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:bg-raised",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        )}
+        className={floatingPillItemClass}
       >
-        <Icon className="size-4 text-accent" />
+        <Icon aria-hidden className="size-4 text-accent" />
         {label}
       </a>
       <button
         type="button"
         aria-label={t("desktop:download.dismiss")}
         onClick={dismiss}
-        className={cn(
-          "shrink-0 cursor-pointer rounded-full p-1 text-fg-faint transition-colors hover:bg-raised hover:text-fg",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        )}
+        title={t("desktop:download.dismiss")}
+        className={cn(floatingPillItemClass, "p-1.5 text-fg-faint hover:text-fg")}
       >
-        <X className="size-3.5" />
+        <X aria-hidden className="size-3.5" />
       </button>
     </div>
   );

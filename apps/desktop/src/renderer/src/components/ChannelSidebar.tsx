@@ -2,6 +2,7 @@ import { ChannelSidebar as ChannelSidebarView } from "@demli/app-ui";
 import { ChannelItem } from "./ChannelItem";
 import { VoicePanel } from "./VoicePanel";
 import { UserFooter } from "./UserFooter";
+import { ShellNudges } from "./ShellNudges";
 
 /**
  * Desktop ChannelSidebar: the shared @demli/app-ui channel column (data via
@@ -20,7 +21,13 @@ export function ChannelSidebar(): JSX.Element {
       renderChannel={(channel, options) => (
         <ChannelItem channel={channel} options={options} />
       )}
-      voicePanel={<VoicePanel />}
+      voicePanel={
+        <>
+          {/* Dismissible nudges sit above the voice panel, in flow. */}
+          <ShellNudges placement="column" />
+          <VoicePanel />
+        </>
+      }
       userFooter={<UserFooter />}
     />
   );

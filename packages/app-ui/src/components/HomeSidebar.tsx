@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { BellOff, Loader2, PhoneCall, Plus, Users, X } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, UserAvatar, cn, seedColor } from "@demli/ui";
+import { BellOff, PhoneCall, Plus, Users, X } from "lucide-react";
+import { IconButton, UserAvatar, cn, seedColor } from "@demli/ui";
 import { useTranslation } from "@demli/i18n";
 import {
   useShellData,
@@ -8,8 +8,11 @@ import {
   type ShellDmRow,
   type ShellGroupChatRow,
 } from "../data/shell-data";
+import { RetryNotice } from "./EmptyState";
 import { SectionHeading } from "./SectionHeading";
+import { ShellListSkeleton } from "./ShellListSkeleton";
 import { UnreadCountBadge } from "./UnreadCountBadge";
+import { shellRowClass, shellRowIconButtonClass, shellUnreadPipClass } from "./shellRow";
 
 export interface HomeSidebarProps {
   /** DM-call control dock above the user bar (desktop CallDock). */
@@ -37,87 +40,69 @@ function groupInitials(name: string): string {
   return (first + second).toUpperCase();
 }
 
-/** Top entry: opens the Friends table (Online / All / Pending / Add). */
-function FriendsButton({ active, onClick }: { active: boolean; onClick: () => void }): JSX.Element {
-  const { t } = useTranslation(["common", "desktop"]);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? "true" : undefined}
-      className={cn(
-        "flex h-10 w-full cursor-pointer items-center space-x-2.5 rounded-md px-2.5 text-left",
-        "transition-colors motion-instant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        active ? "bg-white/[0.06] text-fg" : "text-fg-muted hover:bg-white/[0.04] hover:text-fg",
-      )}
-    >
-      <Users className="size-[18px] shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {t("desktop:social.friends")}
-      </span>
-    </button>
-  );
-}
-
-/** Entry below Friends: opens the cross-DM call history (Voice-UX #2). */
-function RecentCallsButton({
+/**
+ * A top-level destination row (Friends, Recent calls): an icon in its own small
+ * surface box + the label, painted with the shared row language so "selected"
+ * reads exactly like a selected channel.
+ */
+function DestinationButton({
   active,
   onClick,
+  icon,
+  label,
 }: {
   active: boolean;
   onClick: () => void;
+  icon: ReactNode;
+  label: string;
 }): JSX.Element {
-  const { t } = useTranslation(["common", "desktop"]);
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "true" : undefined}
-      className={cn(
-        "flex h-10 w-full cursor-pointer items-center space-x-2.5 rounded-md px-2.5 text-left",
-        "transition-colors motion-instant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        active ? "bg-white/[0.06] text-fg" : "text-fg-muted hover:bg-white/[0.04] hover:text-fg",
-      )}
+      className={cn(shellRowClass({ selected: active }), "h-10 gap-2.5 px-2")}
     >
-      <PhoneCall className="size-[18px] shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {t("desktop:recentCalls.navLabel")}
+      <span
+        aria-hidden
+        className={cn(
+          "grid size-7 shrink-0 place-items-center rounded-sm transition-colors motion-hover [&_svg]:size-4",
+          active ? "bg-accent-surface text-accent" : "bg-surface text-fg-muted",
+        )}
+      >
+        {icon}
       </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
     </button>
   );
 }
 
-/** Trailing unread badge/pip + muted bell for a home row. Renders nothing when idle. */
+/** Trailing unread badge + muted bell for a home row. Renders nothing when idle. */
 function RowStatus({
   showUnread,
-  showMentionBadge,
   muted,
   countBadge,
 }: {
   showUnread: boolean;
-  showMentionBadge: boolean;
   muted: boolean;
   countBadge: string | null;
 }): JSX.Element | null {
   const { t } = useTranslation(["common", "desktop"]);
-  if (!showUnread && !muted) return null;
-  // A real number replaces the pip; "1+"/absent keeps the pip (§ "sayı yoksa pip kalsın").
-  const showNumberBadge = !!countBadge && countBadge !== "1+";
+  // A real number shows as the coral count (a DM or group chat is always about
+  // YOU); without one the row's left-edge pip carries the unread on its own.
+  const showNumberBadge = showUnread && !!countBadge && countBadge !== "1+";
+  if (!showNumberBadge && !muted) return null;
   return (
-    <span className="ml-auto flex shrink-0 items-center space-x-1.5">
-      {showUnread &&
-        (showNumberBadge ? (
-          <UnreadCountBadge text={countBadge!} aria-label={t("desktop:channel.unread")} />
-        ) : (
-          <span
-            aria-label={t("desktop:channel.unread")}
-            className={cn("size-2 rounded-full", showMentionBadge ? "bg-accent" : "bg-fg")}
-          />
-        ))}
+    <span className="ml-auto flex shrink-0 items-center gap-1.5">
       {muted && (
         <BellOff aria-label={t("desktop:mute.mutedA11y")} className="size-3 text-fg-faint" />
+      )}
+      {showNumberBadge && (
+        <UnreadCountBadge
+          key={countBadge}
+          text={countBadge!}
+          aria-label={t("desktop:channel.unread")}
+        />
       )}
     </span>
   );
@@ -138,28 +123,27 @@ function DmRow({
   const { t } = useTranslation(["common", "desktop"]);
   const { muted, showUnread, showMentionBadge, countBadge }: HomeRowUnread = dm.unread;
   const highlightUnread = showUnread && !active;
+  const hasNumber = highlightUnread && !!countBadge && countBadge !== "1+";
   return (
-    // group/dm: hovering the row reveals the close-✕ and dims the unread badge.
+    // group/dm: hovering the row reveals the close-✕ over the status area.
     <div className="group/dm relative">
       <button
         type="button"
         onClick={onOpen}
         aria-current={active ? "true" : undefined}
         className={cn(
-          "flex h-11 w-full cursor-pointer items-center space-x-2.5 rounded-md px-2 text-left",
-          "transition-colors motion-instant",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          shellRowClass({ selected: active, unread: highlightUnread, muted }),
+          "h-11 gap-2.5 px-2 pr-9",
           // A long DM list is not virtualized — skip off-screen rows (§27).
           "content-visibility-row",
-          active
-            ? "bg-white/[0.06] text-fg"
-            : highlightUnread
-              ? "text-fg hover:bg-white/[0.04]"
-              : "text-fg-muted hover:bg-white/[0.04] hover:text-fg",
-          // Muted rows read quieter unless active or carrying a live badge.
-          muted && !active && !showUnread && "opacity-55",
         )}
       >
+        {highlightUnread && !hasNumber && (
+          <span
+            aria-label={t("desktop:channel.unread")}
+            className={shellUnreadPipClass(showMentionBadge, "inset")}
+          />
+        )}
         <UserAvatar
           name={dm.participantName}
           colorSeed={dm.participantId}
@@ -177,10 +161,9 @@ function DmRow({
           {dm.participantName}
         </span>
         {/* Unread/mute status fades under the close-✕ while the row is hovered. */}
-        <span className="ml-auto flex shrink-0 items-center transition-opacity motion-instant group-hover/dm:opacity-0">
+        <span className="ml-auto flex shrink-0 items-center transition-opacity motion-hover group-hover/dm:opacity-0 group-focus-within/dm:opacity-0">
           <RowStatus
             showUnread={highlightUnread}
-            showMentionBadge={showMentionBadge}
             muted={muted}
             countBadge={countBadge}
           />
@@ -194,14 +177,12 @@ function DmRow({
         title={t("desktop:social.closeDm")}
         onClick={onHide}
         className={cn(
-          "absolute right-1.5 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md",
-          "text-fg-faint opacity-0 transition-opacity motion-instant",
-          "hover:bg-white/[0.08] hover:text-fg",
-          "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-          "group-hover/dm:opacity-100",
+          shellRowIconButtonClass,
+          "absolute right-2 top-1/2 -translate-y-1/2 opacity-0",
+          "group-hover/dm:opacity-100 pointer-coarse:opacity-100",
         )}
       >
-        <X className="size-4" />
+        <X className="size-3.5" aria-hidden />
       </button>
     </div>
   );
@@ -216,29 +197,30 @@ function GroupChatRow({
   active: boolean;
   onOpen: () => void;
 }): JSX.Element {
+  const { t } = useTranslation(["common", "desktop"]);
   const { muted, showUnread, showMentionBadge, countBadge }: HomeRowUnread = group.unread;
   const highlightUnread = showUnread && !active;
+  const hasNumber = highlightUnread && !!countBadge && countBadge !== "1+";
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "flex h-11 w-full cursor-pointer items-center space-x-2.5 rounded-md px-2 text-left",
-        "transition-colors motion-instant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        shellRowClass({ selected: active, unread: highlightUnread, muted }),
+        "h-11 gap-2.5 px-2",
         "content-visibility-row",
-        active
-          ? "bg-white/[0.06] text-fg"
-          : highlightUnread
-            ? "text-fg hover:bg-white/[0.04]"
-            : "text-fg-muted hover:bg-white/[0.04] hover:text-fg",
-        muted && !active && !showUnread && "opacity-55",
       )}
     >
+      {highlightUnread && !hasNumber && (
+        <span
+          aria-label={t("desktop:channel.unread")}
+          className={shellUnreadPipClass(showMentionBadge, "inset")}
+        />
+      )}
       <span
         aria-hidden
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-2xs font-bold text-white/90"
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-2xs font-semibold text-fg-display"
         style={{ backgroundColor: seedColor(group.id) }}
       >
         {groupInitials(group.name)}
@@ -253,7 +235,6 @@ function GroupChatRow({
       </span>
       <RowStatus
         showUnread={highlightUnread}
-        showMentionBadge={showMentionBadge}
         muted={muted}
         countBadge={countBadge}
       />
@@ -267,6 +248,10 @@ function GroupChatRow({
  * center pane via the shell's home routing. Reads its lists — already
  * presence-tagged and unread-derived — from {@link useShellData}; the DM-call
  * dock and the user footer are slots.
+ *
+ * Every row speaks the shared row language (`shellRow`): coral wash when
+ * selected, surface tone on hover, a white left-edge pip + bold name when
+ * unread, a coral count when there is a number.
  */
 export function HomeSidebar({
   callDock,
@@ -281,6 +266,9 @@ export function HomeSidebar({
     activeDmId,
     activeGroupChatId,
     dms,
+    dmsStatus = "ready",
+    dmsErrorMessage = null,
+    retryDms,
     groupChats,
     groupChatsStatus,
     groupChatsErrorMessage,
@@ -299,24 +287,51 @@ export function HomeSidebar({
 
   return (
     <div className="flex w-60 shrink-0 flex-col bg-sidebar">
-      <div className="flex h-16 shrink-0 items-center border-b border-stroke px-3.5">
-        <span className="text-sm font-semibold text-fg">{t("desktop:social.homeNav")}</span>
+      <div className="flex h-16 shrink-0 items-center px-4">
+        <span className="font-display text-base font-semibold text-fg-display">
+          {t("desktop:social.homeNav")}
+        </span>
       </div>
 
       <nav
         aria-label={t("desktop:social.homeNav")}
         // edge-fade-y: DM/group rows dissolve under the "Home" header and above
         // the call dock rather than being cut mid-row.
-        className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 py-2"
+        className="edge-fade-y min-h-0 flex-1 overflow-y-auto px-2 pb-2"
       >
-        <FriendsButton active={friendsActive} onClick={() => openFriends()} />
-        {showRecentCalls && (
-          <RecentCallsButton active={recentCallsActive} onClick={() => openRecentCalls()} />
-        )}
+        <div className="space-y-px">
+          <DestinationButton
+            active={friendsActive}
+            onClick={() => openFriends()}
+            icon={<Users />}
+            label={t("desktop:social.friends")}
+          />
+          {showRecentCalls && (
+            <DestinationButton
+              active={recentCallsActive}
+              onClick={() => openRecentCalls()}
+              icon={<PhoneCall />}
+              label={t("desktop:recentCalls.navLabel")}
+            />
+          )}
+        </div>
 
         {/* Direct messages */}
         <SectionHeading>{t("desktop:social.dmsHeading")}</SectionHeading>
-        {dms.length > 0 ? (
+        {/* Exactly one of: skeleton / retry band / rows / empty card. The empty
+            card ("Henüz sohbet yok") only after a SUCCESSFUL empty fetch — a
+            DM list that has not arrived is not an empty one. */}
+        {dmsStatus === "pending" && dms.length === 0 ? (
+          <ShellListSkeleton label={t("desktop:social.dmsLoading")} variant="member" rows={4} />
+        ) : dmsStatus === "error" && dms.length === 0 ? (
+          <RetryNotice
+            variant="band"
+            title={t("desktop:social.dmsLoadFailed")}
+            message={dmsErrorMessage ?? t("errors.generic")}
+            retryLabel={t("buttons.retry")}
+            onRetry={() => retryDms?.()}
+          />
+        ) : dms.length > 0 ? (
           <div className="space-y-px">
             {dms.map((dm) => (
               <DmRow
@@ -329,56 +344,41 @@ export function HomeSidebar({
             ))}
           </div>
         ) : (
-          <p className="px-2 py-1 text-xs text-fg-faint">{t("desktop:social.noDmsTitle")}</p>
+          <div className="mx-1 rounded-lg bg-wash px-3 py-2.5">
+            <p className="text-label font-medium text-fg-muted">{t("desktop:social.noDmsTitle")}</p>
+            <p className="mt-0.5 text-2xs leading-snug text-fg-faint">{t("desktop:social.noDmsBody")}</p>
+          </div>
         )}
 
         {/* Flat group chats (ADR 0005) */}
-        <div className="mt-2 flex items-center justify-between pl-2 pr-1 pt-2">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-            {t("desktop:groupChats.heading")}
-          </span>
+        <div className="flex items-center justify-between pr-1">
+          <SectionHeading className="min-w-0 flex-1">{t("desktop:groupChats.heading")}</SectionHeading>
           {showCreateGroupChat && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={t("desktop:groupChats.newGroup")}
-                  onClick={() => openCreateGroupChat()}
-                  className={cn(
-                    "flex size-6 cursor-pointer items-center justify-center rounded-md text-fg-muted",
-                    "transition-colors motion-instant hover:bg-white/[0.06] hover:text-fg",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  )}
-                >
-                  <Plus className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t("desktop:groupChats.newGroup")}</TooltipContent>
-            </Tooltip>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label={t("desktop:groupChats.newGroup")}
+              tooltipSide="bottom"
+              onClick={() => openCreateGroupChat()}
+              className="mt-3 size-6 rounded-sm [&_svg]:size-4"
+            >
+              <Plus aria-hidden />
+            </IconButton>
           )}
         </div>
 
         {groupChatsStatus === "pending" ? (
-          <div
-            role="status"
-            className="flex items-center justify-center space-x-2 py-6 text-xs text-fg-faint"
-          >
-            <Loader2 className="size-4 animate-spin" />
-            {t("desktop:groupChats.loading")}
-          </div>
+          <ShellListSkeleton label={t("desktop:groupChats.loading")} variant="member" rows={3} />
         ) : groupChatsStatus === "error" ? (
-          <div className="flex flex-col items-center space-y-2 px-3 py-6 text-center">
-            <p className="text-xs text-fg-muted">{groupChatsErrorMessage}</p>
-            <button
-              type="button"
-              onClick={() => retryGroupChats()}
-              className="cursor-pointer text-xs font-medium text-accent hover:underline"
-            >
-              {t("buttons.retry")}
-            </button>
-          </div>
+          <RetryNotice
+            variant="band"
+            title={t("desktop:groupChats.loadFailed")}
+            message={groupChatsErrorMessage ?? t("errors.generic")}
+            retryLabel={t("buttons.retry")}
+            onRetry={() => retryGroupChats()}
+          />
         ) : groupChats.length > 0 ? (
-          <div className="mt-1 space-y-px">
+          <div className="space-y-px">
             {groupChats.map((group) => (
               <GroupChatRow
                 key={group.id}
@@ -392,14 +392,19 @@ export function HomeSidebar({
           <button
             type="button"
             onClick={() => openCreateGroupChat()}
-            className="mt-1 w-full px-2 py-1 text-left text-xs text-fg-faint hover:text-accent"
+            className={cn(
+              shellRowClass({}),
+              "mx-1 w-[calc(100%-0.5rem)] flex-col items-start gap-0.5 bg-wash px-3 py-2.5",
+            )}
           >
-            {t("desktop:groupChats.emptyBody")}
+            <span className="text-label font-medium text-fg-muted">{t("desktop:groupChats.emptyTitle")}</span>
+            <span className="text-2xs leading-snug text-fg-faint">{t("desktop:groupChats.emptyBody")}</span>
           </button>
         ) : (
-          <p className="mt-1 w-full px-2 py-1 text-left text-xs text-fg-faint">
-            {t("desktop:groupChats.emptyBody")}
-          </p>
+          <div className="mx-1 rounded-lg bg-wash px-3 py-2.5">
+            <p className="text-label font-medium text-fg-muted">{t("desktop:groupChats.emptyTitle")}</p>
+            <p className="mt-0.5 text-2xs leading-snug text-fg-faint">{t("desktop:groupChats.emptyBody")}</p>
+          </div>
         )}
       </nav>
 

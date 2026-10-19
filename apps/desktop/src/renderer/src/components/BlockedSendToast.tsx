@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, m } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { ShieldBan } from "lucide-react";
-import { cn } from "@demli/ui";
-import { toastPop } from "@demli/app-ui";
 import { useAppTranslation } from "../lib/i18n";
 import { setBlockedNoticeListener } from "../lib/blocked-notice";
 import type { BlockedAction } from "../lib/errors";
+import { NoticeToast } from "./NoticeToast";
 
 /** How long the "that couldn't go through" notice lingers. */
 const NOTICE_MS = 6_000;
@@ -34,45 +33,33 @@ const MESSAGE_KEY = {
  * "You can't message this user" is the most that may ever be said. Wording that
  * let the two cases be told apart would defeat the block itself (§28).
  */
-export function BlockedSendToast(): JSX.Element | null {
+export function BlockedSendToast(): JSX.Element {
   const { t } = useAppTranslation();
   const [action, setAction] = useState<BlockedAction | null>(null);
+  // Bumped per refusal so a second identical refusal gets the full duration again.
+  const [sequence, setSequence] = useState(0);
 
   useEffect(() => {
-    setBlockedNoticeListener((next) => setAction(next));
+    setBlockedNoticeListener((next) => {
+      setAction(next);
+      setSequence((n) => n + 1);
+    });
     return () => setBlockedNoticeListener(null);
   }, []);
-
-  useEffect(() => {
-    if (action === null) return;
-    const timer = window.setTimeout(() => setAction(null), NOTICE_MS);
-    return () => window.clearTimeout(timer);
-  }, [action]);
 
   return (
     <AnimatePresence>
       {action !== null && (
-        <div
+        <NoticeToast
           key="blocked-notice"
-          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+          tone="danger"
+          icon={<ShieldBan />}
+          duration={NOTICE_MS}
+          timerKey={sequence}
+          onDismiss={() => setAction(null)}
         >
-          <m.button
-            type="button"
-            role="status"
-            onClick={() => setAction(null)}
-            variants={toastPop}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className={cn(
-              "pointer-events-auto flex max-w-sm items-start gap-2 rounded-lg text-left",
-              "border border-stroke bg-raised px-3.5 py-2.5 text-sm text-fg shadow-lg",
-            )}
-          >
-            <ShieldBan className="mt-0.5 size-4 shrink-0 text-danger" />
-            <span>{t(MESSAGE_KEY[action])}</span>
-          </m.button>
-        </div>
+          {t(MESSAGE_KEY[action])}
+        </NoticeToast>
       )}
     </AnimatePresence>
   );

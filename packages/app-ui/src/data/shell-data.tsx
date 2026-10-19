@@ -164,7 +164,11 @@ export interface ShellMember {
   timedOutUntil?: string | null;
 }
 
-/** Loading state for the home sidebar's flat group-chat list. */
+/**
+ * Load state of a shell list (the home sidebar's DM and group-chat lists).
+ * "pending" = nothing to show yet, "error" = the fetch failed with nothing
+ * cached, "ready" = the data (possibly empty) is real.
+ */
 export type GroupChatsStatus = "pending" | "error" | "ready";
 
 /**
@@ -228,9 +232,36 @@ export interface ShellData {
    * ABSENT (§35, founder's reference screenshots).
    */
   canCreateInvite: boolean;
+  /**
+   * The active server's details (channels + roster) are still on their first
+   * fetch. Optional and additive: a surface that never sets it simply never shows
+   * the skeleton state, and an empty `channels` / `members` then reads as the
+   * honest "nothing here" state instead of a loading one.
+   */
+  serverDetailsLoading?: boolean;
+  /**
+   * Localized message when the active server's FIRST details fetch failed (no
+   * cached data to show), else null/absent. While set, the channel column and
+   * the roster show a retry band instead of their empty states — an empty
+   * `channels` / `members` here is "not loaded", not "this server has none", and
+   * rendering it as "no channels" / "Members — 0" would be a lie.
+   */
+  serverDetailsError?: string | null;
+  /** Re-run the active server's details fetch (the retry band's action). */
+  retryServerDetails?: () => void;
 
   // ── home sidebar ──────────────────────────────────────────────────────────
   dms: ShellDmRow[];
+  /**
+   * Load state of the DM list, the same three states as {@link groupChatsStatus}.
+   * Optional and additive: absent means "ready", so a surface that does not set
+   * it keeps the previous behaviour (rows or the empty card).
+   */
+  dmsStatus?: GroupChatsStatus;
+  /** Localized error message when `dmsStatus === "error"`, else null. */
+  dmsErrorMessage?: string | null;
+  /** Re-run the DM list fetch. */
+  retryDms?: () => void;
   groupChats: ShellGroupChatRow[];
   groupChatsStatus: GroupChatsStatus;
   /** Localized error message when `groupChatsStatus === "error"`, else null. */

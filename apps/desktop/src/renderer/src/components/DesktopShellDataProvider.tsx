@@ -34,6 +34,7 @@ import {
 } from "../lib/server-unread";
 import { indexRoles, memberColor } from "../lib/permissions";
 import { localizeError } from "../lib/errors";
+import { listStatus } from "../lib/shell-list-status";
 import { useAppTranslation } from "../lib/i18n";
 import { useNameOverrides } from "../lib/use-name-overrides";
 import {
@@ -93,9 +94,11 @@ function useDesktopShellData(): ShellData {
 
   // ── server state (queries) ──────────────────────────────────────────────
   const { data: groups } = useGroups();
-  const { data: dms } = useDms();
+  const dmsQuery = useDms();
+  const dms = dmsQuery.data;
   const groupChatsQuery = useGroupChats();
-  const { data: details } = useGroupDetails(activeGroupId);
+  const detailsQuery = useGroupDetails(activeGroupId);
+  const details = detailsQuery.data;
   const { data: categories } = useCategories(activeGroupId);
   const { data: roles } = useRoles(activeGroupId);
   const { isOwner, can } = useServerPermissions(activeGroupId);
@@ -226,14 +229,16 @@ function useDesktopShellData(): ShellData {
       })),
     [groupChatsQuery.data, maps],
   );
-  const groupChatsStatus = groupChatsQuery.isPending
-    ? "pending"
-    : groupChatsQuery.error
-      ? "error"
-      : "ready";
-  const groupChatsErrorMessage = groupChatsQuery.error
-    ? localizeError(groupChatsQuery.error, t)
-    : null;
+  const groupChatsStatus = listStatus(groupChatsQuery);
+  const groupChatsErrorMessage =
+    groupChatsStatus === "error" ? localizeError(groupChatsQuery.error, t) : null;
+  const dmsStatus = listStatus(dmsQuery);
+  const dmsErrorMessage = dmsStatus === "error" ? localizeError(dmsQuery.error, t) : null;
+
+  // Active server's details: the same rule, scoped to "a server is open".
+  const serverDetailsStatus = activeGroupId === null ? "ready" : listStatus(detailsQuery);
+  const serverDetailsError =
+    serverDetailsStatus === "error" ? localizeError(detailsQuery.error, t) : null;
 
   // ── member sidebar: flat roster with presence + role color + owner flag ───
   // Roles are pre-resolved to plain display chips here (highest-position first),
@@ -293,8 +298,17 @@ function useDesktopShellData(): ShellData {
     connectedVoiceChannelId,
     mutedChannelIds,
     canCreateInvite,
+    // No cached data yet for the active server (first fetch, or a retry in
+    // flight): drives the channel-column and roster skeletons. A first fetch
+    // that FAILED drives their retry bands instead — never the empty states.
+    serverDetailsLoading: serverDetailsStatus === "pending",
+    serverDetailsError,
+    retryServerDetails: () => void detailsQuery.refetch(),
 
     dms: dmRows,
+    dmsStatus,
+    dmsErrorMessage,
+    retryDms: () => void dmsQuery.refetch(),
     groupChats: groupChatRows,
     groupChatsStatus,
     groupChatsErrorMessage,

@@ -21,10 +21,7 @@ import {
   CriticalUpdateOverlay,
   GlobalUpdateBanner,
 } from "./components/UpdateSettings";
-import { VoiceEvictionToast } from "./components/VoiceEvictionToast";
-import { OutboxChannelGoneToast } from "./components/OutboxChannelGoneToast";
-import { ImageActionToast } from "./components/ImageActionToast";
-import { BlockedSendToast } from "./components/BlockedSendToast";
+import { AppNoticeStack } from "./components/AppNoticeStack";
 import { CallLayer } from "./components/CallLayer";
 import { VoiceJoinGuardDialog } from "./components/VoiceJoinGuardDialog";
 import { markdownSlots } from "./components/MarkdownTokens";
@@ -32,13 +29,20 @@ import { BootPhaseBinder } from "./components/BootPhaseBinder";
 import { PendingInviteController } from "./components/PendingInviteController";
 import { NotificationController } from "./notifications/NotificationController";
 
+/**
+ * What sits under the startup splash while the session is still being restored.
+ * The splash covers it on a normal boot; it is only ever SEEN if the splash has
+ * already let go (its ceiling fired) while `initialize()` is still out — so it is
+ * the same black page with one quiet, labelled spinner, never a white frame.
+ */
 function BootScreen(): JSX.Element {
   const { t } = useAppTranslation();
   return (
-    <div className="flex h-screen items-center justify-center bg-app">
+    <div className="flex h-screen items-center justify-center bg-rail" aria-busy="true">
       <Loader2
+        role="status"
         aria-label={t("desktop:app.starting")}
-        className="size-6 animate-spin text-fg-faint"
+        className="size-6 animate-spin text-fg-subtle"
       />
     </div>
   );
@@ -139,22 +143,9 @@ export function App(): JSX.Element {
           header) owns optional updates — showing both would be two controls for
           one job, and the founder asked for the badge. */}
       {status !== "authenticated" && <GlobalUpdateBanner />}
-      {/* Single-active-session notice: shows "you joined voice on another device"
-          when this device is evicted, and survives the voice panel unmounting. */}
-      <VoiceEvictionToast />
-      {/* Offline queue (M17): tells the user when queued messages had to be
-          abandoned because their channel is gone — by definition there is no
-          channel view left to show it in. */}
-      <OutboxChannelGoneToast />
-      {/* "Görsel kaydedildi / kopyalandı" (and the honest failure line) for the
-          attachment save/copy actions. Root-level because the action can start
-          from the full-screen lightbox, which unmounts on close. A CANCELLED
-          save stays silent. */}
-      <ImageActionToast />
-      {/* Blocking (M18): a DM send the gateway refused because a block exists.
-          Root-level for the same reason — the queue row can only show its generic
-          "rejected" copy, so the neutral reason is given once, here. */}
-      <BlockedSendToast />
+      {/* The app-root notice stack (voice handoff, abandoned queue, image
+          saved/copied, blocked send) — one positioned column, see the component. */}
+      <AppNoticeStack />
       {/* DM calls (ADR 0012): global incoming-call ring + in-call surface, on
           every screen. Mounted at the root so a call is never missed. */}
       <CallLayer />

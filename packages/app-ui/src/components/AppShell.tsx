@@ -8,27 +8,21 @@
  *   │          │  or home) │                         │ (roster) │
  *   └──────────┴───────────┴─────────────────────────┴──────────┘
  *
+ * Koyu Masa "ada" (island) frame — the landing's app preview, taken literally:
+ * the window is pure black (`bg-rail`), the rail sits directly on it, and every
+ * other column is its own rounded island (`rounded-card`, 24px) of the base tone,
+ * separated from its neighbours by 8px of black instead of a border or a
+ * shadow. Depth is surface tone, nothing else.
+ *
  * It is PURELY presentational — a layout frame with named slots and NO data,
  * store, query, i18n or platform dependency. Every surface decides WHAT to put
  * in each slot from its own state and passes it in; the frame only positions the
- * columns and paints the shared chrome (rail background + the content-edge seam
- * on the conversation column). Root-level overlays (dialogs, command menu,
- * settings) render as siblings via the `overlays` slot so a surface can keep its
- * dialogs mounted at the shell root exactly as before.
+ * columns and clips each one to its island. The columns paint their own base
+ * tone, so the same components drop unchanged into the mobile drawer.
  *
- * Phase-1 note: the desktop passes its rich product components (GroupRail,
- * ChannelSidebar, ChatView, the VideoStage-vs-ChatView center, MemberSidebar,
- * and its dialog stack) into these slots, so the desktop DOM/appearance is
- * byte-identical to the hand-written shell it replaces. The web wide view will
- * pass the same shared components once they are ported; the Phase-2 desktop-only
- * arms (video stage, voice panel, call surfaces) stay in the desktop's slot
- * fillers and never enter this frame.
- *
- * The layout classes here (`bg-rail`, `text-fg`, `shadow-content-edge`) are the
- * exact ones the previous desktop AppShell used; they resolve through the shared
- * `--tc-*` tokens on both surfaces. The consuming app's Tailwind build must scan
- * this package's source for those classes to be generated (`@source` on desktop,
- * a content glob on web).
+ * The roster island fades in when it is toggled on (opacity only — the center's
+ * width snaps rather than animating, because a width animation would relayout
+ * the virtualized message list on every frame, §27).
  */
 import type { ReactNode } from "react";
 
@@ -40,12 +34,7 @@ export interface AppShellProps {
    * sidebar (friends / DMs / flat group chats). The caller picks which.
    */
   sidebar: ReactNode;
-  /**
-   * Main conversation column — the text-channel chat, or (desktop Phase-2) the
-   * voice-room video stage. Rendered inside the content-edge seam wrapper so the
-   * hairline between the navigation chrome and the content sheet is identical to
-   * the previous shell.
-   */
+  /** Main conversation column — the text-channel chat, or the voice-room stage. */
   center: ReactNode;
   /**
    * Right-most roster column. Pass a falsy value (`false` / `null`) to omit it
@@ -56,10 +45,13 @@ export interface AppShellProps {
   /**
    * Root-level overlays rendered as SIBLINGS of the column row (command menu,
    * dialogs, settings shell, headless listeners). Kept outside the flex row so
-   * they never participate in the column layout, matching the previous shell.
+   * they never participate in the column layout.
    */
   overlays?: ReactNode;
 }
+
+/** One island: clips its column to the card radius. No fill of its own. */
+const ISLAND = "flex min-h-0 shrink-0 overflow-hidden rounded-card";
 
 /**
  * The shared four-column app frame. Renders the column row plus any root-level
@@ -75,15 +67,15 @@ export function AppShell({
 }: AppShellProps): ReactNode {
   return (
     <>
-      <div className="flex h-screen bg-rail text-fg">
+      <div data-shell="desktop" className="flex h-screen gap-2 bg-rail py-2 pr-2 text-fg">
         {groupRail}
-        {sidebar}
-        {/* The conversation column is the "content sheet" of the app: a hairline
-            along its top-left seam separates it from the navigation chrome
-            without spending a border's worth of layout width. Purely a
-            box-shadow, so the flex sizing is untouched. */}
-        <div className="flex min-w-0 flex-1 shadow-content-edge">{center}</div>
-        {memberSidebar}
+        <div className={ISLAND}>{sidebar}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-card bg-app">
+          {center}
+        </div>
+        {memberSidebar ? (
+          <div className={`${ISLAND} animate-fade-in`}>{memberSidebar}</div>
+        ) : null}
       </div>
       {overlays}
     </>

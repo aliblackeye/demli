@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
-import { Button, Input, cn } from "@demli/ui";
+import { useEffect, useRef, useState } from "react";
+import { TriangleAlert } from "lucide-react";
+import { Button, Field, Input, cn } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
 import {
   ADULT_AGE,
@@ -68,6 +68,15 @@ export function BirthdateVerification({
   const [step, setStep] = useState<Step>("input");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<CommonErrorKey | "desktop:birthdate.invalid" | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Any failure lands the user back on the date field: a bad date is fixed
+  // there, and a failed SAVE unmounts the button that had focus (the confirm
+  // step is replaced by the input step) — without this, focus would fall to
+  // the page and the keyboard user would have to find their way back.
+  useEffect(() => {
+    if (error !== null && step === "input") inputRef.current?.focus();
+  }, [error, step]);
 
   // Age of the typed date. `null` means "not a real, non-future calendar date",
   // which is exactly when the form must refuse to advance.
@@ -103,19 +112,21 @@ export function BirthdateVerification({
   };
 
   return (
-    <div className={cn("space-y-3 text-left", className)}>
-      {error && <FormErrorAlert>{t(error)}</FormErrorAlert>}
+    <div className={cn("space-y-4 text-left", className)}>
+      {/* A failure of the SAVE (network, already-set) is form-level; a bad date is
+          the field's own problem and is written under it. */}
+      {error && error !== "desktop:birthdate.invalid" && <FormErrorAlert>{t(error)}</FormErrorAlert>}
 
       {step === "input" ? (
-        <>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="birthdate-verify"
-              className="block text-xs font-semibold text-fg-muted"
-            >
-              {t("desktop:birthdate.label")}
-            </label>
+        <div key="input" className="animate-fade-in space-y-4">
+          <Field
+            label={t("desktop:birthdate.label")}
+            help={t("desktop:birthdate.once")}
+            error={error === "desktop:birthdate.invalid" ? t(error) : undefined}
+            announceError
+          >
             <Input
+              ref={inputRef}
               id="birthdate-verify"
               type="date"
               value={value}
@@ -124,31 +135,29 @@ export function BirthdateVerification({
                 setValue(event.target.value);
                 setError(null);
               }}
-              aria-label={t("desktop:birthdate.label")}
             />
-            <p className="text-2xs text-fg-faint">{t("desktop:birthdate.once")}</p>
-          </div>
+          </Field>
           <div className="flex items-center gap-2">
-            <Button className="flex-1" onClick={toConfirm} disabled={age === null}>
+            <Button variant="primary" className="flex-1" onClick={toConfirm} disabled={age === null}>
               {t("desktop:birthdate.verify")}
             </Button>
             {secondaryAction}
           </div>
-        </>
+        </div>
       ) : (
-        <>
-          <div className="space-y-2 rounded-lg border border-stroke bg-app/60 p-3">
+        <div key="confirm" className="animate-fade-in space-y-4">
+          <div className="space-y-2 rounded-xl bg-surface p-4">
             <p className="text-sm leading-relaxed text-fg">
               {t("desktop:birthdate.confirmQuestion", {
                 date: formatBirthdateDisplay(value),
                 age: age ?? 0,
               })}
             </p>
-            <p className="text-2xs text-fg-faint">{t("desktop:birthdate.once")}</p>
+            <p className="text-label text-fg-faint">{t("desktop:birthdate.once")}</p>
             {/* The under-18 consequence is stated BEFORE the write, never after —
                 this is the one screen where "undo" does not exist. */}
             {!isAdultEntry && (
-              <p className="flex items-start gap-1.5 text-2xs leading-relaxed text-dnd">
+              <p className="flex items-start gap-2 rounded-lg bg-danger-surface px-3 py-2 text-label leading-relaxed text-danger">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                 {t("desktop:birthdate.minorWarning")}
               </p>
@@ -162,12 +171,11 @@ export function BirthdateVerification({
             >
               {t("desktop:birthdate.back")}
             </Button>
-            <Button className="flex-1" onClick={() => void save()} disabled={saving}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
+            <Button variant="primary" className="flex-1" onClick={() => void save()} loading={saving}>
               {t("desktop:birthdate.save")}
             </Button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

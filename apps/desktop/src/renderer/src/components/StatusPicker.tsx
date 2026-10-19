@@ -55,7 +55,7 @@ export function StatusPicker(): JSX.Element {
       <DropdownMenuSubTrigger className="group gap-2.5">
         <PresenceBadge status={current} className="ring-transparent" />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
+          <span className="block text-label font-semibold text-fg group-data-[highlighted]:text-fg">
             {t("desktop:presence.menuLabel")}
           </span>
           {/* The trigger's second line prefers the custom status when there is
@@ -78,7 +78,7 @@ export function StatusPicker(): JSX.Element {
             >
               <PresenceBadge status={status} className="mt-1 ring-transparent" />
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
+                <span className="block text-label font-semibold text-fg group-data-[highlighted]:text-fg">
                   {t(LABEL_KEY[status])}
                 </span>
                 {descKey && (
@@ -105,7 +105,7 @@ export function StatusPicker(): JSX.Element {
         >
           <MessageCircle className="mt-0.5 size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-fg" />
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block text-[13px] font-semibold text-fg group-data-[highlighted]:text-fg">
+            <span className="block text-label font-semibold text-fg group-data-[highlighted]:text-fg">
               {customStatus ? t("desktop:customStatus.edit") : t("desktop:customStatus.set")}
             </span>
             {customStatus && (
@@ -123,7 +123,7 @@ export function StatusPicker(): JSX.Element {
             onSelect={() => setCustomStatus.mutate({ text: null })}
           >
             <X className="size-4 shrink-0 text-fg-faint group-data-[highlighted]:text-fg" />
-            <span className="text-[13px] text-fg group-data-[highlighted]:text-fg">
+            <span className="text-label text-fg group-data-[highlighted]:text-fg">
               {t("desktop:customStatus.clear")}
             </span>
           </DropdownMenuItem>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Menu, Users } from "lucide-react";
-import { cn } from "@demli/ui";
+import { IconButton } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { useGroups } from "../queries/chat-queries";
 import { useChatStore } from "../stores/chat-store";
@@ -11,6 +11,7 @@ import { MemberSidebar } from "./MemberSidebar";
 import { GroupChatMemberSidebar } from "./GroupChatMemberSidebar";
 import { AppCenter } from "./AppCenter";
 import { MobileDrawer } from "./MobileDrawer";
+import { ShellNudges } from "./ShellNudges";
 
 /**
  * Top-bar context title: the active server's name on the server surface, or
@@ -95,46 +96,48 @@ export function MobileShell(): JSX.Element {
   const membersDrawerOpen = hasMembers && memberSidebarOpen;
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-app text-fg">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-stroke bg-sidebar px-2">
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label={t("desktop:mobileNav.openNav")}
+    <div data-shell="mobile" className="flex h-full w-full flex-col overflow-hidden bg-rail text-fg">
+      {/* Top bar on the black page (Koyu Masa: the chrome is the page, the
+          conversation is the island under it). 44px touch targets. */}
+      <header
+        className="flex h-14 shrink-0 items-center gap-1 px-2"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <IconButton
+          variant="ghost"
+          size="md"
+          label={t("desktop:mobileNav.openNav")}
           aria-expanded={navOpen}
-          className={cn(
-            "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-muted",
-            "transition-colors motion-instant hover:bg-white/[0.06] hover:text-fg",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-          )}
+          onClick={() => setNavOpen(true)}
+          className="size-11"
         >
-          <Menu className="size-5" />
-        </button>
-        <h1 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-fg">
+          <Menu aria-hidden />
+        </IconButton>
+        <h1 className="min-w-0 flex-1 truncate px-1 font-display text-base font-semibold text-fg-display">
           <MobileTitle />
         </h1>
         {hasMembers && (
-          <button
-            type="button"
+          <IconButton
+            variant="ghost"
+            size="md"
+            label={memberSidebarOpen ? t("desktop:chat.hideMembers") : t("desktop:chat.showMembers")}
+            pressed={memberSidebarOpen}
             onClick={toggleMemberSidebar}
-            aria-label={
-              memberSidebarOpen ? t("desktop:chat.hideMembers") : t("desktop:chat.showMembers")
-            }
-            aria-pressed={memberSidebarOpen}
-            className={cn(
-              "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-muted",
-              "transition-colors motion-instant hover:bg-white/[0.06] hover:text-fg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-              memberSidebarOpen && "bg-white/[0.06] text-fg",
-            )}
+            className="size-11"
           >
-            <Users className="size-5" />
-          </button>
+            <Users aria-hidden />
+          </IconButton>
         )}
       </header>
 
-      {/* Full-screen center — same component the desktop shell centers. */}
-      <div className="flex min-h-0 flex-1 flex-col">
+      {/* The age-verify / get-the-app nudges, in flow under the bar: they push
+          the island down instead of covering its newest messages, and leave
+          the bottom band to the root notice stack. Collapses when empty. */}
+      <ShellNudges placement="bar" />
+
+      {/* Full-screen center — same component the desktop shell centers, as one
+          island under the bar. */}
+      <div className="mx-1.5 mb-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-app">
         <AppCenter />
       </div>
 
@@ -148,7 +151,9 @@ export function MobileShell(): JSX.Element {
       >
         <div className="flex h-full">
           <GroupRail />
-          {isHome ? <HomeSidebar /> : <ChannelSidebar />}
+          <div className="flex min-h-0 overflow-hidden rounded-card">
+            {isHome ? <HomeSidebar /> : <ChannelSidebar />}
+          </div>
         </div>
       </MobileDrawer>
 
@@ -159,11 +164,13 @@ export function MobileShell(): JSX.Element {
         onClose={() => useChatStore.setState({ memberSidebarOpen: false })}
         label={t("desktop:members.membersNav")}
       >
-        {showGroupChatMembers ? (
-          <GroupChatMemberSidebar />
-        ) : !isHome ? (
-          <MemberSidebar />
-        ) : null}
+        <div className="flex h-full min-h-0 overflow-hidden rounded-card">
+          {showGroupChatMembers ? (
+            <GroupChatMemberSidebar />
+          ) : !isHome ? (
+            <MemberSidebar />
+          ) : null}
+        </div>
       </MobileDrawer>
     </div>
   );

@@ -2,8 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { DragEvent, ReactNode } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   FolderPlus,
+  Hash,
   Pencil,
   Plus,
   Settings,
@@ -11,6 +11,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import {
+  Button,
   ContextMenuCheckboxItem,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -30,7 +31,10 @@ import {
 import type { CategoryId, Channel, ChannelId } from "@demli/types";
 import { useShellData } from "../data/shell-data";
 import { ActionMenu } from "./ActionMenu";
+import { EmptyState, RetryNotice } from "./EmptyState";
+import { FormErrorAlert } from "./FormErrorAlert";
 import { SectionHeading } from "./SectionHeading";
+import { ShellListSkeleton } from "./ShellListSkeleton";
 import {
   buildSidebarBuckets,
   canNudgeCategory,
@@ -174,19 +178,31 @@ function DropLine({
 
 /**
  * The collapse chevron shared by every sidebar section header — the category
- * headers (M18) and the uncategorized Text/Voice lists (this task).
+ * headers (M18) and the uncategorized Text/Voice lists.
  *
- * Two icons rather than one rotated icon ON PURPOSE. A CSS rotation would have
- * to be either always-animated (which `prefers-reduced-motion: reduce` forbids)
- * or animated only conditionally, and getting that wrong is invisible on the
- * developer's machine and permanent on the user's. Swapping the glyph is
- * instantaneous by construction, so the reduced-motion contract is satisfied
- * without a media query to forget.
+ * One glyph that turns a quarter (fast step) rather than two swapped glyphs: the
+ * turn is the feedback that the section answered. Reduced motion is NOT left to
+ * chance here — the global `prefers-reduced-motion` guard in globals.css clamps
+ * every transition (this one included) to 0.01ms, so the chevron simply lands in
+ * its end state for those users. `data-collapsed` lets a test read the state
+ * without measuring a transform.
  */
 function CollapseChevron({ collapsed }: { collapsed: boolean }): JSX.Element {
-  const Icon = collapsed ? ChevronRight : ChevronDown;
-  return <Icon className="ml-1.5 size-3 shrink-0 text-fg-faint" aria-hidden />;
+  return (
+    <ChevronDown
+      aria-hidden
+      data-collapsed={collapsed ? "true" : "false"}
+      className={cn(
+        "ml-1 size-3.5 shrink-0 text-fg-faint transition-transform motion-fast",
+        "group-hover/sec:text-fg-muted",
+        collapsed && "-rotate-90",
+      )}
+    />
+  );
 }
+
+/** How long a just-expanded section's rows keep their arrival class. */
+const REVEAL_MS = 400;
 
 /**
  * Second column for the server surface (CLAUDE.md §7): the server header dropdown
@@ -228,9 +244,29 @@ export function ChannelSidebar({
     openDeleteCategory,
     openServerSettings,
     reorderSidebar,
+    serverDetailsLoading = false,
+    serverDetailsError = null,
+    retryServerDetails,
   } = useShellData();
 
-  const { isCollapsed, toggle } = useCollapsedSections(activeGroupId);
+  const { isCollapsed, toggle: toggleCollapsed } = useCollapsedSections(activeGroupId);
+
+  // The section the user just EXPANDED: its rows fade in once, so opening a
+  // section reads as the list arriving rather than as a jump. Only a user
+  // toggle sets it — first paint and server switches never animate the list.
+  const [revealKey, setRevealKey] = useState<string | null>(null);
+  const toggle = useCallback(
+    (key: string) => {
+      if (isCollapsed(key)) setRevealKey(key);
+      toggleCollapsed(key);
+    },
+    [isCollapsed, toggleCollapsed],
+  );
+  useEffect(() => {
+    if (revealKey === null) return;
+    const timer = window.setTimeout(() => setRevealKey(null), REVEAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [revealKey]);
   const { hideMuted, toggleHideMuted } = useHideMutedChannels(activeGroupId);
 
   // The two rows that survive every hide rule: the conversation on screen and
@@ -457,6 +493,7 @@ export function ChannelSidebar({
     rows: readonly Channel[],
     onlyKind?: Channel["kind"],
     hidingRows = false,
+    revealing = false,
   ): JSX.Element => {
     const bucketCategoryId = bucket.category?.id ?? null;
     const dragging =
@@ -493,7 +530,7 @@ export function ChannelSidebar({
     };
 
     return (
-      <div className="space-y-px">
+      <div className={cn("space-y-px", revealing && "animate-fade-in")}>
         {rows.map((channel) => (
           <Fragment key={channel.id}>
             {dragging && line(channel.id, `before-${channel.id}`)}
@@ -520,8 +557,9 @@ export function ChannelSidebar({
           // inside it: SectionHeading's own `pt-4 pb-1` is asymmetric, so a
           // chevron centred against the padded box lands visibly above the text.
           // Padding here + `py-0` on the heading centres it on the words.
-          "group/cat flex items-center gap-0.5 pb-1 pr-1 pt-4",
-          canDropCategory && overKey === dropKey && "bg-accent/10",
+          "group/cat group/sec flex items-center gap-0.5 rounded-md pb-1 pr-1 pt-4",
+          "transition-colors motion-hover",
+          canDropCategory && overKey === dropKey && "bg-accent-surface",
         )}
         draggable={canManageChannels}
         onDragStart={(event) => {
@@ -555,7 +593,8 @@ export function ChannelSidebar({
               : t("desktop:sidebar.collapseCategory", { name: category.name })
           }
           className={cn(
-            "flex min-w-0 flex-1 cursor-pointer items-center gap-0.5 rounded-md text-left",
+            "flex min-w-0 flex-1 cursor-pointer items-center gap-0.5 rounded-sm text-left",
+            "[&_h3]:transition-colors [&_h3]:motion-hover hover:[&_h3]:text-fg-muted",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
           )}
         >
@@ -573,8 +612,8 @@ export function ChannelSidebar({
               aria-label={t("desktop:sidebar.createChannelInCategory", { name: category.name })}
               title={t("desktop:sidebar.createChannelInCategory", { name: category.name })}
               className={cn(
-                "flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-faint",
-                "opacity-0 transition-opacity motion-instant hover:text-fg",
+                "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-fg-faint",
+                "opacity-0 transition-[opacity,color,background-color] motion-hover hover:bg-wash hover:text-fg",
                 "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
                 "group-hover/cat:opacity-100 pointer-coarse:opacity-100",
               )}
@@ -587,8 +626,9 @@ export function ChannelSidebar({
                   type="button"
                   aria-label={t("a11y.moreActions")}
                   className={cn(
-                    "flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-faint",
-                    "opacity-0 transition-opacity motion-instant hover:text-fg",
+                    "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-fg-faint",
+                    "opacity-0 transition-[opacity,color,background-color] motion-hover hover:bg-wash hover:text-fg",
+                    "data-[state=open]:bg-wash data-[state=open]:text-fg data-[state=open]:opacity-100",
                     "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
                     "group-hover/cat:opacity-100 pointer-coarse:opacity-100",
                   )}
@@ -672,7 +712,8 @@ export function ChannelSidebar({
       className={cn(
         // Same rhythm-on-the-row rule as the category header above, so the two
         // kinds of section header are indistinguishable in the list.
-        "flex w-full min-w-0 cursor-pointer items-center gap-0.5 rounded-md pb-1 pt-4 text-left",
+        "group/sec flex w-full min-w-0 cursor-pointer items-center gap-0.5 rounded-sm pb-1 pt-4 text-left",
+        "[&_h3]:transition-colors [&_h3]:motion-hover hover:[&_h3]:text-fg-muted",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
       )}
     >
@@ -795,16 +836,22 @@ export function ChannelSidebar({
             <button
               type="button"
               className={cn(
-                "relative flex h-16 shrink-0 cursor-pointer items-center justify-between overflow-hidden border-b border-stroke px-3.5",
-                "text-sm font-semibold text-fg transition-colors motion-instant hover:bg-white/[0.03]",
+                "group/hdr relative flex h-16 shrink-0 cursor-pointer items-center justify-between gap-2 overflow-hidden px-4",
+                "text-fg transition-colors motion-hover hover:bg-wash data-[state=open]:bg-wash",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/70",
               )}
             >
               {bannerLayer}
-              <span className="relative truncate font-display">
+              <span className="relative truncate font-display text-base font-semibold text-fg-display">
                 {activeGroupName ?? t("desktop:sidebar.serverFallback")}
               </span>
-              <ChevronDown className="relative size-4 shrink-0 text-fg-muted" />
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  "relative size-4 shrink-0 text-fg-faint transition-[transform,color] motion-fast",
+                  "group-hover/hdr:text-fg-muted group-data-[state=open]/hdr:rotate-180 group-data-[state=open]/hdr:text-fg",
+                )}
+              />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
@@ -843,18 +890,18 @@ export function ChannelSidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <div className="relative flex h-16 shrink-0 items-center overflow-hidden border-b border-stroke px-3.5 text-sm font-semibold text-fg">
+        <div className="relative flex h-16 shrink-0 items-center overflow-hidden px-4 text-fg">
           {bannerLayer}
-          <span className="relative truncate font-display">
+          <span className="relative truncate font-display text-base font-semibold text-fg-display">
             {activeGroupName ?? t("desktop:sidebar.serverFallback")}
           </span>
         </div>
       )}
 
       {reorderError && (
-        <p role="alert" className="shrink-0 px-3 pt-2 text-2xs leading-snug text-danger">
+        <FormErrorAlert className="mx-2 mt-1 shrink-0">
           {t("desktop:category.reorderFailed")}
-        </p>
+        </FormErrorAlert>
       )}
 
       <nav
@@ -863,6 +910,50 @@ export function ChannelSidebar({
         // voice panel instead of being sliced off mid-row while scrolling.
         className="edge-fade-y flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-3"
       >
+        {/* First fetch of this server: rows in their final geometry, so the
+            list does not jump when it lands. */}
+        {serverDetailsLoading && channels.length === 0 && (
+          <ShellListSkeleton
+            label={t("desktop:sidebar.loadingChannels")}
+            variant="channel"
+            className="pt-4"
+          />
+        )}
+        {/* First fetch FAILED: say so and offer the retry. Never the empty
+            state below — "no channels" (and a "create channel" CTA) for a
+            server that has channels would be a lie. */}
+        {!serverDetailsLoading && serverDetailsError !== null && channels.length === 0 && (
+          <RetryNotice
+            variant="band"
+            title={t("desktop:sidebar.loadFailed")}
+            message={serverDetailsError}
+            retryLabel={t("common:buttons.retry")}
+            onRetry={() => retryServerDetails?.()}
+            className="mt-4"
+          />
+        )}
+        {/* Loaded, and genuinely no channel the viewer can see. Said plainly,
+            with the one action that fixes it for someone who may take it. */}
+        {!serverDetailsLoading && serverDetailsError === null && channels.length === 0 && (
+          <EmptyState
+            icon={<Hash />}
+            title={t("desktop:sidebar.emptyTitle")}
+            body={
+              canManageChannels
+                ? t("desktop:sidebar.emptyBodyManage")
+                : t("desktop:sidebar.emptyBodyMember")
+            }
+            action={
+              canManageChannels ? (
+                <Button size="sm" variant="secondary" onClick={() => openCreateChannel()}>
+                  <Plus className="size-4" aria-hidden />
+                  {t("desktop:sidebar.createChannel")}
+                </Button>
+              ) : undefined
+            }
+            className="py-10"
+          />
+        )}
         {uncategorized && textChannels.length > 0 && (
           <section>
             {renderSectionHeader(
@@ -876,6 +967,7 @@ export function ChannelSidebar({
                 visibleTextChannels,
                 "text",
                 visibleTextChannels.length !== textChannels.length,
+                revealKey === SIDEBAR_SECTION_KEYS.text,
               )}
           </section>
         )}
@@ -892,6 +984,7 @@ export function ChannelSidebar({
                 visibleVoiceChannels,
                 "voice",
                 visibleVoiceChannels.length !== voiceChannels.length,
+                revealKey === SIDEBAR_SECTION_KEYS.voice,
               )}
           </section>
         )}
@@ -911,7 +1004,8 @@ export function ChannelSidebar({
                     the channel you are reading and the room you are in, exactly
                     like the Text/Voice sections above, so the two collapse
                     affordances cannot mean different things. */}
-                {visible.length > 0 && renderRows(bucket, visible, undefined, hidingRows)}
+                {visible.length > 0 &&
+                  renderRows(bucket, visible, undefined, hidingRows, revealKey === category.id)}
                 {visible.length === 0 &&
                   !visibility.collapsed &&
                   bucket.channels.length === 0 && (
@@ -919,10 +1013,10 @@ export function ChannelSidebar({
                     // only way to fill it would be the row menu.
                     <div
                       className={cn(
-                        "mx-2 mb-1 rounded-md border border-dashed px-2 py-1.5 text-2xs text-fg-faint",
+                        "mx-1 mb-1 rounded-md px-2.5 py-2 text-label transition-colors motion-hover",
                         drag?.kind === "channel" && overKey === `ch:${category.id}:end`
-                          ? "border-accent text-accent"
-                          : "border-stroke",
+                          ? "bg-accent-surface text-accent-hover"
+                          : "bg-wash text-fg-faint",
                       )}
                       onDragOver={(event) => {
                         if (drag?.kind !== "channel") return;

@@ -104,9 +104,10 @@ function createMainWindow(): BrowserWindow {
     show: false,
     // Painted by Chromium before the renderer's first frame — so it must be the
     // Demli base, not the pre-rebrand Catppuccin value it was left on. Matches
-    // the darkest stop of the startup gradient in renderer/index.html, so the
-    // window never flashes a colour the app does not use.
-    backgroundColor: "#0c0304",
+    // the Koyu Masa page tone (--color-rail) that renderer/index.html and the
+    // startup splash paint under their glow, so the window never flashes a
+    // colour the app does not use (pinned by boot-surface.test.ts).
+    backgroundColor: "#000000",
     // Brand window icon (Alt-Tab / taskbar in dev + non-packaged runs). Packaged
     // builds also embed it in the exe via build/icon.ico. Generated from the
     // single-source logo — see scripts/gen-icons.mjs and ./tray-icon.

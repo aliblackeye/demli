@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
-import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AnimatePresence, m } from "framer-motion";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import demliLogo from "../assets/demli-logo.svg";
-import { Button, Input, cn } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { Button, Field, Input, cn } from "@demli/ui";
+import { FormErrorAlert, transitions, viewFade } from "@demli/app-ui";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { useAuthStore } from "../stores/auth-store";
@@ -14,7 +15,7 @@ import {
 } from "../lib/account-manager";
 import { AuthUpdateFooter } from "./UpdateSettings";
 import { DownloadPrompt } from "./DownloadPrompt";
-import { authScreenRootClass } from "./authScreenLayout";
+import { authScreenRootClass, AUTH_GLOW } from "./authScreenLayout";
 
 type Mode = "login" | "register";
 
@@ -25,6 +26,17 @@ type AuthErrorKey =
   | "auth.errors.passwordRequired"
   | "auth.errors.birthdateRequired"
   | "auth.errors.birthdateInvalid";
+
+/** The field a validation failure belongs to — its message renders UNDER that field. */
+type AuthField = "username" | "password" | "birthdate";
+
+const FIELD_OF: Record<AuthErrorKey, AuthField> = {
+  "auth.errors.usernamePattern": "username",
+  "auth.errors.passwordTooShort": "password",
+  "auth.errors.passwordRequired": "password",
+  "auth.errors.birthdateRequired": "birthdate",
+  "auth.errors.birthdateInvalid": "birthdate",
+};
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
 
@@ -94,20 +106,22 @@ function GoogleIcon(): JSX.Element {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}): JSX.Element {
+/**
+ * The register-only fields slide open under the username instead of popping in:
+ * height + opacity on the standard step, the same reveal the rail's folders use.
+ * `overflow-hidden` only while it moves, so a focus ring is never clipped at rest.
+ */
+function Reveal({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-        {label}
-      </span>
-      {children}
-    </label>
+    <m.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: "auto", opacity: 1, transition: transitions.standard }}
+      exit={{ height: 0, opacity: 0, transition: transitions.fast }}
+      className="overflow-hidden"
+    >
+      {/* The gap lives INSIDE the animated box so the collapse closes it too. */}
+      <div className="pt-4">{children}</div>
+    </m.div>
   );
 }
 
@@ -121,7 +135,17 @@ interface AuthScreenProps {
   variant?: "primary" | "add";
 }
 
-/** Login/register gate — the session gate (primary) or the add-account overlay. */
+/**
+ * Login/register gate — the session gate (primary) or the add-account overlay.
+ *
+ * Koyu Masa first impression: the black page with ONE coral light above the
+ * card (the landing's "dem" glow, the same light the boot splash ends on, so
+ * boot → sign-in is one continuous surface), the mark, a display-face heading,
+ * and the form on a borderless radius-24 card. Validation follows the system
+ * recipe: a field's problem is written UNDER that field and the field takes the
+ * danger wash; only a refusal from the server (wrong password, network) is a
+ * form-level band.
+ */
 export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Element {
   const { t } = useAppTranslation();
   const isAdd = variant === "add";
@@ -140,13 +164,37 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [birthdate, setBirthdate] = useState("");
+  /** A field-scoped validation failure (rendered under its field). */
+  const [fieldError, setFieldError] = useState<AuthErrorKey | null>(null);
+  /** A form-level failure from the server (rendered as the band above the fields). */
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * Bumped by every submit that fails validation: after that render (the field
+   * now carries aria-invalid + its error as the description) focus moves to the
+   * first invalid control, so the screen reader reads the error and the user is
+   * already where the fix goes — the submit never appears to "do nothing".
+   */
+  const [invalidSubmit, setInvalidSubmit] = useState(0);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  useEffect(() => {
+    if (invalidSubmit === 0) return;
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [invalidSubmit]);
 
   const switchMode = (next: Mode): void => {
     setMode(next);
     setError(null);
+    setFieldError(null);
   };
+
+  /** Editing the field that was wrong clears its message; the others stay put. */
+  const clearFieldError = (field: AuthField): void => {
+    if (fieldError && FIELD_OF[fieldError] === field) setFieldError(null);
+  };
+
+  const errorFor = (field: AuthField): string | undefined =>
+    fieldError && FIELD_OF[fieldError] === field ? t(`desktop:${fieldError}`) : undefined;
 
   const onSubmit = (event: FormEvent): void => {
     event.preventDefault();
@@ -154,9 +202,12 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
     const trimmedUsername = username.trim();
     const validationError = validate(mode, trimmedUsername, password, birthdate);
     if (validationError) {
-      setError(t(`desktop:${validationError}`));
+      setError(null);
+      setFieldError(validationError);
+      setInvalidSubmit((n) => n + 1);
       return;
     }
+    setFieldError(null);
     setError(null);
     setSubmitting(true);
     const displayNameArg = displayName.trim() || undefined;
@@ -193,131 +244,140 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
     // The "add account" variant renders as a covering overlay over the running
     // app (fixed inset-0), NOT an in-flow block — see authScreenRootClass (that
     // in-flow bug was the P0 where "Hesap ekle" appeared to do nothing).
-    <div className={authScreenRootClass(variant)}>
-      <div className="w-[400px] max-w-[calc(100vw-2rem)]">
+    <div className={authScreenRootClass(variant)} style={{ backgroundImage: AUTH_GLOW }}>
+      <div className="w-[400px] max-w-[calc(100vw-2rem)] py-8">
         {isAdd && (
-          <button
-            type="button"
-            onClick={cancelAddAccount}
-            className={cn(
-              "mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-fg-muted hover:text-fg",
-              "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-            )}
-          >
-            <ArrowLeft className="size-3.5" />
+          <Button variant="ghost" size="sm" onClick={cancelAddAccount} className="-ml-2 mb-4">
+            <ArrowLeft aria-hidden className="size-3.5" />
             {t("desktop:accounts.addCancel")}
-          </button>
+          </Button>
         )}
-        <div className="mb-6 flex flex-col items-center gap-3">
+        <div className="mb-7 flex flex-col items-center gap-4">
           {/* Transparent-background Demli mark: the plate's own rounded corners
               are the rounding, so no overflow/scale crop hack is needed. */}
-          <img src={demliLogo} alt="Demli" className="size-14 drop-shadow-lg" />
-          <div className="text-center">
-            <h1 className="text-lg font-semibold text-fg">{heading}</h1>
-            <p className="mt-0.5 text-sm text-fg-muted">{subtitle}</p>
-          </div>
+          <img src={demliLogo} alt="Demli" className="size-14" draggable={false} />
+          {/* Heading + subtitle cross-fade when the mode flips, so the change of
+              task is felt, not just read (opacity only — nothing shifts). */}
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              key={isAdd ? "add" : mode}
+              variants={viewFade}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="text-center"
+            >
+              <h1 className="font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-fg-display">
+                {heading}
+              </h1>
+              <p className="mt-2 text-sm text-fg-muted">{subtitle}</p>
+            </m.div>
+          </AnimatePresence>
         </div>
 
-        <form
-          onSubmit={onSubmit}
-          className="rounded-xl border border-stroke bg-surface p-5 shadow-2xl"
-        >
+        <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-card bg-app p-6">
           {!isAdd && notice && !error && (
-            <p role="status" className="mb-4 rounded-md bg-idle/10 px-3 py-2 text-xs text-idle">
+            <FormErrorAlert tone="warning" className="mb-5">
               {t(notice)}
-            </p>
+            </FormErrorAlert>
           )}
           {isReauth && !error && (
-            <p role="status" className="mb-4 rounded-md bg-accent/10 px-3 py-2 text-xs text-accent">
+            <FormErrorAlert tone="accent" className="mb-5">
               {t("desktop:accounts.reauthNotice", { username: reauthUsername ?? "" })}
-            </p>
+            </FormErrorAlert>
           )}
-          {error && <FormErrorAlert className="mb-4">{error}</FormErrorAlert>}
+          {error && <FormErrorAlert className="mb-5">{error}</FormErrorAlert>}
 
-          <div className="space-y-4">
-            <Field label={t("desktop:auth.usernameLabel")}>
-              <Input
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                autoComplete="username"
-                autoFocus={!isReauth}
-                spellCheck={false}
-                placeholder={t("desktop:auth.usernamePlaceholder")}
-              />
-            </Field>
-            {mode === "register" && (
-              <Field label={t("desktop:auth.displayNameLabel")}>
-                <Input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  autoComplete="nickname"
-                  maxLength={64}
-                  placeholder={t("desktop:auth.displayNamePlaceholder")}
-                />
-              </Field>
-            )}
-            {mode === "register" && (
-              <Field label={t("desktop:auth.birthdateLabel")}>
-                <Input
-                  type="date"
-                  value={birthdate}
-                  onChange={(event) => setBirthdate(event.target.value)}
-                  max={todayISODate()}
-                  autoComplete="bday"
-                  aria-label={t("desktop:auth.birthdateLabel")}
-                />
-                <span className="mt-1 block text-2xs text-fg-faint">
-                  {t("desktop:auth.birthdateHint")}
-                </span>
-              </Field>
-            )}
-            <Field label={t("desktop:auth.passwordLabel")}>
-              {/*
-                Reveal toggle. Typing a password blind is where most sign-in
-                failures actually come from — a stuck Caps Lock or a keyboard
-                layout you cannot see, on a field that then says only "wrong
-                password". The eye costs one control and removes a whole class of
-                self-inflicted lockout.
-              */}
-              <div className="relative">
-                <Input
-                  type={passwordVisible ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoFocus={isReauth}
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  placeholder={
-                    mode === "register"
-                      ? t("desktop:auth.passwordPlaceholderRegister")
-                      : t("desktop:auth.passwordPlaceholderLogin")
-                  }
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setPasswordVisible((v) => !v)}
-                  // Not a form control: tab order should run label → field →
-                  // submit, and a keyboard user has no use for a visual reveal.
-                  tabIndex={-1}
-                  aria-label={
-                    passwordVisible
-                      ? t("desktop:auth.hidePassword")
-                      : t("desktop:auth.showPassword")
-                  }
-                  className={cn(
-                    "absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded p-1.5",
-                    "text-fg-faint transition-colors hover:text-fg",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  )}
-                >
-                  {passwordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-            </Field>
-          </div>
+          <Field label={t("desktop:auth.usernameLabel")} error={errorFor("username")} announceError>
+            <Input
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                clearFieldError("username");
+              }}
+              autoComplete="username"
+              autoFocus={!isReauth}
+              spellCheck={false}
+              placeholder={t("desktop:auth.usernamePlaceholder")}
+            />
+          </Field>
 
-          <Button type="submit" disabled={submitting} className="mt-5 w-full">
-            {submitting && <Loader2 className="size-4 animate-spin" />}
+          <AnimatePresence initial={false}>
+            {mode === "register" && (
+              <Reveal key="register-fields">
+                <div className="space-y-4">
+                  <Field label={t("desktop:auth.displayNameLabel")}>
+                    <Input
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      autoComplete="nickname"
+                      maxLength={64}
+                      placeholder={t("desktop:auth.displayNamePlaceholder")}
+                    />
+                  </Field>
+                  <Field
+                    label={t("desktop:auth.birthdateLabel")}
+                    help={t("desktop:auth.birthdateHint")}
+                    error={errorFor("birthdate")}
+                    announceError
+                  >
+                    <Input
+                      type="date"
+                      value={birthdate}
+                      onChange={(event) => {
+                        setBirthdate(event.target.value);
+                        clearFieldError("birthdate");
+                      }}
+                      max={todayISODate()}
+                      autoComplete="bday"
+                    />
+                  </Field>
+                </div>
+              </Reveal>
+            )}
+          </AnimatePresence>
+
+          <Field
+            label={t("desktop:auth.passwordLabel")}
+            error={errorFor("password")}
+            announceError
+            className="mt-4"
+          >
+            {/*
+              Reveal toggle. Typing a password blind is where most sign-in
+              failures actually come from — a stuck Caps Lock or a keyboard
+              layout you cannot see, on a field that then says only "wrong
+              password". The eye costs one control and removes a whole class of
+              self-inflicted lockout. (The Field wires label/aria to the INPUT,
+              so the wrapper below forwards those props to it.)
+            */}
+            <PasswordInput
+              visible={passwordVisible}
+              onToggle={() => setPasswordVisible((v) => !v)}
+              showLabel={t("desktop:auth.showPassword")}
+              hideLabel={t("desktop:auth.hidePassword")}
+              value={password}
+              onChange={(value) => {
+                setPassword(value);
+                clearFieldError("password");
+              }}
+              autoFocus={isReauth}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              placeholder={
+                mode === "register"
+                  ? t("desktop:auth.passwordPlaceholderRegister")
+                  : t("desktop:auth.passwordPlaceholderLogin")
+              }
+            />
+          </Field>
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={submitting}
+            className="mt-6 w-full"
+          >
             {mode === "login" ? t("desktop:auth.signIn") : t("desktop:auth.createAccount")}
           </Button>
 
@@ -338,28 +398,18 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
             <>
               <div className="my-4 flex items-center gap-3" aria-hidden>
                 <span className="h-px flex-1 bg-stroke" />
-                <span className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-                  {t("desktop:auth.orDivider")}
-                </span>
+                <span className="text-label text-fg-faint">{t("desktop:auth.orDivider")}</span>
                 <span className="h-px flex-1 bg-stroke" />
               </div>
 
-              <button
-                type="button"
-                onClick={onGoogle}
-                className={cn(
-                  "flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-md border border-stroke-strong px-4 py-2.5 text-sm font-medium",
-                  "text-fg transition-colors motion-instant hover:bg-raised",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                )}
-              >
+              <Button type="button" variant="secondary" size="lg" onClick={onGoogle} className="w-full">
                 <GoogleIcon />
                 {t("desktop:auth.continueWithGoogle")}
-              </button>
+              </Button>
             </>
           )}
 
-          <p className="mt-4 text-center text-xs text-fg-muted">
+          <p className="mt-5 text-center text-label text-fg-muted">
             {mode === "login"
               ? t("desktop:auth.newToDemli")
               : t("desktop:auth.alreadyHaveAccount")}{" "}
@@ -367,8 +417,8 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
               type="button"
               onClick={() => switchMode(mode === "login" ? "register" : "login")}
               className={cn(
-                "cursor-pointer font-medium text-accent hover:underline",
-                "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+                "cursor-pointer rounded-sm font-medium text-accent transition-colors motion-hover hover:text-accent-hover",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
               )}
             >
               {mode === "login" ? t("desktop:auth.switchToRegister") : t("desktop:auth.switchToLogin")}
@@ -385,6 +435,70 @@ export function AuthScreen({ variant = "primary" }: AuthScreenProps): JSX.Elemen
             add-account overlay. */}
         {!isAdd && <DownloadPrompt variant="footer" />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The password input + its reveal eye. A component of its own because `Field`
+ * clones its ONE child to wire `id` / `aria-describedby` / `aria-invalid`: those
+ * props arrive here and are forwarded to the real `<input>`, so the label and
+ * the error line stay attached to the field, not to the wrapper.
+ */
+function PasswordInput({
+  visible,
+  onToggle,
+  showLabel,
+  hideLabel,
+  value,
+  onChange,
+  autoFocus,
+  autoComplete,
+  placeholder,
+  ...wired
+}: {
+  visible: boolean;
+  onToggle: () => void;
+  showLabel: string;
+  hideLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoFocus: boolean;
+  autoComplete: string;
+  placeholder: string;
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
+  "aria-errormessage"?: string;
+}): JSX.Element {
+  return (
+    <div className="relative">
+      <Input
+        {...wired}
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        autoFocus={autoFocus}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        className="pr-11"
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        // Not a form control: tab order should run label → field → submit, and
+        // a keyboard user has no use for a visual reveal.
+        tabIndex={-1}
+        aria-label={visible ? hideLabel : showLabel}
+        aria-pressed={visible}
+        className={cn(
+          "absolute right-1.5 top-1/2 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-sm",
+          "text-fg-faint transition-colors motion-hover hover:bg-wash hover:text-fg",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        )}
+      >
+        {visible ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
+      </button>
     </div>
   );
 }
