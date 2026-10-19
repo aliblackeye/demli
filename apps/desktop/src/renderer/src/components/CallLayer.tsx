@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import { Phone, PhoneOff } from "lucide-react";
-import { Button, UserAvatar } from "@demli/ui";
+import { UserAvatar } from "@demli/ui";
 import { bannerDrop, toastPop } from "@demli/app-ui";
 import type { CallEndedReason, CallRole, CallState, PendingInvite } from "@demli/client-core";
 import type { AppTFunction } from "../lib/i18n";
@@ -18,6 +18,7 @@ import { useDms } from "../queries/social-queries";
 import { useDmCallSurface } from "../hooks/useDmCallSurface";
 import { IncomingCallDialog } from "./IncomingCallDialog";
 import { CallPill } from "./CallPill";
+import { CallControl } from "./CallControls";
 
 /** How long an ended call's outcome shows before the FSM returns to idle. */
 const ENDED_LINGER_MS = 3500;
@@ -281,35 +282,36 @@ function BusyCallBanner({ invite }: { invite: PendingInvite }): JSX.Element {
         initial="initial"
         animate="animate"
         exit="exit"
-        className="pointer-events-auto flex max-w-[min(28rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border border-stroke bg-surface px-3 py-2 shadow-2xl"
+        className="pointer-events-auto flex max-w-[min(28rem,calc(100vw-2rem))] items-center gap-3 rounded-card surface-glass-strong py-2 pl-2.5 pr-2"
       >
         <UserAvatar
           name={caller.displayName}
           colorSeed={caller.id}
           src={caller.avatarUrl}
           size="sm"
+          className="[--avatar-ring:var(--color-overlay)]"
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-fg">{title}</div>
-          <div className="truncate text-xs text-fg-muted">{t("desktop:call.busySwitchHint")}</div>
+          <div className="truncate text-label font-semibold text-fg-display">{title}</div>
+          <div className="truncate text-2xs text-fg-muted">{t("desktop:call.busySwitchHint")}</div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            aria-label={t("desktop:call.decline")}
-            title={t("desktop:call.decline")}
+          <CallControl
+            label={t("desktop:call.decline")}
+            icon={PhoneOff}
+            tone="leave"
+            size="round"
+            surface="glass"
             onClick={decline}
-            className="size-9 rounded-full bg-danger p-0 text-on-accent hover:bg-danger/90"
-          >
-            <PhoneOff className="size-4" />
-          </Button>
-          <Button
-            aria-label={t("desktop:call.accept")}
-            title={t("desktop:call.accept")}
+          />
+          <CallControl
+            label={t("desktop:call.accept")}
+            icon={Phone}
+            tone="accept"
+            size="round"
+            surface="glass"
             onClick={accept}
-            className="size-9 rounded-full bg-online p-0 text-on-accent hover:bg-online/90"
-          >
-            <Phone className="size-4" />
-          </Button>
+          />
         </div>
       </m.div>
     </div>
@@ -354,37 +356,38 @@ function QuietIncomingCallBanner({ state }: { state: CallState }): JSX.Element {
         initial="initial"
         animate="animate"
         exit="exit"
-        className="pointer-events-auto flex max-w-[min(28rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border border-stroke bg-surface px-3 py-2 shadow-2xl"
+        className="pointer-events-auto flex max-w-[min(28rem,calc(100vw-2rem))] items-center gap-3 rounded-card surface-glass-strong py-2 pl-2.5 pr-2"
       >
         <UserAvatar
           name={name}
           colorSeed={caller?.id ?? "call"}
           src={caller?.avatarUrl ?? null}
           size="sm"
+          className="[--avatar-ring:var(--color-overlay)]"
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-fg">{name}</div>
-          <div className="truncate text-xs text-fg-muted">
+          <div className="truncate text-label font-semibold text-fg-display">{name}</div>
+          <div className="truncate text-2xs text-fg-muted">
             {subtitle} · {t("desktop:call.dndQuietHint")}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            aria-label={t("desktop:call.decline")}
-            title={t("desktop:call.decline")}
+          <CallControl
+            label={t("desktop:call.decline")}
+            icon={PhoneOff}
+            tone="leave"
+            size="round"
+            surface="glass"
             onClick={decline}
-            className="size-9 rounded-full bg-danger p-0 text-on-accent hover:bg-danger/90"
-          >
-            <PhoneOff className="size-4" />
-          </Button>
-          <Button
-            aria-label={t("desktop:call.accept")}
-            title={t("desktop:call.accept")}
+          />
+          <CallControl
+            label={t("desktop:call.accept")}
+            icon={Phone}
+            tone="accept"
+            size="round"
+            surface="glass"
             onClick={accept}
-            className="size-9 rounded-full bg-online p-0 text-on-accent hover:bg-online/90"
-          >
-            <Phone className="size-4" />
-          </Button>
+          />
         </div>
       </m.div>
     </div>
@@ -403,7 +406,7 @@ function CallToast({ message }: { message: string }): JSX.Element {
         initial="initial"
         animate="animate"
         exit="exit"
-        className="rounded-full border border-stroke bg-surface px-4 py-2 text-sm font-medium text-fg shadow-lg"
+        className="rounded-pill surface-glass-strong px-4 py-2 text-label font-medium text-fg"
       >
         {message}
       </m.div>
