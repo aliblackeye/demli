@@ -16,20 +16,14 @@ const SWITCH_ERROR_TOAST_MS = 4_000;
  * clean and its profile is loaded — which is why it is OPAQUE (the black page
  * tone, the boot splash's single warm light behind the mark), not a translucent
  * veil the old account could show through.
- *
- * Also hosts the transient "couldn't switch — offline" notice (#100): when a
- * switch is CANCELLED because the target account was unreachable, the current
- * session stays put and this soft, auto-dismissing notice explains why.
  */
 export function AccountSwitchingOverlay(): JSX.Element {
   const { t } = useAppTranslation();
   const switching = useAccountsStore((s) => s.switching);
-  const switchError = useAccountsStore((s) => s.switchError);
-  const setSwitchError = useAccountsStore((s) => s.setSwitchError);
 
   return (
     <AnimatePresence>
-      {switching ? (
+      {switching && (
         // Covering overlay: fades in over the teardown and fades OUT to reveal the
         // freshly-loaded new-account app (opacity only — no transform on a
         // full-screen layer).
@@ -53,23 +47,39 @@ export function AccountSwitchingOverlay(): JSX.Element {
             {t("desktop:accounts.switching")}
           </p>
         </m.div>
-      ) : switchError === "offline" ? (
-        // Centering lives on the static flex parent so framer's y/scale transforms
-        // on the notice never clash with a centering transform.
-        <div
+      )}
+    </AnimatePresence>
+  );
+}
+
+/**
+ * The transient "couldn't switch — offline" notice (#100): when a switch is
+ * CANCELLED because the target account was unreachable, the current session
+ * stays put and this soft, auto-dismissing notice explains why.
+ *
+ * A member of the app-root {@link AppNoticeStack} like every other root notice —
+ * it used to position itself at the stack's exact spot as a separate layer, so
+ * it drew on top of any notice that fired with it. The error is set just before
+ * `switching` clears, so for a moment both exist: the covering overlay (z-100)
+ * sits above the stack (z-60) and the notice is revealed as the overlay fades.
+ */
+export function AccountSwitchOfflineToast(): JSX.Element {
+  const { t } = useAppTranslation();
+  const switchError = useAccountsStore((s) => s.switchError);
+  const setSwitchError = useAccountsStore((s) => s.setSwitchError);
+  return (
+    <AnimatePresence>
+      {switchError === "offline" && (
+        <NoticeToast
           key="switch-offline"
-          className="pointer-events-none fixed inset-x-0 bottom-24 z-[100] flex justify-center px-4"
+          tone="danger"
+          icon={<WifiOff />}
+          duration={SWITCH_ERROR_TOAST_MS}
+          onDismiss={() => setSwitchError(null)}
         >
-          <NoticeToast
-            tone="danger"
-            icon={<WifiOff />}
-            duration={SWITCH_ERROR_TOAST_MS}
-            onDismiss={() => setSwitchError(null)}
-          >
-            {t("desktop:accounts.switchOffline")}
-          </NoticeToast>
-        </div>
-      ) : null}
+          {t("desktop:accounts.switchOffline")}
+        </NoticeToast>
+      )}
     </AnimatePresence>
   );
 }

@@ -35,7 +35,6 @@ import { SettingsShell } from "./SettingsShell";
 import { InAppNotificationToast } from "./InAppNotificationToast";
 import { PushToTalkListener } from "./PushToTalkListener";
 import { DesktopShellDataProvider } from "./DesktopShellDataProvider";
-import { ShellNudges } from "./ShellNudges";
 import { TraySyncController } from "./TraySyncController";
 
 /** Keeps the active server group/channel selection consistent with server data. */
@@ -197,11 +196,6 @@ export function AppShell(): JSX.Element {
             rail can never disagree. */}
         <TraySyncController />
       </DesktopShellDataProvider>
-      {/* The age-verify reminder and the web-only "get the app" pill. On the
-          wide shell they sit in flow at the foot of the second column (see the
-          sidebar bindings); on the narrow web shell they float above the
-          composer. Either way they cover nothing — see ShellNudges. */}
-      <ShellNudges placement="floating" />
     </TooltipProvider>
   );
 }

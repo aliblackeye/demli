@@ -11,6 +11,7 @@ import { MemberSidebar } from "./MemberSidebar";
 import { GroupChatMemberSidebar } from "./GroupChatMemberSidebar";
 import { AppCenter } from "./AppCenter";
 import { MobileDrawer } from "./MobileDrawer";
+import { ShellNudges } from "./ShellNudges";
 
 /**
  * Top-bar context title: the active server's name on the server surface, or
@@ -128,6 +129,11 @@ export function MobileShell(): JSX.Element {
           </IconButton>
         )}
       </header>
+
+      {/* The age-verify / get-the-app nudges, in flow under the bar: they push
+          the island down instead of covering its newest messages, and leave
+          the bottom band to the root notice stack. Collapses when empty. */}
+      <ShellNudges placement="bar" />
 
       {/* Full-screen center — same component the desktop shell centers, as one
           island under the bar. */}

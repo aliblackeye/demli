@@ -1,4 +1,5 @@
 import { useAppTranslation } from "../lib/i18n";
+import { AccountSwitchOfflineToast } from "./AccountSwitchingOverlay";
 import { BlockedSendToast } from "./BlockedSendToast";
 import { ImageActionToast } from "./ImageActionToast";
 import { OutboxChannelGoneToast } from "./OutboxChannelGoneToast";
@@ -37,6 +38,9 @@ export function AppNoticeStack(): JSX.Element {
           Root-level for the same reason — the queue row can only show its
           generic "rejected" copy, so the neutral reason is given once, here. */}
       <BlockedSendToast />
+      {/* Multi-account (#100): a switch cancelled because the target account
+          was unreachable — the current session stays, this says why. */}
+      <AccountSwitchOfflineToast />
     </div>
   );
 }
