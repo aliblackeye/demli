@@ -479,14 +479,22 @@
     "deleteConfirmFallbackName": "bu rol",
     "deleteError": "Silinemedi",
     "notFound": "Bu rol artık mevcut değil.",
-    "validationName": "Rol adı 1–{{max}} karakter olmalı."
+    "validationName": "Rol adı 1–{{max}} karakter olmalı.",
+    "previewHeading": "Üye listesinde böyle görünür",
+    "readOnlyTitle": "Yalnızca görüntüleme",
+    "readOnlyBody": "Rolleri düzenlemek için Rolleri yönet izni gerekir.",
+    "saveErrorTitle": "Rol kaydedilemedi",
+    "dangerDescription": "Rolü silmek onu taşıyan herkesten hemen kaldırır. Geri alınamaz."
   },
   "memberRoles": {
     "title": "Rol ata",
     "hint": "Roller eklemelidir — üye, sahip olduğu her rolün tüm izinlerini alır.",
     "noRoles": "Henüz rol yok — Sunucu ayarlarından bir tane oluştur.",
     "guestNote": "Konuklar rol tutamaz.",
-    "notFound": "Bu üye artık sunucuda değil."
+    "notFound": "Bu üye artık sunucuda değil.",
+    "saveErrorTitle": "Rol değişmedi",
+    "saving": "Kaydediliyor…",
+    "saved": "Kaydedildi"
   },
   "permissions": {
     "manageChannels": "Kanalları yönet",
@@ -565,7 +573,11 @@
     "visibilityLabel": "Bu kanalı kimler görebilir",
     "visibilityNote": "Kısıtlı kanallar, listelenen rollere sahip olmayan üyelerden gizlenir.",
     "visibilityEveryone": "Herkes",
-    "visibilityRoles": "Seçili roller"
+    "visibilityRoles": "Seçili roller",
+    "errorTitle": "Kanal oluşturulamadı",
+    "kindLabel": "Kanal türü",
+    "kindTextDesc": "Mesajlar, görseller, bağlantılar",
+    "kindVoiceDesc": "Sesli konuşma, kamera, ekran paylaşımı"
   },
   "newServer": {
     "createTitle": "Sunucu oluştur",
@@ -1234,7 +1246,9 @@
     "nameTaken": "Bu emoji adı bu sunucuda zaten kullanılıyor.",
     "limit": "Bu sunucuda en fazla {{max}} emoji olabilir.",
     "disabled": "Özel emoji bu sunucuda kullanılamıyor.",
-    "error": "Bu emoji eklenemedi."
+    "error": "Bu emoji eklenemedi.",
+    "added": ":{{name}}: eklendi",
+    "loadErrorTitle": "Emojiler yüklenemedi"
   },
   "channelNsfw": {
     "toggleLabel": "NSFW kanal",
@@ -1405,7 +1419,8 @@
       "voice_disconnect": "Sesten düşürme",
       "timeout": "Zaman aşımı",
       "timeout_remove": "Zaman aşımı kaldırma"
-    }
+    },
+    "loadErrorTitle": "Denetim kaydı yüklenemedi"
   },
   "ui": {
     "loading": "Yükleniyor"

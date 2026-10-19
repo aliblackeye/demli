@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FolderTree, Pencil, Plus } from "lucide-react-native";
 import { CATEGORY_NAME_MAX_LENGTH } from "@demli/config";
 import type { CategoryId, GroupId } from "@demli/types";
-import { Text } from "@/components/ui/Text";
-import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { useAppTranslation } from "@/lib/i18n";
 import { useCreateCategory, useRenameCategory } from "@/queries/chat-queries";
 import { colors, radius, space } from "@/theme/theme";
@@ -39,30 +42,30 @@ export default function CategoryEditor() {
   const categoryId = (params.categoryId ?? null) as CategoryId | null;
   const isRename = categoryId !== null;
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
 
   const createCategory = useCreateCategory(groupId);
   const renameCategory = useRenameCategory(groupId);
   const pending = createCategory.isPending || renameCategory.isPending;
 
   const [name, setName] = useState(params.name ?? "");
+  /** The request failed (shown as a banner titled with what failed). */
   const [error, setError] = useState<string | null>(null);
+  /** The name itself is wrong (shown on the field). */
+  const [validation, setValidation] = useState<string | null>(null);
 
   const onSubmit = () => {
     const trimmed = name.trim();
     if (trimmed.length === 0 || trimmed.length > CATEGORY_NAME_MAX_LENGTH) {
-      setError(t("mobile:category.nameRequired"));
+      setValidation(t("mobile:category.nameRequired"));
       return;
     }
     setError(null);
+    setValidation(null);
 
     const handlers = {
       onSuccess: () => router.back(),
-      onError: (err: unknown) =>
-        setError(
-          `${localizeError(err, t)} ${
-            isRename ? t("mobile:category.renameFailed") : t("mobile:category.createFailed")
-          }`.trim(),
-        ),
+      onError: (err: unknown) => setError(localizeError(err, t)),
     };
 
     if (isRename) renameCategory.mutate({ categoryId, name: trimmed }, handlers);
@@ -70,66 +73,77 @@ export default function CategoryEditor() {
   };
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.app }}>
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
         contentContainerStyle={{
           padding: space.lg,
-          paddingBottom: space.xl + insets.bottom,
+          paddingBottom: space.xl + insets.bottom + keyboard,
           gap: space.xl,
         }}
         keyboardShouldPersistTaps="handled"
       >
         <Stack.Screen
           options={{
-            title: isRename
-              ? t("mobile:category.renameTitle")
-              : t("mobile:category.createTitle"),
+            title: isRename ? t("mobile:category.renameTitle") : t("mobile:category.createTitle"),
           }}
         />
 
-        {error ? (
+        {/* Said once, up front: a category is organization, never permission.
+            Without this line "category" reads like a place to hide channels. */}
+        {isRename ? null : (
           <View
             style={{
-              backgroundColor: colors.dangerSurface,
-              borderRadius: radius.sm,
-              padding: space.sm,
+              flexDirection: "row",
+              gap: space.md,
+              padding: space.lg,
+              borderRadius: radius.xl,
+              borderCurve: "continuous",
+              backgroundColor: colors.surface,
             }}
           >
-            <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-              {error}
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={{ gap: space.md }}>
-          {/* Said once, up front: a category is organization, never permission.
-              Without this line "category" reads like a place to hide channels. */}
-          {isRename ? null : (
-            <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
+            <FolderTree size={20} color={colors.fgMuted} strokeWidth={2} style={{ marginTop: 1 }} />
+            <Text type="ui" tone="muted" style={{ flex: 1, fontWeight: "400", lineHeight: 20 }}>
               {t("mobile:category.createDescription")}
             </Text>
-          )}
+          </View>
+        )}
 
-          <TextField
-            label={t("mobile:category.nameLabel")}
-            value={name}
-            onChangeText={setName}
-            maxLength={CATEGORY_NAME_MAX_LENGTH}
-            placeholder={t("mobile:category.namePlaceholder")}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={onSubmit}
+        {error ? (
+          <Banner
+            variant="danger"
+            title={isRename ? t("mobile:category.renameFailed") : t("mobile:category.createFailed")}
+            description={error}
           />
+        ) : null}
 
-          <Button
-            label={isRename ? t("mobile:category.rename") : t("mobile:category.create")}
-            loading={pending}
-            onPress={onSubmit}
-          />
-        </View>
+        <TextField
+          label={t("mobile:category.nameLabel")}
+          value={name}
+          onChangeText={(next) => {
+            setName(next);
+            if (validation) setValidation(null);
+          }}
+          maxLength={CATEGORY_NAME_MAX_LENGTH}
+          placeholder={t("mobile:category.namePlaceholder")}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={onSubmit}
+          error={validation}
+          editable={!pending}
+        />
+
+        <Button
+          label={isRename ? t("mobile:category.rename") : t("mobile:category.create")}
+          icon={isRename ? Pencil : Plus}
+          variant="accent"
+          size="lg"
+          block
+          loading={pending}
+          onPress={onSubmit}
+        />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

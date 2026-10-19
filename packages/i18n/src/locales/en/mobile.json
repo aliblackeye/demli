@@ -479,14 +479,22 @@
     "deleteConfirmFallbackName": "this role",
     "deleteError": "Couldn't delete",
     "notFound": "This role no longer exists.",
-    "validationName": "Role name must be 1–{{max}} characters."
+    "validationName": "Role name must be 1–{{max}} characters.",
+    "previewHeading": "How it looks in the member list",
+    "readOnlyTitle": "View only",
+    "readOnlyBody": "Editing roles needs the Manage roles permission.",
+    "saveErrorTitle": "Couldn't save the role",
+    "dangerDescription": "Deleting the role removes it from everyone who has it, right away. It can't be undone."
   },
   "memberRoles": {
     "title": "Assign roles",
     "hint": "Roles are additive — a member gets every permission from every role they hold.",
     "noRoles": "No roles yet — create one in Server settings.",
     "guestNote": "Guests can't hold roles.",
-    "notFound": "This member is no longer in the server."
+    "notFound": "This member is no longer in the server.",
+    "saveErrorTitle": "The role didn't change",
+    "saving": "Saving…",
+    "saved": "Saved"
   },
   "permissions": {
     "manageChannels": "Manage channels",
@@ -565,7 +573,11 @@
     "visibilityLabel": "Who can see this channel",
     "visibilityNote": "Restricted channels are hidden from members without a listed role.",
     "visibilityEveryone": "Everyone",
-    "visibilityRoles": "Selected roles"
+    "visibilityRoles": "Selected roles",
+    "errorTitle": "Couldn't create the channel",
+    "kindLabel": "Channel type",
+    "kindTextDesc": "Messages, images, links",
+    "kindVoiceDesc": "Voice, camera, screen sharing"
   },
   "newServer": {
     "createTitle": "Create a server",
@@ -1234,7 +1246,9 @@
     "nameTaken": "That emoji name is already used on this server.",
     "limit": "This server already has the maximum of {{max}} emoji.",
     "disabled": "Custom emoji are not available on this server.",
-    "error": "That emoji could not be added."
+    "error": "That emoji could not be added.",
+    "added": ":{{name}}: added",
+    "loadErrorTitle": "Couldn't load the emoji"
   },
   "channelNsfw": {
     "toggleLabel": "NSFW channel",
@@ -1405,7 +1419,8 @@
       "voice_disconnect": "Voice disconnect",
       "timeout": "Timeout",
       "timeout_remove": "Timeout removed"
-    }
+    },
+    "loadErrorTitle": "Couldn't load the audit log"
   },
   "ui": {
     "loading": "Loading"

@@ -1,13 +1,16 @@
 import { useMemo } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScrollText } from "lucide-react-native";
+import { CloudOff, Lock, ScrollText } from "lucide-react-native";
 import type { GroupId, ModerationActionEntry, ModerationActionType } from "@demli/types";
-import { Text } from "@/components/ui/Text";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { SkeletonList } from "@/components/Skeleton";
+import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
 import { useAppTranslation } from "@/lib/i18n";
 import { canSeeModerationLog, flattenModerationLog } from "@/lib/moderation-log";
@@ -34,6 +37,19 @@ const ACTION_LABEL_KEY = {
   timeout: "mobile:moderationLog.actionLabel.timeout",
   timeout_remove: "mobile:moderationLog.actionLabel.timeout_remove",
 } as const satisfies Record<ModerationActionType, string>;
+
+/**
+ * The badge tone carries the action's weight, and the label always says it in
+ * words (colour only reinforces): removals pink, restrictions gold, lifts green.
+ */
+const ACTION_TONE = {
+  kick: "danger",
+  ban: "danger",
+  unban: "success",
+  voice_disconnect: "warning",
+  timeout: "warning",
+  timeout_remove: "success",
+} as const satisfies Record<ModerationActionType, BadgeVariant>;
 
 function LogRow({ entry }: { entry: ModerationActionEntry }) {
   const { t, i18n } = useAppTranslation();
@@ -68,49 +84,29 @@ function LogRow({ entry }: { entry: ModerationActionEntry }) {
         gap: space.md,
         paddingHorizontal: space.lg,
         paddingVertical: space.md,
-        borderRadius: radius.md,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
         backgroundColor: colors.surface,
       }}
     >
-      <Avatar
-        name={actorName}
-        size={36}
-        uri={entry.actor?.avatarUrl}
-      />
-      <View style={{ flex: 1, gap: 2 }}>
+      <Avatar name={actorName} size={36} uri={entry.actor?.avatarUrl} ringColor={colors.surface} />
+      <View style={{ flex: 1, gap: space.xs }}>
+        <Badge variant={ACTION_TONE[entry.action.action]} label={t(ACTION_LABEL_KEY[entry.action.action])} />
         {/* One interpolated sentence, exactly like the desktop tab's — the
             catalog strings carry no markup, so the names are plain values and
             nothing here can be turned into formatting by a display name (§28). */}
-        <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
+        <Text type="ui" tone="default" style={{ fontWeight: "400", lineHeight: 20 }}>
           {t(ACTION_KEY[entry.action.action], { actor: actorName, target: targetName })}
         </Text>
         {entry.action.reason ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-            {t("mobile:moderationLog.reason")}: {entry.action.reason}
-          </Text>
+          <View style={{ paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.md, backgroundColor: colors.surfaceRaised }}>
+            <Text type="meta" tone="muted" style={{ fontWeight: "400" }}>
+              {t("mobile:moderationLog.reason")}: {entry.action.reason}
+            </Text>
+          </View>
         ) : null}
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>{when}</Text>
-      </View>
-      <View
-        style={{
-          backgroundColor: colors.surfaceRaised,
-          borderRadius: radius.sm,
-          borderCurve: "continuous",
-          paddingHorizontal: space.sm,
-          paddingVertical: 2,
-        }}
-      >
-        <Text
-          style={{
-            color: colors.fgFaint,
-            fontSize: 10,
-            fontWeight: "700",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-          }}
-        >
-          {t(ACTION_LABEL_KEY[entry.action.action])}
+        <Text type="caption" tone="faint">
+          {when}
         </Text>
       </View>
     </View>
@@ -127,6 +123,9 @@ function LogRow({ entry }: { entry: ModerationActionEntry }) {
  * else, so this screen is normally only reached by a permitted viewer; it
  * re-checks anyway, because a deep link is not an authorization (the API is the
  * real boundary — this is just about never rendering a list that would 403).
+ *
+ * States: skeleton rows, an error block with retry, an explained empty state,
+ * pull-to-refresh, and a footer spinner while the next page loads.
  */
 export default function ModerationLogScreen() {
   const { t } = useAppTranslation();
@@ -137,16 +136,8 @@ export default function ModerationLogScreen() {
   const { isOwner, can } = useServerPermissions(groupId);
   const allowed = canSeeModerationLog(isOwner, can);
 
-  const {
-    data,
-    isPending,
-    isError,
-    error,
-    refetch,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = useModerationLog(groupId, allowed);
+  const { data, isPending, isError, error, refetch, isRefetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useModerationLog(groupId, allowed);
 
   const entries = useMemo(() => flattenModerationLog(data?.pages), [data]);
 
@@ -154,37 +145,25 @@ export default function ModerationLogScreen() {
   if (!allowed) {
     body = (
       <View style={{ flex: 1, justifyContent: "center" }}>
-        <EmptyState
-          icon={<ScrollText size={22} color={colors.fgMuted} />}
-          title={t("errors.forbidden")}
-        />
+        <EmptyState icon={<Lock size={22} color={colors.fgMuted} />} title={t("errors.forbidden")} />
       </View>
     );
   } else if (isPending) {
     body = (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.fgFaint} />
+      <View style={{ padding: space.lg }}>
+        <SkeletonList count={6} lines={2} leadingSize={36} />
       </View>
     );
   } else if (isError) {
     body = (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: space.xl,
-          gap: space.md,
-        }}
-      >
-        <Text selectable style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-          {localizeError(error, t)}
-        </Text>
-        <Pressable onPress={() => void refetch()} hitSlop={8}>
-          <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "600" }}>
-            {t("buttons.retry")}
-          </Text>
-        </Pressable>
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <EmptyState
+          tone="error"
+          icon={<CloudOff size={22} color={colors.danger} />}
+          title={t("mobile:moderationLog.loadErrorTitle")}
+          subtitle={localizeError(error, t)}
+          action={<Button label={t("common:buttons.retry")} variant="secondary" size="sm" onPress={() => void refetch()} loading={isRefetching} />}
+        />
       </View>
     );
   } else if (entries.length === 0) {
@@ -202,17 +181,20 @@ export default function ModerationLogScreen() {
       <FlatList
         data={entries}
         keyExtractor={(entry) => entry.action.id}
-        contentContainerStyle={{
-          padding: space.md,
-          paddingBottom: space.md + insets.bottom,
-          gap: space.sm,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + insets.bottom, gap: space.sm }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching && !isFetchingNextPage}
+            onRefresh={() => void refetch()}
+            tintColor={colors.fgMuted}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.surfaceRaised}
+          />
+        }
         ListHeaderComponent={
-          <View style={{ paddingHorizontal: space.sm, paddingBottom: space.sm }}>
-            <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
-              {t("mobile:moderationLog.description")}
-            </Text>
-          </View>
+          <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20, paddingBottom: space.sm }}>
+            {t("mobile:moderationLog.description")}
+          </Text>
         }
         renderItem={({ item }) => <LogRow entry={item} />}
         onEndReachedThreshold={0.5}

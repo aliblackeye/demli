@@ -1,45 +1,37 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Lock, Save, ShieldQuestion, Trash2 } from "lucide-react-native";
 import { PERMISSIONS, type PermissionBitfield } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { RoleColorPicker } from "@/components/RoleColorPicker";
+import { Skeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
 import { ToggleRow } from "@/components/ToggleRow";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { DangerZone, SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
-import { PERMISSION_ROWS, ROLE_NAME_MAX } from "@/lib/roles";
-import {
-  useDeleteRole,
-  useRoles,
-  useServerPermissions,
-  useUpdateRole,
-} from "@/queries/chat-queries";
-import { colors, radius, space, typography } from "@/theme/theme";
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { PERMISSION_ROWS, ROLE_DOT_FALLBACK, ROLE_NAME_MAX } from "@/lib/roles";
+import { useDeleteRole, useRoles, useServerPermissions, useUpdateRole } from "@/queries/chat-queries";
+import { useAuthStore } from "@/stores/auth-store";
+import { colors, radius, space } from "@/theme/theme";
 
 /**
  * Role editor (ADR 0007): name, color, and the 5 MVP permission bits. Reached
  * from the server-settings Roles section (create then edit, mirroring desktop).
  * Owner ∨ MANAGE_ROLES; inputs disable for viewers without the permission — the
  * API is authoritative regardless.
+ *
+ * Koyu Masa: a live preview at the top (the role's pill and your name in its
+ * colour, exactly as a member list shows them), name + colour, permissions as a
+ * checklist card with what each bit allows, deletion in the danger zone behind
+ * a sheet. A viewer without the permission sees the role read-only, and is told.
  */
 export default function RoleSettings() {
   const { t } = useAppTranslation();
@@ -47,6 +39,8 @@ export default function RoleSettings() {
   const groupId = params.groupId ?? null;
   const roleId = params.roleId ?? null;
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
+  const me = useAuthStore((s) => s.user);
 
   const { data: roles, isLoading } = useRoles(groupId);
   const role = roles?.find((r) => r.id === roleId) ?? null;
@@ -61,6 +55,8 @@ export default function RoleSettings() {
   const [bits, setBits] = useState<PermissionBitfield>(0);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Seed once from the fetched role.
   useEffect(() => {
@@ -73,8 +69,8 @@ export default function RoleSettings() {
   }, [role, hydrated]);
 
   const trimmed = name.trim();
-  const dirty =
-    !!role && (trimmed !== role.name || color !== role.color || bits !== role.permissions);
+  const dirty = !!role && (trimmed !== role.name || color !== role.color || bits !== role.permissions);
+  const nameInvalid = hydrated && (trimmed.length === 0 || trimmed.length > ROLE_NAME_MAX);
 
   const onSave = () => {
     if (!roleId) return;
@@ -94,92 +90,101 @@ export default function RoleSettings() {
 
   const onDelete = () => {
     if (!roleId) return;
-    Alert.alert(
-      t("mobile:roleEditor.deleteConfirmTitle"),
-      t("mobile:roleEditor.deleteConfirmBody", {
-        name: role?.name ?? t("mobile:roleEditor.deleteConfirmFallbackName"),
-      }),
-      [
-        { text: t("buttons.cancel"), style: "cancel" },
-        {
-          text: t("buttons.delete"),
-          style: "destructive",
-          onPress: () =>
-            deleteRole.mutate(roleId, {
-              onSuccess: () => router.back(),
-              onError: (err) =>
-                Alert.alert(t("mobile:roleEditor.deleteError"), localizeError(err, t)),
-            }),
-        },
-      ],
-    );
+    setDeleteError(null);
+    deleteRole.mutate(roleId, {
+      onSuccess: () => {
+        setConfirmDelete(false);
+        router.back();
+      },
+      onError: (err) => setDeleteError(localizeError(err, t)),
+    });
   };
 
+  const tint = color ?? ROLE_DOT_FALLBACK;
+  const previewName = me?.displayName || me?.username || t("mobile:common.you");
+
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.app }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
-        contentContainerStyle={{
-          padding: space.lg,
-          paddingBottom: space.xl + insets.bottom,
-          gap: space.xl,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom + keyboard, gap: space.xl }}
         keyboardShouldPersistTaps="handled"
       >
         <Stack.Screen options={{ title: t("mobile:roleEditor.title") }} />
 
         {isLoading && !role ? (
-          <View style={{ paddingTop: space.xl, alignItems: "center" }}>
-            <ActivityIndicator color={colors.fgFaint} />
+          <View style={{ gap: space.lg }}>
+            <Skeleton width="100%" height={72} radius={radius.xl} />
+            <Skeleton width="100%" height={44} radius={radius.lg} />
+            <Skeleton width="100%" height={220} radius={radius.xl} />
           </View>
         ) : null}
 
         {!isLoading && !role ? (
-          <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center", paddingTop: space.xl }}>
-            {t("mobile:roleEditor.notFound")}
-          </Text>
+          <EmptyState
+            icon={<ShieldQuestion size={22} color={colors.fgMuted} />}
+            title={t("mobile:roleEditor.notFound")}
+            action={<Button label={t("common:buttons.back")} variant="secondary" size="sm" onPress={() => router.back()} />}
+          />
         ) : null}
 
         {role ? (
           <>
-            {error ? (
-              <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-                <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-                  {error}
+            {/* Live preview: the pill and a name in the role's colour. */}
+            <View
+              accessible
+              accessibilityLabel={`${t("mobile:roleEditor.previewHeading")}: ${trimmed || role.name}`}
+              style={{ gap: space.md, padding: space.lg, borderRadius: radius.xl, borderCurve: "continuous", backgroundColor: colors.surface }}
+            >
+              <SectionEyebrow style={{ paddingHorizontal: 0, paddingBottom: 0 }}>{t("mobile:roleEditor.previewHeading")}</SectionEyebrow>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" }}>
+                <Text type="body" numberOfLines={1} style={{ fontWeight: "600", color: color ?? colors.fg, flexShrink: 1 }}>
+                  {previewName}
                 </Text>
-              </View>
-            ) : null}
-
-            <View style={{ gap: space.md }}>
-              <TextField
-                label={t("mobile:roleEditor.nameLabel")}
-                value={name}
-                onChangeText={setName}
-                maxLength={ROLE_NAME_MAX}
-                editable={canManage}
-                placeholder={t("mobile:roleEditor.namePlaceholder")}
-              />
-
-              <View style={{ gap: space.sm }}>
-                <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                  {t("mobile:roleEditor.color")}
-                </Text>
-                <RoleColorPicker
-                  value={color}
-                  disabled={!canManage}
-                  onChange={setColor}
-                  noColorLabel={t("mobile:roleEditor.noColor")}
-                />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.xs + 2,
+                    paddingHorizontal: space.md,
+                    paddingVertical: space.xs + 1,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.surfaceRaised,
+                  }}
+                >
+                  <View style={{ width: 8, height: 8, borderRadius: radius.pill, backgroundColor: tint }} />
+                  <Text type="meta" tone="default" numberOfLines={1} style={{ fontWeight: "500" }}>
+                    {trimmed || role.name}
+                  </Text>
+                </View>
               </View>
             </View>
 
+            {!canManage ? (
+              <Banner variant="info" icon={Lock} title={t("mobile:roleEditor.readOnlyTitle")} description={t("mobile:roleEditor.readOnlyBody")} />
+            ) : null}
+
+            {error ? <Banner variant="danger" title={t("mobile:roleEditor.saveErrorTitle")} description={error} /> : null}
+
+            <TextField
+              label={t("mobile:roleEditor.nameLabel")}
+              value={name}
+              onChangeText={setName}
+              maxLength={ROLE_NAME_MAX}
+              editable={canManage}
+              placeholder={t("mobile:roleEditor.namePlaceholder")}
+              error={nameInvalid ? t("mobile:roleEditor.validationName", { max: ROLE_NAME_MAX }) : null}
+            />
+
             <View style={{ gap: space.sm }}>
-              <SectionLabel>{t("mobile:roleEditor.permissions")}</SectionLabel>
-              <View style={{ marginHorizontal: -space.md }}>
+              <SectionEyebrow style={{ paddingBottom: 0 }}>{t("mobile:roleEditor.color")}</SectionEyebrow>
+              <RoleColorPicker value={color} disabled={!canManage} onChange={setColor} noColorLabel={t("mobile:roleEditor.noColor")} />
+            </View>
+
+            <View>
+              <SectionEyebrow>{t("mobile:roleEditor.permissions")}</SectionEyebrow>
+              <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl, borderCurve: "continuous", padding: space.xs }}>
                 {PERMISSION_ROWS.map((row) => {
                   const bit = PERMISSIONS[row.bit];
                   return (
@@ -200,28 +205,47 @@ export default function RoleSettings() {
               <>
                 <Button
                   label={t("mobile:roleEditor.save")}
+                  icon={Save}
+                  variant="accent"
+                  size="lg"
+                  block
                   onPress={onSave}
                   loading={updateRole.isPending}
                   disabled={!dirty || trimmed.length === 0}
                 />
 
-                <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
-                <View style={{ gap: space.md }}>
-                  <SectionLabel>{t("mobile:common.dangerZone")}</SectionLabel>
+                <DangerZone title={t("mobile:common.dangerZone")} description={t("mobile:roleEditor.dangerDescription")}>
                   <Button
                     label={t("mobile:roleEditor.delete")}
+                    icon={Trash2}
                     variant="danger"
-                    onPress={onDelete}
-                    loading={deleteRole.isPending}
-                    style={{ borderRadius: radius.md }}
+                    onPress={() => {
+                      setDeleteError(null);
+                      setConfirmDelete(true);
+                    }}
                   />
-                </View>
+                </DangerZone>
               </>
             ) : null}
           </>
         ) : null}
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title={t("mobile:roleEditor.deleteConfirmTitle")}
+        body={t("mobile:roleEditor.deleteConfirmBody", {
+          name: role?.name ?? t("mobile:roleEditor.deleteConfirmFallbackName"),
+        })}
+        confirmLabel={t("buttons.delete")}
+        confirmIcon={Trash2}
+        onConfirm={onDelete}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setConfirmDelete(false)}
+        busy={deleteRole.isPending}
+        error={deleteError}
+        errorTitle={t("mobile:roleEditor.deleteError")}
+      />
+    </View>
   );
 }
