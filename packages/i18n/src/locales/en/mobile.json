@@ -288,7 +288,7 @@
     "messageA11y": "Send a message",
     "callNotFriend": "You can call friends only.",
     "viewAvatar": "Open {{name}}'s avatar",
-    "avatarZoomHint": "Double-tap to zoom, drag to pan",
+    "avatarZoomHint": "Double-tap or pinch to zoom · swipe down to close",
     "addFriendA11y": "Add {{name}} as a friend",
     "removeFriendA11y": "Remove {{name}} as a friend",
     "cancelRequestA11y": "Cancel the request sent to {{name}}",

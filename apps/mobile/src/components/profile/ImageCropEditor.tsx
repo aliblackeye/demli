@@ -238,6 +238,9 @@ function EditorBody({
       scheduleOnRN(sync, zoom.value, cx.value, cy.value);
     });
 
+  /** JS-side haptic for the double tap (a worklet hands a plain function back to RN). */
+  const tapFeedback = useCallback(() => haptics.selection(), []);
+
   /** Animate to a target crop on the position spring (or jump, reduced motion). */
   const animateTo = (next: { zoom: number; center: { x: number; y: number } }) => {
     "worklet";
@@ -262,7 +265,7 @@ function EditorBody({
               y: e.y - stageHalf.value.y,
             });
       animateTo(target);
-      scheduleOnRN(haptics.selection);
+      scheduleOnRN(tapFeedback);
       scheduleOnRN(sync, target.zoom, target.center.x, target.center.y);
     });
 

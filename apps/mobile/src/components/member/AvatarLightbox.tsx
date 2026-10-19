@@ -2,55 +2,48 @@
  * Full-screen avatar viewer — "tap the avatar, see it big, and move around
  * inside it" (founder's reference; desktop's AvatarLightbox).
  *
- * Built on RN core only — `Animated` + `PanResponder` — because the app ships
- * neither react-native-gesture-handler nor reanimated, and pulling one in for a
- * picture viewer would cost OTA-safety (CLAUDE.md §32): a new native module
- * means the change can no longer reach users as a JS update. That constraint
- * shapes the gestures:
+ * Gesture-handler + Reanimated (declared dependencies since M16), so every
+ * frame of a pinch runs on the UI thread:
  *
- *  - PINCH is implemented from raw touches (two-finger distance ratio) rather
- *    than a gesture library. It is the whole reason the responder tracks
- *    `nativeEvent.touches` instead of just `dx/dy`.
- *  - DOUBLE-TAP toggles between fit and 2.5×, which is how most people zoom a
- *    photo on a phone anyway and is the only zoom that works one-handed.
- *  - PAN is clamped to the scaled image's own overflow, so you can never drag
- *    the picture off-screen and lose it.
+ *  - PINCH zooms 1–4× about the point between your fingers.
+ *  - DOUBLE-TAP toggles fit ↔ 2.5× at the tapped point — the one-handed zoom.
+ *  - PAN is clamped to the zoomed image's own overflow, so the picture can never
+ *    be dragged off-screen and lost.
+ *  - SWIPE DOWN at fit dismisses (the photo-viewer idiom): the backdrop thins as
+ *    you drag, a short drag springs back, a flick or a long drag closes.
  *
- * `useNativeDriver` for both transforms keeps the gesture off the JS thread.
+ * It opens on the authored position spring out of a hair of scale (the
+ * design system's `pop`) and fades out on the fast step; reduced motion makes
+ * every one of those a jump. A stray tap on the backdrop closes only at fit
+ * scale — once zoomed, a tap outside is far more likely a missed pan.
  */
-
-import { useMemo, useRef, useState } from "react";
-import {
-  Animated,
-  Modal,
-  PanResponder,
-  Pressable,
-  useWindowDimensions,
-  View,
-  type GestureResponderEvent,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, Pressable, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Text } from "@/components/ui/Text";
+import { IconButton } from "@/components/ui/IconButton";
 import { Avatar } from "@/components/Avatar";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { motionTo, useReducedMotion } from "@/theme/motion";
+import { OVERLAY_MOTION } from "@/theme/motion-presets";
+import { colors, radius, space } from "@/theme/theme";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 /** What a double-tap zooms to — enough to read a face, not so much it gets lost. */
 const DOUBLE_TAP_SCALE = 2.5;
-/** Max gap between two taps that still counts as a double tap. */
-const DOUBLE_TAP_MS = 280;
+/** Drag distance / flick speed past which a swipe down at fit closes the viewer. */
+const DISMISS_DISTANCE = 140;
+const DISMISS_VELOCITY = 1200;
 
-/** Distance between the first two active touches, or null with fewer than two. */
-function touchDistance(event: GestureResponderEvent): number | null {
-  const touches = event.nativeEvent.touches;
-  if (touches.length < 2) return null;
-  const [a, b] = touches;
-  if (!a || !b) return null;
-  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+function clampValue(v: number, min: number, max: number): number {
+  "worklet";
+  return Math.min(max, Math.max(min, v));
 }
 
 export function AvatarLightbox({
@@ -67,206 +60,231 @@ export function AvatarLightbox({
 }) {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
-
   // Square viewport, inset from the edges so the close button never overlaps it.
   const size = Math.min(width, height) - space.xl * 2;
 
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  // Committed values (what the last gesture ended on). `Animated.Value` has no
-  // synchronous read, so the gesture math tracks them here.
-  const committed = useRef({ scale: 1, x: 0, y: 0 });
-  const gesture = useRef({ startDistance: 0, startScale: 1, startX: 0, startY: 0 });
-  const lastTapAt = useRef(0);
+  const [mounted, setMounted] = useState(visible);
   const [zoomed, setZoomed] = useState(false);
 
-  const reset = (animated = true): void => {
-    committed.current = { scale: 1, x: 0, y: 0 };
+  const open = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const sizeSV = useSharedValue(size);
+  useEffect(() => {
+    sizeSV.value = size;
+  }, [size, sizeSV]);
+
+  const resetNow = () => {
+    scale.value = 1;
+    tx.value = 0;
+    ty.value = 0;
+    drag.value = 0;
     setZoomed(false);
-    if (animated) {
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, bounciness: 0 }),
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
-      ]).start();
-    } else {
-      scale.setValue(1);
-      translateX.setValue(0);
-      translateY.setValue(0);
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      resetNow();
+      open.value = 0;
+      open.value = motionTo(1, "position", { reduced });
+      return;
     }
+    if (!mounted) return;
+    open.value = motionTo(0, "fast", {
+      reduced,
+      onDone: (finished) => {
+        "worklet";
+        if (finished) scheduleOnRN(setMounted, false);
+      },
+    });
+  }, [visible]);
+
+  /** Keep the zoomed image's edges outside the viewport (no empty band). */
+  const clampPan = (v: number, s: number) => {
+    "worklet";
+    const overflow = Math.max(0, (sizeSV.value * s - sizeSV.value) / 2);
+    return clampValue(v, -overflow, overflow);
   };
 
-  /** Keep the image's edges inside the viewport at the current scale. */
-  const clamp = (value: number, current: number): number => {
-    const overflow = Math.max(0, (size * current - size) / 2);
-    return Math.min(overflow, Math.max(-overflow, value));
-  };
+  const zoomedJs = (z: boolean) => setZoomed(z);
 
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_e, state) =>
-          Math.abs(state.dx) > 2 || Math.abs(state.dy) > 2,
-        onPanResponderGrant: (event) => {
-          gesture.current = {
-            startDistance: touchDistance(event) ?? 0,
-            startScale: committed.current.scale,
-            startX: committed.current.x,
-            startY: committed.current.y,
-          };
-          // Double-tap: toggle between fit and DOUBLE_TAP_SCALE.
-          const now = Date.now();
-          if (now - lastTapAt.current < DOUBLE_TAP_MS) {
-            lastTapAt.current = 0;
-            if (committed.current.scale > MIN_SCALE) {
-              reset();
-            } else {
-              committed.current = { scale: DOUBLE_TAP_SCALE, x: 0, y: 0 };
-              setZoomed(true);
-              Animated.parallel([
-                Animated.spring(scale, {
-                  toValue: DOUBLE_TAP_SCALE,
-                  useNativeDriver: true,
-                  bounciness: 0,
-                }),
-                Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
-                Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
-              ]).start();
-            }
-            return;
-          }
-          lastTapAt.current = now;
-        },
-        onPanResponderMove: (event, state) => {
-          const distance = touchDistance(event);
-          if (distance !== null && gesture.current.startDistance > 0) {
-            // Pinch: scale by the ratio of finger distances since the gesture began.
-            const next = Math.min(
-              MAX_SCALE,
-              Math.max(
-                MIN_SCALE,
-                gesture.current.startScale * (distance / gesture.current.startDistance),
-              ),
-            );
-            committed.current.scale = next;
-            scale.setValue(next);
-            setZoomed(next > MIN_SCALE);
-            return;
-          }
-          // Pan, only meaningful once the image overflows the viewport.
-          const x = clamp(gesture.current.startX + state.dx, committed.current.scale);
-          const y = clamp(gesture.current.startY + state.dy, committed.current.scale);
-          committed.current.x = x;
-          committed.current.y = y;
-          translateX.setValue(x);
-          translateY.setValue(y);
-        },
-        onPanResponderRelease: () => {
-          // A pinch that ended below 1× snaps back to fit rather than leaving a
-          // shrunken picture floating in a black screen.
-          if (committed.current.scale <= MIN_SCALE) reset();
-          else {
-            gesture.current.startDistance = 0;
-            committed.current.x = clamp(committed.current.x, committed.current.scale);
-            committed.current.y = clamp(committed.current.y, committed.current.scale);
-            translateX.setValue(committed.current.x);
-            translateY.setValue(committed.current.y);
-          }
-        },
-      }),
-    // `size` is the only value the clamp math reads that can change (rotation).
-    [size],
-  );
+  const pinchStart = useSharedValue({ s: 1, x: 0, y: 0, fx: 0, fy: 0 });
+  const pinch = Gesture.Pinch()
+    .onStart((e) => {
+      "worklet";
+      // Focal point relative to the viewport centre.
+      pinchStart.value = {
+        s: scale.value,
+        x: tx.value,
+        y: ty.value,
+        fx: e.focalX - sizeSV.value / 2,
+        fy: e.focalY - sizeSV.value / 2,
+      };
+    })
+    .onUpdate((e) => {
+      "worklet";
+      const st = pinchStart.value;
+      const next = clampValue(st.s * e.scale, MIN_SCALE, MAX_SCALE);
+      const k = next / st.s;
+      // The image point under the fingers stays under the fingers.
+      scale.value = next;
+      tx.value = clampPan(st.fx - (st.fx - st.x) * k, next);
+      ty.value = clampPan(st.fy - (st.fy - st.y) * k, next);
+    })
+    .onEnd(() => {
+      "worklet";
+      if (scale.value <= MIN_SCALE + 0.01) {
+        scale.value = motionTo(1, "position", { reduced });
+        tx.value = motionTo(0, "position", { reduced });
+        ty.value = motionTo(0, "position", { reduced });
+      }
+      scheduleOnRN(zoomedJs, scale.value > MIN_SCALE + 0.01);
+    });
+
+  const panStart = useSharedValue({ x: 0, y: 0 });
+  const pan = Gesture.Pan()
+    .averageTouches(true)
+    .onStart(() => {
+      "worklet";
+      panStart.value = { x: tx.value, y: ty.value };
+    })
+    .onUpdate((e) => {
+      "worklet";
+      if (scale.value > MIN_SCALE + 0.01) {
+        tx.value = clampPan(panStart.value.x + e.translationX, scale.value);
+        ty.value = clampPan(panStart.value.y + e.translationY, scale.value);
+      } else {
+        // At fit: a vertical drag is the dismiss gesture.
+        drag.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      "worklet";
+      if (scale.value > MIN_SCALE + 0.01) return;
+      if (Math.abs(drag.value) > DISMISS_DISTANCE || Math.abs(e.velocityY) > DISMISS_VELOCITY) {
+        scheduleOnRN(onClose);
+        return;
+      }
+      drag.value = motionTo(0, "position", { reduced, velocity: e.velocityY });
+    });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDuration(280)
+    .onEnd((e, success) => {
+      "worklet";
+      if (!success) return;
+      if (scale.value > MIN_SCALE + 0.01) {
+        scale.value = motionTo(1, "position", { reduced });
+        tx.value = motionTo(0, "position", { reduced });
+        ty.value = motionTo(0, "position", { reduced });
+        scheduleOnRN(zoomedJs, false);
+        return;
+      }
+      const fx = e.x - sizeSV.value / 2;
+      const fy = e.y - sizeSV.value / 2;
+      const k = DOUBLE_TAP_SCALE;
+      scale.value = motionTo(k, "position", { reduced });
+      tx.value = motionTo(clampPan(fx - fx * k, k), "position", { reduced });
+      ty.value = motionTo(clampPan(fy - fy * k, k), "position", { reduced });
+      scheduleOnRN(zoomedJs, true);
+    });
+
+  const gesture = Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
+
+  const { from } = OVERLAY_MOTION.pop;
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: open.value * (1 - Math.min(1, Math.abs(drag.value) / 400) * 0.6),
+  }));
+  const frameStyle = useAnimatedStyle(() => ({
+    opacity: open.value,
+    transform: [
+      { translateY: drag.value },
+      { scale: from.scale + (1 - from.scale) * open.value },
+    ],
+  }));
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
+  }));
+  const chromeStyle = useAnimatedStyle(() => ({ opacity: open.value }));
 
   const trimmedUrl = url?.trim() ? url.trim() : null;
 
   return (
     <Modal
-      visible={visible}
+      visible={mounted}
       transparent
-      animationType="fade"
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
-      onShow={() => reset(false)}
       supportedOrientations={["portrait", "landscape"]}
     >
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.94)" }}>
-        {/* Tapping the backdrop closes — but only while the image is at fit
-            scale. Once zoomed, a stray tap outside the picture is far more
-            likely a missed pan than a request to dismiss. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Animated.View
+          pointerEvents="none"
+          style={[{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.rail }, backdropStyle]}
+        />
+        {/* Tapping the backdrop closes — but only at fit scale (see header). */}
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={t("common:buttons.close")}
           onPress={zoomed ? undefined : onClose}
           disabled={zoomed}
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <View
-            {...responder.panHandlers}
-            style={{ width: size, height: size, overflow: "hidden", borderRadius: radius.lg }}
-          >
+          <GestureDetector gesture={gesture}>
             <Animated.View
-              style={{
-                width: size,
-                height: size,
-                transform: [{ translateX }, { translateY }, { scale }],
-              }}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={t("mobile:userProfile.viewAvatar", { name })}
+              accessibilityHint={t("mobile:userProfile.avatarZoomHint")}
+              style={[{ width: size, height: size, overflow: "hidden", borderRadius: radius.card, borderCurve: "continuous" }, frameStyle]}
             >
-              {trimmedUrl ? (
-                <Image
-                  source={{ uri: trimmedUrl }}
-                  style={{ width: size, height: size }}
-                  contentFit="contain"
-                  transition={120}
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                // No photo: show the same initials tile the rest of the app uses,
-                // so the gesture is consistent for every person in the roster.
-                <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
-                  <Avatar name={name} size={size * 0.7} uri={null} />
-                </View>
-              )}
+              <Animated.View style={[{ width: size, height: size }, imageStyle]}>
+                {trimmedUrl ? (
+                  <Image
+                    source={{ uri: trimmedUrl }}
+                    style={{ width: size, height: size }}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                    allowDownscaling={false}
+                    transition={reduced ? 0 : 120}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  // No photo: the same initials tile the rest of the app uses, so
+                  // the gesture is consistent for every person in the roster.
+                  <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+                    <Avatar name={name} size={size * 0.7} uri={null} />
+                  </View>
+                )}
+              </Animated.View>
             </Animated.View>
-          </View>
+          </GestureDetector>
         </Pressable>
 
-        <Pressable
-          onPress={onClose}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t("common:buttons.close")}
-          style={({ pressed }) => ({
-            position: "absolute",
-            top: insets.top + space.md,
-            right: space.lg,
-            width: 40,
-            height: 40,
-            borderRadius: radius.pill,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.55)",
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <X size={22} color="#ffffff" />
-        </Pressable>
+        <Animated.View style={[{ position: "absolute", top: insets.top + space.sm, right: space.md }, chromeStyle]}>
+          <IconButton icon={X} variant="veil" size="lg" label={t("common:buttons.close")} onPress={onClose} />
+        </Animated.View>
 
-        <Text
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: insets.bottom + space.lg,
-            textAlign: "center",
-            color: colors.fgFaint,
-            fontSize: typography.size["2xs"],
-          }}
+        <Animated.View
+          pointerEvents="none"
+          style={[{ position: "absolute", left: 0, right: 0, bottom: insets.bottom + space.lg, alignItems: "center", gap: 2 }, chromeStyle]}
         >
-          {t("mobile:userProfile.avatarZoomHint")}
-        </Text>
-      </View>
+          <Text type="subheading" tone="display" numberOfLines={1}>
+            {name}
+          </Text>
+          <Text type="caption" tone="faint">
+            {t("mobile:userProfile.avatarZoomHint")}
+          </Text>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

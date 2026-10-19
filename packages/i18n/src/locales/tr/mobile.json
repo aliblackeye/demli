@@ -288,7 +288,7 @@
     "messageA11y": "Mesaj gönder",
     "callNotFriend": "Yalnızca arkadaşlarını arayabilirsin.",
     "viewAvatar": "{{name}} kullanıcısının avatarını büyüt",
-    "avatarZoomHint": "Yakınlaştırmak için çift dokun, gezinmek için sürükle",
+    "avatarZoomHint": "Çift dokun ya da iki parmakla yakınlaştır · kapatmak için aşağı kaydır",
     "addFriendA11y": "{{name}} kullanıcısını arkadaş ekle",
     "removeFriendA11y": "{{name}} kullanıcısını arkadaşlıktan çıkar",
     "cancelRequestA11y": "{{name}} kullanıcısına gönderilen isteği geri çek",
