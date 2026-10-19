@@ -741,6 +741,27 @@ describe("screen share lifecycle", () => {
     expect(engine.getState().screenShareHasAudio).toBe(false);
   });
 
+  it("a stop that lands DURING a swap wins: the new track is never published", async () => {
+    const { engine, room } = setup();
+    await engine.join("channel-1");
+    await engine.startScreenShare(acquireFixed(makeAssets(true)));
+    room.localParticipant.publishTrack.mockClear();
+
+    let releaseUnpublish: () => void = () => undefined;
+    room.localParticipant.unpublishTrack.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseUnpublish = resolve)),
+    );
+    const next = new FakeMediaStreamTrack("audio");
+    const swap = engine.replaceScreenShareAudio(next as unknown as MediaStreamTrack);
+    await engine.stopScreenShare();
+    releaseUnpublish();
+
+    expect(await swap).toBe(false);
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+    expect(next.stopped).toBe(true);
+    expect(engine.getState().screenShareHasAudio).toBe(false);
+  });
+
   it("dropping to video-only mid-share unpublishes the film audio honestly", async () => {
     const assets = makeAssets(true);
     const original = assets.audio as unknown as FakeMediaStreamTrack;
