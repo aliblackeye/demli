@@ -4,7 +4,6 @@ import { Image } from "expo-image";
 import Animated, {
   ReduceMotion,
   ZoomIn,
-  ZoomOut,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
@@ -204,7 +203,8 @@ export const ServerRailItem = memo(function ServerRailItem({
       {badgeText ? (
         <Animated.View
           entering={ZoomIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
-          exiting={ZoomOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
+          // Arrives with a zoom; leaves instantly (no `exiting` inside a scrolling
+          // list — see ShellRow's UnreadPip for the Fabric reparenting P0).
           pointerEvents="none"
           style={{
             position: "absolute",

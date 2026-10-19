@@ -18,7 +18,7 @@
  */
 import type { ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import Animated, { ReduceMotion, ZoomIn, ZoomOut } from "react-native-reanimated";
+import Animated, { ReduceMotion, ZoomIn } from "react-native-reanimated";
 import { colors, motion, radius, space } from "@/theme/theme";
 import { CLEAR, Touchable } from "../ui/Touchable";
 
@@ -62,7 +62,10 @@ export function UnreadPip({ mention, placement = "gutter" }: { mention: boolean;
   return (
     <Animated.View
       entering={ZoomIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
-      exiting={ZoomOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
+      // No `exiting`: the pip lives in virtualized (removeClippedSubviews) list
+      // cells, and an exit animation keeps a view alive past its React removal —
+      // the reparenting pattern behind the Fabric "view already has a parent" P0.
+      // Clearing an unread is an instant removal.
       pointerEvents="none"
       importantForAccessibility="no"
       style={{
