@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, View } from "react-native";
+import { AccessibilityInfo, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, UserPlus } from "lucide-react-native";
 import type { CallState } from "@demli/client-core";
@@ -208,6 +208,22 @@ export function InCallView({
       : t("mobile:call.connecting");
   const sharerName = activeShare ? nameFor(activeShare.userId) : null;
 
+  // Screen-reader news is the PHASE (ringing → connecting → in call), said once
+  // when it changes. The visible line below ticks every second once answered, so
+  // it must not be a live region: TalkBack would read the clock aloud each second
+  // for the whole call and talk over everything else.
+  const phaseLabel = ringing
+    ? t("mobile:call.ringing")
+    : connected
+      ? t("mobile:call.inCall")
+      : t("mobile:call.connecting");
+  const announcedPhase = useRef(phaseLabel);
+  useEffect(() => {
+    if (announcedPhase.current === phaseLabel) return;
+    announcedPhase.current = phaseLabel;
+    AccessibilityInfo.announceForAccessibility(phaseLabel);
+  }, [phaseLabel]);
+
   /**
    * The primary red button. Ringing → withdraw the invite (there is no room to
    * walk out of yet). Otherwise LEAVE THE ROOM (ADR 0023 §2) — NOT hang up.
@@ -262,7 +278,9 @@ export function InCallView({
               />
               <Text
                 numberOfLines={1}
-                accessibilityLiveRegion="polite"
+                // Not live — see `phaseLabel`. Focusing it still reads phase + time.
+                accessibilityLiveRegion="none"
+                accessibilityLabel={duration ? `${phaseLabel}, ${duration}` : phaseLabel}
                 style={{
                   color: ringing ? colors.accent : colors.fgMuted,
                   fontSize: 12,
