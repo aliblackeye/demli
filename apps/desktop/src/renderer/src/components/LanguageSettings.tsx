@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
-import { cn } from "@demli/ui";
+import { RadioGroup, RadioItem } from "@demli/ui";
 import {
   applyLanguagePreference,
   getLanguagePreference,
   useAppTranslation,
   type LanguagePreference,
 } from "../lib/i18n";
+import { SettingsBlock, SettingsGroup } from "./settings-kit";
 
 /**
  * Language settings section. Three choices — System default / Türkçe / English —
@@ -17,10 +17,12 @@ export function LanguageSettings(): JSX.Element {
   const { t, i18n } = useAppTranslation();
   const [pref, setPref] = useState<LanguagePreference>(() => getLanguagePreference());
 
-  const options: { value: LanguagePreference; label: string }[] = [
+  // Each language names itself in its own language (and is marked up as such,
+  // so a screen reader pronounces "English" in English inside a Turkish UI).
+  const options: { value: LanguagePreference; label: string; lang?: string }[] = [
     { value: "system", label: t("desktop:settings.language.system") },
-    { value: "tr", label: t("language.tr") },
-    { value: "en", label: t("language.en") },
+    { value: "tr", label: t("language.tr"), lang: "tr" },
+    { value: "en", label: t("language.en"), lang: "en" },
   ];
 
   const choose = (next: LanguagePreference): void => {
@@ -29,34 +31,20 @@ export function LanguageSettings(): JSX.Element {
   };
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs leading-relaxed text-fg-faint">
-        {t("desktop:settings.language.description")}
-      </p>
-      <div role="radiogroup" aria-label={t("desktop:settings.nav.language")} className="space-y-2">
-        {options.map((option) => {
-          const active = pref === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => choose(option.value)}
-              className={cn(
-                "flex w-full cursor-pointer items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition-colors motion-instant",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                active
-                  ? "border-accent/60 bg-app text-fg ring-1 ring-accent/40"
-                  : "border-stroke bg-surface text-fg-muted hover:bg-raised hover:text-fg",
-              )}
-            >
-              <span className="font-medium">{option.label}</span>
-              {active && <Check className="size-4 text-accent" aria-hidden />}
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-3">
+      <SettingsGroup title={t("desktop:settings.nav.language")} description={t("desktop:settings.language.description")}>
+        <SettingsBlock className="p-1.5">
+          <RadioGroup
+            value={pref}
+            onValueChange={(next) => choose(next as LanguagePreference)}
+            aria-label={t("desktop:settings.nav.language")}
+          >
+            {options.map((option) => (
+              <RadioItem key={option.value} value={option.value} label={option.label} lang={option.lang} />
+            ))}
+          </RadioGroup>
+        </SettingsBlock>
+      </SettingsGroup>
     </div>
   );
 }

@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Check, Loader2, Pencil, Tag, X } from "lucide-react";
-import { Button, Input, UserAvatar } from "@demli/ui";
-import { EmptyState, FormErrorAlert } from "@demli/app-ui";
+import { m } from "framer-motion";
+import { Check, Info, Pencil, Tag, X } from "lucide-react";
+import { Button, IconButton, Input, UserAvatar } from "@demli/ui";
+import { EmptyState, FormErrorAlert, springs } from "@demli/app-ui";
 import { USER_NICKNAME_MAX_LENGTH } from "@demli/config";
 import type { UserId } from "@demli/types";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { usePrivateNicknameEntries, useSetPrivateNickname } from "../queries/social-queries";
+import { CharCount, InlineError, ListSkeleton, SettingsLabel, SettingsNote } from "./settings-kit";
 
 /**
  * One row of the private-nickname list: shows the label, the real name behind it,
@@ -17,6 +19,9 @@ import { usePrivateNicknameEntries, useSetPrivateNickname } from "../queries/soc
  * reusing it here would open it BEHIND the panel that launched it. A list of
  * one-field renames is also better served by an inline field than by a modal per
  * row.
+ *
+ * The editor is marked `data-esc-local`: Esc there cancels the edit, and the
+ * settings layer leaves it alone instead of closing over it.
  */
 function NicknameRow({
   userId,
@@ -49,33 +54,33 @@ function NicknameRow({
   };
 
   return (
-    <li className="flex flex-col px-3 py-2.5">
+    <li className="flex flex-col px-4 py-3 transition-colors motion-hover content-visibility-row hover:bg-raised/40">
       <div className="flex items-center gap-3">
         <UserAvatar name={realName} colorSeed={userId} src={avatarUrl} size="sm" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="min-w-0 truncate text-sm font-medium text-fg">{nickname}</span>
           {/* The real name stays visible so a renamed person is still identifiable. */}
-          <span className="min-w-0 truncate text-2xs text-fg-faint">
+          <span className="min-w-0 truncate text-label text-fg-faint">
             {realName} · @{username}
           </span>
         </span>
         {!editing && (
           <>
-            <Button
-              variant="secondary"
+            <IconButton
+              variant="ghost"
               size="sm"
-              aria-label={t("desktop:nicknames.edit")}
+              label={t("desktop:nicknames.edit")}
               onClick={() => {
                 setDraft(nickname);
                 setEditing(true);
               }}
             >
-              <Pencil className="size-3.5" aria-hidden />
-            </Button>
+              <Pencil />
+            </IconButton>
             <Button
               variant="secondary"
               size="sm"
-              disabled={setNickname.isPending}
+              loading={setNickname.isPending}
               onClick={() => setNickname.mutate(null)}
             >
               {t("desktop:userMenu.nicknameReset")}
@@ -85,44 +90,54 @@ function NicknameRow({
       </div>
 
       {editing && (
-        <form
-          className="mt-2 flex items-center gap-2"
+        <m.form
+          data-esc-local
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0, transition: springs.position }}
+          className="mt-3 flex items-center gap-2 pl-11"
           onSubmit={(event) => {
             event.preventDefault();
             save();
           }}
         >
-          <Input
-            autoFocus
-            value={draft}
-            maxLength={USER_NICKNAME_MAX_LENGTH}
-            placeholder={realName}
-            aria-label={t("desktop:userMenu.friendNicknameTitle", { name: realName })}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                close();
-              }
-            }}
-          />
-          <Button type="submit" size="sm" disabled={setNickname.isPending}>
-            {setNickname.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            ) : (
-              <Check className="size-3.5" aria-hidden />
-            )}
-            <span className="sr-only">{t("buttons.save")}</span>
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={close}>
-            <X className="size-3.5" aria-hidden />
-            <span className="sr-only">{t("buttons.cancel")}</span>
-          </Button>
-        </form>
+          <div className="relative min-w-0 flex-1">
+            <Input
+              autoFocus
+              value={draft}
+              maxLength={USER_NICKNAME_MAX_LENGTH}
+              placeholder={realName}
+              aria-label={t("desktop:userMenu.friendNicknameTitle", { name: realName })}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  close();
+                }
+              }}
+              className="pr-14"
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-2xs">
+              <CharCount value={draft} max={USER_NICKNAME_MAX_LENGTH} />
+            </span>
+          </div>
+          <IconButton
+            type="submit"
+            variant="solid"
+            size="md"
+            label={t("buttons.save")}
+            disabled={setNickname.isPending}
+            className="bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-pressed"
+          >
+            <Check />
+          </IconButton>
+          <IconButton type="button" variant="ghost" size="md" label={t("buttons.cancel")} onClick={close}>
+            <X />
+          </IconButton>
+        </m.form>
       )}
 
       {setNickname.error && (
-        <div className="mt-2">
+        <div className="mt-2 pl-11">
           <FormErrorAlert>{localizeError(setNickname.error, t)}</FormErrorAlert>
         </div>
       )}
@@ -142,46 +157,38 @@ function NicknameRow({
  */
 export function NicknamesSettings(): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: entries, isPending, error, refetch } = usePrivateNicknameEntries();
+  const { data: entries, isPending, error, refetch, isFetching } = usePrivateNicknameEntries();
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-fg">{t("desktop:nicknames.settingsTitle")}</h2>
-        <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-          {t("desktop:nicknames.settingsDescription")}
-        </p>
-        <p className="mt-1.5 text-xs leading-relaxed text-fg-faint">
-          {t("desktop:nicknames.settingsVsServer")}
-        </p>
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <p className="text-sm leading-relaxed text-fg-muted">{t("desktop:nicknames.settingsDescription")}</p>
+        <SettingsNote icon={Info}>{t("desktop:nicknames.settingsVsServer")}</SettingsNote>
       </div>
 
-      {isPending && (
-        <div role="status" className="flex items-center gap-2 py-4 text-sm text-fg-muted">
-          <Loader2 className="size-4 animate-spin" />
-          {t("desktop:moderationLog.loading")}
-        </div>
-      )}
+      {isPending && <ListSkeleton rows={3} label={t("desktop:moderationLog.loading")} />}
 
       {error && (
-        <div className="space-y-3">
-          <FormErrorAlert>{localizeError(error, t)}</FormErrorAlert>
-          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
-            {t("buttons.retry")}
-          </Button>
-        </div>
+        <InlineError
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
       )}
 
       {entries && entries.length === 0 && (
-        <EmptyState icon={<Tag className="size-6" />} title={t("desktop:nicknames.settingsEmpty")} />
+        <EmptyState
+          icon={<Tag className="size-6" />}
+          title={t("desktop:nicknames.settingsEmpty")}
+          className="py-10"
+        />
       )}
 
       {entries && entries.length > 0 && (
-        <>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-            {t("desktop:nicknames.settingsCount", { count: entries.length })}
-          </p>
-          <ul className="divide-y divide-stroke overflow-hidden rounded-lg border border-stroke bg-surface">
+        <div className="space-y-2">
+          <SettingsLabel>{t("desktop:nicknames.settingsCount", { count: entries.length })}</SettingsLabel>
+          <ul className="overflow-hidden rounded-xl bg-surface [&>*+*]:shadow-[inset_0_1px_0_var(--color-stroke)]">
             {entries.map((entry) => (
               <NicknameRow
                 key={entry.user.id}
@@ -193,7 +200,7 @@ export function NicknamesSettings(): JSX.Element {
               />
             ))}
           </ul>
-        </>
+        </div>
       )}
     </div>
   );

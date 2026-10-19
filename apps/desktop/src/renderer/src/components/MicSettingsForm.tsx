@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { m } from "framer-motion";
 import {
   Gauge,
   Headphones,
@@ -9,8 +10,8 @@ import {
   TriangleAlert,
   Waves,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { cn } from "@demli/ui";
+import { Button, RadioCard, RadioGroup, RadioItem, Slider, cn } from "@demli/ui";
+import { springs } from "@demli/app-ui";
 import {
   AUDIO_QUALITY_BITRATE_KBPS,
   INPUT_MODES,
@@ -24,6 +25,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { useMediaSettings } from "../stores/media-settings";
 import { useVoiceStore } from "../stores/voice-store";
 import { formatPttKey } from "../lib/ptt";
+import { SettingRow, SettingsBlock, SettingsGroup, SettingsNote } from "./settings-kit";
 import { Toggle } from "./Toggle";
 
 const INPUT_MODE_LABEL = {
@@ -55,43 +57,6 @@ const NOISE_TIER_DESC = {
   off: "desktop:micSettings.noiseOffDesc",
 } as const satisfies Record<NoiseSuppressionTier, string>;
 
-function Section({ children }: { children: React.ReactNode }): JSX.Element {
-  return <section className="rounded-xl border border-stroke bg-surface p-1.5">{children}</section>;
-}
-
-function SectionHeading({ children }: { children: string }): JSX.Element {
-  return <h2 className="px-3.5 pb-1 pt-2.5 text-sm font-semibold text-fg">{children}</h2>;
-}
-
-function ToggleRow({
-  icon: Icon,
-  title,
-  description,
-  checked,
-  disabled,
-  onChange,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-}): JSX.Element {
-  return (
-    <div className={cn("flex items-start justify-between gap-4 px-4 py-3.5", disabled && "opacity-50")}>
-      <div className="flex min-w-0 gap-3">
-        <Icon className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-fg">{title}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">{description}</p>
-        </div>
-      </div>
-      <Toggle checked={checked} disabled={disabled} onChange={onChange} label={title} />
-    </div>
-  );
-}
-
 /** Capture the next KeyboardEvent.code to use as the push-to-talk hold key. */
 function PttKeyCapture(): JSX.Element {
   const { t } = useAppTranslation();
@@ -115,41 +80,35 @@ function PttKeyCapture(): JSX.Element {
   }, [recording, setPttKey]);
 
   return (
-    <div className="px-4 py-3.5">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 gap-3">
-          <Keyboard className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-fg">{t("desktop:micSettings.pttKeyLabel")}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">
-              {t("desktop:micSettings.pttKeyHint")}
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setRecording((r) => !r)}
-          className={cn(
-            "min-w-24 shrink-0 cursor-pointer rounded-md border px-3 py-1.5 text-center text-sm transition-colors motion-instant",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-            recording
-              ? "border-accent/60 bg-accent/10 text-fg"
-              : "border-stroke bg-raised text-fg-muted hover:border-stroke-strong hover:text-fg",
-          )}
-        >
-          {recording ? (
-            t("desktop:micSettings.pttKeyRecording")
-          ) : (
-            <span className="font-mono text-fg">{formatPttKey(pttKey)}</span>
-          )}
-        </button>
-      </div>
-    </div>
+    <SettingRow
+      icon={Keyboard}
+      title={t("desktop:micSettings.pttKeyLabel")}
+      description={t("desktop:micSettings.pttKeyHint")}
+    >
+      <button
+        type="button"
+        onClick={() => setRecording((r) => !r)}
+        aria-pressed={recording}
+        className={cn(
+          "min-w-24 shrink-0 cursor-pointer rounded-lg px-3 py-1.5 text-center text-sm transition-[background-color,box-shadow,color] motion-hover",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
+          recording
+            ? "bg-accent-surface text-accent-hover shadow-[inset_0_0_0_1px_rgb(255_132_100/0.45)]"
+            : "bg-raised text-fg shadow-[inset_0_-1px_0_rgb(38_49_64/0.32)] hover:bg-raised-hover active:bg-raised-pressed",
+        )}
+      >
+        {recording ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent" />
+            {t("desktop:micSettings.pttKeyRecording")}
+          </span>
+        ) : (
+          <span className="font-mono">{formatPttKey(pttKey)}</span>
+        )}
+      </button>
+    </SettingRow>
   );
 }
-
-const SMALL_BUTTON =
-  "cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-instant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
 
 /**
  * Yankı Engelleme. Turning it OFF is a two-step action: the switch opens an inline
@@ -163,6 +122,7 @@ function EchoCancellationRow({ music }: { music: boolean }): JSX.Element {
   const setEchoCancellation = useMediaSettings((s) => s.setEchoCancellation);
   const [confirming, setConfirming] = useState(false);
   const on = isEchoCancellationOn(audio);
+  const descId = useId();
 
   const onToggle = (next: boolean): void => {
     if (next) {
@@ -175,48 +135,54 @@ function EchoCancellationRow({ music }: { music: boolean }): JSX.Element {
 
   return (
     <div>
-      <ToggleRow
+      <SettingRow
         icon={Sparkles}
         title={t("desktop:micSettings.echoCancellation")}
-        description={t("desktop:micSettings.echoCancellationDesc")}
-        checked={on}
+        description={<span id={descId}>{t("desktop:micSettings.echoCancellationDesc")}</span>}
         disabled={music}
-        onChange={onToggle}
-      />
+      >
+        <Toggle
+          checked={on}
+          disabled={music}
+          onChange={onToggle}
+          label={t("desktop:micSettings.echoCancellation")}
+          describedBy={descId}
+        />
+      </SettingRow>
+      {/* Enter-only motion: the warning must be gone the instant it is answered
+          (an exit fade would leave "turn it off?" on screen after the choice). */}
       {confirming && on && !music && (
-        <div
-          role="status"
-          className="mx-4 mb-3.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5"
-        >
-          <div className="flex gap-2">
-            <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
-            <p className="text-xs leading-relaxed text-fg">
-              {t("desktop:micSettings.echoOffWarning")}
-            </p>
-          </div>
-          <div className="mt-2.5 flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className={cn(SMALL_BUTTON, "border-stroke bg-raised text-fg-muted hover:text-fg")}
-            >
-              {t("desktop:micSettings.echoOffCancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEchoCancellation("off_headphones");
-                setConfirming(false);
-              }}
-              className={cn(SMALL_BUTTON, "border-warning/50 bg-warning/15 text-fg hover:bg-warning/25")}
-            >
-              {t("desktop:micSettings.echoOffConfirm")}
-            </button>
-          </div>
-        </div>
+          <m.div
+            role="status"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0, transition: springs.position }}
+            className="mx-4 mb-3.5 rounded-lg bg-warning/10 px-3.5 py-3"
+          >
+            <div className="flex gap-2.5">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+              <p className="text-label leading-relaxed text-fg">
+                {t("desktop:micSettings.echoOffWarning")}
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+                {t("desktop:micSettings.echoOffCancel")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setEchoCancellation("off_headphones");
+                  setConfirming(false);
+                }}
+              >
+                {t("desktop:micSettings.echoOffConfirm")}
+              </Button>
+            </div>
+          </m.div>
       )}
       {!on && !music && (
-        <p className="flex gap-2 px-4 pb-3 text-xs leading-relaxed text-warning">
+        <p className="flex gap-2 px-4 pb-3.5 pl-[3.75rem] text-label leading-relaxed text-warning">
           <Headphones className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {t("desktop:micSettings.echoOffActive")}
         </p>
@@ -247,6 +213,8 @@ export function MicSettingsForm(): JSX.Element {
   const selfMonitoring = useVoiceStore((s) => s.selfMonitoring);
   const toggleSelfMonitoring = useVoiceStore((s) => s.toggleSelfMonitoring);
   const isActive = status === "connected" || status === "joining" || status === "reconnecting";
+  const sensitivityId = useId();
+  const noiseId = useId();
 
   const onSelectInputMode = (mode: InputMode): void => {
     setInputMode(mode);
@@ -256,228 +224,172 @@ export function MicSettingsForm(): JSX.Element {
   };
 
   const music = audio.musicMode;
+  // Music mode forces the effective tiers (noise Off, quality Music); reflect that.
+  const effectiveNoise: NoiseSuppressionTier = music ? "off" : audio.noiseSuppression;
+  const effectiveQuality: AudioQuality = music ? "music" : audio.quality;
 
   return (
-    <div className="space-y-6">
-      <Section>
-        <SectionHeading>{t("desktop:micSettings.inputModeHeading")}</SectionHeading>
-        <div role="radiogroup" aria-label={t("desktop:micSettings.inputModeHeading")} className="space-y-1 p-1.5">
-          {INPUT_MODES.map((mode) => {
-            const selected = audio.inputMode === mode;
-            return (
-              <button
+    <div className="space-y-8">
+      <SettingsGroup title={t("desktop:micSettings.inputModeHeading")}>
+        <SettingsBlock className="p-1.5">
+          <RadioGroup
+            value={audio.inputMode}
+            onValueChange={(next) => onSelectInputMode(next as InputMode)}
+            aria-label={t("desktop:micSettings.inputModeHeading")}
+          >
+            {INPUT_MODES.map((mode) => (
+              <RadioItem
                 key={mode}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => onSelectInputMode(mode)}
-                className={cn(
-                  "flex w-full cursor-pointer flex-col rounded-md border px-3 py-2 text-left transition-colors motion-instant",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  selected
-                    ? "border-accent/60 bg-accent/10"
-                    : "border-stroke bg-raised hover:border-stroke-strong",
-                )}
-              >
-                <span className={cn("text-sm font-medium", selected ? "text-fg" : "text-fg-muted")}>
-                  {t(INPUT_MODE_LABEL[mode])}
-                </span>
-                <span className="mt-0.5 text-xs text-fg-faint">{t(INPUT_MODE_DESC[mode])}</span>
-              </button>
-            );
-          })}
-        </div>
+                value={mode}
+                label={t(INPUT_MODE_LABEL[mode])}
+                description={t(INPUT_MODE_DESC[mode])}
+              />
+            ))}
+          </RadioGroup>
+        </SettingsBlock>
 
-        {audio.inputMode === "push_to_talk" && (
-          <div className="border-t border-stroke/60">
-            <PttKeyCapture />
-          </div>
-        )}
+        {audio.inputMode === "push_to_talk" && <PttKeyCapture />}
 
         {audio.inputMode === "voice_activity" && (
-          <div className="border-t border-stroke/60 px-4 py-3.5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 gap-3">
-                <Gauge className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-                <div className="min-w-0">
-                  <label htmlFor="vad-sensitivity" className="text-sm font-medium text-fg">
-                    {t("desktop:micSettings.sensitivityLabel")}
-                  </label>
-                  <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">
-                    {t("desktop:micSettings.sensitivityHint")}
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs tabular-nums text-fg-muted">
-                {Math.round(audio.vadThreshold * 100)}%
-              </span>
-            </div>
-            <input
-              id="vad-sensitivity"
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={Math.round(audio.vadThreshold * 100)}
-              onChange={(e) => setVadThreshold(Number(e.target.value) / 100)}
-              className="mt-2.5 h-1.5 w-full cursor-pointer appearance-auto accent-accent"
+          <div>
+            <SettingRow
+              icon={Gauge}
+              title={<span id={sensitivityId}>{t("desktop:micSettings.sensitivityLabel")}</span>}
+              description={t("desktop:micSettings.sensitivityHint")}
             />
+            <SettingsBlock className="pl-[3.75rem] pt-0">
+              <Slider
+                aria-labelledby={sensitivityId}
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round(audio.vadThreshold * 100)}
+                onValueChange={(value) => setVadThreshold(value / 100)}
+                formatValue={(value) => `${value}%`}
+                showValue
+              />
+            </SettingsBlock>
           </div>
         )}
-      </Section>
+      </SettingsGroup>
 
-      <Section>
-        <SectionHeading>{t("desktop:micSettings.processingHeading")}</SectionHeading>
-        <div className="divide-y divide-stroke/60">
-          <ToggleRow
-            icon={Music}
-            title={t("desktop:micSettings.musicModeLabel")}
-            description={t("desktop:micSettings.musicModeDesc")}
+      <SettingsGroup title={t("desktop:micSettings.processingHeading")}>
+        <SettingRow
+          icon={Music}
+          title={t("desktop:micSettings.musicModeLabel")}
+          description={t("desktop:micSettings.musicModeDesc")}
+        >
+          <Toggle
             checked={music}
             onChange={setMusicMode}
+            label={t("desktop:micSettings.musicModeLabel")}
           />
-          <div className={cn("px-4 py-3.5", music && "opacity-50")}>
-            <div className="flex min-w-0 gap-3">
-              <Waves className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-fg">
-                  {t("desktop:micSettings.noiseSuppression")}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">
-                  {t("desktop:micSettings.noiseSuppressionTierDesc")}
-                </p>
-              </div>
-            </div>
-            <div
-              role="radiogroup"
-              aria-label={t("desktop:micSettings.noiseSuppression")}
-              className="mt-2.5 grid grid-cols-3 gap-1"
+        </SettingRow>
+        <div>
+          <SettingRow
+            icon={Waves}
+            title={<span id={noiseId}>{t("desktop:micSettings.noiseSuppression")}</span>}
+            description={t("desktop:micSettings.noiseSuppressionTierDesc")}
+            disabled={music}
+          />
+          <SettingsBlock className="pl-[3.75rem] pt-0">
+            <RadioGroup
+              value={effectiveNoise}
+              onValueChange={(next) => setNoiseSuppression(next as NoiseSuppressionTier)}
+              disabled={music}
+              aria-labelledby={noiseId}
+              className="grid grid-cols-3 gap-1.5"
             >
-              {NOISE_SUPPRESSION_TIERS.map((tier) => {
-                // Music mode forces the effective tier to Off, so reflect that.
-                const selected = music ? tier === "off" : audio.noiseSuppression === tier;
-                return (
-                  <button
-                    key={tier}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={music}
-                    onClick={() => setNoiseSuppression(tier)}
-                    className={cn(
-                      "cursor-pointer rounded-md border px-2 py-2 text-center transition-colors motion-instant",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                      music && "cursor-not-allowed",
-                      selected
-                        ? "border-accent/60 bg-accent/10"
-                        : "border-stroke bg-raised hover:border-stroke-strong",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "block text-sm font-medium",
-                        selected ? "text-fg" : "text-fg-muted",
-                      )}
-                    >
-                      {t(NOISE_TIER_LABEL[tier])}
-                    </span>
-                    <span className="mt-0.5 block text-2xs leading-tight text-fg-faint">
-                      {t(NOISE_TIER_DESC[tier])}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <EchoCancellationRow music={music} />
-          <ToggleRow
-            icon={Gauge}
-            title={t("desktop:micSettings.autoGainControl")}
-            description={t("desktop:micSettings.autoGainControlDesc")}
+              {NOISE_SUPPRESSION_TIERS.map((tier) => (
+                <RadioCard
+                  key={tier}
+                  value={tier}
+                  label={t(NOISE_TIER_LABEL[tier])}
+                  detail={t(NOISE_TIER_DESC[tier])}
+                />
+              ))}
+            </RadioGroup>
+          </SettingsBlock>
+        </div>
+        <EchoCancellationRow music={music} />
+        <SettingRow
+          icon={Gauge}
+          title={t("desktop:micSettings.autoGainControl")}
+          description={t("desktop:micSettings.autoGainControlDesc")}
+          disabled={music}
+        >
+          <Toggle
             checked={!music && audio.processing.autoGainControl}
             disabled={music}
             onChange={setAutoGainControl}
+            label={t("desktop:micSettings.autoGainControl")}
           />
-        </div>
+        </SettingRow>
         {music && (
-          <p className="px-4 pb-2.5 pt-1 text-xs leading-relaxed text-accent/90">
-            {t("desktop:micSettings.musicModeActive")}
-          </p>
+          <SettingsBlock className="pt-3">
+            <p className="text-label leading-relaxed text-accent-hover">
+              {t("desktop:micSettings.musicModeActive")}
+            </p>
+          </SettingsBlock>
         )}
-      </Section>
+      </SettingsGroup>
 
       {/* "Kendini dinle" — deliberately placed directly UNDER the noise-suppression
           tiers: it exists so the tier above can be judged by ear. The engine plays
           back the same capture + worklet chain the publish uses, so what you hear
           is what the far end gets. */}
-      <Section>
-        <SectionHeading>{t("desktop:micSettings.monitorHeading")}</SectionHeading>
-        <ToggleRow
+      <SettingsGroup title={t("desktop:micSettings.monitorHeading")}>
+        <SettingRow
           icon={Headphones}
           title={t("desktop:micSettings.monitorLabel")}
           description={t("desktop:micSettings.monitorDesc")}
-          checked={selfMonitoring}
-          onChange={toggleSelfMonitoring}
-        />
-        {/* Say WHY the mic/audio drop out — an unexplained auto-mute reads as a bug. */}
-        {isActive && (
-          <p
-            className={cn(
-              "px-4 pb-2.5 pt-1 text-xs leading-relaxed",
-              selfMonitoring ? "text-accent/90" : "text-fg-faint",
-            )}
-          >
-            {t("desktop:micSettings.monitorInCallNotice")}
-          </p>
-        )}
-        <p className="px-4 pb-3 pt-1 text-xs leading-relaxed text-fg-faint">
-          {t("desktop:micSettings.monitorHeadphonesHint")}
-        </p>
-      </Section>
-
-      <Section>
-        <SectionHeading>{t("desktop:micSettings.qualityHeading")}</SectionHeading>
-        <div
-          role="radiogroup"
-          aria-label={t("desktop:micSettings.qualityHeading")}
-          className="grid grid-cols-3 gap-1 p-1.5"
         >
-          {AUDIO_QUALITIES_ORDERED.map((quality) => {
-            // Music mode forces the effective tier to Music, so reflect that.
-            const selected = music ? quality === "music" : audio.quality === quality;
-            return (
-              <button
-                key={quality}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={music}
-                onClick={() => setAudioQuality(quality)}
-                className={cn(
-                  "cursor-pointer rounded-md border px-2 py-2 text-center transition-colors motion-instant",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  music && "cursor-not-allowed opacity-60",
-                  selected
-                    ? "border-accent/60 bg-accent/10"
-                    : "border-stroke bg-raised hover:border-stroke-strong",
-                )}
-              >
-                <span className={cn("block text-sm font-medium", selected ? "text-fg" : "text-fg-muted")}>
-                  {t(AUDIO_QUALITY_LABEL[quality])}
-                </span>
-                <span className="mt-0.5 block text-2xs text-fg-faint">
-                  ~{AUDIO_QUALITY_BITRATE_KBPS[quality]} kbps
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </Section>
+          <Toggle
+            checked={selfMonitoring}
+            onChange={toggleSelfMonitoring}
+            label={t("desktop:micSettings.monitorLabel")}
+          />
+        </SettingRow>
+        <SettingsBlock className="space-y-1.5 pl-[3.75rem]">
+          {/* Say WHY the mic/audio drop out — an unexplained auto-mute reads as a bug. */}
+          {isActive && (
+            <p
+              className={cn(
+                "text-label leading-relaxed",
+                selfMonitoring ? "text-accent-hover" : "text-fg-faint",
+              )}
+            >
+              {t("desktop:micSettings.monitorInCallNotice")}
+            </p>
+          )}
+          <p className="text-label leading-relaxed text-fg-faint">
+            {t("desktop:micSettings.monitorHeadphonesHint")}
+          </p>
+        </SettingsBlock>
+      </SettingsGroup>
 
-      <div className="flex items-center gap-2">
-        <Mic className="size-3.5 text-fg-faint" />
-        <p className="text-xs leading-relaxed text-fg-faint">{t("desktop:micSettings.note")}</p>
-      </div>
+      <SettingsGroup title={t("desktop:micSettings.qualityHeading")}>
+        <SettingsBlock className="p-2">
+          <RadioGroup
+            value={effectiveQuality}
+            onValueChange={(next) => setAudioQuality(next as AudioQuality)}
+            disabled={music}
+            aria-label={t("desktop:micSettings.qualityHeading")}
+            className="grid grid-cols-3 gap-1.5"
+          >
+            {AUDIO_QUALITIES_ORDERED.map((quality) => (
+              <RadioCard
+                key={quality}
+                value={quality}
+                label={t(AUDIO_QUALITY_LABEL[quality])}
+                detail={`~${AUDIO_QUALITY_BITRATE_KBPS[quality]} kbps`}
+              />
+            ))}
+          </RadioGroup>
+        </SettingsBlock>
+      </SettingsGroup>
+
+      <SettingsNote icon={Mic}>{t("desktop:micSettings.note")}</SettingsNote>
     </div>
   );
 }

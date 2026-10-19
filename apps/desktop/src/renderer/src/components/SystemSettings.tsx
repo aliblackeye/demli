@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Minimize2, Power } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Minimize2, MonitorDown, Power } from "lucide-react";
+import { Skeleton } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
+import { InlineError, SettingRow, SettingsGroup } from "./settings-kit";
 import { Toggle } from "./Toggle";
 
 /**
@@ -16,42 +17,6 @@ type DesktopSystemSettings = Awaited<
   ReturnType<Window["demli"]["system"]["getSettings"]>
 >;
 
-function SettingRow({
-  icon: Icon,
-  title,
-  description,
-  checked,
-  disabled,
-  onChange,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-}): JSX.Element {
-  return (
-    <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-      <div className="flex min-w-0 gap-3">
-        <Icon className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-fg">{title}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">
-            {description}
-          </p>
-        </div>
-      </div>
-      <Toggle
-        checked={checked}
-        disabled={disabled}
-        onChange={onChange}
-        label={title}
-      />
-    </div>
-  );
-}
-
 /**
  * The "Sistem" settings block: two persisted booleans applied by the main
  * process (close-to-tray governs the window's X; launch-at-startup registers a
@@ -63,22 +28,29 @@ export function SystemSettings(): JSX.Element {
   const bridge = window.demli?.system;
   const [settings, setSettings] = useState<DesktopSystemSettings | null>(null);
   const [pending, setPending] = useState(false);
+  // A failed read or write is SAID, not swallowed: a switch that silently snaps
+  // back reads as a broken control (§26).
+  const [failed, setFailed] = useState<"load" | "save" | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!bridge) {
       return;
     }
     let cancelled = false;
+    setFailed(null);
     void bridge
       .getSettings()
       .then((s) => {
         if (!cancelled) setSettings(s);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setFailed("load");
+      });
     return () => {
       cancelled = true;
     };
-  }, [bridge]);
+  }, [bridge, reloadKey]);
 
   async function update(
     apply: (b: NonNullable<typeof bridge>, next: boolean) => Promise<DesktopSystemSettings>,
@@ -88,11 +60,13 @@ export function SystemSettings(): JSX.Element {
       return;
     }
     setPending(true);
+    setFailed(null);
     try {
       const updated = await apply(bridge, next);
       setSettings(updated);
     } catch {
-      // Keep the last-known settings; a failed toggle simply doesn't move.
+      // Keep the last-known settings (the switch does not move) and say why.
+      setFailed("save");
     } finally {
       setPending(false);
     }
@@ -100,40 +74,57 @@ export function SystemSettings(): JSX.Element {
 
   if (!bridge) {
     return (
-      <section className="rounded-xl border border-stroke bg-surface p-5">
-        <h2 className="text-sm font-semibold text-fg">{t("desktop:systemSettings.heading")}</h2>
-        <p className="mt-2 text-xs text-fg-faint">
-          {t("desktop:systemSettings.webOnly")}
-        </p>
-      </section>
+      <SettingsGroup title={t("desktop:systemSettings.heading")}>
+        <SettingRow
+          icon={MonitorDown}
+          title={t("desktop:systemSettings.heading")}
+          description={t("desktop:systemSettings.webOnly")}
+        />
+      </SettingsGroup>
     );
   }
 
-  const loading = settings === null;
+  const loading = settings === null && failed !== "load";
+  const switchFor = (checked: boolean, label: string, onChange: (next: boolean) => void): JSX.Element =>
+    loading ? (
+      <Skeleton shape="rect" width={44} height={24} className="rounded-full" />
+    ) : (
+      <Toggle checked={checked} disabled={settings === null || pending} onChange={onChange} label={label} />
+    );
 
   return (
-    <section className="rounded-xl border border-stroke bg-surface p-1.5">
-      <h2 className="px-3.5 pb-1 pt-2.5 text-sm font-semibold text-fg">
-        {t("desktop:systemSettings.heading")}
-      </h2>
-      <div className="divide-y divide-stroke/60">
+    <div className="space-y-3">
+      <SettingsGroup title={t("desktop:systemSettings.heading")}>
         <SettingRow
           icon={Minimize2}
           title={t("desktop:systemSettings.closeToTray")}
           description={t("desktop:systemSettings.closeToTrayDesc")}
-          checked={settings?.closeToTray ?? true}
-          disabled={loading || pending}
-          onChange={(next) => void update((b, v) => b.setCloseToTray(v), next)}
-        />
+        >
+          {switchFor(settings?.closeToTray ?? true, t("desktop:systemSettings.closeToTray"), (next) =>
+            void update((b, v) => b.setCloseToTray(v), next),
+          )}
+        </SettingRow>
         <SettingRow
           icon={Power}
           title={t("desktop:systemSettings.autoLaunch")}
           description={t("desktop:systemSettings.autoLaunchDesc")}
-          checked={settings?.autoLaunch ?? false}
-          disabled={loading || pending}
-          onChange={(next) => void update((b, v) => b.setAutoLaunch(v), next)}
+        >
+          {switchFor(settings?.autoLaunch ?? false, t("desktop:systemSettings.autoLaunch"), (next) =>
+            void update((b, v) => b.setAutoLaunch(v), next),
+          )}
+        </SettingRow>
+      </SettingsGroup>
+      {failed && (
+        <InlineError
+          message={
+            failed === "load"
+              ? t("desktop:settingsUi.systemLoadFailed")
+              : t("desktop:settingsUi.systemSaveFailed")
+          }
+          retryLabel={failed === "load" ? t("buttons.retry") : undefined}
+          onRetry={failed === "load" ? () => setReloadKey((k) => k + 1) : undefined}
         />
-      </div>
-    </section>
+      )}
+    </div>
   );
 }

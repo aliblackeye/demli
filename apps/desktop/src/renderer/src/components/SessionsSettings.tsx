@@ -1,22 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Monitor, Smartphone, LogOut } from "lucide-react";
+import { LogOut, Monitor, MonitorSmartphone, Smartphone } from "lucide-react";
 import type { SessionSummary } from "@demli/types";
-import {
-  Button,
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { Badge, Button, cn } from "@demli/ui";
+import { EmptyState, FormErrorAlert } from "@demli/app-ui";
 import { api, friendlyErrorMessage } from "../lib/api-client";
 import { queryKeys } from "../lib/query-client";
 import { logoutActiveAccount } from "../lib/account-manager";
 import { useAppTranslation } from "../lib/i18n";
+import { ConfirmDialog, InlineError, ListSkeleton } from "./settings-kit";
 
 /**
  * "Oturumlar" — the active-sessions screen (M15). Lists every login session the
@@ -70,31 +62,37 @@ function SessionRow({
       : t("desktop:sessions.unknownDevice"));
 
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-stroke bg-surface px-4 py-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-raised text-fg-muted">
+    <li className="flex items-center gap-3 px-4 py-3 content-visibility-row">
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-lg",
+          session.current ? "bg-accent-surface text-accent" : "bg-raised/60 text-fg-muted",
+        )}
+      >
         <Icon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium text-fg">
           <span className="truncate">{deviceName}</span>
           {session.current && (
-            <span className="shrink-0 rounded-full bg-online/15 px-2 py-0.5 text-badge font-semibold uppercase tracking-wide text-online">
+            <Badge variant="success" className="shrink-0">
               {t("desktop:sessions.current")}
-            </span>
+            </Badge>
           )}
         </p>
-        <p className="mt-0.5 text-xs text-fg-faint">
+        <p className="mt-0.5 text-label text-fg-faint">
           {t("desktop:sessions.lastSeen", { when: formatLastSeen(session.lastSeenAt, locale, t) })}
         </p>
       </div>
       <Button
-        variant="ghost"
+        variant={session.current ? "ghost" : "danger"}
         size="sm"
-        disabled={revoking}
+        loading={revoking}
         onClick={onRevoke}
-        className="shrink-0 text-fg-muted hover:text-danger"
+        className="shrink-0"
       >
-        {revoking ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+        <LogOut className="size-3.5" />
         {session.current ? t("desktop:sessions.signOutThis") : t("desktop:sessions.revoke")}
       </Button>
     </li>
@@ -125,7 +123,16 @@ export function SessionsSettings(): JSX.Element {
     },
   });
 
-  const sessions = sessionsQuery.data?.sessions ?? [];
+  // The current device always first, then most recently seen.
+  const sessions = useMemo(
+    () =>
+      [...(sessionsQuery.data?.sessions ?? [])].sort(
+        (a, b) =>
+          Number(b.current) - Number(a.current) ||
+          new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime(),
+      ),
+    [sessionsQuery.data],
+  );
   const otherCount = sessions.filter((s) => !s.current).length;
 
   const onRevoke = (session: SessionSummary): void => {
@@ -144,10 +151,13 @@ export function SessionsSettings(): JSX.Element {
         <p className="text-sm leading-relaxed text-fg-muted">{t("desktop:sessions.description")}</p>
         {otherCount > 0 && (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             className="shrink-0"
-            onClick={() => setConfirmOthersOpen(true)}
+            onClick={() => {
+              revokeOthersMutation.reset();
+              setConfirmOthersOpen(true);
+            }}
           >
             {t("desktop:sessions.revokeOthers")}
           </Button>
@@ -155,18 +165,22 @@ export function SessionsSettings(): JSX.Element {
       </div>
 
       {sessionsQuery.isLoading ? (
-        <div className="flex items-center gap-2 py-6 text-sm text-fg-faint">
-          <Loader2 className="size-4 animate-spin" />
-          {t("desktop:sessions.loading")}
-        </div>
+        <ListSkeleton rows={3} avatar="square" label={t("desktop:sessions.loading")} />
       ) : sessionsQuery.isError ? (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {friendlyErrorMessage(sessionsQuery.error)}
-        </div>
+        <InlineError
+          message={friendlyErrorMessage(sessionsQuery.error)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void sessionsQuery.refetch()}
+          retrying={sessionsQuery.isFetching}
+        />
       ) : sessions.length === 0 ? (
-        <p className="py-6 text-sm text-fg-faint">{t("desktop:sessions.empty")}</p>
+        <EmptyState
+          icon={<MonitorSmartphone className="size-6" />}
+          title={t("desktop:sessions.empty")}
+          className="py-10"
+        />
       ) : (
-        <ul className="space-y-2">
+        <ul className="overflow-hidden rounded-xl bg-surface [&>*+*]:shadow-[inset_0_1px_0_var(--color-stroke)]">
           {sessions.map((session) => (
             <SessionRow
               key={session.id}
@@ -179,40 +193,28 @@ export function SessionsSettings(): JSX.Element {
         </ul>
       )}
 
-      <Dialog open={confirmOthersOpen} onOpenChange={setConfirmOthersOpen}>
-        <DialogContent aria-describedby="revoke-others-desc" className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("desktop:sessions.revokeOthers")}</DialogTitle>
-            <DialogDescription id="revoke-others-desc">
-              {t("desktop:sessions.revokeOthersConfirm")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            {revokeOthersMutation.isError && (
-              <FormErrorAlert>{friendlyErrorMessage(revokeOthersMutation.error)}</FormErrorAlert>
-            )}
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setConfirmOthersOpen(false)}
-              disabled={revokeOthersMutation.isPending}
-            >
-              {t("desktop:sessions.cancel")}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => revokeOthersMutation.mutate()}
-              disabled={revokeOthersMutation.isPending}
-            >
-              {revokeOthersMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              {t("desktop:sessions.revokeOthersConfirmCta")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* A failed single revoke is said, not swallowed (§26). */}
+      {revokeMutation.isError && (
+        <FormErrorAlert>{friendlyErrorMessage(revokeMutation.error)}</FormErrorAlert>
+      )}
+
+      <ConfirmDialog
+        open={confirmOthersOpen}
+        onOpenChange={setConfirmOthersOpen}
+        title={t("desktop:sessions.revokeOthers")}
+        description={t("desktop:sessions.revokeOthersConfirm")}
+        confirmLabel={t("desktop:sessions.revokeOthersConfirmCta")}
+        cancelLabel={t("desktop:sessions.cancel")}
+        closeLabel={t("buttons.close")}
+        onConfirm={() => revokeOthersMutation.mutate()}
+        pending={revokeOthersMutation.isPending}
+        layer="settings"
+        error={
+          revokeOthersMutation.isError ? (
+            <FormErrorAlert>{friendlyErrorMessage(revokeOthersMutation.error)}</FormErrorAlert>
+          ) : undefined
+        }
+      />
     </div>
   );
 }
