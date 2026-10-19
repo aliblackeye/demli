@@ -25,6 +25,10 @@ describe("localizeVoiceEnded", () => {
     expect(localizeVoiceEnded("session_replaced", t)).toBe("mobile:voice.sessionReplaced");
   });
 
+  it("says the user was removed, never that they joined elsewhere, after a moderator removal", () => {
+    expect(localizeVoiceEnded("moderator", t)).toBe("mobile:voice.endedModerator");
+  });
+
   it("falls back to the existing generic copy for an UNKNOWN reason", () => {
     const future = "some_future_reason" as VoiceEndedReason;
     expect(localizeVoiceEnded(future, t)).toBe("mobile:voice.sessionReplaced");

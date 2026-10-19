@@ -33,6 +33,8 @@ export function localizeVoiceEnded(
       return t("desktop:voice.endedAlone");
     case "session_replaced":
       return t("desktop:voice.sessionReplaced");
+    case "moderator":
+      return t("desktop:voice.endedModerator");
     default:
       return t("desktop:voice.sessionReplaced");
   }

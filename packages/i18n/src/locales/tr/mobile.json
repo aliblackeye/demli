@@ -781,6 +781,7 @@
     "channelFallback": "Ses kanalı",
     "sessionReplaced": "Başka bir cihazdan sesli odaya katıldın.",
     "endedAlone": "Odada başka kimse kalmadığı için ses bağlantısı kapandı.",
+    "endedModerator": "Sesli odadan çıkarıldın.",
     "aloneCountdown": "Odada tek kişi sensin — arama {{time}} sonra kapanacak.",
     "aloneExpiring": "Odada tek kişi sensin — arama kapanıyor.",
     "backgroundMic": {

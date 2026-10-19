@@ -781,6 +781,7 @@
     "channelFallback": "Voice channel",
     "sessionReplaced": "You joined voice on another device.",
     "endedAlone": "Everyone else had left, so the voice session ended.",
+    "endedModerator": "You were removed from the voice room.",
     "aloneCountdown": "You're the only one here — the call will close in {{time}}.",
     "aloneExpiring": "You're the only one here — the call is closing.",
     "backgroundMic": {
