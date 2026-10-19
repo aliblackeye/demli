@@ -1540,21 +1540,23 @@ Dal `feat/m16-ui-voice`. Yalnız görünüm ve etkileşim; medya mantığı, FSM
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Tek çağrı kontrol dili (`CallControl`: nötr / açık-mercan / kapalı-pembe / ayrıl-dolu pembe / kabul-yeşil) — ses paneli, DM kutusu, arama hapı, sahne çubuğu, gelen arama aynı düğmeyi kullanır | ✅ | ⏳ Dalga 4 | renk tek başına anlam taşımaz: ikon + ad + `aria-pressed` |
-| Ses paneli / DM kutusu: kenarsız yüzey kartı, canlı durum noktası (bekleyen durum nefes alır), durum satırı geçişli | ✅ | ⏳ | |
+| Tek çağrı kontrol dili (`CallControl`: nötr / açık-mercan / kapalı-pembe / ayrıl-dolu pembe / kabul-yeşil) — ses paneli, DM kutusu, arama hapı, sahne çubuğu, gelen arama aynı düğmeyi kullanır | ✅ | ⏳ Dalga 4 | renk tek başına anlam taşımaz: ikon + ad + `aria-pressed`. Denetim düzeltmesi: ses panelinin ve DM kutusunun ayrıl / kapat / iptal düğmesi "kapalı" (sessiz mikrofon) tonundaydı; artık her yüzeyde dolu pembe (`call-leave-tone.test.ts`) |
+| Ses paneli / DM kutusu: kenarsız yüzey kartı, canlı durum noktası (bekleyen durum nefes alır), durum satırı geçişli | ✅ | ⏳ | Denetim düzeltmesi: DM kutusunun durum satırı ("Görüntülü bağlantı kuruldu") ve "Başka cihazda aramadasın" başlığı gerçek 240px kenar çubuğunda kesiliyordu; artık iki satıra sarıyor (harness 240px'te TR+EN ölçüyor) |
 | Konuşma ışığı mercan: kenar çubuğu avatarında halka + yumuşak parıltı, karoda kenar içi parıltı (videonun ÜSTÜNDE) | ✅ | ⏳ (Dalga 2 avatar halkası mobilde de bekliyor) | eski yeşil halka kalktı |
+| Sahne karolarında klavye odağı görünür: beyaz kenar + siyah iç çizgi, videonun ÜSTÜNDE (konuşma ışığından farklı) | ✅ | — (mobilde klavye odağı yok) | Denetim düzeltmesi: odak halkası videonun altında boyanıyordu, kamera/paylaşım karosunda hiç görünmüyordu; harness gerçek pikselleri ölçüyor |
 | Ekran paylaşan kişinin satırında "CANLI" hapı; paylaşım karosunda ölçülen çözünürlük ("1080p" — çözülen kareden, istenen değerden değil) | ✅ | ⏳ | |
 | Sahne: saf siyah zemin + tek mercan ışık, kenarsız taban kartı; sahne çubuğu cam hap, "ayrıl" geniş dolu pembe; PiP köşeye yayla kayar | ✅ | ⏳ | VideoStage sıcak gradyanı kaldırıldı (Dalga 2 bilinen açığı) |
 | Gelen arama kartı: nefes alan mercan hale, etiketli üç daire, odak kart içine (Enter yanlışlıkla yanıtlamaz) | ✅ | ⏳ | azaltılmış harekette hale durur |
-| Kaynak seçici: iskelet yükleme, seçili kart mercan, ses seçimi radyo satırları (ok tuşlarıyla), kalite bölmeli seçim (ok tuşlarıyla) | ✅ | — (mobilde seçici yok) | Dalga 1'in üç ses seçeneği mantığı aynen |
+| Kaynak seçici: iskelet yükleme, seçili kart mercan, ses seçimi radyo satırları (ok tuşlarıyla), kalite bölmeli seçim (ok tuşlarıyla) | ✅ | — (mobilde seçici yok) | Dalga 1'in üç ses seçeneği mantığı aynen. Denetim düzeltmesi: tek sütunda ses seçimi 1280×800 varsayılan pencerede ekranın altında kalıyordu; artık iki bölme (solda kaynaklar kendi kaydırmasıyla, sağda ses + kalite sabit), açıklama yalnız seçili seçenekte görünür (diğerleri ekran okuyucuda kalır). 1280×800 ve 940×560'ta üç seçenek kaydırmadan görünür |
 | Kamera önizleme iskeletle başlar, aygıt seçimi `Select` atomu; aygıt ayarları radyo grupları | ✅ | ⏳ | |
 | Aramaya ekle: yükleniyor iskeleti, hata + tekrar dene, "eşleşen arkadaş yok" | ✅ | ⏳ | eskiden yüklenirken "eklenecek arkadaş yok" diyordu |
 | Kişi başı ses + yayın sesi sürgüsü tasarım sisteminin `Slider` atomu | ✅ | ✅ (zaten kendi sürgüsü) | |
 | Birlikte izle bandı, sıra paneli ve video seçici kenarsız | ✅ | ⏳ | |
-| Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (56 kontrol, headless Chrome) | ✅ web dev sunucusu | — | build'e girmez |
+| Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (95 kontrol, headless Chrome; `?lng=en` ya da `?lng=tr`, `?windows=N`) | ✅ web dev sunucusu | — | build'e girmez |
 
 **Kapılar:** desktop typecheck · desktop test · app-ui test · i18n parite · web
-typecheck/build · desktop build · eslint; harness doğrulaması dört kipte (varsayılan,
-masaüstü seçici, hata/izin yok, azaltılmış hareket) 0 konsol hatası/uyarısı — tek
+typecheck/build · desktop build · eslint; harness doğrulaması varsayılan,
+masaüstü seçici, hata/izin yok, azaltılmış hareket, 240px kenar çubuğu (TR+EN), karo klavye
+odağı (piksel örneği) ve 1280×800 / 940×560 seçici kiplerinde 0 konsol hatası/uyarısı — tek
 istisna azaltılmış hareket kipinde framer-motion'ın yalnız dev build'de yazdığı
 "Reduced Motion enabled" bildirimi (üretimde `NODE_ENV` ile silinir).
