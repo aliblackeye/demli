@@ -48,8 +48,8 @@ const FIT: View = { scale: 1, x: 0, y: 0 };
 /**
  * Full-viewport image viewer. Radix Dialog gives focus-trapping, Esc-to-close
  * and aria wiring; the image URL is the already-resolved signed URL from the
- * tile that opened it (no extra fetch). Clicking the dimmed backdrop, the close
- * button, or pressing Esc closes it.
+ * tile that opened it (no extra fetch). Clicking anywhere but the picture or a
+ * control (the dimmed backdrop), the close button, or pressing Esc closes it.
  *
  * M16: a real viewer, not a poster.
  *   - Zoom: wheel (anchored under the cursor), double-click (fit ⇄ 2×), the
@@ -242,6 +242,18 @@ export function ImageLightbox({
           "data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
         )}
         onKeyDown={onKeyDown}
+        onClick={(event) => {
+          // A click anywhere that is not the picture or a control closes the
+          // viewer — the dimmed backdrop beside the image, the bars' empty
+          // space, the gutters. The zoom/pan wrapper fills the whole stage, so a
+          // `target === currentTarget` check would only ever hit the gutters.
+          // Zoomed, a click ends a pan instead. Portaled menu items bubble here
+          // through React, so menus are excluded too.
+          if (zoomed) return;
+          const target = event.target as Element;
+          if (target.closest("img, button, a, [role='menu'], [data-lightbox-keep]")) return;
+          onOpenChange(false);
+        }}
         aria-describedby={undefined}
       >
         {/* The near-black veil keeps the picture the only lit thing on screen. */}
@@ -285,16 +297,13 @@ export function ImageLightbox({
         </div>
 
         {/* Stage: wheel zoom, drag pan, double-click fit ⇄ 2×. A click on the
-            empty backdrop (not the picture) closes, like before. */}
+            dimmed backdrop (anything but the picture) closes — handled above. */}
         <div
           ref={stageRef}
           className={cn(
             "relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-16",
             zoomed ? (dragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default",
           )}
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !zoomed) onOpenChange(false);
-          }}
           onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -366,7 +375,7 @@ export function ImageLightbox({
 
         {/* Zoom pill + the one-line how-to. */}
         <div className="relative z-10 flex shrink-0 flex-col items-center gap-2 p-4">
-          <div className="flex items-center gap-1 rounded-xl surface-glass-strong p-1">
+          <div data-lightbox-keep className="flex items-center gap-1 rounded-xl surface-glass-strong p-1">
             <ZoomButton
               label={t("desktop:attachments.zoomOut")}
               disabled={!zoomed || broken}
