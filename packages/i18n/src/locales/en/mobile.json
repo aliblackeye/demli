@@ -1014,6 +1014,8 @@
     "addPersonTitle": "Add to call",
     "addPersonSubtitle": "Adding a friend moves this call into a new group. Your DM history stays private.",
     "addPersonEmpty": "No friends to add right now.",
+    "addPersonLoadFailed": "Couldn't load your friends list",
+    "addPersonLoadFailedHint": "The call is still on. You can load the list again.",
     "addPersonFailed": "Couldn't add your friend to the call",
     "addPersonFailedHint": "The call is still on. You can try again.",
     "add": "Add",

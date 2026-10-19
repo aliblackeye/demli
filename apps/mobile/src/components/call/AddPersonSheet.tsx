@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { UserPlus, Users } from "lucide-react-native";
+import { RotateCcw, UserPlus, UserX, Users } from "lucide-react-native";
 import type { UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
@@ -9,6 +9,7 @@ import { SkeletonList } from "@/components/Skeleton";
 import { useFriends } from "@/queries/social-queries";
 import { getCallController } from "@/stores/call-store";
 import { colors, radius, space } from "@/theme/theme";
+import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Text } from "../ui/Text";
 import { toast } from "../ui/Toast";
@@ -24,9 +25,10 @@ import { Touchable } from "../ui/Touchable";
  * appear — the server re-checks the inviter↔invitee friendship anyway.
  *
  * Drawn on the kit's draggable Sheet. Every state is designed: friends loading
- * (skeleton rows, announced once), nobody to add (an empty block, not a blank
- * card), one request in flight (that row shows the spinner, the others step back
- * to 40% and stop taking taps), and a refused upgrade (a toast that says the call
+ * (skeleton rows, announced once), the list failed to load (an error block
+ * with a retry — never the "nobody to add" copy, which would be a false claim),
+ * nobody to add (an empty block, not a blank card), one request in flight
+ * (that row shows the spinner, the others step back to 40% and stop taking taps), and a refused upgrade (a toast that says the call
  * is still on — before this, a failure simply did nothing).
  *
  * The rows are rendered inside the sheet's own scroll body: a friend list is a
@@ -43,7 +45,10 @@ export function AddPersonSheet({
   onClose: () => void;
 }) {
   const { t } = useAppTranslation();
-  const { data: friends, isLoading } = useFriends();
+  const { data: friends, isLoading, isError, isFetching, refetch } = useFriends();
+  // A failed REFETCH over a list we already have keeps showing that list; only a
+  // load that produced nothing at all is the error state.
+  const loadFailed = isError && friends === undefined;
   const [pendingId, setPendingId] = useState<UserId | null>(null);
 
   const candidates = (friends ?? []).filter((f) => f.user.id !== excludeUserId);
@@ -80,6 +85,23 @@ export function AddPersonSheet({
     >
       {isLoading ? (
         <SkeletonList count={4} leadingSize={40} leadingRadius={radius.pill} />
+      ) : loadFailed ? (
+        <EmptyState
+          compact
+          tone="error"
+          icon={<UserX size={22} color={colors.danger} strokeWidth={2} />}
+          title={t("mobile:call.addPersonLoadFailed")}
+          subtitle={t("mobile:call.addPersonLoadFailedHint")}
+          action={
+            <Button
+              variant="secondary"
+              icon={RotateCcw}
+              label={t("buttons.retry")}
+              loading={isFetching}
+              onPress={() => void refetch()}
+            />
+          }
+        />
       ) : candidates.length === 0 ? (
         <EmptyState
           compact

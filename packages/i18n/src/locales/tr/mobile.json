@@ -1014,6 +1014,8 @@
     "addPersonTitle": "Aramaya ekle",
     "addPersonSubtitle": "Bir arkadaş eklediğinde arama yeni bir gruba taşınır. DM geçmişin gizli kalır.",
     "addPersonEmpty": "Şu an eklenecek arkadaş yok.",
+    "addPersonLoadFailed": "Arkadaş listesi yüklenemedi",
+    "addPersonLoadFailedHint": "Arama sürüyor. Listeyi yeniden yükleyebilirsin.",
     "addPersonFailed": "Arkadaşın aramaya eklenemedi",
     "addPersonFailedHint": "Arama sürüyor. Tekrar deneyebilirsin.",
     "add": "Ekle",
