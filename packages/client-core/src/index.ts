@@ -98,6 +98,11 @@
  *                        the decision, so the desktop bug — "app open on
  *                        #general, DM arrives, nothing happens" — cannot be
  *                        re-derived differently on the phone.
+ * - self-presence.ts  — how a presence frame about the client's OWN user is
+ *                        applied: drop a self `offline` (never true on a live
+ *                        socket — it is what a pre-M16 gateway's peer mask told an
+ *                        invisible user), and strip self from the handshake
+ *                        snapshot. Shared so both apps' own dot obeys one rule.
  * - forms/            — zod issue → `{ key, params }`: the ONE place that knows
  *                        which i18n key each validation failure maps to, so a
  *                        broken rule shows the rule instead of "something went
@@ -130,6 +135,7 @@ export * from "./age-gate.js";
 export * from "./custom-status.js";
 export * from "./unread.js";
 export * from "./notify-policy.js";
+export * from "./self-presence.js";
 export * from "./watch-party.js";
 export * from "./watch-player-protocol.js";
 export * from "./outbox/index.js";

@@ -11,7 +11,11 @@
  */
 
 import type { InfiniteData } from "@tanstack/react-query";
-import { createVoiceAnnouncer } from "@demli/client-core";
+import {
+  createVoiceAnnouncer,
+  isStaleSelfPresence,
+  withoutSelfPresence,
+} from "@demli/client-core";
 import { MESSAGE_MAX_LENGTH } from "@demli/config";
 import {
   SERVER_EVENT,
@@ -625,10 +629,12 @@ export function discardOutboxMessage(channelId: ChannelId, nonce: string): void 
 /**
  * Change our OWN status (the status picker). Three effects:
  *  1. persist the choice per-account so it survives reload/reconnect;
- *  2. paint our own dot immediately (the gateway never echoes our presence back
- *     to us, so this is the only source of our self-dot);
+ *  2. paint our own dot immediately, so the click answers at once;
  *  3. tell the gateway so peers repaint — the server masks `invisible` to
- *     `offline` for everyone else, while our own client keeps the real value.
+ *     `offline` for everyone else. Our own sockets then get the account's REAL
+ *     status back (M16, see `presence.updated` below), which is the derived
+ *     answer across every device: usually our pick, but a `dnd`/`invisible`
+ *     still declared on the phone outranks it (ADR 0020), and the dot follows.
  *
  * `dnd` / `invisible` only change PRESENTATION + peer visibility; the call and
  * notification FSMs are untouched (DND merely gates their sound/overlay layer).
@@ -946,11 +952,14 @@ function handleServerEvent(event: ServerToClientEvent): void {
   switch (event.type) {
     case SERVER_EVENT.authSucceeded: {
       const me = useAuthStore.getState().user;
-      const entries = [...event.payload.presence];
-      // The snapshot excludes this fresh connection's own user. Seed our own dot
-      // from the EFFECTIVE status, not a hardcoded "online" — so a
-      // reload/reconnect keeps the picked dnd/invisible/idle AND a live auto-away
-      // (idle) that was in effect while the socket was down.
+      // Peers only. The contract says the snapshot never carries us; a pre-M16
+      // gateway did — MASKED, i.e. "offline" for an invisible user — so any self
+      // entry is dropped here rather than trusted to be overwritten below.
+      const entries = withoutSelfPresence(event.payload.presence, me?.id);
+      // Seed our own dot from the EFFECTIVE status, not a hardcoded "online" — so
+      // a reload/reconnect keeps the picked dnd/invisible/idle AND a live
+      // auto-away (idle) that was in effect while the socket was down. The echo of
+      // the re-assert below then replaces it with the account's derived status.
       const effective = getEffectiveSelfPresenceStatus();
       // Our own custom status is not in the snapshot (it excludes us), so seed it
       // from the durable copy on the session user — otherwise a reload would blank
@@ -1079,6 +1088,12 @@ function handleServerEvent(event: ServerToClientEvent): void {
       return;
 
     case SERVER_EVENT.presenceUpdated:
+      // A frame about OURSELVES carries the account's REAL status (M16): how a
+      // status picked on another device reaches this one's own dot. It is never
+      // `offline` from a correct gateway — we are reading it on a live socket — so
+      // a self "offline" is the peer mask a pre-M16 gateway sent an invisible
+      // user, and painting it is exactly the bug that showed them offline.
+      if (isStaleSelfPresence(event.payload, useAuthStore.getState().user?.id)) return;
       // `customStatus` (M18) rides along on every server-side presence broadcast,
       // so a peer's status line lands through the same event the roster already
       // repaints on — no second subscription, no extra audience. It is OPTIONAL on

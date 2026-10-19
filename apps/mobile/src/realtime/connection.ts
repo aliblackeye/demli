@@ -20,7 +20,9 @@ import {
   RealtimeClient,
   createVoiceAnnouncer,
   isAppInForeground,
+  isStaleSelfPresence,
   shouldPlayMessageCue,
+  withoutSelfPresence,
   type MessagesPage,
   type RealtimeStatus,
 } from "@demli/client-core";
@@ -602,7 +604,10 @@ export function discardOutboxMessage(channelId: ChannelId, nonce: string): void 
  * Set the active user's CHOSEN presence status and broadcast it. Persists the
  * pick (survives reload / account switch), repaints our own dot locally at once,
  * and tells the gateway so peers repaint — `invisible` is masked to `offline`
- * server-side, so peers only ever see online/idle/dnd/offline.
+ * server-side, so peers only ever see online/idle/dnd/offline. Our own sockets
+ * get the account's REAL status back (M16, see `presence.updated` below): the
+ * derived answer across every device, so a `dnd`/`invisible` still declared on
+ * the desktop outranks this pick (ADR 0020) and our dot follows it.
  *
  * `dnd` / `invisible` change only PRESENTATION + peer visibility here; no local
  * notification/call gating is wired in this wave (deferred, low-risk parity).
@@ -1031,10 +1036,14 @@ function handleServerEvent(event: ServerToClientEvent): void {
   switch (event.type) {
     case SERVER_EVENT.authSucceeded: {
       const me = useAuthStore.getState().user;
-      const entries = [...event.payload.presence];
-      // The snapshot excludes this fresh connection's own user. Seed our own dot
-      // from the persisted CHOSEN status, not a hardcoded
-      // "online" — so a reload/reconnect keeps the picked dnd/invisible/idle.
+      // Peers only. The contract says the snapshot never carries us; a pre-M16
+      // gateway did — MASKED, i.e. "offline" for an invisible user — so any self
+      // entry is dropped here rather than trusted to be overwritten below.
+      const entries = withoutSelfPresence(event.payload.presence, me?.id);
+      // Seed our own dot from the persisted CHOSEN status, not a hardcoded
+      // "online" — so a reload/reconnect keeps the picked dnd/invisible/idle. The
+      // echo of the re-assert below then replaces it with the account's derived
+      // status.
       const chosen = getSelfPresenceStatus();
       // If auto-idle is masking an online user (backgrounded / inactive), re-assert
       // "idle" on this fresh socket instead of "online" — a reconnect while away
@@ -1166,6 +1175,12 @@ function handleServerEvent(event: ServerToClientEvent): void {
       return;
 
     case SERVER_EVENT.presenceUpdated:
+      // A frame about OURSELVES carries the account's REAL status (M16): how a
+      // status picked on another device reaches this one's own dot. It is never
+      // `offline` from a correct gateway — we are reading it on a live socket — so
+      // a self "offline" is the peer mask a pre-M16 gateway sent an invisible
+      // user, and painting it is exactly the bug that showed them offline.
+      if (isStaleSelfPresence(event.payload, useAuthStore.getState().user?.id)) return;
       // `customStatus` (M18) rides along on every server-side presence broadcast,
       // so a peer's status line lands through the same event the roster already
       // repaints on — no second subscription, no extra audience. It is OPTIONAL on
