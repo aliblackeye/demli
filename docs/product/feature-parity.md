@@ -464,7 +464,7 @@ sahibine ait.
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Native başlıklar display fontta (Space Grotesk) — authed Stack + Tabs `headerTitleStyle` | ✅ (globals.css) | ✅ | ✅ |
+| Native başlıklar display fontta (Onest; M16 öncesi Space Grotesk) — authed Stack + Tabs `headerTitleStyle` | ✅ (globals.css) | ✅ | ✅ |
 | BrandMark bileşeni (sabit sm 40 / md 56 / lg 96 basamakları) | ✅ (demli-logo.svg) | ✅ | ✅ (`src/components/BrandMark.tsx`) |
 | Marka işareti: Mesajlar paneli sol üst | ✅ (GroupRail home) | ✅ | ✅ |
 | Marka işareti: rail ana giriş tile'ı (jenerik bubble yerine logo) | ✅ | ✅ | ✅ |
@@ -1361,3 +1361,32 @@ Founder'ın CİHAZDA görmesi gereken üç şey (iki kişi / iki cihaz gerektiri
 3. **Konuşan-filmstribi hissi:** ≥4 kişilik odada birine pinleyip diğerlerinin yalnız
    konuşunca girip ~5 sn sonra çıkması rahatsız edici mi (300 ms / 5 sn sabitleri
    `packages/media/src/active-speaker.ts`'te tek yerde, founder kulağına göre ayarlanabilir).
+
+## 2026-10-19 — M16 Dalga 2: "Koyu Masa" tasarım sistemi temeli (tüm platformlar)
+
+Dal `feat/m16-design-foundation`. Ürün ekranları henüz taranmadı (Dalga 3/4); bu dalga
+token, font, hareket ve atom katmanıdır — ekranlar yalnız token değerleri ve yerinde
+yeniden stillenen ortak atomlar kadar değişir.
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Koyu Masa paleti (nötr siyah + mercan #ff8464, cam/veil/scrim, beyaz birincil) | ✅ `globals.css @theme` | ✅ `theme.ts` | `tokens.css` ile üçlü testle kilitli |
+| Metin rampası AA (fg-faint #8f8f8f, fg-subtle #666 yalnız metin-dışı) | ✅ | ✅ | doküman #737373/#404040 AA'yı geçmiyordu; ölçülü test |
+| Tehlike = pembe #ff6fb5 (dnd dahil), dolguda koyu mürekkep | ✅ | ✅ | renk-körlüğü ölçümü tasarım dokümanı §1.4 |
+| Radius 8/10/12/16 + 18/24/32/pill | ✅ | ✅ | `--radius` 10→12 |
+| Inter (gövde) + Onest (başlık), OFL, paketli | ✅ değişken woff2 | ✅ statik TTF (OTA) | Instrument Sans + Space Grotesk kaldırıldı |
+| Hover = 200ms ton geçişi; konum yayı {500,60,1} | ✅ CSS `linear()` + framer `springs` | ✅ `motion.spring` + `MOTION_PRESETS` (RN Animated) | Reanimated adaptörü Dalga 4 |
+| Atomlar: Button (5×3 + yükleniyor), IconButton+ipucu, Avatar/AvatarGroup, Field/Input/Textarea doğrulama, Switch, Checkbox, Radio, Slider, Select, Menü/Bağlam menüsü, Dialog/Sheet, Toast, Skeleton, Badge/CountBadge, Kbd, Chip'ler | ✅ `packages/ui` | ⏳ Dalga 4 | RN atom kiti mobil dalgasında; masaüstü atomları ARIA + klavye testli |
+| Avatar konuşma halkası yeşil → mercan; durum noktası avatarın %30'u | ✅ | ⏳ Dalga 4 | |
+| Menü vurgusu mercan dolgu → raised ton; tehlike satırı pembe yıkama | ✅ | — | StatusPicker vurgulu satır mürekkebi uyarlandı |
+| Dev-only UI kiti `/ui-kit.html` (G2 kapısı) | ✅ web dev sunucusu | — | build'e girmez |
+
+**Kapılar:** desktop `design-tokens.test.ts` (76) + mobil `design-tokens.test.ts` (72)
+mutasyonla doğrulandı (fg-faint #737373, yay süresi, tehlike #ef4444 → kırmızı);
+`ui-primitives.test.tsx` (20, gerçek mount) mutasyonla doğrulandı; motion
+`m.*` testi `motion.div` negatif kontrolüyle. Tarayıcıda `/ui-kit.html` üç görünüm:
+0 konsol hatası, 76 kontrolün hepsinin erişilebilir adı var, 375px'te yatay taşma yok.
+
+**Bilinen açık:** iki `index.html` önyükleme iskeleti, pencere flaş rengi, BootSplash ve
+VideoStage gradyanları, mobil `app.json` splash/ikon renkleri hâlâ sıcak eski palet —
+token değişimi bunlara ulaşmıyor (liste tasarım dokümanı §7.3). Mobil splash APK ister.

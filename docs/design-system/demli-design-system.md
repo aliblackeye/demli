@@ -1,8 +1,12 @@
 # Demli Design System v1 — "Koyu Masa"
 
-Landing'den (apps/landing) uçtan uca çıkarılmış, ürünün web + masaüstü
-yüzeylerine taşınacak tek sistem. **Durum: FOUNDER ONAYI BEKLİYOR.**
-Canlı örnek: `localhost:3001/design`.
+Landing'den (apps/landing) uçtan uca çıkarılmış, ürünün web + masaüstü +
+mobil yüzeylerine taşınan tek sistem. **Durum: M16 Dalga 2 temeli uygulandı
+(token'lar, fontlar, hareket, `packages/ui` atomları) — founder G2 görsel
+onayı bekliyor; ürün ekranlarının taraması (Dalga 3/4) onaydan sonra.**
+Canlı örnekler: landing showcase `localhost:3001/design` (yalnız referans) ve
+ürün UI kiti `apps/web` → `pnpm --filter @demli/web dev` → `/ui-kit.html`
+(gerçek atomlar, gerçek stil dosyası, token'dan ölçülen kontrast).
 
 Founder kararları (2026-08-12): zeminler nötr siyah kalır · yeşil vurgu
 Demli mercanına çekilir (landing dahil) · display font ücretsiz (OFL)
@@ -28,9 +32,21 @@ katmanın değerleri değişir.
 | `bg-raised` | `rgba(23,23,23,0.72)` + blur(10px) | Nav hapı, yüzen paneller |
 | `bg-veil` | `rgba(0,0,0,0.24)` | Saydam rozet/hap zemini |
 
-Ürün eşlemesi (entegrasyonda): `--tc-rail→bg-page`, `--tc-app→bg-base`,
-`--tc-surface→bg-surface`, `--tc-raised→bg-surface-2` vb. Sıcak
-"Demli Voice v2" rampası emekli olur (founder kararı).
+Ürün eşlemesi (uygulandı — `globals.css @theme` `--color-*`, `tokens.css`
+`--tc-*`, mobil `theme.ts`; üçü testle kilitli). Sıcak "Demli Voice v2"
+rampası emekli (founder kararı).
+
+| Ürün token'ı | Değer | Not |
+|---|---|---|
+| `rail` | `#000000` | bg-page — pencere |
+| `sidebar`, `app` | `#0d0d0d` | bg-base — kolonlar, kiplik kartı |
+| `surface`, `hover`, `overlay` | `#171717` | giriş alanı, satır hover'ı, opak cam yedeği |
+| `raised` / `raised-hover` / `raised-pressed` | `#262626` / `#303030` / `#1f1f1f` | ikincil buton, odaklı alan, menü hover'ı |
+| `glass` / `glass-strong` | `rgba(23,23,23,.72)` / `.92` + blur(10) | nav hapı / menü, ipucu |
+| `veil` / `scrim` | `rgba(0,0,0,.24)` / `.55` (+blur 4) | medya hapı / kiplik örtüsü |
+| `selected` | `rgba(255,132,100,.12)` | seçili satır = accent-soft |
+| `stroke` / `stroke-strong` | `rgba(255,255,255,.08)` / `.16` | yalnız işlevsel çizgi |
+| `inverse` (+hover/pressed) / `on-inverse` | `#fff` (`#e5e5e5`/`#d4d4d4`) / `#171717` | beyaz birincil buton |
 
 ### 1.2 Metin rampası
 
@@ -41,6 +57,14 @@ katmanın değerleri değişir.
 | `text-secondary` | `#a3a3a3` | İkincil metin, gövde |
 | `text-dim` | `#737373` | Sönük metin, ikonlar |
 | `text-faint` | `#404040` | Telif, en silik |
+
+**Üründe iki değer değişti (WCAG, ölçülü — `design-tokens.test.ts`):**
+`#737373` `#0d0d0d` üstünde 4.10:1 (AA 4.5 altı), `#404040` ≈2:1. Ürün
+token'ları: `fg-display #fff` · `fg #e5e5e5` · `fg-muted #a3a3a3` (7.70:1) ·
+**`fg-faint #8f8f8f`** (meta metin; app'te 6.01:1, `raised #262626` üstünde
+4.68:1 — AA her yüzeyde) · **`fg-subtle #666666`** (YALNIZ metin olmayan öğe:
+boşta ikon, ayraç, çevrimdışı nokta; rail/app/surface üstünde ≥3:1, WCAG
+1.4.11). Landing kendi `#737373`'ünü koruyabilir; ürün metni koruyamaz.
 
 ### 1.3 Vurgu — Demli mercanı (yeşilin yerini alır)
 
@@ -61,7 +85,7 @@ Kontrast (ölçülü, brand-system §8): `#ff8464` / `#0d0d0d` ≈ 7.4:1,
 | Token | Değer | Not |
 |---|---|---|
 | `success` / `online` | `#22c55e` | Yeşil MARKA vurgusu olmaktan çıkar, yalnız durum rengi olarak yaşar (çevrimiçi, başarı) |
-| `danger` | `#ff6fb5` | Mercandan ≥30° hue uzaklığı (brand-system kırmızı disiplini) — hata daha kuvvetli bir kırmızı OLAMAZ |
+| `danger` | `#ff6fb5` | Mercandan ≥30° hue uzaklığı (brand-system kırmızı disiplini) — hata daha kuvvetli bir kırmızı OLAMAZ. Ürün: `dnd` de bu renk; dolgu olarak üstünde koyu mürekkep (7.0:1), beyaz yasak (2.6:1) |
 | `warn` | `#eab30a` | Altınla paylaşır |
 | `info` | `#a3a3a3` | Nötr — soğuk SaaS mavisi markaya giremez (brand-system §8) |
 
@@ -71,13 +95,46 @@ Kenar çizgisi YOK denecek kadar az: yüzey farkı + radius ayrımı esas.
 Gerekirse `stroke` `rgba(255,255,255,0.08)`, `stroke-strong` `0.16`.
 İç gölge imzası: `inset 0 -1px 0 rgba(38,49,64,0.32)` (hap/rozet).
 
+**Tehlike rengi kararı (M16 Dalga 2, ölçüm — founder onayına).** Mikrofon
+kapalı, aramadan çık, at/yasakla ve yıkıcı eylemler anında tanınmalı. Aday
+renkler mercana (#ff8464) ve çevrimiçi yeşile (#22c55e) karşı, renk körlüğü
+simülasyonuyla (Machado 2009, CIEDE2000; ~20 = "açıkça farklı") ölçüldü:
+
+| Aday | Hue farkı | ΔE mercan (normal/protan/döteran) | ΔE yeşil (döteran) |
+|---|---|---|---|
+| `#ff6fb5` pembe (doküman) | 41.6° | 26.6 / 35.5 / 26.0 | 24.0 |
+| `#ff6aa0` ahududu | 34.1° | 22.9 / 30.0 / 17.3 | 14.9 |
+| `#ff5c8f` gül-kırmızı | 31.2° | 21.4 / 27.2 / 13.7 | 10.8 |
+| `#ff4d6d` kırmızı | 23.2° ✗ | 16.8 / 17.1 / 7.8 | 3.9 |
+| `#ef4444` saf kırmızı | 12.4° ✗ | 14.0 / 16.3 / 9.9 | 7.7 |
+
+Sonuç: **`#ff6fb5` korundu.** Kırmızıya yaklaştıkça hem mercandan ≥30° kuralı
+bozuluyor hem de kırmızı-yeşil renk körlüğünde (erkeklerin ~%8'i) "rahatsız
+etmeyin" noktası "çevrimiçi" yeşiliyle karışıyor (#ff4d6d ↔ yeşil ΔE 3.9 —
+neredeyse aynı). Pembenin "tehlike" anlamı rengin kendisinden değil
+yerleşimden ve işaretten gelir: tehlike kontrolleri her zaman ikonuyla
+(kesik mikrofon, kapanan telefon, çöp kutusu) ve etiketiyle çizilir,
+düğme dolgusu değil pembe yıkama + pembe yazı kullanır. Founder kırmızıya
+daha yakın bir ton isterse ölçülen en iyi yedek **`#ff6aa0`** (testler
+geçer: hue 34°, döteran ΔE mercan 17.3 — eşik 20'nin altında kaldığı için
+CVD testi o eşikle güncellenmeli). Tritan (çok nadir) için hiçbir aday
+mercandan iyi ayrılmıyor; orada da ikon taşıyor.
+
 ## 2. Tipografi
 
 - **Display: Onest (OFL, latin-ext ✓)** — Stack Sans Headline'ın ücretsiz
   karşılığı olarak öneri; alternatifler: Schibsted Grotesk, General Sans.
   Showcase Onest ile basılmıştır; beğenmezsen alternatife tek satırla geçilir.
-- **Gövde/UI: Inter (OFL)** — mevcut, kalır. `cv` OpenType özellikleri yalnız
-  Inter'de; display fontta `font-feature-settings: normal`.
+- **Gövde/UI: Inter (OFL)** — ürünün önceki gövde fontu Instrument Sans'tı
+  (doküman "mevcut" diyordu, değildi); M16'da Inter'e geçildi, Instrument Sans
+  ve Space Grotesk kaldırıldı.
+- **Ürün kurulumu:** masaüstü/web Google Fonts'un resmi latin + latin-ext
+  DEĞİŞKEN woff2 altkümeleri (`apps/desktop/src/renderer/src/assets/fonts/`,
+  wght 100–900, same-origin — CSP `font-src 'self'`); mobil aynı sürümlerin
+  statik TTF'leri (Inter 400/500/600, Onest 500/600/700, latin+latin-ext,
+  `expo-font`, OTA-güvenli). OFL metinleri dosyaların yanında, THIRD-PARTY.md
+  kayıtlı. Not: Google'ın altkümeleri `cv03/cv04/cv09/cv11` özelliklerini
+  taşımıyor (yalnız `calt`, `tnum`) — landing'deki `cv` ayarları da etkisiz.
 
 ### Ölçek (landing'den ölçülü; mobil / tablet / masaüstü)
 
@@ -120,6 +177,20 @@ Gerekirse `stroke` `rgba(255,255,255,0.08)`, `stroke-strong` `0.16`.
 Ürün UI'da ölçek: pazarlama reveal'leri ürüne taşınmaz; üründe hover
 spring'i, panel aç/kapa (150–250ms), liste satır hover'ı gibi mikro
 hareketler kullanılır. §27 performans kuralları bağlayıcı.
+
+**Ürün hareket token'ları (uygulandı):** süreler instant 120 · fast 180 ·
+**hover 200** (yalnız ton; temel geçiş katmanı bu) · standard 240 · arrival
+500ms. Konum yayı `{stiffness 500, damping 60, mass 1}` (ζ≈1.34, taşmaz):
+framer'da `springs.position` (`@demli/app-ui`), RN'de
+`motion.spring.position` + `MOTION_PRESETS.position`, CSS'te
+`--motion-ease-spring` = yayın örneklenmiş `linear()` eğrisi, 554ms
+(`packages/ui/src/motion/spring.ts` üretir, test sabitler). Hover yayı
+`{bounce .2, duration .4}`; RN karşılığı framer'ın kendi `findSpring`'iyle
+çözülmüş `stiffness 505.6 / damping 36.0`. Hover'da ölçek/kayan metin YOK
+(`pressable` artık yalnız basışta küçülür). Azaltılmış hareket: CSS global
+koruma + `MotionConfig reducedMotion="user"` + RN `useReducedMotion()`/
+`animate(..., { reduced })`. `m.*` yardımcıları (`MotionFade/Pop/Toast/Sheet`)
+`LazyMotion strict` altında test edilir; `motion.*` orada beyaz ekran verir.
 
 ## 5. Bileşen reçeteleri (özet — canlı örnekler /design'da)
 
@@ -205,15 +276,43 @@ lineer kaymaz. Işık motifi (huzme + parıltı) markanın "dem" ışığıdır 
 artık mercan tonundadır. Doku: 128px noise karosu, screen blend, düşük
 opaklık. Doluluk düşük: az öğe, bol nefes.
 
-## 7. Entegrasyon planı (ONAYDAN SONRA — bu doküman onaylanmadan başlamaz)
+## 7. Entegrasyon — gerçek dikiş ve sıra
 
-1. `packages/app-ui/tokens.css` yeni anlamsal tokenlarla yeniden yazılır
-   (`--tc-*` adları korunur, değerler bu sisteme çekilir — web Tailwind v3
-   + desktop v4 aynı dosyadan beslenmeye devam eder).
-2. Landing'in yeşil vurguları mercana çekilir (CSS parıltıları + accent
-   sınıfları + görsel üretim promptlarıyla uyumlu).
-3. Display font değişimi: landing'de Stack Sans woff2'leri Onest ile
-   değiştirilir (lisans temizliği), ürün display rolleri Onest'e bağlanır.
-4. Desktop renderer + apps/web bileşen taraması: buton/kart/satır/panel
-   reçetelere çekilir (ui-quality-review + slop-check kapılarından geçer).
-5. brand-system.md §8 bu sistemle güncellenir (görsel yön: "Koyu Masa").
+**Düzeltme:** önceki adım 1 (`packages/app-ui/tokens.css`'i yeniden yaz)
+masaüstü ve web'de HİÇBİR ŞEYİ değiştirmezdi — o dosya ikisine de import
+edilmiyor. Gerçek dikiş:
+
+- **Masaüstü + web:** `apps/desktop/src/renderer/src/styles/globals.css`
+  `@theme` (`--color-*`, `--radius-*`, `--text-*`, `--font-*`) ve `:root`
+  (`--motion-*`). Web bu dosyayı `apps/web/src/styles/desktop-shell.css`
+  üzerinden import eder; her semantik sınıf `var(--color-*)`'a derlenir.
+- **`tokens.css`:** çerçevesiz, nötr beyan (`--tc-*`). Kimse import etmez;
+  iki tarafın da karşılaştırıldığı referanstır.
+- **Mobil:** `apps/mobile/src/theme/theme.ts` (+ `motion.ts`,
+  `motion-presets.ts`, `fonts.ts`).
+- **Kilit:** `apps/desktop/.../styles/design-tokens.test.ts` (globals ⇄
+  tokens: renk, radius, hareket, font, yay eğrisi + WCAG kontrast + tehlike
+  renk-körlüğü ayrımı) ve `apps/mobile/src/theme/__tests__/design-tokens.test.ts`
+  (theme.ts ⇄ tokens: renk, radius, tipografi, süre, yay + kontrast + font
+  dosyaları). Bir değer değişirse üç dosya birlikte değişmeden test geçmez.
+
+Sıra (M16 planı):
+
+1. ✅ Dalga 2: token'lar (üç dosya birlikte), fontlar, hareket, `packages/ui`
+   atomları (Button, IconButton+Tooltip, Avatar/AvatarGroup, Input/Textarea/
+   Field, Switch, Checkbox, Radio, Slider, Select, Dropdown/Context menü,
+   Dialog/Sheet, Toast, Skeleton, Badge/CountBadge, Kbd, Chip'ler) — mevcut
+   API'ler korunarak yerinde yeniden stillendi.
+2. ⏳ Founder G2: `/ui-kit.html` (Parçalar · Giriş ekranı · Sesli sahne).
+3. Dalga 3 (masaüstü + web) / Dalga 4 (mobil): ekran ekran tarama. Token
+   değişiminin YAKALAMADIĞI elle düzeltilecek değişmezler: pencere flaş rengi
+   (`main/index.ts` `#0c0304`), iki `index.html` önyükleme iskeleti, BootSplash
+   gradyanı, VideoStage `#2a0f07→#0c0403` gradyanı, CameraPip, VideoTileLabel,
+   AvatarTile, EmojiMartPicker RGB üçlüleri, `lib/banner.ts`, LinkEmbedCard
+   `#171c25`, mobil `push-manager.ts`/`foreground-service.ts` eski turuncu,
+   `app.json` splash/ikon renkleri (APK gerekir). 511 `border` kullanımı ve
+   `shadow-*` kalıntıları kenarsız dile tek tek çekilir.
+4. Landing'in yeşil vurguları mercana çekilir; Stack Sans → Onest (landing
+   dalının sahibi).
+5. `brand-system.md` §6/§8 bu sistemle güncellenir (hâlâ sıcak rampa ve
+   "saf beyaz metin yok" diyor).
