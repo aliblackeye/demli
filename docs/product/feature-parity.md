@@ -1566,3 +1566,40 @@ alanları, ayar satırları, ana sayfa Segmented, üye/sunucu/görsel ActionShee
 iskeleti) ekran görüntüsüyle; çok duraklı sheet'i içerik kaydırılmışken sürükleme, sheet
 içinde klavye açık alan, not modunda kapatmanın menüye dönmesi, sheet içinden tost,
 TalkBack ile Slider/Switch/Sheet, tost kaydırma.
+
+## 2026-10-20 — M16 Dalga 4: mobil arama yüzeyleri (sesli oda · özel arama · birlikte izleme)
+
+Dal `feat/m16-mobile-voice` (`feat/m16-mobile-kit` üstünde), YAYINLANMADI. Kitin native
+bağımlılıklarına bağlı → aynı runtime 2.1.0 APK döngüsü. Medya/FSM mantığı değişmedi; yalnız
+çizim, durumlar ve hareket. Masaüstü karşılığı Dalga 3'ün ses/arama dalında (ayrı iş).
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Konuşma göstergesi: karo kenarında 2px mercan halka + içe düşen mercan parıltı, ton adımında (200ms) açılıp kapanır; TalkBack "X, konuşuyor" okur | Dalga 3 | ✅ | Eskiden yeşil (`online`) 2px kenar. Sahne karosu, ızgara, şerit ve PiP aynı `SpeakingFrame`'i kullanır. Yalnız o görünüm canlanır, video yeniden çizilmez |
+| Karo dili: kenarsız, radius 16, saf siyah zemin, ad/mikrofon hapı (`scrim` + iç çizgi imzası), basınca beyaz yıkama (yükselme/ölçek yok) | Dalga 3 | ✅ | Odak karosunun ikinci (mercan) halkası kaldırıldı — konuşma halkasıyla yarışıyordu |
+| Alt dok — tek tehlike dili: susturulmuş / sağırlaştırılmış = pembe YIKAMA, Ayrıl/Kapat = DOLU pembe disk, açık kamera/paylaşım = mercan yıkama, kapalı kamera nötr (asla kırmızı) | Dalga 3 | ✅ | Eskiden kapalı kamera da kırmızıydı. Dok bir "masa kenarı" paneli (surface, üst radius 24, kenarsız); sesli oda ve özel arama aynı `ControlDock` + `VoiceControls`. Özel aramada kırmızı diskin etiketi artık ne yaptığını söyler (çalarken "İptal", canlıyken "Aramadan ayrıl") |
+| Sahne içi çubuk: cam hap (`glass-strong`), veil diskler, aynı tehlike dili | Dalga 3 | ✅ | Uzun basınca ipucu çıkar (kesilmesin diye `ui/Glass` sarmalayıcısı kullanılmadı; Android'de görünüm aynı) |
+| Gelen arama: arayanın arkasında mercan radyal ışık, YALNIZ çalarken 1.4s nefes alır (bağlanıyor/bitti/koltuk uzakta = sabit ışık); Reddet dolu pembe, Kabul dolu MERCAN, Görüntülü nötr | Dalga 3 | ✅ | Tasarım sistemi §5.1 "Katıl mercan / Reddet tehlike" — eski yeşil kabul düğmesi markadan çıktı. Azaltılmış harekette ışık sabit. Örtü yumuşak açılır/kapanır |
+| Özel arama başlığı: çalarken nefes alan mercan nokta, cevaplanınca yeşil "canlı" nokta + tabular süre; küçült ve kişi ekle disk | Dalga 3 | ✅ | Kişi ekle 360dp'de başlığa yer kalsın diye etiketli düğmeden diske geçti (uzun basınca adı) |
+| Mini çubuklar (sesli oda · arama · "X seni arıyor"): yüzen cam çubuk, gölgesiz; alttan yükselir / üstten iner, hızlı adımda çıkar | Dalga 3 | ✅ | Ses çubuğundaki "🔊" emoji başlıktan çıktı (glif). Arama çubuğunda koltuk alma = mercan `Button` (yükleniyor durumu var) |
+| Koltuk uzakta bandı: bilgi bandı (sonucu söyler), mercan "Buraya al / Geri katıl", pembe yıkamalı "Kapat" | Dalga 3 | ✅ | Kaynak-değişmez testleri (`seat-model.test.ts`) aynen geçiyor |
+| Bildirimler (yalnız kalma geri sayımı, ses hatası) kit Banner'ı: iner/çekilir; geri sayım her saniye yeniden OKUNMAZ | ✅ VoicePanel | ✅ | `Banner`'a geriye uyumlu `live` özelliği eklendi |
+| Oda durum satırı: bağlanırken/yeniden bağlanırken nefes alan nokta, durum kendi renginde, kişi sayısı soluk | ✅ | ✅ | Eski spinner + düz nokta |
+| Sahne boş/yükleniyor/hata: katılırken iki karo iskeleti (bir kez "Sese katılınıyor" okunur), katılma başarısızsa hata bloğu + "Tekrar katıl" | Dalga 3 | ✅ | Yeni metinler `voice.joinFailedTitle/Subtitle`, `voice.rejoin` (TR+EN) |
+| Kişi başı ses: kit Sheet + Slider (UI iş parçacığı, %5 adım, %100 çentiği, değer hapı, TalkBack ayarlanabilir), kişinin yüzü başlıkta | ◑ %100 | ✅ %200 | PanResponder sürgüsü emekli. `Slider`'a geriye uyumlu `marks` eklendi |
+| Ses çıkışı seçici: yüzey çipi (rota + aşağı ok) → kit Sheet radyo satırları (seçili = mercan yıkama + tik), hoparlör yankı uyarısı bilgi bandı | — | ✅ | Mantık aynı: açınca rota tazelenir, seçim `noteUserAudioRoutePick` + `setOutputDevice` |
+| Kişi ekle (gruba yükseltme): kit Sheet; iskelet, boş blok, istek sürerken diğer satırlar %40 + o satırda dönen gösterge; yükseltme reddedilirse tost ("Arama sürüyor. Tekrar deneyebilirsin.") | Dalga 3 | ✅ | Eskiden hata sessizce yutuluyordu |
+| Son aramalar: kartsız satırlar, ilk yükleme iskelet, hata bloğu + tekrar dene, sonraki sayfa iskelet satır, geri ara diski | Dalga 3 | ✅ | |
+| Ekran paylaşımı + tam ekran: veil diskler (PiP açık = mercan), başlık hapı, film sesi kit Slider (sürüklerken kontroller sabit kalır, sonra yeniden sayar) | Dalga 3 | ✅ | Tam ekran Modal'ı artık kendi `GestureHandlerRootView`'ını taşıyor. Yatay kilit mantığı aynı |
+| Kamera önizleme + paylaşım kalitesi: kit Sheet; önizleme iskeleti → ilk karede belirerek açılma, hata bloğu + tekrar dene, ön/arka kayan Segmented; çözünürlük/FPS radyo çipleri, Android "tüm ekran" bilgi bandı | ✅ | ✅ | `screen-share-fps-offer.test.ts` aynen geçiyor |
+| Birlikte izleme: kenarsız bant + hayalet diskler (bitir = pembe yıkama), red = tehlike bandı, film üstünde veil diskler, sıra ve video seçici kit Sheet (şimdi oynuyor mercan yıkama, film sesi radyo çipleri, arama iskeleti, sonuç yok/boş sıra bloğu, Koyu Masa alanı) | Dalga 3 | ✅ | |
+
+**Doğrulama:** `pnpm --filter @demli/mobile typecheck` · `lint` · `test` · `pnpm --filter
+@demli/i18n test` · `npx expo export --platform android` (sonuçlar dal raporunda). **Cihazda /
+emülatörde YAPILMADI** (bu adımda APK ve emülatör yasaktı). **Merge/yayın KAPISI:** 2.1.0
+dev-client yapısında AVD `demli-debug` + gerçek telefon: sesli odaya katıl (iskelet → ızgara),
+konuşurken mercan halka, sustur/sağırlaştır pembe yıkama, kamera önizleme (izin reddi dahil),
+paylaşım kalitesi, ekran paylaşımı izle + tam ekran + film sesi sürgüsü, uzun basış → kişi başı
+ses, ses çıkışı seçici; DM araması: giden çalma (nefes alan nokta), gelen arama ışığı + üç düğme,
+mini çubuk giriş/çıkış, koltuk uzakta bandı, kişi ekle; birlikte izleme bant/sıra/seçici;
+azaltılmış hareket açıkken nefes/parıltı/geçişlerin durduğu; TalkBack ile dok ve sürgüler.
