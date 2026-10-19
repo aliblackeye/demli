@@ -11,16 +11,21 @@ import { useCallback, useState } from "react";
  * §27). The ref callback checks `complete` at attach time, BEFORE first paint,
  * and marks those pictures instant: no transition class, shown at once.
  *
- * Returns the ref to put on the <img>, its `onLoad`, whether it is visible yet,
- * and whether the reveal should animate.
+ * Returns the ref to put on the <img>, its `onLoad`/`onError`, whether it is
+ * visible yet, whether its bytes failed (so the caller can swap the pulsing
+ * placeholder for a real error state instead of pulsing forever), and whether
+ * the reveal should animate.
  */
 export function useImageReveal(): {
   ref: (img: HTMLImageElement | null) => void;
   onLoad: () => void;
+  onError: () => void;
   loaded: boolean;
+  broken: boolean;
   animate: boolean;
 } {
   const [loaded, setLoaded] = useState(false);
+  const [broken, setBroken] = useState(false);
   const [animate, setAnimate] = useState(true);
   const ref = useCallback((img: HTMLImageElement | null) => {
     if (img?.complete && img.naturalWidth > 0) {
@@ -28,6 +33,10 @@ export function useImageReveal(): {
       setLoaded(true);
     }
   }, []);
-  const onLoad = useCallback(() => setLoaded(true), []);
-  return { ref, onLoad, loaded, animate };
+  const onLoad = useCallback(() => {
+    setBroken(false);
+    setLoaded(true);
+  }, []);
+  const onError = useCallback(() => setBroken(true), []);
+  return { ref, onLoad, onError, loaded, broken, animate };
 }

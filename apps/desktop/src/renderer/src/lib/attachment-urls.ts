@@ -64,6 +64,15 @@ export function peekAttachmentUrl(id: AttachmentId): AttachmentUrl | null {
   return null;
 }
 
+/**
+ * Drop a cached URL so the next fetch re-signs it. Used when the URL resolved
+ * but its BYTES failed (expired, 403/404, network drop): retrying with the same
+ * cached URL would fail the same way.
+ */
+export function invalidateAttachmentUrl(id: AttachmentId): void {
+  cache.delete(id);
+}
+
 interface Waiter {
   resolve: (u: AttachmentUrl) => void;
   reject: (e: unknown) => void;

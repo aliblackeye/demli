@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ImageOff, RotateCw } from "lucide-react";
 import { Skeleton, cn } from "@demli/ui";
 import { ActionMenu } from "@demli/app-ui";
 import type { Attachment } from "@demli/types";
-import { useAttachmentUrl } from "../lib/attachment-urls";
+import { invalidateAttachmentUrl, useAttachmentUrl } from "../lib/attachment-urls";
 import { useAppTranslation } from "../lib/i18n";
 import { useInView } from "../hooks/useInView";
 import { imageActionTarget, type ImageActionTarget } from "../lib/image-actions";
@@ -82,6 +82,28 @@ export function AttachmentTile({
 
   const resolvedUrl = localUrl ?? (status === "ready" ? url : undefined);
   const box = boxOverride ?? displayBox(attachment);
+
+  /**
+   * The URL resolved but its BYTES failed (expired signature, 403/404, network
+   * drop mid-load). Without this the picture would sit at opacity 0 under a
+   * pulse that never stops. Tracked per URL, so a fresh re-signed URL clears it.
+   */
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  /** Bumped on retry so the media element remounts and re-requests its bytes. */
+  const [attempt, setAttempt] = useState(0);
+  const bytesFailed = resolvedUrl !== undefined && failedUrl === resolvedUrl;
+  const markFailed = useCallback(() => {
+    if (resolvedUrl) setFailedUrl(resolvedUrl);
+  }, [resolvedUrl]);
+  const retryBytes = useCallback(() => {
+    if (!localUrl) {
+      // Same cached URL would fail the same way: drop it and re-sign.
+      invalidateAttachmentUrl(attachment.id);
+      retry();
+    }
+    setFailedUrl(null);
+    setAttempt((n) => n + 1);
+  }, [localUrl, attachment.id, retry]);
   const alt = t(ALT_KEY[attachment.kind]);
 
   /**
@@ -99,11 +121,11 @@ export function AttachmentTile({
       : null;
 
   useEffect(() => {
-    if (attachment.kind === "image" && resolvedUrl) {
+    if (attachment.kind === "image" && resolvedUrl && !bytesFailed) {
       onImageReady?.(attachment.id, { url: resolvedUrl, alt, actions: actionTarget });
     }
     // `actionTarget` is derived from the same inputs; listing the URL is enough.
-  }, [attachment.id, attachment.kind, resolvedUrl, alt, onImageReady]);
+  }, [attachment.id, attachment.kind, resolvedUrl, bytesFailed, alt, onImageReady]);
 
   // Audio renders as a compact player rather than a media box.
   if (attachment.kind === "audio") {
@@ -113,8 +135,17 @@ export function AttachmentTile({
         className="flex items-center rounded-xl bg-wash px-3"
         style={{ width: box.width, height: box.height }}
       >
-        {resolvedUrl ? (
-          <audio src={resolvedUrl} controls preload="none" className="h-9 w-full" />
+        {bytesFailed ? (
+          <TileError onRetry={retryBytes} compact />
+        ) : resolvedUrl ? (
+          <audio
+            key={attempt}
+            src={resolvedUrl}
+            controls
+            preload="none"
+            onError={markFailed}
+            className="h-9 w-full"
+          />
         ) : status === "error" && !localUrl ? (
           <TileError onRetry={retry} compact />
         ) : (
@@ -134,17 +165,23 @@ export function AttachmentTile({
       className="relative overflow-hidden rounded-xl bg-wash"
       style={{ width: box.width, height: box.height }}
     >
-      {resolvedUrl ? (
+      {bytesFailed ? (
+        <TileError onRetry={retryBytes} />
+      ) : resolvedUrl ? (
         attachment.kind === "video" ? (
           <video
+            key={attempt}
             src={resolvedUrl}
+            onError={markFailed}
             controls
             preload="metadata"
             className={cn("size-full bg-rail", boxOverride ? "object-cover" : "object-contain")}
           />
         ) : (
           <ImageSurface
+            key={attempt}
             url={resolvedUrl}
+            onError={markFailed}
             alt={alt}
             actionTarget={actionTarget}
             onOpen={() => onOpenImage?.(attachment.id, { url: resolvedUrl, alt, actions: actionTarget })}
@@ -179,15 +216,23 @@ function ImageSurface({
   alt,
   actionTarget,
   onOpen,
+  onError,
 }: {
   url: string;
   alt: string;
   actionTarget: ImageActionTarget | null;
   onOpen: () => void;
+  /** The bytes failed — the tile swaps this surface for its error state. */
+  onError: () => void;
 }): JSX.Element {
   const { t } = useAppTranslation();
   const reveal = useImageReveal();
   const loaded = reveal.loaded;
+  const { onError: revealError } = reveal;
+  const handleError = useCallback(() => {
+    revealError();
+    onError();
+  }, [revealError, onError]);
 
   const button = (
     <button
@@ -203,6 +248,7 @@ function ImageSurface({
         alt={alt}
         loading="lazy"
         onLoad={reveal.onLoad}
+        onError={handleError}
         className={cn(
           // The box is reserved from metadata at the picture's own aspect (single
           // tile) or is a fixed grid cell, so cover crops a single image only
