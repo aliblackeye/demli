@@ -192,11 +192,15 @@ export interface AudioSettings {
   /** The two remaining DSP toggles; AEC forced ON, AGC forced OFF while {@link musicMode}. */
   processing: AudioProcessing;
   /**
-   * The user explicitly confirmed they listen on headphones. This is the ONLY state
-   * in which echo cancellation may be off: without it, whatever comes out of the
-   * speakers is picked up by the mic and sent back to the room. Set together with
-   * `processing.echoCancellation = false` and cleared when AEC is turned back on
-   * (see {@link withEchoCancellation}), so turning it off again asks again.
+   * The user explicitly confirmed they listen on headphones. This is the only state
+   * in which these settings request a capture with echo cancellation off: without
+   * it, whatever comes out of the speakers is picked up by the mic and sent back to
+   * the room. Set together with `processing.echoCancellation = false` and cleared
+   * when AEC is turned back on (see {@link withEchoCancellation}), so turning it off
+   * again asks again. One platform path lives outside these settings: Android's
+   * Medya audio profile (apps/mobile) can stop the phone's HARDWARE echo canceller
+   * even while this capture asks for AEC, so the app puts the same headphones
+   * confirmation in front of it.
    */
   headphonesConfirmed: boolean;
   /**

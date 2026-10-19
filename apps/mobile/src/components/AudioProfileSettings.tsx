@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Platform, View } from "react-native";
 import { Text } from "./ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
+import { HeadphonesConfirm } from "@/components/HeadphonesConfirm";
 import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
-import type { AndroidAudioProfile } from "@/media/audio-profile";
 import { colors, space, typography } from "@/theme/theme";
 
 /**
@@ -25,6 +26,10 @@ import { colors, space, typography } from "@/theme/theme";
  * only honoured before `Room.connect()`, and we deliberately do not force a
  * rejoin. While the user is in a room the hint says the choice lands on the next
  * connect.
+ *
+ * Medya can switch the phone's hardware echo canceller off, so picking it opens the
+ * same headphones confirmation as turning Yankı Engelleme off; only the confirm
+ * button changes the profile.
  */
 
 function SectionLabel({ children }: { children: string }) {
@@ -50,6 +55,7 @@ export function AudioProfileSettings() {
   const { t } = useAppTranslation();
   const audioProfile = useMediaSettings((s) => s.audioProfile);
   const setAudioProfile = useMediaSettings((s) => s.setAudioProfile);
+  const [confirmingMedia, setConfirmingMedia] = useState(false);
 
   // Same "am I in a room" read MicSettings uses. The DM-call controller drives the
   // SAME engine, so this covers calls as well as voice channels.
@@ -72,9 +78,33 @@ export function AudioProfileSettings() {
             { key: "media", label: t("mobile:audioProfile.optionMedia") },
           ]}
           selectedKey={audioProfile}
-          onSelect={(key) => setAudioProfile(key as AndroidAudioProfile)}
+          onSelect={(key) => {
+            if (key === "media") {
+              if (audioProfile !== "media") setConfirmingMedia(true);
+            } else {
+              setConfirmingMedia(false);
+              setAudioProfile("communication");
+            }
+          }}
         />
+      </View>
 
+      {confirmingMedia && audioProfile !== "media" ? (
+        <View style={{ paddingHorizontal: space.sm, paddingTop: space.sm }}>
+          <HeadphonesConfirm
+            message={t("mobile:audioProfile.mediaWarning")}
+            confirmLabel={t("mobile:audioProfile.mediaConfirm")}
+            cancelLabel={t("mobile:audioProfile.mediaCancel")}
+            onCancel={() => setConfirmingMedia(false)}
+            onConfirm={() => {
+              setAudioProfile("media_headphones");
+              setConfirmingMedia(false);
+            }}
+          />
+        </View>
+      ) : null}
+
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm }}>
         <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
           {audioProfile === "media"
             ? t("mobile:audioProfile.mediaDesc")

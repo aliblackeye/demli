@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { Text } from "./ui/Text";
-import { Button } from "@/components/Button";
+import { HeadphonesConfirm } from "@/components/HeadphonesConfirm";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
 import { ToggleRow } from "@/components/ToggleRow";
@@ -14,7 +14,7 @@ import {
   type InputMode,
   type NoiseSuppressionTier,
 } from "@demli/media";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, space, typography } from "@/theme/theme";
 
 /**
  * "Mikrofon" settings — the mobile counterpart of the desktop MicSettingsForm.
@@ -60,13 +60,19 @@ function SectionLabel({ children }: { children: string }) {
  * only "Kulaklık takılı, kapat" turns it off (recording that confirmation). On the
  * loudspeaker with AEC off, the room hears itself through this phone. Music mode
  * keeps AEC on; the parent section is locked then.
+ *
+ * On Android the Medya audio profile can switch the phone's hardware echo canceller
+ * off while this toggle still requests AEC, so the row says so instead of showing a
+ * plain "on".
  */
 function EchoCancellationRow({ music }: { music: boolean }) {
   const { t } = useAppTranslation();
   const audio = useMediaSettings((s) => s.audio);
+  const audioProfile = useMediaSettings((s) => s.audioProfile);
   const setEchoCancellation = useMediaSettings((s) => s.setEchoCancellation);
   const [confirming, setConfirming] = useState(false);
   const on = isEchoCancellationOn(audio);
+  const mediaProfile = Platform.OS === "android" && audioProfile === "media";
 
   const onToggle = () => {
     if (on) {
@@ -77,55 +83,31 @@ function EchoCancellationRow({ music }: { music: boolean }) {
     }
   };
 
+  const warningStyle = {
+    color: colors.warning,
+    fontSize: 12,
+    paddingHorizontal: space.md,
+    paddingBottom: space.sm,
+  } as const;
+
   return (
     <View>
       <ToggleRow label={t("mobile:mic.echoCancellation")} checked={on} onToggle={onToggle} />
       {confirming && on && !music ? (
-        <View
-          accessibilityRole="alert"
-          style={{
-            marginHorizontal: space.md,
-            marginBottom: space.sm,
-            padding: space.md,
-            gap: space.sm,
-            borderRadius: radius.md,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: colors.warning,
-            backgroundColor: colors.surfaceRaised,
+        <HeadphonesConfirm
+          message={t("mobile:mic.echoOffWarning")}
+          confirmLabel={t("mobile:mic.echoOffConfirm")}
+          cancelLabel={t("mobile:mic.echoOffCancel")}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            setEchoCancellation("off_headphones");
+            setConfirming(false);
           }}
-        >
-          <Text style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}>
-            {t("mobile:mic.echoOffWarning")}
-          </Text>
-          <View style={{ flexDirection: "row", gap: space.sm, justifyContent: "flex-end" }}>
-            <Button
-              variant="ghost"
-              label={t("mobile:mic.echoOffCancel")}
-              onPress={() => setConfirming(false)}
-            />
-            <Button
-              variant="danger"
-              label={t("mobile:mic.echoOffConfirm")}
-              onPress={() => {
-                setEchoCancellation("off_headphones");
-                setConfirming(false);
-              }}
-            />
-          </View>
-        </View>
+        />
       ) : null}
-      {!on && !music ? (
-        <Text
-          style={{
-            color: colors.warning,
-            fontSize: 12,
-            paddingHorizontal: space.md,
-            paddingBottom: space.sm,
-          }}
-        >
-          {t("mobile:mic.echoOffActive")}
-        </Text>
+      {!on && !music ? <Text style={warningStyle}>{t("mobile:mic.echoOffActive")}</Text> : null}
+      {on && mediaProfile ? (
+        <Text style={warningStyle}>{t("mobile:mic.echoMediaProfile")}</Text>
       ) : null}
     </View>
   );

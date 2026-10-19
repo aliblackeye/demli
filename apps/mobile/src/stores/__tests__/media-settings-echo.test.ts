@@ -95,5 +95,37 @@ describe("mobile media-settings — echo policy", () => {
     const state = useMediaSettings.getState() as unknown as Record<string, unknown>;
     expect(state.setProcessing).toBeUndefined();
   });
-});
 
+  it("moves a Medya profile picked before the headphones confirmation back to Görüşme", async () => {
+    backing.set(
+      KEY,
+      JSON.stringify({ state: { audioProfile: "media" }, version: 1 }),
+    );
+
+    await useMediaSettings.persist.rehydrate();
+
+    expect(useMediaSettings.getState().audioProfile).toBe("communication");
+    expect(JSON.parse(backing.get(KEY)!).state.audioProfile).toBe("communication");
+  });
+
+  it("keeps a Medya profile confirmed at the current version", async () => {
+    useMediaSettings.getState().setAudioProfile("media_headphones");
+    await vi.waitFor(() =>
+      expect(JSON.parse(backing.get(KEY) ?? "{}").state?.audioProfile).toBe("media"),
+    );
+    const saved = backing.get(KEY)!;
+    useMediaSettings.getState().setAudioProfile("communication");
+    backing.set(KEY, saved);
+
+    await useMediaSettings.persist.rehydrate();
+
+    expect(useMediaSettings.getState().audioProfile).toBe("media");
+  });
+
+  it("reaches the Medya profile only through the headphones choice", () => {
+    useMediaSettings.getState().setAudioProfile("communication");
+    expect(useMediaSettings.getState().audioProfile).toBe("communication");
+    useMediaSettings.getState().setAudioProfile("media_headphones");
+    expect(useMediaSettings.getState().audioProfile).toBe("media");
+  });
+});

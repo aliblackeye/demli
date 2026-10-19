@@ -94,8 +94,15 @@ interface MediaSettingsState {
   setCameraQuality: (quality: CameraQuality) => void;
   setCameraFrameRate: (fps: CameraFrameRate) => void;
   setScreenShareQuality: (quality: ScreenShareQuality) => void;
-  setAudioProfile: (profile: AndroidAudioProfile) => void;
+  /**
+   * The Medya profile can switch the phone's hardware echo canceller off, so it is
+   * reachable only as `"media_headphones"`, after the user confirmed headphones.
+   */
+  setAudioProfile: (choice: AudioProfileChoice) => void;
 }
+
+/** The only two legal audio-profile transitions; there is deliberately no plain "media". */
+export type AudioProfileChoice = "communication" | "media_headphones";
 
 export const useMediaSettings = create<MediaSettingsState>()(
   persist(
@@ -121,17 +128,22 @@ export const useMediaSettings = create<MediaSettingsState>()(
         set((s) => ({ video: { ...s.video, cameraFrameRate } })),
       setScreenShareQuality: (screenShareQuality) =>
         set((s) => ({ video: { ...s.video, screenShareQuality } })),
-      setAudioProfile: (audioProfile) => set({ audioProfile }),
+      setAudioProfile: (choice) =>
+        set({ audioProfile: choice === "media_headphones" ? "media" : "communication" }),
     }),
     {
       name: "demli.media-settings",
       storage: createJSONStorage(() => secureStorage),
       version: AUDIO_SETTINGS_SCHEMA_VERSION,
       // Runs once per install when the stored version is older (a store written
-      // before `version` existed reads as 0): turns echo cancellation back on.
+      // before `version` existed reads as 0): turns echo cancellation back on and
+      // moves a Medya profile, picked before it asked about headphones, back to
+      // Görüşme.
       migrate: (persisted, version) => {
-        const p = (persisted ?? {}) as { audio?: unknown };
-        return { ...p, audio: migrateAudioSettings(p.audio, version) };
+        const p = (persisted ?? {}) as { audio?: unknown; audioProfile?: unknown };
+        const audioProfile =
+          version < AUDIO_SETTINGS_SCHEMA_VERSION ? DEFAULT_ANDROID_AUDIO_PROFILE : p.audioProfile;
+        return { ...p, audio: migrateAudioSettings(p.audio, version), audioProfile };
       },
       partialize: (s) => ({ audio: s.audio, video: s.video, audioProfile: s.audioProfile }),
       // Normalize untrusted persisted values through the media package's guards.
