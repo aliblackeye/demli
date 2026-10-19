@@ -496,6 +496,10 @@ export default function UserProfileScreen() {
             // is the same for everyone in the roster.
             onPress={() => setAvatarOpen(true)}
             pressScale={0.96}
+            // The ring IS the fill: keep the page tone through the press (the
+            // press answers with scale) instead of the default clear → wash.
+            tone={colors.app}
+            pressedTone={colors.app}
             accessibilityRole="button"
             accessibilityLabel={t("mobile:userProfile.viewAvatar", { name: displayName })}
             style={{ alignSelf: "flex-start", borderRadius: radius.pill, backgroundColor: colors.app, padding: 4 }}

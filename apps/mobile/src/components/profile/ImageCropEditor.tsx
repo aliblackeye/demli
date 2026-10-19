@@ -20,7 +20,7 @@
  * A full-screen window (RN Modal) over everything, with its own
  * GestureHandlerRootView — gesture handlers in a Modal need one on Android.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Modal, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import { Image } from "expo-image";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -86,8 +86,8 @@ export type ImageCropEditorProps = {
   /** The picked image. `null` = closed. */
   source: ProfileImageSource | null;
   onCancel: () => void;
-  /** The framed image, ready to hold as a draft. */
-  onApply: (image: PickedProfileImage) => void;
+  /** The framed image, ready to hold as a draft, for the kind it was framed as. */
+  onApply: (image: PickedProfileImage, kind: ProfileImageSource["kind"]) => void;
   /** Re-open the picker (the parent swaps `source`). */
   onChooseAnother: () => void;
   /** Preview context: whose card this is. */
@@ -171,14 +171,30 @@ function EditorBody({
     zoom.value = next.zoom;
     cx.value = next.center.x;
     cy.value = next.center.y;
+    settled.current = { zoom: next.zoom, x: next.center.x, y: next.center.y };
   }, [mask?.width, mask?.height]);
 
   // React's copy of the crop — only what the controls need, set when a gesture
   // settles (and, throttled, while pinching so the slider follows the fingers).
   const [zoomJs, setZoomJs] = useState(MIN_ZOOM);
   const [pristine, setPristine] = useState(true);
+  /**
+   * The crop as of the last settled gesture / control — the TARGET of any
+   * spring still running. Apply exports this, never a mid-animation frame read
+   * off the shared values.
+   */
+  const settled = useRef({ zoom: MIN_ZOOM, x: image.width / 2, y: image.height / 2 });
+  /** False once the editor unmounts (cancelled): a late export must not land. */
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
   const sync = useCallback(
     (z: number, x: number, y: number) => {
+      settled.current = { zoom: z, x, y };
       setZoomJs(z);
       if (mask) setPristine(isInitialCrop({ zoom: z, center: { x, y } }, image, mask));
     },
@@ -305,11 +321,14 @@ function EditorBody({
     setError(null);
     setApplying(true);
     try {
-      const rect = cropRect({ zoom: zoom.value, center: { x: cx.value, y: cy.value } }, image, mask);
+      const { zoom: z, x, y } = settled.current;
+      const rect = cropRect({ zoom: z, center: { x, y } }, image, mask);
       const result = await exportProfileCrop(source, rect);
+      if (!alive.current) return;
       haptics.light();
-      onApply(result);
+      onApply(result, kind);
     } catch (err) {
+      if (!alive.current) return;
       setError(
         err instanceof ProfileImageError ? t(err.key) : t("mobile:profile.imageUnreadable"),
       );
@@ -323,9 +342,11 @@ function EditorBody({
     setApplying(true);
     try {
       const result = await keepAnimatedBanner(source);
+      if (!alive.current) return;
       haptics.light();
-      onApply(result);
+      onApply(result, kind);
     } catch (err) {
+      if (!alive.current) return;
       setError(err instanceof ProfileImageError ? t(err.key) : t("mobile:profile.imageUnreadable"));
       setApplying(false);
     }

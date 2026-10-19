@@ -243,8 +243,7 @@ export default function Profile() {
     setMenu(kind);
   };
 
-  const onCropApplied = (image: PickedProfileImage) => {
-    const kind = editorSource?.kind ?? "avatar";
+  const onCropApplied = (image: PickedProfileImage, kind: ProfileImageKind) => {
     if (kind === "avatar") setAvatarEdit({ kind: "draft", image });
     else setBannerEdit({ kind: "draft", image });
     setKindError(kind, null);
@@ -426,6 +425,10 @@ export default function Profile() {
                 disabled={saving}
                 dimmed={false}
                 pressScale={0.96}
+            // The ring IS the fill: keep the page tone through the press (the
+            // press answers with scale) instead of the default clear → wash.
+            tone={colors.app}
+            pressedTone={colors.app}
                 accessibilityRole="button"
                 accessibilityLabel={t("mobile:profile.avatarChange")}
                 accessibilityHint={t("mobile:profile.avatarHelp")}
