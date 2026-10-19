@@ -358,19 +358,30 @@ describe.skipIf(!dbUp)("server moderation API", () => {
   // --- Media teardown on removal ---------------------------------------------
 
   it("kick, ban, timeout and owner-removal force the target out of the server's voice rooms", async () => {
+    // Its OWN target, not the shared `b`. POST /invites/:code/redeem is limited
+    // to 10 per user per minute (invites module), and this test alone redeems
+    // three times: on top of the eight redeems the other tests already make as
+    // `b`, the next `join(…, bToken)` in this file was the 11th inside the same
+    // minute and got 429 — the limiter working, the fixture over budget.
+    const target = await register(`mod_ev_${suffix}`, "Mod Evict");
+    const targetId = target.user.id;
+    const targetToken = target.token;
+
     const serverId = await makeServer("Evict");
     const lobby = await makeVoiceChannel(serverId);
     const rooms = (await repos.channels.listVoiceRoomsForGroup(serverId)).map((r) => r.room);
     expect(rooms).toContain(lobby);
 
     const removedRooms = () =>
-      removeParticipant.mock.calls.filter(([, identity]) => identity === bId).map(([room]) => room);
+      removeParticipant.mock.calls
+        .filter(([, identity]) => identity === targetId)
+        .map(([room]) => room);
 
-    await join(serverId, bToken);
+    await join(serverId, targetToken);
     removeParticipant.mockClear();
     const timeout = await app.inject({
       method: "POST",
-      url: `/groups/${serverId}/members/${bId}/timeout`,
+      url: `/groups/${serverId}/members/${targetId}/timeout`,
       headers: auth(ownerToken),
       payload: { minutes: 5 },
     });
@@ -380,36 +391,36 @@ describe.skipIf(!dbUp)("server moderation API", () => {
     removeParticipant.mockClear();
     const kick = await app.inject({
       method: "POST",
-      url: `/groups/${serverId}/members/${bId}/kick`,
+      url: `/groups/${serverId}/members/${targetId}/kick`,
       headers: auth(ownerToken),
     });
     expect(kick.statusCode).toBe(204);
     expect(removedRooms().sort()).toEqual([...rooms].sort());
 
-    await join(serverId, bToken);
+    await join(serverId, targetToken);
     removeParticipant.mockClear();
     const removal = await app.inject({
       method: "DELETE",
-      url: `/groups/${serverId}/members/${bId}`,
+      url: `/groups/${serverId}/members/${targetId}`,
       headers: auth(ownerToken),
     });
     expect(removal.statusCode).toBe(204);
     expect(removedRooms().sort()).toEqual([...rooms].sort());
 
-    await join(serverId, bToken);
+    await join(serverId, targetToken);
     removeParticipant.mockClear();
     const ban = await app.inject({
       method: "POST",
       url: `/groups/${serverId}/bans`,
       headers: auth(ownerToken),
-      payload: { userId: bId },
+      payload: { userId: targetId },
     });
     expect(ban.statusCode).toBe(201);
     expect(removedRooms().sort()).toEqual([...rooms].sort());
 
     await app.inject({
       method: "DELETE",
-      url: `/groups/${serverId}/bans/${bId}`,
+      url: `/groups/${serverId}/bans/${targetId}`,
       headers: auth(ownerToken),
     });
   });
