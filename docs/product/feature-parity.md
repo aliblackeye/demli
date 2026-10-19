@@ -106,6 +106,10 @@ Durumlar: ✅ çalışıyor · 🚧 yapım aşamasında · ⛔ yok (görev no zo
 | Görsel görüntüleyici: yakınlaştır/kaydır, mesajdaki görseller arasında gezin, klavye | ✅ | ⛔ M16 Dalga 4 (mobil ek görüntüleyici) | Tekerlek (imleç altında), çift tık, −/+/sığdır, + − 0 ve ok tuşları, sürükleyerek kaydırma, "2 / 3" sayacı; kaydet/kopyala düğmeleri korunur. |
 | Çoklu görsel = eşit kare ızgara (2/4 → 2 sütun, diğerleri 3) | ✅ | ⛔ M16 Dalga 4 | Hücre boyu yalnız sayıdan hesaplanır → satır yüksekliği bayt yüklenmeden kesin (§27). |
 | Composer: karakter sayacı (son 200), yükleme yüzdesi çubuğu (`progressbar`), bahsetme listesi `aria-activedescendant` | ✅ | ⛔ M16 Dalga 4 | |
+| Boş DM / grup sohbeti karşı tarafla açılır (avatar + ad, "#" yok) | ✅ | ⛔ M16 Dalga 4 | M16 Dalga 3 denetim düzeltmesi. DM ve grup sohbeti kişinin/grubun adını taşıyan gizli akış kanalı üzerinde çalıştığı için eskiden "#Can kanalına hoş geldin" yazıyordu. `ChatData.intro` (`dm` / `groupChat`); sunucu kanalı değişmedi. |
+| Görselin baytları gelmezse dürüst hata + yeniden imzalayan "Yeniden dene" | ✅ | ⛔ M16 Dalga 4 | İmzalı URL çözülüp baytlar düşerse (süresi dolmuş imza, 403/404, kopan bağlantı) karo sonsuza kadar nabız atıyordu. Artık hata karosu; yeniden deneme önbellekteki URL'yi atıp yeniden imzalatır. |
+| Kendi gönderdiğin mesaj tek satırda onaylanır (varış hareketi bir kez) | ✅ | — (mobil listenin kendi anahtarı; Dalga 4'te kontrol) | Onaylanan mesaj iyimser satırın anahtarını (`renderKey`) korur; yankı ile önbellek güncellemesi arasındaki tek karede satır kaybolmaz. |
+| Eski sayfa yüklenirken ekrandaki mesajlar yerinden oynamaz | ✅ | ⛔ M16 Dalga 4 | Sabit yükseklikli yükleme satırı eklenirken telafi edilir; sayfa gelince en üstteki mesaj satırına göre, boyamadan önce (layout effect) yeniden çapalanır. |
 
 ## Süreç
 
