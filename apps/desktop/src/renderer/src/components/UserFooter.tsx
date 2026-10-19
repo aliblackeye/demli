@@ -1,5 +1,4 @@
 import {
-  ChevronUp,
   Headphones,
   HeadphoneOff,
   LogOut,
@@ -14,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Hint,
   IconButton,
   UserAvatar,
   cn,
@@ -59,7 +59,11 @@ export function UserFooter(): JSX.Element {
 
   return (
     <div className="shrink-0 px-2 pb-2">
-      <div className="flex h-[52px] items-center gap-0.5 rounded-xl bg-surface p-1.5">
+      {/* Width budget at the 240px column: 8px gutters + 4px pill padding leave
+          216px; avatar 32 + three 28px controls = 116, so the identity block
+          gets ~100px (the name and custom status stay readable instead of being
+          cut to four characters). */}
+      <div className="flex h-[52px] items-center rounded-xl bg-surface p-1">
         {/* Avatar opens the user's OWN profile card (founder: "sol-alt avatar →
             profil kartı"); the name block still opens the status / accounts menu. */}
         {currentUser ? (
@@ -67,7 +71,13 @@ export function UserFooter(): JSX.Element {
             <button
               type="button"
               aria-label={t("desktop:footer.viewProfile")}
-              className={cn(BAR_PRESSABLE, "shrink-0 p-1")}
+              // No padding to wash (every px goes to the name), so the avatar's
+              // own tone answers hover/press/open — the rail tiles' language.
+              className={cn(
+                "shrink-0 cursor-pointer rounded-full transition-[filter] motion-hover",
+                "hover:brightness-115 active:brightness-95 data-[state=open]:brightness-115",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+              )}
             >
               <UserAvatar
                 name={currentUser.displayName}
@@ -79,7 +89,7 @@ export function UserFooter(): JSX.Element {
             </button>
           </ProfileCard>
         ) : (
-          <span className="shrink-0 p-1">
+          <span className="shrink-0">
             {/* The signed-out / not-yet-loaded branch: there is no user record at all
                 here (the branch condition IS `currentUser == null`), so there is no
                 avatar to resolve — initials are the only thing that can be drawn. */}
@@ -88,33 +98,29 @@ export function UserFooter(): JSX.Element {
         )}
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("desktop:footer.userMenu")}
-              className={cn(
-                BAR_PRESSABLE,
-                "group/name flex min-w-0 flex-1 items-center gap-1 px-1.5 py-1 text-left",
-              )}
-            >
-              <span className="min-w-0 flex-1 leading-tight">
-                <span className="block truncate text-label font-semibold text-fg">
-                  {currentUser?.displayName ?? t("desktop:footer.you")}
-                </span>
-                <span className="block truncate text-2xs text-fg-faint">
-                  {currentUser?.customStatus ?? `@${currentUser?.username ?? t("desktop:footer.youHandle")}`}
-                </span>
-              </span>
-              <ChevronUp
-                aria-hidden
+          {/* The custom status can outrun the ~85px line; the hint carries it
+              whole (and renders nothing when there is no status). */}
+          <Hint label={currentUser?.customStatus ?? null}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("desktop:footer.userMenu")}
                 className={cn(
-                  "size-3.5 shrink-0 text-fg-faint opacity-0 transition-[opacity,transform] motion-fast",
-                  "group-hover/name:opacity-100 group-focus-visible/name:opacity-100",
-                  "group-data-[state=open]/name:rotate-180 group-data-[state=open]/name:opacity-100",
+                  BAR_PRESSABLE,
+                  "ml-1 flex min-w-0 flex-1 items-center px-1.5 py-1 text-left",
                 )}
-              />
-            </button>
-          </DropdownMenuTrigger>
+              >
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="block truncate text-label font-semibold text-fg">
+                    {currentUser?.displayName ?? t("desktop:footer.you")}
+                  </span>
+                  <span className="block truncate text-2xs text-fg-faint">
+                    {currentUser?.customStatus ?? `@${currentUser?.username ?? t("desktop:footer.youHandle")}`}
+                  </span>
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+          </Hint>
           <DropdownMenuContent align="start" side="top" sideOffset={10} className="w-64">
             <StatusPicker />
             <DropdownMenuSeparator />
@@ -137,7 +143,7 @@ export function UserFooter(): JSX.Element {
 
         <IconButton
           variant={micEnabled ? "ghost" : "danger"}
-          size="sm"
+          size="xs"
           label={micEnabled ? t("desktop:voice.mute") : t("desktop:voice.unmute")}
           pressed={!micEnabled}
           active={false}
@@ -147,7 +153,7 @@ export function UserFooter(): JSX.Element {
         </IconButton>
         <IconButton
           variant={deafened ? "danger" : "ghost"}
-          size="sm"
+          size="xs"
           label={deafened ? t("desktop:voice.undeafen") : t("desktop:voice.deafen")}
           pressed={deafened}
           active={false}
@@ -157,7 +163,7 @@ export function UserFooter(): JSX.Element {
         </IconButton>
         <IconButton
           variant="ghost"
-          size="sm"
+          size="xs"
           label={t("desktop:settings.title")}
           onClick={() => openSettings()}
         >
