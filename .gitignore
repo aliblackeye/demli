@@ -135,3 +135,14 @@ demli-signin-*.png
 # Next.js build çıktısı (landing)
 apps/landing/.next/
 apps/landing/out/
+
+# Licensed Appzen template assets — local dev only, NEVER commit (public AGPL repo).
+# Replace with Demli-owned visuals before the landing goes live.
+apps/landing/public/fonts/
+apps/landing/public/videos/
+apps/landing/public/images/*
+!apps/landing/public/images/demli-mark.png
+!apps/landing/public/images/demli-og.png
+apps/landing/public/icons/*
+!apps/landing/public/icons/monitor.svg
+!apps/landing/public/icons/phone.svg
