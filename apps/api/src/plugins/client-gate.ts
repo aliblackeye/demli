@@ -47,9 +47,10 @@ const EXEMPT_PATHS = new Set([
 /**
  * Path PREFIXES exempt from the gate.
  *
- * `/hooks/*` is the EAS Build webhook: a machine caller that will never send a
- * client mark, and which authenticates itself with its own HMAC signature. The
- * gate has nothing to add there and would only break APK delivery.
+ * `/hooks/*` holds the machine callers — the EAS Build webhook and the LiveKit
+ * join-check webhook. Neither will ever send a client mark, and each
+ * authenticates itself with its own signature. The gate has nothing to add there
+ * and would only break APK delivery and the SFU's join check.
  */
 const EXEMPT_PREFIXES = ["/hooks/"];
 

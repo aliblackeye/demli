@@ -65,6 +65,7 @@ import { registerPinsModule } from "./modules/pins/index.js";
 import { registerRolesModule } from "./modules/roles/index.js";
 import { registerSessionsModule } from "./modules/sessions/index.js";
 import { registerUsersModule } from "./modules/users/index.js";
+import { registerLivekitWebhookModule } from "./modules/livekit-webhook/index.js";
 import {
   createVoiceOccupancyReader,
   registerVoiceModule,
@@ -335,14 +336,23 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await registerUserNotesModule(server, options.mutationBus);
   await registerFriendsModule(server, options.mutationBus, options.notifier);
   await registerDmsModule(server, options.mutationBus);
+  // SFU admin shared by every path that must end someone's media session: the
+  // moderation endpoints, a member removed from a server or group chat, and the
+  // alone-idle sweep. Injected in tests, else built from env (LiveKit admin API —
+  // same creds as the media token endpoint).
+  const voiceModerator =
+    options.voiceModerator !== undefined
+      ? options.voiceModerator
+      : createVoiceModerator(server);
   // Groups take the same image-upload deps the users module does: the server
   // banner (M20) shares the profile banner's public bucket, gate and NSFW seam.
   await registerGroupsModule(server, {
     mutationBus: options.mutationBus,
     avatarStorage,
     mediaModerator,
+    voiceEjector: voiceModerator,
   });
-  await registerGroupChatsModule(server, options.mutationBus);
+  await registerGroupChatsModule(server, options.mutationBus, { voiceEjector: voiceModerator });
   await registerChannelsModule(server, options.mutationBus);
   await registerChannelCategoriesModule(server, options.mutationBus);
   await registerMessagesModule(server, {
@@ -391,16 +401,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       : createVoiceOccupancyReader(server);
   await registerVoiceModule(server, { reader: voiceOccupancy });
   // Server moderation (migration 0017): kick / ban / unban / list bans / voice
-  // disconnect. The voice moderator is injected in tests, else built from env
-  // (LiveKit admin API — same creds as the media token endpoint).
-  const voiceModerator =
-    options.voiceModerator !== undefined
-      ? options.voiceModerator
-      : createVoiceModerator(server);
+  // disconnect. The voice moderator is built above, before the groups modules.
   await registerModerationModule(server, {
     mutationBus: options.mutationBus,
     voiceModerator,
   });
+  // Server-side join check: the SFU reports every join and anyone the token
+  // endpoints would refuse today is removed (a kicked member replaying a token).
+  await registerLivekitWebhookModule(server, { ejector: voiceModerator });
   // Per-server member nicknames (migration 0020). Separate from moderation
   // because most calls are self-serve — a member setting their own nickname
   // needs no permission bit at all (ADR 0019 §3).

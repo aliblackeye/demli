@@ -7,7 +7,7 @@
  * Contract (consumed by the voice engine in packages/media):
  *   - room     = the voice channel id (rooms are 1:1 with voice channels)
  *   - identity = the authenticated user's id
- *   - grants   = roomJoin + canPublish + canSubscribe, TTL 6h
+ *   - grants   = roomJoin + canPublish + canSubscribe, TTL 10 min (see below)
  *
  * The server never trusts client-claimed membership (§28): the channel must
  * exist, be a voice channel, and the user must be a member of its group.
@@ -33,8 +33,26 @@ const tokenBodySchema = z.object({
   channelId: z.string().uuid("Invalid channel id."),
 });
 
-/** Long enough for a full voice session; short enough to bound leaked tokens. */
-export const MEDIA_TOKEN_TTL_SECONDS = 6 * 60 * 60;
+/**
+ * How long a minted media token admits a JOIN. A LiveKit token is checked only
+ * when a connection is made — never again for a session already in the room —
+ * and the SFU refreshes every connected participant's token itself (a fresh
+ * 10-minute token at session start and every 5 minutes; livekit-client uses the
+ * latest one for every resume/reconnect). So the TTL does not bound call length;
+ * it bounds how long a token that leaked, or was kept by someone since kicked,
+ * banned or timed out, can still be replayed to walk back in. Ten minutes matches
+ * the SFU's own refresh lifetime: a minted token is never worth more than a
+ * refreshed one.
+ */
+export const MEDIA_TOKEN_TTL_SECONDS = 10 * 60;
+
+/**
+ * How long the single-active-session record (Redis) lives. Deliberately NOT the
+ * token TTL: the record is "which room is this user's voice session in", which
+ * must outlive a 10-minute token for as long as a call can plausibly run, or the
+ * cross-device eviction would silently stop working mid-call.
+ */
+export const VOICE_SESSION_TTL_SECONDS = 6 * 60 * 60;
 
 export interface MediaTokenResponse {
   /** LiveKit websocket URL the client should connect to. */
@@ -72,7 +90,7 @@ export function createVoiceSessions(
       server.apiEnv.livekitApiSecret,
     ),
     mutationBus,
-    ttlSeconds: MEDIA_TOKEN_TTL_SECONDS,
+    ttlSeconds: VOICE_SESSION_TTL_SECONDS,
     log: (message) => server.log.info(message),
   });
 }

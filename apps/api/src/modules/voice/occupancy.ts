@@ -14,7 +14,7 @@
  *    in-memory occupancy map is unreachable from here, so it cannot back an HTTP
  *    endpoint at all.
  *  - The Redis `VoiceSessionRegistry` stores only ONE room per user (single-session
- *    eviction) on a 6h token TTL, with no per-channel index and no screen-share
+ *    eviction) on a 6h TTL, with no per-channel index and no screen-share
  *    info — unfit as an occupancy source.
  *  - LiveKit is the media plane itself: `listParticipants` returns exactly who is
  *    connected to a room and the tracks they publish, so screen-share/camera are

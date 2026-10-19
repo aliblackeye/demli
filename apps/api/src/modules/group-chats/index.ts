@@ -5,6 +5,7 @@ import type { RealtimeMutationPublisher } from "@demli/db";
 import { serverEvent } from "@demli/protocol";
 import { ApiError, parseWith } from "../../errors.js";
 import { assertNotBlocked } from "../../lib/blocks.js";
+import { evictFromGroupVoice, type VoiceEjector } from "../../lib/voice-eviction.js";
 import { requireUser } from "../../plugins/auth.js";
 import { LIST_LIMIT, userRateLimit } from "../../lib/rate-limit.js";
 
@@ -52,10 +53,21 @@ const inviteParamsSchema = z.object({
   inviteId: z.string().uuid("Invalid invite id."),
 });
 
+export interface GroupChatsModuleOptions {
+  /**
+   * SFU admin used to end the media session of a member the owner removed — a
+   * group chat upgraded from a DM call runs its voice channel in the call's room
+   * (see {@link evictFromGroupVoice}). Null/omitted ⇒ membership-only removal.
+   */
+  voiceEjector?: VoiceEjector | null;
+}
+
 export async function registerGroupChatsModule(
   server: FastifyInstance,
   mutationBus?: RealtimeMutationPublisher,
+  options: GroupChatsModuleOptions = {},
 ): Promise<void> {
+  const voiceEjector = options.voiceEjector ?? null;
   // Create a flat group chat; the caller becomes its owner.
   server.post(
     "/group-chats",
@@ -330,6 +342,13 @@ export async function registerGroupChatsModule(
       const { removed, groupDeleted } =
         await server.repos.groups.removeMemberAndPruneIfEmpty(id, userId);
       if (!removed) throw new ApiError(404, "NOT_FOUND", "Member not found.");
+
+      if (!isSelf && !groupDeleted) {
+        await evictFromGroupVoice(server, { ejector: voiceEjector, mutationBus, log: request.log }, {
+          groupId: id,
+          userId,
+        });
+      }
 
       // Lifecycle events: group.deleted when the last member left (the group and
       // its hidden stream channel are gone), otherwise member.left so the gateway

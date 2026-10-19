@@ -355,6 +355,65 @@ describe.skipIf(!dbUp)("server moderation API", () => {
     expect(res.statusCode).toBe(404);
   });
 
+  // --- Media teardown on removal ---------------------------------------------
+
+  it("kick, ban, timeout and owner-removal force the target out of the server's voice rooms", async () => {
+    const serverId = await makeServer("Evict");
+    const lobby = await makeVoiceChannel(serverId);
+    const rooms = (await repos.channels.listVoiceRoomsForGroup(serverId)).map((r) => r.room);
+    expect(rooms).toContain(lobby);
+
+    const removedRooms = () =>
+      removeParticipant.mock.calls.filter(([, identity]) => identity === bId).map(([room]) => room);
+
+    await join(serverId, bToken);
+    removeParticipant.mockClear();
+    const timeout = await app.inject({
+      method: "POST",
+      url: `/groups/${serverId}/members/${bId}/timeout`,
+      headers: auth(ownerToken),
+      payload: { minutes: 5 },
+    });
+    expect(timeout.statusCode).toBe(200);
+    expect(removedRooms().sort()).toEqual([...rooms].sort());
+
+    removeParticipant.mockClear();
+    const kick = await app.inject({
+      method: "POST",
+      url: `/groups/${serverId}/members/${bId}/kick`,
+      headers: auth(ownerToken),
+    });
+    expect(kick.statusCode).toBe(204);
+    expect(removedRooms().sort()).toEqual([...rooms].sort());
+
+    await join(serverId, bToken);
+    removeParticipant.mockClear();
+    const removal = await app.inject({
+      method: "DELETE",
+      url: `/groups/${serverId}/members/${bId}`,
+      headers: auth(ownerToken),
+    });
+    expect(removal.statusCode).toBe(204);
+    expect(removedRooms().sort()).toEqual([...rooms].sort());
+
+    await join(serverId, bToken);
+    removeParticipant.mockClear();
+    const ban = await app.inject({
+      method: "POST",
+      url: `/groups/${serverId}/bans`,
+      headers: auth(ownerToken),
+      payload: { userId: bId },
+    });
+    expect(ban.statusCode).toBe(201);
+    expect(removedRooms().sort()).toEqual([...rooms].sort());
+
+    await app.inject({
+      method: "DELETE",
+      url: `/groups/${serverId}/bans/${bId}`,
+      headers: auth(ownerToken),
+    });
+  });
+
   // --- Voice disconnect ------------------------------------------------------
 
   it("owner disconnects a member from voice → 204, SFU removeParticipant + voice.disconnected, membership intact", async () => {
