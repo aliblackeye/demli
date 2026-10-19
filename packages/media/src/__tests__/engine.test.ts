@@ -749,7 +749,7 @@ describe("screen share lifecycle", () => {
 
     let releaseUnpublish: () => void = () => undefined;
     room.localParticipant.unpublishTrack.mockImplementationOnce(
-      () => new Promise<void>((resolve) => (releaseUnpublish = resolve)),
+      () => new Promise<undefined>((resolve) => (releaseUnpublish = () => resolve(undefined))),
     );
     const next = new FakeMediaStreamTrack("audio");
     const swap = engine.replaceScreenShareAudio(next as unknown as MediaStreamTrack);
