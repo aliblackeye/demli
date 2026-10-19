@@ -1,6 +1,9 @@
 /**
- * <Toaster/> — renders the toast queue (toast-store.ts). Mount ONCE, at the app
- * root inside GestureHandlerRootView; call `toast({...})` from anywhere.
+ * <Toaster/> — renders the toast queue (toast-store.ts); call `toast({...})`
+ * from anywhere. One is mounted at the app root inside GestureHandlerRootView,
+ * and one inside every window that sits above it (each Sheet's Modal). Only the
+ * most recently mounted host draws the queue, so a toast always shows in the
+ * topmost window instead of behind an open sheet.
  *
  * Koyu Masa toast: the glass surface, radius 16, a variant dot, title + one
  * line, an optional coral text action and a close control. It rises 12px out
@@ -13,7 +16,7 @@
  *  - TalkBack hears it: each new toast is announced (it appears without focus),
  *    and the close control has its own label.
  */
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AccessibilityInfo, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -34,9 +37,13 @@ import { Glass } from "./Glass";
 import { Text } from "./Text";
 import { Touchable } from "./Touchable";
 import {
+  claimAnnouncement,
   dismissToast,
+  getActiveToastHost,
   getToasts,
+  registerToastHost,
   subscribeToasts,
+  unregisterToastHost,
   type ToastRecord,
   type ToastVariant,
 } from "./toast-store";
@@ -85,9 +92,11 @@ function ToastItem({ record }: { record: ToastRecord }) {
 
   useEffect(() => {
     enter.value = motionTo(1, "position", { reduced });
-    AccessibilityInfo.announceForAccessibility(
-      record.description ? `${record.title}. ${record.description}` : record.title,
-    );
+    if (claimAnnouncement(record.id)) {
+      AccessibilityInfo.announceForAccessibility(
+        record.description ? `${record.title}. ${record.description}` : record.title,
+      );
+    }
     arm();
     return pause;
     // Mount-only: one toast record, one entrance, one timer.
@@ -213,20 +222,39 @@ function ToastItem({ record }: { record: ToastRecord }) {
   );
 }
 
-export function Toaster({ bottomOffset = 72 }: { bottomOffset?: number }) {
+export function Toaster({
+  bottomOffset = 72,
+  placement = "bottom",
+}: {
+  /** Distance above the bottom inset (clears the tab bar). Bottom placement only. */
+  bottomOffset?: number;
+  /**
+   * "top" for a host inside a sheet: the card and its keyboard own the bottom
+   * of that window, and a toast there would cover the sheet's own actions.
+   */
+  placement?: "bottom" | "top";
+}) {
   const records = useSyncExternalStore(subscribeToasts, getToasts, getToasts);
+  const active = useSyncExternalStore(subscribeToasts, getActiveToastHost, getActiveToastHost);
+  const [hostId, setHostId] = useState<number | null>(null);
   const insets = useSafeAreaInsets();
-  if (records.length === 0) return null;
+
+  // Layout effect: the new host claims the queue in the same frame its window
+  // appears, so a toast never blinks out between two windows.
+  useLayoutEffect(() => {
+    const id = registerToastHost();
+    setHostId(id);
+    return () => unregisterToastHost(id);
+  }, []);
+
+  if (hostId === null || active !== hostId || records.length === 0) return null;
   return (
     <View
       pointerEvents="box-none"
-      style={{
-        position: "absolute",
-        left: space.md,
-        right: space.md,
-        bottom: insets.bottom + bottomOffset,
-        gap: space.sm,
-      }}
+      style={[
+        { position: "absolute", left: space.md, right: space.md, gap: space.sm },
+        placement === "top" ? { top: insets.top + space.sm } : { bottom: insets.bottom + bottomOffset },
+      ]}
     >
       {records.map((r) => (
         <ToastItem key={r.id} record={r} />

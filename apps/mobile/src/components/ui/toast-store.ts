@@ -3,8 +3,16 @@
  *
  * Module-level on purpose so any code (a store action, a media callback, a
  * mutation's onError) can raise a toast without threading a context through.
- * Exactly one <Toaster/> renders it, mounted once at the app root. Pure TS —
- * no React Native import — so the queue rules are unit-tested in node.
+ * Pure TS — no React Native import — so the queue rules are unit-tested in node.
+ *
+ * Hosts. On Android every RN `Modal` is its own window, and a view in the root
+ * window can never draw above it — a root-only toaster would put feedback
+ * BEHIND an open sheet, where its timer runs out unseen. So the queue is
+ * rendered by exactly one host at a time: the most recently mounted
+ * <Toaster/>. The app root mounts one; every Sheet mounts one inside its Modal
+ * (the topmost window while it is open); any other Modal surface that raises
+ * toasts must mount a <Toaster/> inside itself too. When a host unmounts, the
+ * one beneath it takes the queue back.
  */
 
 export type ToastVariant = "neutral" | "success" | "accent" | "danger";
@@ -80,9 +88,47 @@ export function getToasts(): ToastRecord[] {
   return records;
 }
 
+let hosts: number[] = [];
+let nextHostId = 1;
+const announced = new Set<number>();
+
+/** Register a mounted <Toaster/>; it becomes the active host. Returns its id. */
+export function registerToastHost(): number {
+  const id = nextHostId++;
+  hosts = [...hosts, id];
+  emit();
+  return id;
+}
+
+export function unregisterToastHost(id: number): void {
+  if (!hosts.includes(id)) return;
+  hosts = hosts.filter((h) => h !== id);
+  emit();
+}
+
+/** The host that renders the queue right now (the topmost window), or null. */
+export function getActiveToastHost(): number | null {
+  return hosts[hosts.length - 1] ?? null;
+}
+
+/**
+ * True exactly once per toast: a toast that moves to another host (a sheet
+ * opened over it) is drawn again there but must not be spoken twice.
+ */
+export function claimAnnouncement(id: number): boolean {
+  if (announced.has(id)) return false;
+  // Bounded: only ids still in the queue can ever be asked about again.
+  for (const seen of announced) if (!records.some((r) => r.id === seen)) announced.delete(seen);
+  announced.add(id);
+  return true;
+}
+
 /** Test seam: start from an empty queue. */
 export function resetToastsForTest(): void {
   records = [];
   nextId = 1;
+  hosts = [];
+  nextHostId = 1;
+  announced.clear();
   emit();
 }
