@@ -1,7 +1,8 @@
 // Numeric proof for the process-audio helper (Windows only, plays short tones).
 //
-//   node apps/desktop/scripts/verify-process-audio.mjs            # helper modes
-//   node apps/desktop/scripts/verify-process-audio.mjs --electron # + Demli-style exclusion
+//   node apps/desktop/scripts/verify-process-audio.mjs             # helper modes
+//   node apps/desktop/scripts/verify-process-audio.mjs --electron  # + Demli-style exclusion
+//   node apps/desktop/scripts/verify-process-audio.mjs --packaged  # + packaged (UWP) window
 //
 // Part 1 (always): two child processes play different tones at the same time —
 // A = 613 Hz, B = 1471 Hz. The helper captures include(A) and exclude(A) in
@@ -15,14 +16,22 @@
 // must carry B, which proves Electron's audio output (rendered by its
 // audio-service child process) belongs to the main process tree.
 //
-// Measurement: the level at the tone frequency AND its prominence over the
-// local floor (mean of bins 4–12 Hz either side). An exclude capture also
-// contains whatever else the PC plays (music, a video), which has energy at
-// every frequency but no pure-tone spike — so "absent" accepts a level at or
-// below the floor, while "present" demands a sharp spike.
-//   PRESENT: level >= -40 dBFS and prominence >= 15 dB
-//   ABSENT:  level <= -60 dBFS, or prominence <= 6 dB (no tone above the floor)
-// Tones are generated at -12 dBFS. Exit code 0 only when every check passes.
+// Part 3 (--packaged): Filmler ve TV (Microsoft.ZuneVideo, a packaged app whose
+// top-level window belongs to ApplicationFrameHost.exe) plays C = 887 Hz.
+// `--window-pid <frame hwnd>` must resolve to the app process, not the frame
+// host; include(resolved) must carry C, and include(frame host) — what an
+// unresolved "only this app" would capture — must not.
+//
+// Measurement: the level at the tone frequency over whole-second blocks.
+//   PRESENT: level >= -40 dBFS and >= 15 dB above the local floor (mean of the
+//            bins 4–12 Hz either side), i.e. a sharp spike.
+//   ABSENT:  at least 40 dB below the same tone's level in the capture that
+//            must carry it (the reference). No spike over the floor is not
+//            enough: background audio raises the floor and could hide a leak
+//            under it, so a check that cannot show 40 dB fails as INCONCLUSIVE
+//            and asks for a quieter re-run.
+// Tones are generated at -30 dBFS (quiet on purpose; capture is digital, so the
+// 10 dB margin over PRESENT holds). Exit code 0 only when every check passes.
 // Process loopback captures AFTER the per-app volume in the Windows mixer, so a
 // muted electron.exe makes Part 2 fail (include finds no tone) rather than pass.
 /* global console, process, Buffer, setTimeout */
@@ -38,13 +47,14 @@ const desktopDir = join(here, "..");
 const helper = join(desktopDir, "resources", "process-audio", "win32-x64", "demli-audio-capture.exe");
 
 const SAMPLE_RATE = 48000;
-const TONE_AMPLITUDE = 0.25; // -12 dBFS
+const TONE_AMPLITUDE = 0.0316; // -30 dBFS
 const FREQ_A = 613;
 const FREQ_B = 1471;
 const PRESENT_DB = -40;
 const PRESENT_PROMINENCE_DB = 15;
-const ABSENT_DB = -60;
-const ABSENT_PROMINENCE_DB = 6;
+const REJECTION_DB = 40;
+const FREQ_C = 887;
+const PACKAGED_APP = "Microsoft.ZuneVideo_8wekyb3d8bbwe!Microsoft.ZuneVideo";
 const CAPTURE_MS = 4500;
 const ANALYSIS_SKIP_S = 1;
 const MIN_ANALYSED_S = 2;
@@ -191,24 +201,153 @@ function fmt(db) {
 }
 
 const results = [];
-function expectTone(label, pcm, frequency, present) {
-  const { db, floorDb, prominence, seconds } = toneLevels(pcm, frequency);
-  const enough = seconds >= MIN_ANALYSED_S;
-  const pass =
-    enough &&
-    (present
-      ? db >= PRESENT_DB && prominence >= PRESENT_PROMINENCE_DB
-      : db <= ABSENT_DB || prominence <= ABSENT_PROMINENCE_DB);
-  results.push({ label, frequency, expected: present ? "present" : "absent", db, floorDb, prominence, seconds, pass });
+
+function record(entry, note) {
+  results.push(entry);
   console.log(
-    `  ${pass ? "PASS" : "FAIL"}  ${label}: ${frequency} Hz ${present ? "present" : "absent "} ` +
-      `→ ${fmt(db)}, ${prominence.toFixed(1)} dB over floor ${fmt(floorDb)} ` +
-      `(${seconds}s analysed${enough ? "" : ` — need ${MIN_ANALYSED_S}s`})`,
+    `  ${entry.pass ? "PASS" : "FAIL"}  ${entry.label}: ${entry.frequency} Hz ` +
+      `${entry.expected === "present" ? "present" : "absent "} → ${fmt(entry.db)}, ` +
+      `${entry.prominence.toFixed(1)} dB over floor ${fmt(entry.floorDb)} (${entry.seconds}s analysed)` +
+      (note ? ` — ${note}` : ""),
   );
 }
 
+/** A tone the capture must carry. Returns its level, the reference for absence checks. */
+function expectPresent(label, pcm, frequency) {
+  const { db, floorDb, prominence, seconds } = toneLevels(pcm, frequency);
+  const enough = seconds >= MIN_ANALYSED_S;
+  const pass = enough && db >= PRESENT_DB && prominence >= PRESENT_PROMINENCE_DB;
+  record(
+    { label, frequency, expected: "present", db, floorDb, prominence, seconds, pass },
+    enough ? "" : `need ${MIN_ANALYSED_S}s`,
+  );
+  return pass ? db : null;
+}
+
+/**
+ * A tone the capture must NOT carry, judged against `referenceDb` — the same
+ * tone's level in the capture that does carry it (null when that check failed,
+ * and then nothing can be proven).
+ */
+function expectAbsent(label, pcm, frequency, referenceDb) {
+  const { db, floorDb, prominence, seconds } = toneLevels(pcm, frequency);
+  const enough = seconds >= MIN_ANALYSED_S;
+  const rejection = referenceDb === null ? null : referenceDb - db;
+  const pass = enough && rejection !== null && rejection >= REJECTION_DB;
+  let note;
+  if (!enough) note = `need ${MIN_ANALYSED_S}s`;
+  else if (rejection !== null) note = `${rejection.toFixed(1)} dB below the reference ${fmt(referenceDb)}`;
+  else note = "no reference level";
+  if (enough && !pass && prominence < PRESENT_PROMINENCE_DB) {
+    note +=
+      ` — INCONCLUSIVE: other audio on this PC holds the floor at ${fmt(floorDb)}, too loud to ` +
+      `prove a ${REJECTION_DB} dB rejection; stop other playback and re-run`;
+  }
+  record({ label, frequency, expected: "absent", db, floorDb, prominence, seconds, pass }, note);
+}
+
+/** Open `file` in a packaged app; resolves with the app PID and its frame window. */
+function openInPackagedApp(scriptPath, aumid, file) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, aumid, file],
+      { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+    );
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (b) => (out += b.toString()));
+    child.stderr.on("data", (b) => (err += b.toString()));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      const match = /^DEMLI_PACKAGED app=(\d+) frame=(\d+) host=(\d+)/m.exec(out);
+      if (code !== 0 || !match) {
+        reject(new Error(`could not open ${aumid}: ${(err || out).trim().slice(0, 400)}`));
+        return;
+      }
+      resolve({ appPid: Number(match[1]), frameHwnd: match[2], hostPid: Number(match[3]) });
+    });
+  });
+}
+
+/** The helper's `--window-pid` answer. */
+function windowPid(hwnd) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(helper, ["--window-pid", hwnd], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (b) => (out += b.toString()));
+    child.stderr.on("data", (b) => (err += b.toString()));
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, pid: Number.parseInt(out.trim(), 10), stderr: err.trim() }));
+  });
+}
+
+// Activates a packaged app for a file (IApplicationActivationManager), then
+// waits for its ApplicationFrameWindow whose CoreWindow child the app owns.
+const PACKAGED_OPEN_PS1 = String.raw`param([string]$Aumid, [string]$File)
+$ErrorActionPreference = 'Stop'
+Add-Type @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+[ComImport, Guid("2e941141-7f97-4756-ba1d-9decde894a3d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IApplicationActivationManager {
+  int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string id, [MarshalAs(UnmanagedType.LPWStr)] string args, int options, out uint pid);
+  int ActivateForFile([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr items, [MarshalAs(UnmanagedType.LPWStr)] string verb, out uint pid);
+  int ActivateForProtocol([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr items, out uint pid);
+}
+[ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")] class ApplicationActivationManager {}
+public static class DemliPackaged {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr p, EnumProc cb, IntPtr l);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+  static extern void SHCreateItemFromParsingName(string path, IntPtr bc, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IntPtr item);
+  [DllImport("shell32.dll", PreserveSig = false)]
+  static extern void SHCreateShellItemArrayFromShellItem(IntPtr item, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IntPtr items);
+  static string ClassOf(IntPtr h) { var s = new StringBuilder(64); GetClassName(h, s, 64); return s.ToString(); }
+  public static uint Open(string id, string path) {
+    IntPtr item, items;
+    SHCreateItemFromParsingName(path, IntPtr.Zero, new Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), out item);
+    SHCreateShellItemArrayFromShellItem(item, new Guid("b63ea76d-1f85-456f-a19c-48159efa858b"), out items);
+    uint pid;
+    int hr = ((IApplicationActivationManager)new ApplicationActivationManager()).ActivateForFile(id, items, "open", out pid);
+    if (hr != 0) throw new Exception("ActivateForFile hr=0x" + hr.ToString("X8"));
+    return pid;
+  }
+  public static string Frame(uint appPid) {
+    string found = null;
+    EnumWindows((h, l) => {
+      if (ClassOf(h) != "ApplicationFrameWindow") return true;
+      uint host; GetWindowThreadProcessId(h, out host);
+      EnumChildWindows(h, (c, l2) => {
+        uint owner;
+        if (ClassOf(c) == "Windows.UI.Core.CoreWindow" && GetWindowThreadProcessId(c, out owner) != 0 && owner == appPid) {
+          found = h.ToInt64() + " host=" + host; return false;
+        }
+        return true;
+      }, IntPtr.Zero);
+      return found == null;
+    }, IntPtr.Zero);
+    return found;
+  }
+}
+"@
+$appPid = [DemliPackaged]::Open($Aumid, $File)
+for ($i = 0; $i -lt 50; $i++) {
+  $frame = [DemliPackaged]::Frame($appPid)
+  if ($frame) { [Console]::Out.WriteLine("DEMLI_PACKAGED app=$appPid frame=$frame"); exit 0 }
+  Start-Sleep -Milliseconds 200
+}
+throw "no frame window for pid $appPid"
+`;
+
 const work = mkdtempSync(join(tmpdir(), "demli-verify-audio-"));
 const children = [];
+let packagedPid = null;
 try {
   const wavA = join(work, `tone-${FREQ_A}.wav`);
   const wavB = join(work, `tone-${FREQ_B}.wav`);
@@ -231,10 +370,10 @@ try {
   ]);
   console.log(`  include(A): ${inc.pcm.length} bytes · ${inc.stderr}`);
   console.log(`  exclude(A): ${exc.pcm.length} bytes · ${exc.stderr}`);
-  expectTone("include(A)", inc.pcm, FREQ_A, true);
-  expectTone("include(A)", inc.pcm, FREQ_B, false);
-  expectTone("exclude(A)", exc.pcm, FREQ_B, true);
-  expectTone("exclude(A)", exc.pcm, FREQ_A, false);
+  const refA = expectPresent("include(A)", inc.pcm, FREQ_A);
+  const refB = expectPresent("exclude(A)", exc.pcm, FREQ_B);
+  expectAbsent("include(A)", inc.pcm, FREQ_B, refB);
+  expectAbsent("exclude(A)", exc.pcm, FREQ_A, refA);
   for (const c of [a.child, b.child]) c.kill();
   await sleep(500);
 
@@ -275,11 +414,11 @@ try {
     ]);
     console.log(`  exclude(electron): ${exE.pcm.length} bytes · ${exE.stderr}`);
     console.log(`  include(electron): ${inE.pcm.length} bytes · ${inE.stderr}`);
-    expectTone("exclude(electron)", exE.pcm, FREQ_B, false);
-    expectTone("exclude(electron)", exE.pcm, FREQ_A, true);
-    expectTone("include(electron)", inE.pcm, FREQ_B, true);
-    expectTone("include(electron)", inE.pcm, FREQ_A, false);
-    if (!results.find((r) => r.label === "include(electron)" && r.frequency === FREQ_B)?.pass) {
+    const refElectron = expectPresent("include(electron)", inE.pcm, FREQ_B);
+    const refOther = expectPresent("exclude(electron)", exE.pcm, FREQ_A);
+    expectAbsent("exclude(electron)", exE.pcm, FREQ_B, refElectron);
+    expectAbsent("include(electron)", inE.pcm, FREQ_A, refOther);
+    if (refElectron === null) {
       // Process loopback captures AFTER the per-app volume, so an Electron
       // muted in the Windows volume mixer renders silence and exclude(electron)
       // would pass for the wrong reason.
@@ -289,8 +428,45 @@ try {
           "proves nothing.",
       );
     }
+    electron.kill();
+    await sleep(500);
+  }
+
+  if (process.argv.includes("--packaged")) {
+    console.log(`Part 3 — packaged (UWP) window: frame host vs the app behind it (C = ${FREQ_C} Hz)`);
+    const wavC = join(work, `tone-${FREQ_C}.wav`);
+    writeFileSync(wavC, sineWav(FREQ_C, TONE_SECONDS));
+    const ps1 = join(work, "open-packaged.ps1");
+    writeFileSync(ps1, PACKAGED_OPEN_PS1);
+    const opened = await openInPackagedApp(ps1, PACKAGED_APP, wavC);
+    packagedPid = opened.appPid;
+    console.log(`  app pid=${opened.appPid}, frame hwnd=${opened.frameHwnd} owned by pid ${opened.hostPid}`);
+    const resolved = await windowPid(opened.frameHwnd);
+    const resolvesToApp = resolved.code === 0 && resolved.pid === opened.appPid;
+    results.push({ label: "--window-pid", pass: resolvesToApp });
+    console.log(
+      `  ${resolvesToApp ? "PASS" : "FAIL"}  --window-pid ${opened.frameHwnd} → ` +
+        `${resolved.code === 0 ? resolved.pid : `exit ${resolved.code} ${resolved.stderr}`} ` +
+        `(app ${opened.appPid}, frame host ${opened.hostPid})`,
+    );
+    await sleep(PLAYBACK_SETTLE_MS);
+    const [inApp, inHost] = await Promise.all([
+      capture(opened.appPid, "include", CAPTURE_MS),
+      capture(opened.hostPid, "include", CAPTURE_MS),
+    ]);
+    console.log(`  include(app): ${inApp.pcm.length} bytes · ${inApp.stderr}`);
+    console.log(`  include(frame host): ${inHost.pcm.length} bytes · ${inHost.stderr}`);
+    const refC = expectPresent("include(app)", inApp.pcm, FREQ_C);
+    expectAbsent("include(frame host)", inHost.pcm, FREQ_C, refC);
   }
 } finally {
+  if (packagedPid !== null) {
+    try {
+      process.kill(packagedPid);
+    } catch {
+      // already gone
+    }
+  }
   for (const c of children) {
     try {
       c.kill();
