@@ -1556,11 +1556,19 @@ o dalganın iş listesidir).
 | Panoya kopyala: kopyalandı durumu + duyuru, kopyalanamazsa söylenir ve değer seçili gelir | ✅ | — (mobil paylaşım sayfası) | |
 | Arkadaşlar: sekme çubuğu, arama, durum satırı, iskelet/boş/hata | ✅ | ⏳ Dalga 4 | |
 | Grup sohbeti yükleniyor iskeleti + başlıklı hata; DM/grup başlıkları 64px | ✅ | ⏳ Dalga 4 | |
+| Rol / üye / sunucu ayarları yüklenemezse hata + yeniden dene (eskiden "henüz rol yok, oluştur" ya da sessizce salt-okunur Genel sekmesi) | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Roller yüklenmezse Üyeler sekmesi bunu söyler |
+| Sunucu taslağı başka yerden değişirse: temiz form yeni değeri izler, kirli form "başka yerden değişti" der + "Son hâlini yükle" | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Eskiden uzak düzenleme formu sahte-kirli yapıp diyaloğu kilitliyordu |
+| Rol düzenleyici dar ekranda alt alta (sarılan rol hapları + tam genişlik düzenleyici) | ✅ (390px) | — | Konteyner sorgusu: diyalog genişliğine bakar |
+| Kaydedilmemiş-çubuk uyarısı klavye odağını korur, sebebi aynı canlı bölgede duyurur | ✅ (denetim düzeltmesi) | — | |
+| Ayarlar katmanı ve güncelleme bildirimi içindeki ipuçları (tooltip) görünür | ✅ (denetim düzeltmesi) | — | İpucu her katmanın üstünde (z-150) |
+| Tek hata bloğu: ayarlar, Arkadaşlar, Son Aramalar, grup sohbeti; oturum hataları Türkçe | ✅ | ⏳ Dalga 4 | |
+| Dar ayarlar listesinde görünür klavye odağı (mercan halka) | ✅ | — | |
 
 **Kanıt:** `apps/web/harness-settings.html` (yalnız geliştirme, build'e girmez) gerçek
 bileşenleri bellek-içi sahte API ile çalıştırır; Playwright + sistem Chrome senaryoları
 (ayarlar, sunucu ayarları, diyaloglar, arkadaş/DM/grup/aramalar, güncellemeler, 390px,
-azaltılmış hareket) 0 konsol hatası/uyarısıyla geçti.
+azaltılmış hareket) 0 konsol hatası/uyarısıyla geçti. Denetim turu düzeltmeleri aynı sayfada 86 kontrolle
+yeniden sürüldü (zorla başarısız okumalar `?failReads=`, uzak düzenleme `__harness.remote`).
 
 **Bilinen açık:** `MessageList` DM ve grup akışında da "#Ad kanalına hoş geldin" girişi
 gösteriyor (sohbet alanı sahibinin dosyası). Profil bölümünün kendi kaydet/vazgeç akışı
