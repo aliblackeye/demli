@@ -425,6 +425,20 @@ async function animationsSettle(page, selector, timeout = 2000) {
   const noSoundTone = await page.getAttribute('[data-testid="voice-panel"] [data-testid="share-audio-status"]', "data-tone");
   check("share audio box follows the state (failed → warn)", noSoundTone === "warn", noSoundTone ?? "");
 
+  // per-user volume: right-click a remote row → the design-system slider,
+  // keyboard-adjustable inside the menu; Esc closes the menu.
+  await page.locator('[data-testid="voice-participant"]').nth(1).click({ button: "right" });
+  await page.waitForSelector('[data-testid="participant-volume"] [role="slider"]');
+  const volSlider = page.locator('[data-testid="participant-volume"] [role="slider"]');
+  await volSlider.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  const vol = [await volSlider.getAttribute("aria-valuenow"), await volSlider.getAttribute("aria-valuetext")];
+  check("volume slider: arrows step 5% inside the menu", vol[0] === "0.9" && vol[1] === "90%", vol.join(" / "));
+  await page.screenshot({ path: join(shotDir, "21-participant-menu.png") });
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector('[role="menu"]'), null, { timeout: 2000 });
+
   check("default mode: zero console errors/warnings", messages.length === 0, messages.join(" || "));
   await context.close();
 }

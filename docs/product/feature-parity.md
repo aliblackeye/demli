@@ -1551,7 +1551,7 @@ Dal `feat/m16-ui-voice`. Yalnız görünüm ve etkileşim; medya mantığı, FSM
 | Aramaya ekle: yükleniyor iskeleti, hata + tekrar dene, "eşleşen arkadaş yok" | ✅ | ⏳ | eskiden yüklenirken "eklenecek arkadaş yok" diyordu |
 | Kişi başı ses + yayın sesi sürgüsü tasarım sisteminin `Slider` atomu | ✅ | ✅ (zaten kendi sürgüsü) | |
 | Birlikte izle bandı, sıra paneli ve video seçici kenarsız | ✅ | ⏳ | |
-| Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (55 kontrol, headless Chrome) | ✅ web dev sunucusu | — | build'e girmez |
+| Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (56 kontrol, headless Chrome) | ✅ web dev sunucusu | — | build'e girmez |
 
 **Kapılar:** desktop typecheck · desktop test · app-ui test · i18n parite · web
 typecheck/build · desktop build · eslint; harness doğrulaması dört kipte (varsayılan,
