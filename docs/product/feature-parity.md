@@ -1361,3 +1361,26 @@ Founder'ın CİHAZDA görmesi gereken üç şey (iki kişi / iki cihaz gerektiri
 3. **Konuşan-filmstribi hissi:** ≥4 kişilik odada birine pinleyip diğerlerinin yalnız
    konuşunca girip ~5 sn sonra çıkması rahatsız edici mi (300 ms / 5 sn sabitleri
    `packages/media/src/active-speaker.ts`'te tek yerde, founder kulağına göre ayarlanabilir).
+
+## 2026-10-19 — M16 Dalga 1C, SUNUCU yarısı (moderasyon medyası · avatar sahipliği · yükseltme yarışı · doluluk · arama push'ları)
+
+Hasmane sunucu taramasının (`code-health-server`) bulguları. Hepsi sunucu tarafı; iki
+platformu aynı anda etkiler. Tek istemci değişikliği `voice.join` yeniden denemesi
+(`packages/client-core/src/voice-announcer.ts`, masaüstü + mobil `realtime/connection.ts`).
+
+| Özellik | Masaüstü | Mobil | Not |
+|---|---|---|---|
+| At / yasakla / zaman aşımı kişiyi SES odasından da çıkarır | ✅ (sunucu) | ✅ (sunucu) | Eskiden yalnız `member.left` yayınlanıyordu; gateway'in "ses teardown"u bir harita düzenlemesiydi, SFU oturumu sürüyordu — atılan kişi duymaya ve konuşmaya devam edebiliyordu. Artık sunucunun her sesli kanalının GERÇEK odası (`livekitRoom ?? id`, yükseltilmiş çağrıda `dmcall:<id>`) için `removeParticipant`; içinde olduğu odaya `voice.disconnected{reason:"moderator"}`. Sahip başkasını sunucudan / grup sohbetinden çıkarınca da aynısı. `apps/api/src/lib/voice-eviction.ts`. |
+| Atılan kişi elindeki token'la geri giremez | ◑ (sunucu) | ◑ (sunucu) | (1) Medya token'ı artık 10 dk katılım hakkı veriyor (6 saat değil) — LiveKit bağlı katılımcının token'ını kendisi yeniliyor (oturum başında + 5 dk'da bir, 10 dk'lık), yani arama süresi etkilenmez. (2) `POST /hooks/livekit`: SFU'nun imzalı `participant_joined` webhook'unda token uçlarının bugünkü yetki kontrolü yeniden koşar, geçemeyen çıkarılır. ⚠️ **Canlıda kapalı:** `deploy/livekit.yaml`'da `webhook:` bloğu ve `deploy.sh` envsubst'üne `LIVEKIT_API_KEY` eklenene kadar uç hiç çağrılmaz; o zamana kadar pencere ≤10 dk. |
+| Başkasının avatar/afiş dosyası silinemez | ✅ (sunucu) | ✅ (sunucu) | `PATCH /users/me` kendi bucket nesnen OLMAYAN bucket URL'ini reddeder; yükleme sonrası "eskiyi sil" adımı yalnız `avatars/<sen>/`, `banners/<sen>/`, `group-banners/<sunucu>/` altını siler, `..`/kodlanmış `/` içeren anahtarı reddeder. Eskiden profiline başkasının avatar URL'ini yazıp yeni avatar yükleyen herkes O dosyayı siliyordu (bucket canlıda açık — satır 92). |
+| Özel aramadan gruba yükseltmede ilk iki kişi kanalda görünür | ✅ | ✅ | Gateway `call.upgraded`'ı iletmeden önce kullanıcıyı yeni gruba alıyor; `member.joined` DB'yi beklerken gelen `voice.join` artık reddedilmiyor. Ret olursa `error.raised.channelId` (protokole eklendi, opsiyonel) ile istemci kendi katılımını tanıyıp 0,5→8 sn, 5 denemeyle yeniden dener (eskiden bir sonraki reconnect'e kadar hiç). Yarış stub-repo testiyle ÜRETİLDİ (`gateway.voice-occupancy.test.ts`, eski gateway'de kırmızı). |
+| Ses doluluğu bağlantı başına sayılır | ✅ | ✅ | Geç biçilen ölü soket ya da aynı odadaki ikinci cihazın çıkışı, odada olan kullanıcıyı listeden silmiyor; `voice.participant_left` (ve watch party sahip devri) yalnız SON bağlantı çıkınca. |
+| Yükseltilmiş çağrının sesli kanalı resync'te boş görünmez | ✅ | ✅ | `voice.resync` ve `GET /voice/occupancy` LiveKit'e kanalın gerçek odasını soruyor (`channels.livekitRoomOverrides`); eskiden her reconnect/odaklanmada 3 kişi konuşurken kanal boş görünüyordu. |
+| Arama push'ları doğru Android kanalında, süreli | — | ✅ (sunucu) | Her push `channelId: messages-v2` (uygulamanın açtığı kanal; test iki tarafı birbirine kilitliyor). Zil `ttl` = zil süresi (30 sn): geri gelen telefon çoktan biten aramayı çaldırmaz. ⚠️ Kanalın cihazda sesli geldiği founder cihaz testiyle doğrulanmadı. |
+| Cevapsız her bitişte zil "Cevapsız arama"ya döner | — | ✅ (sunucu) | Yalnız iptalde değil: süpürücü, arayan-düştü biçicisi ve `POST /dm-calls` / `GET /dm-calls/active` içindeki satır-içi biçme. Satır-içi biçme artık `call.ended` + DM geçmişine cevapsız satırı da yazıyor (süpürücüyle aynı). |
+| Başka cihazda cevaplanan/reddedilen zil | — | 🚧 istemci | Sunucu, arananın diğer cihazlarına SESSİZ `call_ended{answered|declined}` push'u (aynı etiket) gönderiyor; zili kapatmak mobil istemcinin işi (arka plan bildirim görevi) — henüz yok. |
+| Aynı anda ikinci yükseltme | ✅ (sunucu) | ✅ (sunucu) | 500 yerine 409. |
+
+**Açık:** arama push metinleri hâlâ İngilizce — sunucuda alıcı dili yok (cihaz kaydında
+`locale` + istemcinin göndermesi + sunucunun katalog okuması gerekir). Bu dalga yeni metin
+eklemedi.
