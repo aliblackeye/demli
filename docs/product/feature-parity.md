@@ -1576,35 +1576,37 @@ tablosundaki "⛔ M16 Dalga 4" mobil hücreleri bu dalla kapanıyor (birleştirm
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Baloncuksuz satır; basış = ton (110ms gecikmeli, kaydırma satırları yakıp söndürmez) | ✅ | ✅ | `MessageBubble`; yükselme/zıplama yok |
+| Baloncuksuz satır; basış = ton (110ms gecikmeli, kaydırma satırları yakıp söndürmez) | ✅ | ✅ | `MessageBubble`; yükselme/zıplama yok. Android: sohbeti sürüklemek klavyeyi kapatır (`on-drag`; `interactive` yalnız iOS), satıra dokunmak da kapatır; tepki hapı/bağlantı klavye açıkken ilk dokunuşta çalışır |
 | Mercan yalnız "sana dair": seni anan satır (mercan kenar + %6 yıkama), senin tepkin, YENİ çizgisi, atlanan mesajın mercan parlaması (sönerek) | ✅ | ✅ | |
 | Gün ayraçları (Bugün / Dün / uygulama dilinde tarih, yıl yalnız farklıysa); ayraç grubu yeniden başlatır | ✅ | ✅ | `chat/thread-rows.ts` saf + testli (gece yarısında gruplama kırılır, daha eski sayfa varken en eski yüklü mesaja ayraç konmaz) |
 | Okunmamış çizgisi: mercan iz + dolu "YENİ" çipi | ✅ | ✅ | Çip metni katalogda büyük harf (RN `textTransform` Türkçe İ'yi bozar) |
-| Yanıt: avatar sütunundan alıntıya dirsek çizgisi + mini avatar; dokun → hedefe kaydır + parlama | ✅ (dirseksiz) | ✅ | |
-| Sağa kaydır = yanıtla (eşikte haptik, dikey hareket önce iptal eder) + ekran okuyucu eylemi | — (fare) | ✅ | Composer'a odak verir |
-| Uzun bas sayfası kit Sheet'inde: mesaj önizlemesi, hızlı tepkiler (seninkiler seçili), Yanıtla/Kopyala/Sabitle/Düzenle, Sil **aynı sayfada onay adımıyla** | ✅ menü + onay diyaloğu | ✅ | Sistem `Alert`'i kalktı; kopyala/sil/sabitle sonucu tost |
+| Yanıt: avatar sütunundan alıntıya dirsek çizgisi + mini avatar; dokun → hedefe kaydır + parlama | ✅ (dirseksiz) | ✅ | Alıntı satırı ve composer yanıt şeridi `@Ad` gösterir, `<@id>` değil (`client-core` `messagePreviewText`, testli; 120 karakter kesiminin yarıladığı bahsetme atılır). Masaüstü yanıt çubuğu hâlâ ham `replyPreviewText` → ⛔ masaüstü takibi |
+| Sağa kaydır = yanıtla (eşikte haptik, dikey hareket önce iptal eder) + ekran okuyucu eylemi | — (fare) | ✅ | Composer'a odak verir. Engellediğin kişiyle DM'de kaydırma, Yanıtla ve Düzenle hiç sunulmaz; açık yanıt/düzenleme taslağı düşer (`chat/message-affordances.ts` testli) |
+| Uzun bas sayfası kit Sheet'inde: mesaj önizlemesi, hızlı tepkiler (seninkiler seçili), Yanıtla/Kopyala/Sabitle/Düzenle, Sil **aynı sayfada onay adımıyla** | ✅ menü + onay diyaloğu | ✅ | Sistem `Alert`'i kalktı; kopyala/sil/sabitle sonucu tost — sayfa kapanırken tost alttaki pencereye bir kez çizilir (kapanan sayfa tost konağını hemen bırakır). Hızlı tepki hücreleri pencere genişliğinden (40–44dp, `chat/reaction-row-math.ts` testli): 360dp'de 7 emoji + "daha fazla", 393dp+ tam palet; "daha fazla" hiç düşmez. Önizleme `<@id>`/`**` değil okunduğu gibi (`@Ad`, spoiler gizli) |
 | Tepkiler hap; + hapı tam seçiciyi açar | ✅ | ✅ | |
 | Durumlar: iskelet · ilk sayfa hatası (başlık + neden + yeniden dene) · boş (yeri adlandırır) · eski sayfa iskeleti / satır içi yeniden dene · geçmişin başı başlığı (kanal/grup/DM kartı) | ✅ | ✅ | Önceden ilk sayfa hatası "Henüz mesaj yok" diyordu (yalan durum) |
 | "En sona git" hapı: yukarıdayken gelen başkalarının mesajlarını sayar ("3 yeni mesaj") | ? (bu dalda ölçülmedi) | ✅ | |
 | Yazıyor: 3 nefes alan nokta, yüksekliği sabit (liste zıplamaz) | ✅ | ✅ | |
 | Varlık (presence) tikinde tüm sohbet yeniden çizilmez | ? (bu dalda ölçülmedi) | ✅ | Satır kendi yazarının durumunu okur; satırlar alan bazlı karşılaştırmayla memo (§27). Önceden `ChatThread` `presence`'a abone olduğu için her durum değişimi tüm görünür satırları yeniden çiziyordu |
 | Composer: kenarsız alan (r18), odakta bir ton yukarı + iç çizgi; yanıt/düzenleme şeridi ve ekler alanın İÇİNDE; gönder tonu hazırlığa göre | ✅ | ✅ | |
-| Bahsetme listesi: "Üyeler" başlığı, yazılan önek kalın (Türkçe I/İ/ı güvenli) | ✅ (`aria-activedescendant`) | ✅ | `chat/composer-math.ts` testli |
+| Bahsetme listesi: "Üyeler" başlığı, yazılan önek kalın (Türkçe I/İ/ı güvenli) | ✅ (`aria-activedescendant`) | ✅ | Eşleştirme de Türkçe-güvenli: ortak `rankMentionCandidates` artık I/İ/ı/i'yi aynı harf sayıyor (`@is`→İsmail, `@ır`→Irmak, `@ış`→Işık; önceden düz `toLowerCase` bunları düşürüyordu, masaüstü dahil). Katlama `client-core/mentions.ts` `foldMentionChar`, kalın önek aynı katlamayı kullanır; ikisi de testli |
 | Karakter sayacı (son 200, son 20'de pembe) | ✅ | ✅ | |
 | Yükleme: çip üstünde canlı yüzde + çubuk (`progressbar`), işleniyor göstergesi, hata = yeniden dene | ✅ | ✅ | |
 | DM'de engellediğin kişi: composer yerine dürüst durum + "Engeli kaldır" (profilinkiyle aynı onay) | ✅ | ✅ | Engel listesi yalnız DM açıkken çekilir; karşı tarafın engeli asla gösterilmez |
 | Çoklu görsel = eşit kare ızgara (2/4 → 2 sütun, diğerleri 3); tek görsel oranını korur; yüklenirken nabız | ✅ | ✅ | Kutu bayt yüklenmeden kesin (§27) |
-| Görüntüleyici: parmakların altında yakınlaştır (1–4×), momentumlu kaydır, çift dokun, mesajın görselleri arasında kaydır + "2 / 3", dikey kaydırarak kapat, tek dokun = denetimleri gizle; önceki/sonraki/kaydet/kopyala/kapat düğmeleri | ✅ | ✅ | `attachments/viewer-math.ts` testli; görüntüleyici kendi `<Toaster/>`'ını taşır (kaydet/kopyala sonucu görselin üstünde). Kanal medya ızgarası da aynı görüntüleyiciyi açar |
+| Görüntüleyici: parmakların altında yakınlaştır (1–4×), momentumlu kaydır (kenarda direnir, kenar dışında bırakılınca yayla geri döner), çift dokun, mesajın görselleri arasında kaydır + "2 / 3", dikey kaydırarak kapat, tek dokun = denetimleri gizle; önceki/sonraki/kaydet/kopyala/kapat düğmeleri | ✅ | ✅ | `attachments/viewer-math.ts` testli; görüntüleyici kendi `<Toaster/>`'ını taşır (kaydet/kopyala sonucu görselin üstünde). Kanal medya ızgarası da aynı görüntüleyiciyi açar. Görüntüleyici ve sheet pencereleri JS dokunuşunu kendi kökünde bitirir (`MODAL_RESPONDER_BARRIER`): görsele uzun basmak arkadaki satırın mesaj sayfasını açmaz |
 | Ses eki = dosya kartı + oynatma ilerleme çizgisi | ✅ | ✅ | |
 | Emoji seçici ve ek menüsü kit Sheet'inde (sürükle/kapat, geri tuşu); kategori çubuğu altta | ✅ | ✅ | `Sheet`'e geriye uyumlu `scrollRef` eklendi |
 | Bağlantı önizlemesi kenarsız yüzey kartı (r16), basış bir ton yukarı | ✅ | ✅ | |
 | Sabitlenmiş mesajlar sayfası | ✅ | ◑ hâlâ eski RN `Modal` | bu dalın sahiplik dışında (`PinnedMessagesSheet`) |
 
-**Doğrulama:** `pnpm --filter @demli/mobile typecheck` · `test` (66 dosya, 709 test) ·
+**Denetim turu (2026-10-20):** 9 hasmane bulgudan 8'i kodda düzeltildi (yukarıdaki satırlar); 9.'su (cihaz kanıtı) aşağıda.
+
+**Doğrulama:** `pnpm --filter @demli/mobile typecheck` · `test` (68 dosya, 729 test) · `@demli/client-core` (621) ·
 `lint` · `pnpm --filter @demli/i18n test` (TR/EN parite) · `npx expo export --platform
-android`. **Cihazda/emülatörde DENENMEDİ** (bu adımda yasak). Merge/yayın kapısı (AVD
+android`. **Cihazda/emülatörde DENENMEDİ** — founder kuralı: bu makinede emülatör çalıştırılmıyor, cihaz testlerini founder yayından sonra kendisi yapıyor. Aşağıdaki liste founder cihaz testinin kontrol listesidir. Merge/yayın kapısı (AVD
 `demli-debug`, kitin dev-client yapısı): uzun liste kaydırma + eski sayfa yükleme, kaydırırken
 satır yanıp sönmemesi, sağa kaydır-yanıtla ile dikey kaydırmanın çakışmaması ve uzun basın
 hâlâ çalışması, mesaj sayfası → sil onayı, yanıt dirseğinin hizası, görüntüleyicide
 sıkıştır/çift dokun/kaydır/kapat ve kaydet tostu, yükleme yüzdesi, emoji sayfasında kategori
-değişince başa dönme, TalkBack ile satır eylemleri ("Yanıtla"), azaltılmış hareket.
+değişince başa dönme, TalkBack ile satır eylemleri ("Yanıtla"), azaltılmış hareket; denetim turundan: 360dp telefonda hızlı tepki satırı, kopyala tostunun bir kez (altta) görünmesi, yakınlaştırılmış görseli kenardan taşırıp bırakma, görsele 1 sn basılı tutma (mesaj sayfası açılmamalı), klavye açıkken sohbeti sürükleme/satıra dokunma, engellenen DM'de kaydırma (tepki yok).
