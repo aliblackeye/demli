@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Minimize2, MonitorDown, Power } from "lucide-react";
 import { Skeleton } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
+import { isDesktopSurface } from "../lib/surface";
 import { InlineError, SettingRow, SettingsGroup } from "./settings-kit";
 import { Toggle } from "./Toggle";
 
@@ -25,7 +26,9 @@ type DesktopSystemSettings = Awaited<
  */
 export function SystemSettings(): JSX.Element {
   const { t } = useAppTranslation();
-  const bridge = window.demli?.system;
+  // Desktop only: the web shim's `system` is an honest no-op (no tray, no login
+  // item), so offering its switches there would be two controls that snap back.
+  const bridge = isDesktopSurface() ? window.demli?.system : undefined;
   const [settings, setSettings] = useState<DesktopSystemSettings | null>(null);
   const [pending, setPending] = useState(false);
   // A failed read or write is SAID, not swallowed: a switch that silently snaps

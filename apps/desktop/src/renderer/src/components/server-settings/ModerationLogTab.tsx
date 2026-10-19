@@ -1,12 +1,13 @@
 import { useMemo } from "react";
-import { Loader2, ScrollText } from "lucide-react";
-import { Button, UserAvatar } from "@demli/ui";
-import { EmptyState, FormErrorAlert } from "@demli/app-ui";
+import { ScrollText } from "lucide-react";
+import { Badge, Button, UserAvatar } from "@demli/ui";
+import { EmptyState } from "@demli/app-ui";
 import { Trans } from "@demli/i18n";
 import type { GroupId, ModerationActionEntry, ModerationActionType } from "@demli/types";
 import { localizeError } from "../../lib/errors";
 import { useAppTranslation } from "../../lib/i18n";
 import { useModerationLog } from "../../queries/chat-queries";
+import { InlineError, ListSkeleton, SettingsLabel } from "../settings-kit";
 
 /** One catalog key per action, so a new action type is a compile error here. */
 const ACTION_KEY = {
@@ -28,6 +29,19 @@ const ACTION_LABEL_KEY = {
   timeout: "desktop:moderationLog.actionLabel.timeout",
   timeout_remove: "desktop:moderationLog.actionLabel.timeout_remove",
 } as const satisfies Record<ModerationActionType, string>;
+
+/**
+ * Tone per action, so a scan down the log reads severity before words: removals
+ * in the danger wash, the temporary mute in warning, the undo actions neutral.
+ */
+const ACTION_TONE = {
+  kick: "danger",
+  ban: "danger",
+  unban: "neutral",
+  voice_disconnect: "warning",
+  timeout: "warning",
+  timeout_remove: "neutral",
+} as const satisfies Record<ModerationActionType, "danger" | "warning" | "neutral">;
 
 function LogRow({ entry }: { entry: ModerationActionEntry }): JSX.Element {
   const { t, i18n } = useAppTranslation();
@@ -55,7 +69,7 @@ function LogRow({ entry }: { entry: ModerationActionEntry }): JSX.Element {
   }, [entry.action.createdAt, i18n.language]);
 
   return (
-    <li className="flex items-start gap-3 px-3 py-2.5">
+    <li className="flex items-start gap-3 px-4 py-3 transition-colors motion-hover content-visibility-row hover:bg-raised/40">
       <UserAvatar
         name={actorName}
         colorSeed={entry.actor?.id ?? entry.action.targetId}
@@ -64,7 +78,7 @@ function LogRow({ entry }: { entry: ModerationActionEntry }): JSX.Element {
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] leading-snug text-fg-muted">
+        <p className="text-sm leading-snug text-fg-muted">
           <Trans
             t={t}
             i18nKey={ACTION_KEY[entry.action.action]}
@@ -73,15 +87,18 @@ function LogRow({ entry }: { entry: ModerationActionEntry }): JSX.Element {
           />
         </p>
         {entry.action.reason && (
-          <p className="mt-0.5 break-words text-2xs text-fg-faint">
-            {t("desktop:moderationLog.reason")}: {entry.action.reason}
+          <p className="mt-1.5 break-words rounded-md bg-raised/50 px-2.5 py-1.5 text-label text-fg-muted">
+            <span className="font-medium text-fg-faint">{t("desktop:moderationLog.reason")}:</span>{" "}
+            {entry.action.reason}
           </p>
         )}
-        <p className="mt-0.5 text-2xs text-fg-faint">{when}</p>
+        <p className="mt-1 text-2xs text-fg-faint">
+          <time dateTime={entry.action.createdAt}>{when}</time>
+        </p>
       </div>
-      <span className="shrink-0 rounded bg-raised px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fg-faint">
+      <Badge variant={ACTION_TONE[entry.action.action]} className="mt-0.5 shrink-0">
         {t(ACTION_LABEL_KEY[entry.action.action])}
-      </span>
+      </Badge>
     </li>
   );
 }
@@ -102,51 +119,41 @@ export function ModerationLogTab({ groupId }: { groupId: GroupId }): JSX.Element
     isPending,
     error,
     refetch,
+    isFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
   } = useModerationLog(groupId);
 
-  const entries = useMemo(
-    () => (data?.pages ?? []).flatMap((page) => page.entries),
-    [data],
-  );
+  const entries = useMemo(() => (data?.pages ?? []).flatMap((page) => page.entries), [data]);
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold text-fg">{t("desktop:moderationLog.title")}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-          {t("desktop:moderationLog.description")}
-        </p>
-      </div>
+      <p className="text-sm leading-relaxed text-fg-muted">{t("desktop:moderationLog.description")}</p>
 
-      {isPending && (
-        <div role="status" className="flex items-center gap-2 py-4 text-sm text-fg-muted">
-          <Loader2 className="size-4 animate-spin" />
-          {t("desktop:moderationLog.loading")}
-        </div>
-      )}
+      {isPending && <ListSkeleton rows={4} action={false} label={t("desktop:moderationLog.loading")} />}
 
       {error && (
-        <div className="space-y-3">
-          <FormErrorAlert>{localizeError(error, t)}</FormErrorAlert>
-          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
-            {t("buttons.retry")}
-          </Button>
-        </div>
+        <InlineError
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
       )}
 
       {!isPending && !error && entries.length === 0 && (
         <EmptyState
           icon={<ScrollText className="size-6" />}
           title={t("desktop:moderationLog.empty")}
+          className="py-10"
         />
       )}
 
       {entries.length > 0 && (
-        <>
-          <ul className="divide-y divide-stroke overflow-hidden rounded-lg border border-stroke bg-surface">
+        <div className="space-y-3">
+          <SettingsLabel>{t("desktop:settingsUi.logEntryCount", { count: entries.length })}</SettingsLabel>
+          <ul className="overflow-hidden rounded-xl bg-surface [&>*+*]:shadow-[inset_0_1px_0_var(--color-stroke)]">
             {entries.map((entry) => (
               <LogRow key={entry.action.id} entry={entry} />
             ))}
@@ -154,17 +161,13 @@ export function ModerationLogTab({ groupId }: { groupId: GroupId }): JSX.Element
           {/* Only rendered while there IS another page — no button that would
               silently do nothing at the end of the log (§35). */}
           {hasNextPage && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isFetchingNextPage}
-              onClick={() => void fetchNextPage()}
-            >
-              {isFetchingNextPage && <Loader2 className="size-4 animate-spin" />}
-              {t("desktop:moderationLog.loadMore")}
-            </Button>
+            <div className="flex justify-center">
+              <Button variant="secondary" size="sm" loading={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+                {t("desktop:moderationLog.loadMore")}
+              </Button>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

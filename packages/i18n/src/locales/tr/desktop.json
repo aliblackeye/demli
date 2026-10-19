@@ -985,6 +985,7 @@
     "emojiDrop": "PNG ya da WebP görseli buraya bırak",
     "emojiDropActive": "Bırak, yükleme için hazırlansın",
     "emojiPickedFile": "Seçilen dosya: {{name}}",
+    "emojiLimits": "En fazla {{max}} KB · PNG ya da WebP",
     "emojiReplace": "Başka görsel seç",
     "emojiFull": "Emoji sınırı doldu. Yenisini eklemek için önce birini kaldır.",
     "channelNameNormalized": "Kanal adında boşluk yerine tire kullanılır.",
@@ -992,6 +993,9 @@
     "friendsSearch": "Arkadaş ara",
     "friendsNoMatch": "“{{query}}” ile eşleşen arkadaş yok.",
     "groupLoadFailedTitle": "Grup açılamadı",
+    "roleDeleteTitle": "Rolü sil",
+    "roleDeleteBody_one": "Rol silinir ve {{count}} üyeden kaldırılır. Geri alınamaz.",
+    "roleDeleteBody_other": "Rol silinir ve {{count}} üyeden kaldırılır. Geri alınamaz.",
     "logEntryCount_one": "{{count}} kayıt",
     "logEntryCount_other": "{{count}} kayıt"
   },

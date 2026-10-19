@@ -114,7 +114,9 @@ function NicknameRow({
                   close();
                 }
               }}
-              className="pr-14"
+              // Inside the surface list the field is a darker well, not the
+              // card's own tone (it would disappear).
+              className="bg-app pr-14 hover:bg-app/70"
             />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-2xs">
               <CharCount value={draft} max={USER_NICKNAME_MAX_LENGTH} />

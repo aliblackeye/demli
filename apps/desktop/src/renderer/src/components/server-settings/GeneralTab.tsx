@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Camera, Loader2, Trash2 } from "lucide-react";
-import { Button, Input, cn } from "@demli/ui";
+import { Camera, ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Button, Field, Input, RadioGroup, RadioItem, Select, cn } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
 import {
   GROUP_NAME_MAX_LENGTH,
@@ -19,14 +19,8 @@ import {
 } from "../../queries/chat-queries";
 import { useChatStore } from "../../stores/chat-store";
 import { useUiStore } from "../../stores/ui-store";
-
-/** Native <select> styled to match the Input primitive (dark-first). */
-const selectClass = [
-  "h-9 w-full rounded-md border border-stroke bg-raised px-2.5 text-sm text-fg",
-  "transition-colors motion-instant",
-  "focus:outline-none focus-visible:border-accent/60 focus-visible:ring-2 focus-visible:ring-accent/30",
-  "disabled:pointer-events-none disabled:opacity-50",
-].join(" ");
+import { DangerZone, HelpWithCount, UnsavedChangesBar } from "../settings-kit";
+import { useReportDirty, type DraftGuard } from "./shared";
 
 const INVITE_POLICIES = [
   {
@@ -101,13 +95,19 @@ async function fileToUpload(file: File): Promise<{ mime: string; dataBase64: str
  * General server settings: name, icon, system channel, invite policy, delete.
  * Every field here is owner-only (the API rejects non-owners); the tab still
  * renders read-only for managers who reach settings via other permissions.
+ *
+ * The form is a DRAFT: edits collect locally, the unsaved-changes bar rises
+ * the moment the draft differs from the server, and Save / Reset are the only
+ * ways out (the dialog refuses to close over it — see ServerSettingsDialog).
  */
 export function GeneralTab({
   group,
   isOwner,
+  guard,
 }: {
   group: FriendGroup;
   isOwner: boolean;
+  guard?: DraftGuard;
 }): JSX.Element {
   const { t } = useAppTranslation();
   const activeGroupId = useChatStore((s) => s.activeGroupId);
@@ -121,10 +121,9 @@ export function GeneralTab({
   const [name, setName] = useState(group.name);
   const [iconUrl, setIconUrl] = useState(group.iconUrl ?? "");
   const [systemChannelId, setSystemChannelId] = useState(group.systemChannelId ?? "");
-  const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(
-    group.invitePolicy ?? "members",
-  );
+  const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(group.invitePolicy ?? "members");
   const [error, setError] = useState<FormError | null>(null);
+  const [nameTouched, setNameTouched] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [bannerError, setBannerError] = useState<BannerError | null>(null);
   const [bannerReading, setBannerReading] = useState(false);
@@ -138,17 +137,36 @@ export function GeneralTab({
 
   const bannerUrl = group.bannerUrl ?? null;
 
-  // Reseed if the underlying server changes (dialog reused across servers).
-  useEffect(() => {
+  const reseed = (): void => {
     setName(group.name);
     setIconUrl(group.iconUrl ?? "");
     setSystemChannelId(group.systemChannelId ?? "");
     setInvitePolicy(group.invitePolicy ?? "members");
     setError(null);
+    setNameTouched(false);
+  };
+
+  // Reseed if the underlying server changes (dialog reused across servers).
+  useEffect(() => {
+    reseed();
     setBannerError(null);
     setConfirmingDelete(false);
     // Reseed only when the underlying server changes, not on every refetch.
   }, [group.id]);
+
+  const trimmedName = name.trim();
+  const dirty =
+    isOwner &&
+    (trimmedName !== group.name ||
+      iconUrl.trim() !== (group.iconUrl ?? "") ||
+      systemChannelId !== (group.systemChannelId ?? "") ||
+      invitePolicy !== (group.invitePolicy ?? "members"));
+  useReportDirty(guard, dirty);
+
+  const nameError =
+    error === "desktop:serverSettings.nameRequired" || (nameTouched && trimmedName.length === 0)
+      ? t("desktop:serverSettings.nameRequired")
+      : undefined;
 
   const openBannerPicker = (): void => {
     if (bannerBusy || !isOwner) return;
@@ -207,17 +225,14 @@ export function GeneralTab({
   const onRemoveBanner = (): void => {
     if (bannerBusy || !isOwner || !bannerUrl) return;
     setBannerError(null);
-    updateGroup.mutate(
-      { bannerUrl: null },
-      { onError: (err) => setBannerError(bannerErrorFrom(err)) },
-    );
+    updateGroup.mutate({ bannerUrl: null }, { onError: (err) => setBannerError(bannerErrorFrom(err)) });
   };
 
-  const onSave = (event: FormEvent): void => {
-    event.preventDefault();
+  const onSave = (event?: FormEvent): void => {
+    event?.preventDefault();
     if (busy || !isOwner) return;
-    const trimmedName = name.trim();
     if (trimmedName.length === 0) {
+      setNameTouched(true);
       setError("desktop:serverSettings.nameRequired");
       return;
     }
@@ -230,10 +245,7 @@ export function GeneralTab({
         systemChannelId: systemChannelId.length > 0 ? systemChannelId : null,
         invitePolicy,
       },
-      {
-        onSuccess: () => setOpen(false),
-        onError: (err) => setError(errorKey(err)),
-      },
+      { onError: (err) => setError(errorKey(err)) },
     );
   };
 
@@ -241,128 +253,130 @@ export function GeneralTab({
     if (busy || !activeGroupId) return;
     setError(null);
     deleteGroup.mutate(activeGroupId, {
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        // The server is gone: drop the draft latch so the dialog may close.
+        guard?.onDirtyChange(false);
+        setOpen(false);
+      },
       onError: (err) => setError(errorKey(err)),
     });
   };
 
+  const channelOptions = [
+    { value: "", label: t("desktop:serverSettings.systemChannelOff") },
+    ...textChannels.map((channel) => ({ value: channel.id, label: `# ${channel.name}` })),
+  ];
+
   return (
-    <>
-      {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
+    <div className="space-y-7">
+      {error && error !== "desktop:serverSettings.nameRequired" && <FormErrorAlert>{t(error)}</FormErrorAlert>}
 
       {/* ── Server banner ─────────────────────────────────────────────────── */}
       {/* Its own action, above the form: it POSTs bytes to its own endpoint
           rather than riding the Save button, which patches name/icon/policy. */}
-      <div className="mb-5 space-y-1.5">
-        <span className="block text-xs font-semibold text-fg-muted">
+      <section className="space-y-2">
+        <p className="text-label font-medium text-fg-muted">
           {t("desktop:serverSettings.bannerLabel")}{" "}
           <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
-        </span>
+        </p>
 
-        {bannerError && <FormErrorAlert className="mb-2">{t(bannerError)}</FormErrorAlert>}
+        <button
+          type="button"
+          onClick={openBannerPicker}
+          disabled={bannerBusy || !isOwner}
+          aria-label={t("desktop:serverSettings.bannerUploadAria")}
+          className={cn(
+            "group relative block h-32 w-full overflow-hidden rounded-xl bg-surface",
+            "transition-[box-shadow] motion-hover",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app",
+            !isOwner && "cursor-default",
+            isOwner && (bannerBusy ? "cursor-wait" : "cursor-pointer hover:shadow-[inset_0_0_0_1px_var(--color-stroke-strong)]"),
+          )}
+        >
+          {bannerUrl ? (
+            <img src={bannerUrl} alt="" className="size-full object-cover" draggable={false} />
+          ) : (
+            // No banner: a plain surface with a short line, never a broken
+            // <img> and never an empty box pretending something failed.
+            <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-label text-fg-faint">
+              <ImagePlus aria-hidden className="size-5 text-fg-subtle" />
+              {t("desktop:serverSettings.bannerEmpty")}
+            </span>
+          )}
 
-        <div className="overflow-hidden rounded-xl border border-stroke bg-surface">
-          <button
-            type="button"
-            onClick={openBannerPicker}
-            disabled={bannerBusy || !isOwner}
-            aria-label={t("desktop:serverSettings.bannerUploadAria")}
-            className={cn(
-              "group relative block h-28 w-full overflow-hidden",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/70",
-              !isOwner && "cursor-default",
-              isOwner && (bannerBusy ? "cursor-wait" : "cursor-pointer"),
-            )}
-          >
-            {bannerUrl ? (
-              <img
-                src={bannerUrl}
-                alt=""
-                className="size-full object-cover"
-                draggable={false}
-              />
-            ) : (
-              // No banner: a plain surface with a short line, never a broken
-              // <img> and never an empty box pretending something failed.
-              <span className="absolute inset-0 flex items-center justify-center bg-raised/50 text-2xs text-fg-faint">
-                {t("desktop:serverSettings.bannerEmpty")}
-              </span>
-            )}
-
-            {bannerBusy ? (
+          {bannerBusy ? (
+            <span aria-hidden className="absolute inset-0 flex items-center justify-center bg-scrim">
+              <Loader2 className="size-5 animate-spin text-fg-display" />
+            </span>
+          ) : (
+            isOwner && (
               <span
                 aria-hidden
-                className="absolute inset-0 flex items-center justify-center bg-black/40"
+                className={cn(
+                  "pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5",
+                  "bg-veil text-2xs font-medium text-fg-display backdrop-blur-[8px] shadow-[inset_0_-1px_0_rgb(38_49_64/0.32)]",
+                  "opacity-0 transition-opacity motion-hover group-hover:opacity-100 group-focus-visible:opacity-100",
+                )}
               >
-                <Loader2 className="size-5 animate-spin text-white" />
+                <Camera className="size-3.5" />
+                {t("desktop:serverSettings.bannerChange")}
               </span>
-            ) : (
-              isOwner && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full",
-                    "bg-black/55 px-3 py-1.5 text-2xs font-medium text-white backdrop-blur-sm",
-                    "opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100",
-                  )}
-                >
-                  <Camera className="size-3.5" />
-                  {t("desktop:serverSettings.bannerChange")}
-                </span>
-              )
-            )}
-          </button>
-          <input
-            ref={bannerInputRef}
-            type="file"
-            accept={BANNER_ACCEPT_ATTR}
-            className="sr-only"
-            aria-hidden
-            tabIndex={-1}
-            onChange={(event) => void onBannerChange(event)}
-          />
-        </div>
+            )
+          )}
+        </button>
+        <input
+          ref={bannerInputRef}
+          type="file"
+          accept={BANNER_ACCEPT_ATTR}
+          className="sr-only"
+          aria-hidden
+          tabIndex={-1}
+          onChange={(event) => void onBannerChange(event)}
+        />
+
+        {bannerError && <FormErrorAlert>{t(bannerError)}</FormErrorAlert>}
 
         <div className="flex items-center justify-between gap-3">
-          <p className="text-2xs text-fg-faint">{t("desktop:serverSettings.bannerNote")}</p>
+          <p className="text-label text-fg-faint">{t("desktop:serverSettings.bannerNote")}</p>
           {/* Remove exists only when there is something to remove (§35). */}
           {isOwner && bannerUrl && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={bannerBusy}
-              onClick={onRemoveBanner}
-              className="shrink-0 border-danger/40 text-danger hover:bg-danger/10"
-            >
+            <Button type="button" variant="danger" size="sm" disabled={bannerBusy} onClick={onRemoveBanner}>
               <Trash2 className="size-3.5" />
               {t("desktop:serverSettings.bannerRemove")}
             </Button>
           )}
         </div>
-      </div>
+      </section>
 
-      <form onSubmit={onSave} className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="server-name" className="block text-xs font-semibold text-fg-muted">
-            {t("desktop:serverSettings.name")}
-          </label>
+      <form id="server-general-form" onSubmit={onSave} className="space-y-5" noValidate>
+        <Field
+          label={t("desktop:serverSettings.name")}
+          error={nameError}
+          help={<HelpWithCount value={name} max={GROUP_NAME_MAX_LENGTH} />}
+        >
           <Input
             id="server-name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value);
+              if (error === "desktop:serverSettings.nameRequired") setError(null);
+            }}
+            onBlur={() => setNameTouched(true)}
             maxLength={GROUP_NAME_MAX_LENGTH}
             disabled={!isOwner}
             placeholder={t("desktop:serverSettings.namePlaceholder")}
-            aria-label={t("desktop:serverSettings.namePlaceholder")}
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1.5">
-          <label htmlFor="server-icon" className="block text-xs font-semibold text-fg-muted">
-            {t("desktop:serverSettings.iconLabel")}{" "}
-            <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("desktop:serverSettings.iconLabel")}{" "}
+              <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
+            </>
+          }
+          help={t("desktop:serverSettings.iconNote")}
+        >
           <Input
             id="server-icon"
             value={iconUrl}
@@ -370,121 +384,72 @@ export function GeneralTab({
             disabled={!isOwner}
             spellCheck={false}
             placeholder="https://…"
-            aria-label={t("desktop:serverSettings.iconLabel")}
             className="font-mono text-[13px]"
           />
-          <p className="text-2xs text-fg-faint">{t("desktop:serverSettings.iconNote")}</p>
-        </div>
+        </Field>
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="server-system-channel"
-            className="block text-xs font-semibold text-fg-muted"
-          >
-            {t("desktop:serverSettings.systemChannel")}
-          </label>
-          <select
+        <Field label={t("desktop:serverSettings.systemChannel")} help={t("desktop:serverSettings.systemChannelNote")}>
+          <Select
             id="server-system-channel"
+            options={channelOptions}
             value={systemChannelId}
-            onChange={(event) => setSystemChannelId(event.target.value)}
+            onValueChange={setSystemChannelId}
             disabled={!isOwner}
-            aria-label={t("desktop:serverSettings.systemChannel")}
-            className={selectClass}
-          >
-            <option value="">{t("desktop:serverSettings.systemChannelOff")}</option>
-            {textChannels.map((channel) => (
-              <option key={channel.id} value={channel.id}>
-                # {channel.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-2xs text-fg-faint">
-            {t("desktop:serverSettings.systemChannelNote")}
-          </p>
-        </div>
+            placeholder={t("desktop:serverSettings.systemChannelOff")}
+          />
+        </Field>
 
-        <fieldset className="space-y-2" disabled={!isOwner}>
-          <legend className="text-xs font-semibold text-fg-muted">
+        <div className="space-y-2">
+          <p id="invite-policy-label" className="text-label font-medium text-fg-muted">
             {t("desktop:serverSettings.whoCanInvite")}
-          </legend>
-          <div className="space-y-1.5">
+          </p>
+          <RadioGroup
+            value={invitePolicy}
+            onValueChange={(next) => setInvitePolicy(next as InvitePolicy)}
+            disabled={!isOwner}
+            aria-labelledby="invite-policy-label"
+            className="rounded-xl bg-surface p-1"
+          >
             {INVITE_POLICIES.map((policy) => (
-              <label
+              <RadioItem
                 key={policy.value}
-                className="flex cursor-pointer items-start gap-2.5 rounded-md border border-stroke bg-raised/40 p-2.5 transition-colors hover:bg-raised has-[:checked]:border-accent/50 has-[:checked]:bg-accent/[0.06]"
-              >
-                <input
-                  type="radio"
-                  name="invite-policy"
-                  value={policy.value}
-                  checked={invitePolicy === policy.value}
-                  onChange={() => setInvitePolicy(policy.value)}
-                  className="mt-0.5 size-4 shrink-0 accent-accent"
-                />
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-medium text-fg">
-                    {t(policy.labelKey)}
-                  </span>
-                  <span className="block text-2xs text-fg-faint">
-                    {t(policy.descriptionKey)}
-                  </span>
-                </span>
-              </label>
+                value={policy.value}
+                label={t(policy.labelKey)}
+                description={t(policy.descriptionKey)}
+              />
             ))}
-          </div>
-        </fieldset>
-
-        {isOwner && (
-          <Button type="submit" disabled={busy} className="w-full">
-            {updateGroup.isPending && <Loader2 className="size-4 animate-spin" />}
-            {t("desktop:channelSettings.save")}
-          </Button>
-        )}
+          </RadioGroup>
+        </div>
       </form>
 
       {isOwner && (
-        <div className="mt-6 rounded-lg border border-danger/30 bg-danger/[0.06] p-4">
-          <p className="text-sm font-semibold text-fg">
-            {t("desktop:serverSettings.deleteServer")}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-            {t("desktop:serverSettings.deleteNote")}
-          </p>
-          {confirmingDelete ? (
-            <div className="mt-3 flex gap-2">
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={busy}
-                onClick={onDelete}
-                className="flex-1"
-              >
-                {deleteGroup.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("desktop:channelSettings.confirmDelete")}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => setConfirmingDelete(false)}
-                className="flex-1"
-              >
-                {t("buttons.cancel")}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => setConfirmingDelete(true)}
-              className="mt-3 border-danger/40 text-danger hover:bg-danger/10"
-            >
-              {t("desktop:serverSettings.deleteServer")}
-            </Button>
-          )}
-        </div>
+        <DangerZone
+          title={t("desktop:serverSettings.deleteServer")}
+          body={t("desktop:serverSettings.deleteNote")}
+          actionLabel={t("desktop:serverSettings.deleteServer")}
+          confirmLabel={t("desktop:channelSettings.confirmDelete")}
+          cancelLabel={t("buttons.cancel")}
+          onConfirm={onDelete}
+          pending={deleteGroup.isPending}
+          disabled={updateGroup.isPending}
+          confirming={confirmingDelete}
+          onConfirmingChange={setConfirmingDelete}
+        />
       )}
-    </>
+
+      <UnsavedChangesBar
+        open={dirty}
+        saving={updateGroup.isPending}
+        nudge={guard?.nudge ?? 0}
+        message={t("desktop:settingsUi.unsavedMessage")}
+        nudgeMessage={t("desktop:settingsUi.unsavedNudge")}
+        resetLabel={t("desktop:settingsUi.unsavedReset")}
+        saveLabel={t("desktop:settingsUi.unsavedSave")}
+        onReset={reseed}
+        onSave={() => onSave()}
+        saveDisabled={trimmedName.length === 0}
+        className="sticky bottom-0 z-10 -mx-1 pb-1 pt-2"
+      />
+    </div>
   );
 }
