@@ -31,6 +31,7 @@ export {
 export {
   MessageRowServicesProvider,
   useMessageRowServices,
+  useOptionalMessageRowServices,
   type MessageRowServices,
   type MessageRowServicesProviderProps,
 } from "./message-row-data";
@@ -45,9 +46,18 @@ export {
   type ComposerAttachmentDrafts,
   type ComposerSendAttachments,
   type ComposerReplyPayload,
+  type ComposerSendBlock,
 } from "./composer-data";
 export {
   requestMentionInsert,
   onMentionInsert,
   type MentionInsertRequest,
 } from "./mention-insert";
+export {
+  requestEditLastMessage,
+  onEditLastRequest,
+  requestMessageEdit,
+  onMessageEditRequest,
+  requestComposerFocus,
+  onComposerFocusRequest,
+} from "./edit-request";

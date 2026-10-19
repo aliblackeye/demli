@@ -143,3 +143,13 @@ export function useMessageRowServices(): MessageRowServices {
   }
   return value;
 }
+
+/**
+ * Like {@link useMessageRowServices}, but null instead of throwing when no
+ * provider is mounted. For the LIST (not a row): its optional keyboard features
+ * (↑-to-edit needs the viewer id) degrade to inert on a surface that renders a
+ * thread without row services, rather than taking the whole thread down.
+ */
+export function useOptionalMessageRowServices(): MessageRowServices | null {
+  return useContext(MessageRowServicesContext);
+}
