@@ -508,6 +508,8 @@ export function SettingsShell(): JSX.Element {
                                       className={cn(
                                         "flex h-12 w-full cursor-pointer items-center gap-3 px-3.5 text-left text-sm text-fg transition-colors motion-hover",
                                         "hover:bg-raised/50 active:bg-raised focus-visible:outline-none focus-visible:bg-raised/50",
+                                        // Inset: the overflow-hidden card would clip an outer ring.
+                                        "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
                                       )}
                                     >
                                       {Icon && <Icon className="size-4 shrink-0 text-fg-muted" />}

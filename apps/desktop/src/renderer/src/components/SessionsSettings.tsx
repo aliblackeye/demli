@@ -4,7 +4,8 @@ import { LogOut, Monitor, MonitorSmartphone, Smartphone } from "lucide-react";
 import type { SessionSummary } from "@demli/types";
 import { Badge, Button, cn } from "@demli/ui";
 import { EmptyState, FormErrorAlert } from "@demli/app-ui";
-import { api, friendlyErrorMessage } from "../lib/api-client";
+import { api } from "../lib/api-client";
+import { localizeError } from "../lib/errors";
 import { queryKeys } from "../lib/query-client";
 import { logoutActiveAccount } from "../lib/account-manager";
 import { useAppTranslation } from "../lib/i18n";
@@ -168,7 +169,7 @@ export function SessionsSettings(): JSX.Element {
         <ListSkeleton rows={3} avatar="square" label={t("desktop:sessions.loading")} />
       ) : sessionsQuery.isError ? (
         <InlineError
-          message={friendlyErrorMessage(sessionsQuery.error)}
+          message={localizeError(sessionsQuery.error, t)}
           retryLabel={t("buttons.retry")}
           onRetry={() => void sessionsQuery.refetch()}
           retrying={sessionsQuery.isFetching}
@@ -195,7 +196,7 @@ export function SessionsSettings(): JSX.Element {
 
       {/* A failed single revoke is said, not swallowed (§26). */}
       {revokeMutation.isError && (
-        <FormErrorAlert>{friendlyErrorMessage(revokeMutation.error)}</FormErrorAlert>
+        <FormErrorAlert>{localizeError(revokeMutation.error, t)}</FormErrorAlert>
       )}
 
       <ConfirmDialog
@@ -211,7 +212,7 @@ export function SessionsSettings(): JSX.Element {
         layer="settings"
         error={
           revokeOthersMutation.isError ? (
-            <FormErrorAlert>{friendlyErrorMessage(revokeOthersMutation.error)}</FormErrorAlert>
+            <FormErrorAlert>{localizeError(revokeOthersMutation.error, t)}</FormErrorAlert>
           ) : undefined
         }
       />

@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { m } from "framer-motion";
 import { Check, Loader2, MessageSquare, Search, UserPlus, Users, X } from "lucide-react";
 import { Button, IconButton, Input, Skeleton, UserAvatar, cn } from "@demli/ui";
-import { EmptyState, FormErrorAlert, RetryNotice, SectionHeading, springs } from "@demli/app-ui";
+import { EmptyState, FormErrorAlert, SectionHeading, springs } from "@demli/app-ui";
 import type { FieldError, ValidationParams } from "@demli/client-core";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@demli/config";
 import type { PresenceStatus, User } from "@demli/types";
@@ -21,7 +21,7 @@ import { useChatStore } from "../stores/chat-store";
 import { MemberContextMenu } from "./MemberContextMenu";
 import { ProfileCard } from "./ProfileCard";
 import { UpdateBadge } from "./UpdateBadge";
-import { SegmentedTabs, TabPanel, type SegmentedTab } from "./settings-kit";
+import { InlineError, SegmentedTabs, TabPanel, type SegmentedTab } from "./settings-kit";
 
 type FriendsTab = "online" | "all" | "pending" | "add";
 
@@ -147,7 +147,7 @@ function FriendRow({ user }: { user: User }): JSX.Element {
 
 function FriendsList({ onlineOnly }: { onlineOnly: boolean }): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: friends, isPending, error, refetch } = useFriends();
+  const { data: friends, isPending, error, refetch, isFetching } = useFriends();
   const presence = useChatStore((s) => s.presence);
   const [query, setQuery] = useState("");
   const term = query.trim().toLocaleLowerCase();
@@ -182,11 +182,14 @@ function FriendsList({ onlineOnly }: { onlineOnly: boolean }): JSX.Element {
   }
   if (error) {
     return (
-      <RetryNotice
-        message={localizeError(error, t)}
-        retryLabel={t("buttons.retry")}
-        onRetry={() => void refetch()}
-      />
+      <div className="px-4 pt-4">
+        <InlineError
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
+      </div>
     );
   }
   if (rows.length === 0) {
@@ -254,14 +257,17 @@ function PendingList(): JSX.Element {
   }
   if (loadError) {
     return (
-      <RetryNotice
-        message={localizeError(loadError, t)}
-        retryLabel={t("buttons.retry")}
-        onRetry={() => {
-          void incoming.refetch();
-          void outgoing.refetch();
-        }}
-      />
+      <div className="px-4 pt-4">
+        <InlineError
+          message={localizeError(loadError, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => {
+            void incoming.refetch();
+            void outgoing.refetch();
+          }}
+          retrying={incoming.isFetching || outgoing.isFetching}
+        />
+      </div>
     );
   }
   if (empty) {

@@ -17,12 +17,13 @@ import {
   cn,
   iconButtonVariants,
 } from "@demli/ui";
-import { EmptyState, RetryNotice } from "@demli/app-ui";
+import { EmptyState } from "@demli/app-ui";
 import type { UserId } from "@demli/types";
 import { isCallLive } from "@demli/client-core";
 import type { RecentCall } from "../lib/api-client";
 import { getCallController, useCallState } from "../lib/call-controller";
 import { localizeError } from "../lib/errors";
+import { InlineError } from "./settings-kit";
 import { useAppTranslation, type AppTFunction } from "../lib/i18n";
 import { formatDuration, formatMessageTimestamp } from "../lib/time";
 import { useRecentCalls } from "../queries/call-queries";
@@ -49,6 +50,7 @@ export function RecentCallsView(): JSX.Element {
     isPending,
     error,
     refetch,
+    isFetching,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -82,11 +84,14 @@ export function RecentCallsView(): JSX.Element {
         {isPending ? (
           <RecentCallsSkeleton />
         ) : error ? (
-          <RetryNotice
-            message={localizeError(error, t)}
-            retryLabel={t("buttons.retry")}
-            onRetry={() => void refetch()}
-          />
+          <div className="px-4 pt-4">
+            <InlineError
+              message={localizeError(error, t)}
+              retryLabel={t("buttons.retry")}
+              onRetry={() => void refetch()}
+              retrying={isFetching}
+            />
+          </div>
         ) : calls.length === 0 ? (
           <EmptyState
             icon={<PhoneCall className="size-6" />}

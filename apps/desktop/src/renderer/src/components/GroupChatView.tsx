@@ -6,12 +6,10 @@ import {
   MoreHorizontal,
   Search,
   Trash2,
-  TriangleAlert,
   UserPlus,
   Users,
 } from "lucide-react";
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -42,7 +40,7 @@ import { PinnedMessagesButton } from "./PinnedMessagesPanel";
 import { MessageComposer } from "./MessageComposer";
 import { UpdateBadge } from "./UpdateBadge";
 import { HeaderAction } from "./HeaderAction";
-import { ConfirmDialog } from "./settings-kit";
+import { ConfirmDialog, InlineError } from "./settings-kit";
 
 function groupInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -208,19 +206,17 @@ export function GroupChatView(): JSX.Element {
 
   if (error || !group || !streamChannel) {
     return (
-      <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-app px-4 text-center">
-        <span className="flex size-12 items-center justify-center rounded-2xl bg-danger-surface text-danger">
-          <TriangleAlert aria-hidden className="size-6" />
-        </span>
-        <h2 className="font-display text-lg font-medium text-fg-display">
-          {t("desktop:settingsUi.groupLoadFailedTitle")}
-        </h2>
-        <p role="alert" className="max-w-sm text-sm text-fg-muted">
-          {localizeError(error, t)}
-        </p>
-        <Button variant="secondary" size="sm" loading={isFetching} onClick={() => void refetch()}>
-          {t("buttons.retry")}
-        </Button>
+      // The same failure block as every list in this area — titled, because
+      // here it stands in for the whole pane.
+      <div className="flex min-w-0 flex-1 items-start justify-center bg-app px-4 pt-16">
+        <InlineError
+          title={t("desktop:settingsUi.groupLoadFailedTitle")}
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+          className="w-full max-w-md"
+        />
       </div>
     );
   }
