@@ -13,17 +13,16 @@
  *
  * Trigger seam: {@link openParticipantVolumeSheet} is a MODULE-level function backed
  * by a tiny controller store, so any memoized tile/row triggers it on long-press
- * WITHOUT prop drilling (§27) — the sheet is mounted ONCE (in VoiceRoomScreen) and
+ * WITHOUT prop drilling (§27) — the sheet is mounted ONCE (in VoiceStage) and
  * resolves the target's live level/name from the voice store by identity.
  *
- * No native slider module (keeps OTA delivery to the installed APK intact): the
- * slider is built on RN core `PanResponder`, so the value genuinely reaches the
- * engine — not a dead button (§35).
+ * Drawn by the kit: the draggable `ui/Sheet` (spring open, drag/flick to close)
+ * and the `ui/Slider` (UI-thread drag, TalkBack adjustable, a tick at 100%), so
+ * the value genuinely reaches the engine on every stepped change — not a dead
+ * control (§35).
  */
 import { useEffect, useRef, useState } from "react";
-import { Modal, PanResponder, Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
 import { create } from "zustand";
 import { RotateCcw, Volume1, Volume2, VolumeX } from "lucide-react-native";
 import {
@@ -32,9 +31,15 @@ import {
   MAX_PARTICIPANT_VOLUME,
 } from "@demli/media";
 import type { UserId } from "@demli/types";
+import { Avatar } from "@/components/Avatar";
 import { useAppTranslation } from "@/lib/i18n";
+import { useChatStore } from "@/stores/chat-store";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Button } from "../ui/Button";
+import { Sheet } from "../ui/Sheet";
+import { Slider } from "../ui/Slider";
+import { Text } from "../ui/Text";
 
 // ── controller store (which remote's sheet is open) ────────────────────────────
 interface SheetController {
@@ -58,129 +63,10 @@ export function openParticipantVolumeSheet(identity: string): void {
   useSheetController.getState().open(identity);
 }
 
-// ── the 0..2 slider (PanResponder — no native module) ──────────────────────────
-const THUMB = 22;
-const TRACK_H = 6;
+/** 5% steps: fine enough to balance two voices, coarse enough to land on 100%. */
+const VOLUME_STEP = 0.05;
 
-export function VolumeSlider({
-  value,
-  disabled,
-  onStart,
-  onChange,
-  onEnd,
-}: {
-  /** Current level, 0..2. */
-  value: number;
-  disabled?: boolean;
-  onStart?: () => void;
-  onChange: (next: number) => void;
-  onEnd?: () => void;
-}) {
-  const [width, setWidth] = useState(0);
-  // Stable refs so the PanResponder is created ONCE — recreating it mid-gesture
-  // would drop the active drag.
-  const widthRef = useRef(0);
-  widthRef.current = width;
-  const disabledRef = useRef(disabled);
-  disabledRef.current = disabled;
-  const onStartRef = useRef(onStart);
-  onStartRef.current = onStart;
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const onEndRef = useRef(onEnd);
-  onEndRef.current = onEnd;
-
-  const emit = (locationX: number): void => {
-    const w = widthRef.current;
-    if (w <= 0) return;
-    const ratio = Math.min(1, Math.max(0, locationX / w));
-    onChangeRef.current(ratio * MAX_PARTICIPANT_VOLUME);
-  };
-
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabledRef.current,
-      onMoveShouldSetPanResponder: () => !disabledRef.current,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => {
-        onStartRef.current?.();
-        emit(e.nativeEvent.locationX);
-      },
-      onPanResponderMove: (e) => emit(e.nativeEvent.locationX),
-      onPanResponderRelease: () => onEndRef.current?.(),
-      onPanResponderTerminate: () => onEndRef.current?.(),
-    }),
-  ).current;
-
-  const ratio = Math.min(1, Math.max(0, value / MAX_PARTICIPANT_VOLUME));
-  const thumbLeft = Math.max(0, Math.min(width - THUMB, ratio * width - THUMB / 2));
-
-  return (
-    <View
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      {...responder.panHandlers}
-      accessible
-      accessibilityRole="adjustable"
-      accessibilityValue={{ min: 0, max: 200, now: Math.round(ratio * 200) }}
-      hitSlop={{ top: 10, bottom: 10 }}
-      style={{ height: THUMB + 10, justifyContent: "center" }}
-    >
-      {/* Visual layers are pointerEvents="none" so the outer View stays the touch
-          target and locationX is always relative to it (no child-offset drift). */}
-      {/* Track + filled portion. */}
-      <View
-        pointerEvents="none"
-        style={{
-          height: TRACK_H,
-          borderRadius: TRACK_H / 2,
-          backgroundColor: colors.surfaceRaised,
-          overflow: "hidden",
-        }}
-      >
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: ratio * width,
-            backgroundColor: disabled ? colors.fgFaint : colors.accent,
-          }}
-        />
-      </View>
-      {/* 100% tick — the default marker. */}
-      {width > 0 ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: width / 2 - 1,
-            width: 2,
-            height: TRACK_H + 8,
-            borderRadius: 1,
-            backgroundColor: colors.strokeStrong,
-          }}
-        />
-      ) : null}
-      {/* Thumb. */}
-      {width > 0 ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: thumbLeft,
-            width: THUMB,
-            height: THUMB,
-            borderRadius: THUMB / 2,
-            backgroundColor: disabled ? colors.fgFaint : "#fff",
-            borderWidth: 2,
-            borderColor: disabled ? colors.stroke : colors.accent,
-          }}
-        />
-      ) : null}
-    </View>
-  );
-}
+const formatPercent = (v: number): string => `${Math.round(v * 100)}%`;
 
 // ── the sheet ──────────────────────────────────────────────────────────────────
 export function ParticipantVolumeSheet({
@@ -190,7 +76,6 @@ export function ParticipantVolumeSheet({
   nameFor: (userId: UserId) => string;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
 
   const targetId = useSheetController((s) => s.targetId);
   const close = useSheetController((s) => s.close);
@@ -202,8 +87,9 @@ export function ParticipantVolumeSheet({
     targetId ? s.participants.find((p) => p.identity === targetId) ?? null : null,
   );
   const remote = target && !target.isLocal ? target : null;
+  const avatarUrl = useChatStore((s) => (remote ? s.users[remote.userId]?.avatarUrl ?? null : null));
 
-  // Fast local mirror so the thumb tracks the finger; re-sync from the engine's
+  // Fast local mirror so the label tracks the finger; re-sync from the engine's
   // authoritative level whenever it changes from elsewhere (reset, another surface)
   // — unless the user is mid-drag on this slider.
   const authoritative = remote?.volume ?? DEFAULT_PARTICIPANT_VOLUME;
@@ -215,7 +101,6 @@ export function ParticipantVolumeSheet({
 
   const visible = remote != null;
   const name = remote ? nameFor(remote.userId) : "";
-  const percent = Math.round(value * 100);
   const VolumeIcon = value <= 0 ? VolumeX : value < 1 ? Volume1 : Volume2;
   const atDefault = isDefaultParticipantVolume(value);
 
@@ -226,92 +111,61 @@ export function ParticipantVolumeSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <Pressable
-        onPress={close}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
-      >
-        {/* Card — its own Pressable swallows taps so they don't dismiss the sheet. */}
-        <Pressable
-          onPress={() => {}}
-          style={{
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingTop: space.lg,
-            paddingBottom: space.lg + insets.bottom,
-            paddingHorizontal: space.lg,
-            gap: space.sm,
-          }}
-        >
-          {/* Header: name + live percentage. */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text variant="display"
-              numberOfLines={1}
-              style={{ flex: 1, color: colors.fg, fontSize: 16, fontWeight: "700" }}
-            >
-              {t("mobile:voice.userVolume.title")}
-            </Text>
-            <Text style={{ color: colors.fgMuted, fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] }}>
-              {`${percent}%`}
-            </Text>
-          </View>
-          <Text numberOfLines={1} style={{ color: colors.fgMuted, fontSize: 13 }}>
+    <Sheet
+      visible={visible}
+      onClose={close}
+      title={t("mobile:voice.userVolume.title")}
+      footer={
+        <Button
+          variant="secondary"
+          icon={RotateCcw}
+          label={t("mobile:voice.userVolume.reset")}
+          // Disabled while deafened or already at default — nothing to reset.
+          disabled={deafened || atDefault}
+          block
+          onPress={() => commit(DEFAULT_PARTICIPANT_VOLUME)}
+        />
+      }
+    >
+      <View style={{ paddingHorizontal: space.xs, gap: space.md }}>
+        {/* Whose voice this is — the face, not just a name, so a long-press on the
+            wrong tile is obvious before the slider moves anything. */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+          {remote ? <Avatar name={name} size="md" uri={avatarUrl} /> : null}
+          <Text type="subheading" tone="default" numberOfLines={1} style={{ flex: 1 }}>
             {name}
           </Text>
+        </View>
 
-          {/* Slider row. */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.xs }}>
-            <VolumeIcon size={20} color={colors.fgFaint} />
-            <View style={{ flex: 1 }}>
-              <VolumeSlider
-                value={value}
-                disabled={deafened}
-                onStart={() => (draggingRef.current = true)}
-                onChange={commit}
-                onEnd={() => (draggingRef.current = false)}
-              />
-            </View>
-          </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+          <VolumeIcon size={20} color={colors.fgMuted} strokeWidth={2} />
+          <Slider
+            value={value}
+            min={0}
+            max={MAX_PARTICIPANT_VOLUME}
+            step={VOLUME_STEP}
+            disabled={deafened}
+            accessibilityLabel={t("mobile:voice.userVolume.open", { name })}
+            formatValue={formatPercent}
+            showValue
+            marks={[DEFAULT_PARTICIPANT_VOLUME]}
+            style={{ flex: 1 }}
+            onValueChange={(next) => {
+              draggingRef.current = true;
+              commit(next);
+            }}
+            onSlidingComplete={() => {
+              draggingRef.current = false;
+            }}
+          />
+        </View>
 
-          {deafened ? (
-            <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-              {t("mobile:voice.userVolume.deafenedHint")}
-            </Text>
-          ) : null}
-
-          <View style={{ height: 1, backgroundColor: colors.stroke, marginTop: space.xs }} />
-
-          {/* Reset to 100% — disabled while deafened or already at default. */}
-          <Pressable
-            onPress={() => commit(DEFAULT_PARTICIPANT_VOLUME)}
-            disabled={deafened || atDefault}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: deafened || atDefault }}
-            accessibilityLabel={t("mobile:voice.userVolume.reset")}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.md,
-              paddingVertical: space.md,
-              paddingHorizontal: space.sm,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              opacity: deafened || atDefault ? 0.4 : 1,
-              backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-            })}
-          >
-            <RotateCcw size={19} color={colors.fgMuted} />
-            <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>
-              {t("mobile:voice.userVolume.reset")}
-            </Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        {deafened ? (
+          <Text type="meta" tone="faint">
+            {t("mobile:voice.userVolume.deafenedHint")}
+          </Text>
+        ) : null}
+      </View>
+    </Sheet>
   );
 }

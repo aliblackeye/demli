@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { useState, type ReactNode } from "react";
+import { View, type StyleProp, type ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   HeadphoneOff,
   Headphones,
@@ -18,63 +18,89 @@ import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
 import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
+import { PRESS } from "@/theme/motion-presets";
 import { colors, radius, space, typography } from "@/theme/theme";
+import { IconButton, type IconButtonVariant } from "../ui/IconButton";
+import { Text } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
 import { CameraPreviewSheet } from "./CameraPreviewSheet";
 import { ScreenShareQualitySheet } from "./ScreenShareQualitySheet";
 
-/** A round control button (mic / deafen), red-tinted when the state is "off". */
-function ControlButton({
-  Icon,
-  active,
-  danger,
-  onPress,
-  disabled,
+/**
+ * One round call control with its caption underneath — the unit of the bottom
+ * dock. The caption says what a tap DOES ("Sustur", "Kamerayı aç"), which is also
+ * the button's accessible name, so sight and TalkBack read the same verb.
+ *
+ * Danger semantics (design system §1.4, "tehlike rengi kararı"): a STATE that
+ * cuts you off (mic muted, deafened) is the pink WASH with pink ink; the one
+ * ACTION that ends your presence (leave / hang up) is the SOLID pink disc with
+ * dark ink. A media feature that is ON (camera, screen share) is the coral wash.
+ * Everything at rest is the raised neutral disc. Pink never means "on", coral
+ * never means "danger" — so a glance at the dock answers "can they hear me?".
+ */
+export function CallControl({
+  icon,
   label,
+  variant = "secondary",
+  active = false,
+  toggle = false,
+  disabled = false,
   haptic = "light",
+  onPress,
 }: {
-  Icon: LucideIcon;
-  /** True when the feature is ON (mic live / hearing on). Off state tints red. */
-  active: boolean;
-  danger?: boolean;
-  onPress: () => void;
-  disabled?: boolean;
+  icon: LucideIcon;
   label: string;
-  /** Haptic intensity fired on press (default light; medium for weightier taps). */
+  variant?: IconButtonVariant;
+  active?: boolean;
+  /** Announce as an on/off toggle (camera, share) instead of a plain button. */
+  toggle?: boolean;
+  disabled?: boolean;
   haptic?: "light" | "medium";
+  onPress: () => void;
 }) {
-  const off = !active || danger;
   return (
-    <View style={{ alignItems: "center", gap: space.xs }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        onPress={() => {
-          if (haptic === "medium") haptics.medium();
-          else haptics.light();
-          onPress();
-        }}
+    <View style={{ alignItems: "center", gap: space.xs, width: 68 }}>
+      <IconButton
+        icon={icon}
+        label={label}
+        variant={variant}
+        size="lg"
+        active={active}
+        toggle={toggle}
         disabled={disabled}
-        style={({ pressed }) => ({
-          width: 56,
-          height: 56,
-          borderRadius: radius.pill,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: off ? colors.dangerSurface : colors.surfaceRaised,
-          opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
-        })}
-      >
-        <Icon size={24} color={off ? colors.danger : colors.fg} />
-      </Pressable>
-      <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>{label}</Text>
+        haptic={haptic}
+        onPress={onPress}
+      />
+      <ControlCaption label={label} disabled={disabled} />
     </View>
   );
 }
 
+function ControlCaption({ label, disabled }: { label: string; disabled?: boolean }) {
+  return (
+    <Text
+      numberOfLines={2}
+      importantForAccessibility="no"
+      accessibilityElementsHidden
+      style={{
+        color: colors.fgMuted,
+        fontSize: typography.size["2xs"],
+        lineHeight: 14,
+        fontWeight: "500",
+        textAlign: "center",
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      {label}
+    </Text>
+  );
+}
+
 /**
- * Push-to-talk (Bas-Konuş) button: hold to transmit, release to mute. Drives the
- * engine directly via the voice store's setMicActive (press-in → mic on,
- * press-out → mic off). Green-tinted while held (talking).
+ * Push-to-talk (Bas-Konuş): hold to transmit, release to mute. Drives the engine
+ * directly via the voice store's setMicActive (press-in → mic on, press-out → mic
+ * off). While held the disc turns solid coral — "you are on air" is the one state
+ * on the dock that is allowed to be loud.
  */
 function PushToTalkButton({
   micEnabled,
@@ -85,32 +111,69 @@ function PushToTalkButton({
 }) {
   const { t } = useAppTranslation();
   const setMicActive = useVoiceStore((s) => s.setMicActive);
+  const label = t("mobile:voice.controlHoldToTalk");
   return (
-    <View style={{ alignItems: "center", gap: space.xs }}>
-      <Pressable
+    <View style={{ alignItems: "center", gap: space.xs, width: 68 }}>
+      <Touchable
         accessibilityRole="button"
-        accessibilityLabel={t("mobile:voice.controlHoldToTalk")}
+        accessibilityLabel={label}
+        accessibilityState={{ selected: micEnabled }}
         disabled={disabled}
         onPressIn={() => {
           haptics.light();
           setMicActive(true);
         }}
         onPressOut={() => setMicActive(false)}
-        style={({ pressed }) => ({
-          width: 56,
-          height: 56,
+        tone={micEnabled ? colors.accent : colors.surfaceRaised}
+        pressedTone={colors.accentDeep}
+        pressScale={PRESS.scale.icon}
+        style={{
+          width: 48,
+          height: 48,
           borderRadius: radius.pill,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: micEnabled ? colors.accent : colors.surfaceRaised,
-          opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
-        })}
+        }}
       >
-        <Radio size={24} color={micEnabled ? colors.onAccent : colors.fg} />
-      </Pressable>
-      <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
-        {t("mobile:voice.controlHoldToTalk")}
-      </Text>
+        <Radio size={22} color={micEnabled ? colors.onAccent : colors.fg} strokeWidth={2} />
+      </Touchable>
+      <ControlCaption label={label} disabled={disabled} />
+    </View>
+  );
+}
+
+/**
+ * The surface the bottom controls sit on: the room's "desk edge" — a base-tone
+ * panel with the card radius on top and no border, the one place on a call screen
+ * where the chrome is allowed to be solid. Both the voice room and the DM call
+ * mount it, so the dock is the same object on both surfaces.
+ */
+export function ControlDock({
+  children,
+  hidden = false,
+  style,
+}: {
+  children: ReactNode;
+  /** Collapsed out of layout (an expanded watch party / fullscreen share). */
+  hidden?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        {
+          display: hidden ? "none" : "flex",
+          backgroundColor: colors.surface,
+          borderTopLeftRadius: radius.card,
+          borderTopRightRadius: radius.card,
+          borderCurve: "continuous",
+          paddingBottom: insets.bottom + space.xs,
+        },
+        style,
+      ]}
+    >
+      {children}
     </View>
   );
 }
@@ -141,6 +204,7 @@ export function VoiceControls({
   onToggleCamera,
   onToggleScreenShare,
   onLeave,
+  leaveLabel,
 }: {
   micEnabled: boolean;
   deafened: boolean;
@@ -155,6 +219,11 @@ export function VoiceControls({
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
   onLeave: () => void;
+  /**
+   * What the red disc says. A room's "Ayrıl" by default; a DM call passes its own
+   * verb (cancel while ringing, leave the call once live — ADR 0023 §2).
+   */
+  leaveLabel?: string;
 }) {
   const { t } = useAppTranslation();
   const pushToTalk = useMediaSettings((s) => s.audio.inputMode) === "push_to_talk";
@@ -185,87 +254,89 @@ export function VoiceControls({
 
   return (
     <>
-    <View
-      style={{
-        flexDirection: "row",
-        justifyContent: "space-evenly",
-        alignItems: "flex-start",
-        paddingHorizontal: space.md,
-        paddingVertical: space.lg,
-      }}
-    >
-      {pushToTalk ? (
-        <PushToTalkButton micEnabled={micEnabled} disabled={!canToggleAudio} />
-      ) : (
-        <ControlButton
-          Icon={micEnabled ? Mic : MicOff}
-          active={micEnabled}
-          disabled={!canToggleAudio}
-          onPress={onToggleMic}
-          label={micEnabled ? t("mobile:voice.controlMute") : t("mobile:voice.controlUnmute")}
+      <View
+        accessibilityRole="toolbar"
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-evenly",
+          alignItems: "flex-start",
+          paddingHorizontal: space.sm,
+          paddingTop: space.lg,
+          paddingBottom: space.md,
+        }}
+      >
+        {pushToTalk ? (
+          <PushToTalkButton micEnabled={micEnabled} disabled={!canToggleAudio} />
+        ) : (
+          <CallControl
+            icon={micEnabled ? Mic : MicOff}
+            // Muted is a state that cuts you off → the pink wash.
+            variant={micEnabled ? "secondary" : "danger"}
+            disabled={!canToggleAudio}
+            onPress={onToggleMic}
+            label={micEnabled ? t("mobile:voice.controlMute") : t("mobile:voice.controlUnmute")}
+          />
+        )}
+        <CallControl
+          icon={cameraEnabled ? Video : VideoOff}
+          // Camera publishing = a feature that is ON → the coral wash. Off is the
+          // neutral default, never red: a camera that is off is not a problem.
+          active={cameraEnabled}
+          toggle
+          disabled={!connected}
+          onPress={onCameraPress}
+          label={
+            cameraEnabled
+              ? t("mobile:voice.controlStopVideo")
+              : t("mobile:voice.controlStartVideo")
+          }
         />
-      )}
-      <ControlButton
-        Icon={cameraEnabled ? Video : VideoOff}
-        active={cameraEnabled}
-        disabled={!connected}
-        onPress={onCameraPress}
-        label={
-          cameraEnabled
-            ? t("mobile:voice.controlStopVideo")
-            : t("mobile:voice.controlStartVideo")
-        }
+        {/* Screen share (task #45): publish the phone's screen. Connected-only —
+            MediaProjection needs a live room, and the engine guards it to
+            `connected`. Idle = the neutral "Share screen" disc; sharing = the coral
+            "on" wash with the stop glyph (founder: "ekran paylaşmamışken kırmızı
+            gösteriyor" — the idle state must never read as an error). */}
+        <CallControl
+          icon={screenShareEnabled ? ScreenShareOff : ScreenShare}
+          active={screenShareEnabled}
+          toggle
+          disabled={!connected}
+          onPress={handleShareScreen}
+          label={
+            screenShareEnabled
+              ? t("mobile:voice.controlStopShareScreen")
+              : t("mobile:voice.controlShareScreen")
+          }
+        />
+        <CallControl
+          // Crossed-out headphone when deafened (mirrors the muted-mic MicOff),
+          // normal headphones otherwise; deafened is a cut-off state → pink wash.
+          icon={deafened ? HeadphoneOff : Headphones}
+          variant={deafened ? "danger" : "secondary"}
+          disabled={!canToggleAudio}
+          onPress={onToggleDeafen}
+          haptic="medium"
+          label={deafened ? t("mobile:voice.controlUndeafen") : t("mobile:voice.controlDeafen")}
+        />
+        <CallControl
+          icon={PhoneOff}
+          // The one action that ends your presence → the solid pink disc.
+          variant="dangerSolid"
+          onPress={onLeave}
+          haptic="medium"
+          label={leaveLabel ?? t("mobile:voice.controlLeave")}
+        />
+      </View>
+      <CameraPreviewSheet
+        visible={cameraPreviewOpen}
+        onClose={() => setCameraPreviewOpen(false)}
+        onConfirm={onToggleCamera}
       />
-      {/* Screen share (task #45): publish the phone's screen. Connected-only —
-          MediaProjection needs a live room, and the engine guards it to `connected`.
-          `active` when sharing keeps the button tinted like the other "on" states. */}
-      <ControlButton
-        // Screen share: IDLE is the neutral default (plain
-        // ScreenShare icon, normal/non-red button = inviting "Share screen"),
-        // SHARING is the engaged state (ScreenShareOff/stop icon + RED = "Stop
-        // sharing"). ControlButton reds the `off` (=`!active`) state, so we pass
-        // `active={!screenShareEnabled}` — idle→active→normal, sharing→off→red.
-        // (founder: "ekran paylaşmamışken kırmızı gösteriyor" — the red came from
-        // `active`, not the icon; the earlier icon-only fix left the red.)
-        Icon={screenShareEnabled ? ScreenShareOff : ScreenShare}
-        active={!screenShareEnabled}
-        disabled={!connected}
-        onPress={handleShareScreen}
-        label={
-          screenShareEnabled
-            ? t("mobile:voice.controlStopShareScreen")
-            : t("mobile:voice.controlShareScreen")
-        }
+      <ScreenShareQualitySheet
+        visible={shareQualityOpen}
+        onClose={() => setShareQualityOpen(false)}
+        onConfirm={onToggleScreenShare}
       />
-      <ControlButton
-        // Crossed-out headphone when deafened (mirrors the muted-mic MicOff),
-        // normal headphones otherwise.
-        Icon={deafened ? HeadphoneOff : Headphones}
-        active={!deafened}
-        disabled={!canToggleAudio}
-        onPress={onToggleDeafen}
-        haptic="medium"
-        label={deafened ? t("mobile:voice.controlUndeafen") : t("mobile:voice.controlDeafen")}
-      />
-      <ControlButton
-        Icon={PhoneOff}
-        active={false}
-        danger
-        onPress={onLeave}
-        haptic="medium"
-        label={t("mobile:voice.controlLeave")}
-      />
-    </View>
-    <CameraPreviewSheet
-      visible={cameraPreviewOpen}
-      onClose={() => setCameraPreviewOpen(false)}
-      onConfirm={onToggleCamera}
-    />
-    <ScreenShareQualitySheet
-      visible={shareQualityOpen}
-      onClose={() => setShareQualityOpen(false)}
-      onConfirm={onToggleScreenShare}
-    />
     </>
   );
 }

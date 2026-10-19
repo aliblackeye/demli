@@ -2,19 +2,23 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   PanResponder,
-  Pressable,
   View,
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from "react-native";
-import { Text } from "../ui/Text";
 import type { EdgeInsets } from "react-native-safe-area-context";
 import { VideoTrack } from "@livekit/react-native";
 import { VideoOff, X } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
 import { avatarTileGradient } from "@/theme/avatar-color";
+import { useReducedMotion } from "@/theme/motion";
+import { MOTION_PRESETS } from "@/theme/motion-presets";
 import { colors, radius, space, typography } from "@/theme/theme";
+import { withAlpha } from "../ui/kit-math";
+import { Text } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
+import { SpeakingFrame } from "./stage-chrome";
 import { useVideoTrackRef } from "./track-ref";
 
 /** PiP frame size — small enough to never block the stream, portrait self-view shape. */
@@ -22,6 +26,8 @@ const PIP_W = 104;
 const PIP_H = 148;
 /** Movement (px) under which a gesture counts as a tap (absorbed), not a drag. */
 const TAP_SLOP = 6;
+/** The PiP's corner radius — a small window, one step under the stage tiles. */
+const PIP_RADIUS = radius.lg;
 
 export type CornerKey = "tl" | "tr" | "bl" | "br";
 
@@ -54,7 +60,7 @@ function PipVideo({ track, mirror }: { track: object; mirror: boolean }) {
       mirror={mirror}
       // Sit above the main fullscreen VideoTrack (higher zOrder = on top).
       zOrder={2}
-      style={{ flex: 1, backgroundColor: "#000" }}
+      style={{ flex: 1, backgroundColor: colors.rail }}
     />
   );
 }
@@ -127,7 +133,9 @@ function PipAvatar({
  * Free-drag anywhere, then snap to the nearest corner on release so it never
  * strays off-screen or drifts over the stream's center. Built on RN's built-in
  * `PanResponder` + `Animated` only — no gesture-handler / reanimated — so the
- * whole feature stays OTA-safe.
+ * whole feature stays OTA-safe. The corner snap rides the authored position
+ * spring (motion presets, ζ≈1.34 — it lands without bouncing), and jumps under
+ * reduced motion.
  *
  * The parent swaps `track`/`name`/`userId` in place as the speaker changes (the
  * component is NOT re-keyed), so the PiP follows the conversation while keeping
@@ -196,6 +204,9 @@ export function DraggableCameraPip({
   closeLabel?: string;
 }) {
   const { t } = useAppTranslation();
+  const reduced = useReducedMotion();
+  const reducedRef = useRef(reduced);
+  reducedRef.current = reduced;
 
   const corners = useMemo(
     () => cornerPositions(width, height, insets),
@@ -231,11 +242,20 @@ export function DraggableCameraPip({
   const moveToCorner = useCallback(
     (key: CornerKey) => {
       settledCorner.current = key;
+      const toValue = cornersRef.current[key];
+      // useNativeDriver stays false: the drag writes `pan` through
+      // Animated.event on the JS side, and one value cannot be driven by both.
+      if (reducedRef.current) {
+        Animated.timing(pan, { toValue, duration: 0, useNativeDriver: false }).start();
+        return;
+      }
+      const spring = MOTION_PRESETS.position;
       Animated.spring(pan, {
-        toValue: cornersRef.current[key],
+        toValue,
+        stiffness: spring.stiffness,
+        damping: spring.damping,
+        mass: spring.mass,
         useNativeDriver: false,
-        bounciness: 6,
-        speed: 14,
       }).start();
     },
     [pan],
@@ -307,18 +327,15 @@ export function DraggableCameraPip({
         width: PIP_W,
         height: PIP_H,
         transform: pan.getTranslateTransform(),
-        borderRadius: radius.md,
+        borderRadius: PIP_RADIUS,
         borderCurve: "continuous",
         overflow: "hidden",
-        backgroundColor: "#000",
-        borderWidth: 2,
-        borderColor: speaking ? colors.online : "rgba(255,255,255,0.35)",
-        // Float above the fullscreen stream + lift it off the surface.
-        shadowColor: "#000",
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 8,
+        backgroundColor: colors.rail,
+        // A small window over arbitrary video needs ONE functional edge to read
+        // as a separate thing (Koyu Masa: lines only where they do a job). No
+        // outer shadow — depth is the tone change, not a lift.
+        borderWidth: 1,
+        borderColor: colors.strokeStrong,
       }}
     >
       {track ? (
@@ -337,22 +354,28 @@ export function DraggableCameraPip({
           bottom: 0,
           paddingHorizontal: space.sm,
           paddingVertical: space.xs,
-          backgroundColor: "rgba(0,0,0,0.5)",
+          backgroundColor: colors.scrim,
         }}
       >
-        <Text numberOfLines={1} style={{ color: "#fff", fontSize: typography.size["2xs"], fontWeight: "600" }}>
+        <Text
+          numberOfLines={1}
+          style={{ color: colors.fgDisplay, fontSize: typography.size["2xs"], fontWeight: "600" }}
+        >
           {name}
         </Text>
       </View>
+      <SpeakingFrame speaking={speaking} borderRadius={PIP_RADIUS} />
       {/* Dismiss — the self-view's "hide me". Rendered last so it wins its own
           touch; the PanResponder above still owns the rest of the box. */}
       {onClose ? (
-        <Pressable
+        <Touchable
           onPress={onClose}
-          hitSlop={8}
+          hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={closeLabel ?? t("mobile:voice.selfView.hide")}
-          style={({ pressed }) => ({
+          tone={colors.scrim}
+          pressedTone={withAlpha(colors.rail, 0.8)}
+          style={{
             position: "absolute",
             top: 4,
             right: 4,
@@ -361,12 +384,10 @@ export function DraggableCameraPip({
             borderRadius: radius.pill,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.55)",
-            opacity: pressed ? 0.7 : 1,
-          })}
+          }}
         >
-          <X size={13} color="#fff" />
-        </Pressable>
+          <X size={13} color={colors.fgDisplay} strokeWidth={2.25} />
+        </Touchable>
       ) : null}
     </Animated.View>
   );

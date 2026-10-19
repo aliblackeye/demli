@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LayoutChangeEvent, ViewStyle } from "react-native";
-import { Pressable, ScrollView, View } from "react-native";
-import { Text } from "../ui/Text";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Expand, LayoutGrid, PictureInPicture2 } from "lucide-react-native";
 import { participantKey, resolveStage, type StageTile } from "@demli/media";
 import { useAppTranslation } from "@/lib/i18n";
 import { setRemoteCameraQuality } from "@/stores/voice-store";
 import { useSelfViewStore } from "@/stores/self-view-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { space } from "@/theme/theme";
+import { Badge } from "../ui/Badge";
+import { IconButton } from "../ui/IconButton";
 import { useActiveSpeakers } from "./active-speakers";
 import { ParticipantGrid } from "./CameraGrid";
 import { ParticipantTile, type ParticipantTileData } from "./ParticipantTile";
@@ -16,15 +17,6 @@ import { SelfViewPip } from "./SelfViewPip";
 import { toVideoTrackRef } from "./track-ref";
 import type { MobileStage } from "./use-stage-tiles";
 import { VideoFullscreenModal } from "./VideoFullscreenModal";
-
-const overlayButtonStyle = {
-  width: 40,
-  height: 40,
-  borderRadius: radius.pill,
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: "rgba(0,0,0,0.55)",
-} as const;
 
 /**
  * The participant area when no screen share owns the stage. Two modes (founder
@@ -237,49 +229,35 @@ function FocusStage({
           {/* Self-view toggle (K4) — offered only when you are not the stage
               yourself, because in that case the stage already IS your self-view. */}
           {!selfIsOnStage && selfTile ? (
-            <Pressable
+            <IconButton
+              icon={PictureInPicture2}
+              variant="veil"
+              active={selfViewEnabled}
+              toggle
               onPress={toggleSelfView}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityState={{ selected: selfViewEnabled }}
-              accessibilityLabel={
+              label={
                 selfViewEnabled
                   ? t("mobile:voice.selfView.hide")
                   : t("mobile:voice.selfView.show")
               }
-              style={{
-                ...overlayButtonStyle,
-                backgroundColor: selfViewEnabled ? colors.accent : overlayButtonStyle.backgroundColor,
-              }}
-            >
-              <PictureInPicture2
-                size={19}
-                color={selfViewEnabled ? colors.onAccent : colors.fg}
-              />
-            </Pressable>
+            />
           ) : null}
           {/* Fullscreen only makes sense for a live camera. */}
           {focused.track ? (
-            <Pressable
+            <IconButton
+              icon={Expand}
+              variant="veil"
               onPress={() => setFullscreen(true)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={t("mobile:voice.fullscreen.open")}
-              style={overlayButtonStyle}
-            >
-              <Expand size={19} color={colors.fg} />
-            </Pressable>
+              label={t("mobile:voice.fullscreen.open")}
+            />
           ) : null}
           {locked ? null : (
-            <Pressable
+            <IconButton
+              icon={LayoutGrid}
+              variant="veil"
               onPress={exitFocus}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={t("mobile:voice.focus.exit")}
-              style={overlayButtonStyle}
-            >
-              <LayoutGrid size={19} color={colors.fg} />
-            </Pressable>
+              label={t("mobile:voice.focus.exit")}
+            />
           )}
         </View>
 
@@ -321,24 +299,11 @@ function FocusStage({
           </ScrollView>
           {hiddenCount > 0 ? (
             <View
+              accessible
               accessibilityRole="text"
               accessibilityLabel={t("mobile:voice.filmstripHiddenA11y", { n: hiddenCount })}
-              style={{
-                paddingHorizontal: space.sm,
-                paddingVertical: space.xs,
-                borderRadius: radius.pill,
-                backgroundColor: colors.surfaceRaised,
-              }}
             >
-              <Text
-                style={{
-                  color: colors.fgMuted,
-                  fontSize: typography.size["2xs"],
-                  fontWeight: "700",
-                }}
-              >
-                {t("mobile:voice.filmstripHidden", { n: hiddenCount })}
-              </Text>
+              <Badge label={t("mobile:voice.filmstripHidden", { n: hiddenCount })} />
             </View>
           ) : null}
         </View>

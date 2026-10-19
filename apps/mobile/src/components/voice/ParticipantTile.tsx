@@ -1,15 +1,16 @@
 import { memo, useCallback, useId, useState } from "react";
 import type { LayoutChangeEvent, ViewStyle } from "react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { Text } from "../ui/Text";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { MicOff, VolumeX } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
 import { avatarTileGradient } from "@/theme/avatar-color";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Text } from "../ui/Text";
 import { CameraTile } from "./CameraTile";
 import { openParticipantVolumeSheet } from "./ParticipantVolumeSheet";
+import { MediaPill, SpeakingFrame, TILE_RADIUS, usePressWash } from "./stage-chrome";
 
 /**
  * One participant as an EQUAL, screen-filling tile — the
@@ -76,6 +77,10 @@ const TileGradient = memo(function TileGradient({ from, to }: { from: string; to
  * the avatar centered and a bottom-center name chip (+ mic-off badge). The avatar
  * scales to the tile via onLayout so it stays big in a grid cell and compact in a
  * filmstrip — no fixed size, no giant lonely circle in a black void.
+ *
+ * Koyu Masa: borderless, the shared tile radius, the name in a {@link MediaPill},
+ * the coral {@link SpeakingFrame} for "talking", a wash on press. The gradient is
+ * the cross-platform avatar-colour contract (theme/avatar-color) and stays as-is.
  */
 function AvatarTile({
   userId,
@@ -84,7 +89,6 @@ function AvatarTile({
   isLocal,
   muted,
   speaking,
-  focused,
   mutedForYou,
   onPress,
   onLongPress,
@@ -97,7 +101,6 @@ function AvatarTile({
   isLocal: boolean;
   muted: boolean;
   speaking: boolean;
-  focused?: boolean;
   /** Volume set to 0 by this listener → show the "muted for you" glyph. */
   mutedForYou?: boolean;
   onPress?: () => void;
@@ -108,6 +111,7 @@ function AvatarTile({
 }) {
   const { t } = useAppTranslation();
   const { from, to } = avatarTileGradient(userId);
+  const wash = usePressWash();
   // Size the avatar to the measured tile so it fills a grid cell yet shrinks in a
   // filmstrip. clamp(min(w,h) * 0.42) with sane floor/ceiling.
   const [avatarSize, setAvatarSize] = useState(0);
@@ -118,15 +122,12 @@ function AvatarTile({
   };
 
   const label = isLocal ? t("mobile:voice.cameraYou", { name }) : name;
-  const borderColor = speaking ? colors.online : focused ? colors.accent : colors.stroke;
 
   const frame: ViewStyle = {
     overflow: "hidden",
-    borderRadius: radius.md,
+    borderRadius: TILE_RADIUS,
     borderCurve: "continuous",
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor,
     ...style,
   };
 
@@ -140,30 +141,19 @@ function AvatarTile({
         {avatarSize > 0 ? <Avatar name={name} size={avatarSize} uri={avatarUrl} /> : null}
       </View>
       {/* Bottom-center name chip — the cameraless tile's only identity marker. */}
-      <View
-        style={{
-          position: "absolute",
-          bottom: space.sm,
-          alignSelf: "center",
-          maxWidth: "88%",
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.xs,
-          paddingHorizontal: space.sm,
-          paddingVertical: 3,
-          borderRadius: radius.pill,
-          backgroundColor: "rgba(0,0,0,0.45)",
-        }}
+      <MediaPill
+        style={{ position: "absolute", bottom: space.sm, alignSelf: "center", maxWidth: "88%" }}
       >
-        {muted ? <MicOff size={12} color={colors.danger} /> : null}
-        {mutedForYou ? <VolumeX size={12} color={colors.fgMuted} /> : null}
+        {muted ? <MicOff size={12} color={colors.danger} strokeWidth={2.25} /> : null}
+        {mutedForYou ? <VolumeX size={12} color={colors.fgMuted} strokeWidth={2.25} /> : null}
         <Text
           numberOfLines={1}
-          style={{ color: "#fff", fontSize: 12, fontWeight: "600", flexShrink: 1 }}
+          style={{ color: colors.fgDisplay, fontSize: 12, fontWeight: "600", flexShrink: 1 }}
         >
           {label}
         </Text>
-      </View>
+      </MediaPill>
+      <SpeakingFrame speaking={speaking} />
     </>
   );
 
@@ -173,11 +163,18 @@ function AvatarTile({
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={350}
+        {...wash.handlers}
         accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        style={({ pressed }) => ({ ...frame, opacity: pressed ? 0.85 : 1 })}
+        // "Speaking" is part of what TalkBack reads — the ring alone is visual.
+        accessibilityLabel={
+          speaking
+            ? t("mobile:voice.speakingA11y", { name: accessibilityLabel ?? label })
+            : (accessibilityLabel ?? label)
+        }
+        style={frame}
       >
         {body}
+        {wash.overlay}
       </Pressable>
     );
   }
@@ -215,7 +212,7 @@ export const ParticipantTile = memo(function ParticipantTile({
   speaking: boolean;
   /** Listener's personal playback volume, 0..2 (0 → "muted for you"). Self ignored. */
   volume?: number;
-  /** Draw the accent ring even when not speaking — marks the focused/stage tile. */
+  /** Marks the focused/stage tile (passed through to the camera tile). */
   focused?: boolean;
   /** Show the participant name on a CAMERA tile (avatar tiles always show it). */
   showName?: boolean;
@@ -272,7 +269,6 @@ export const ParticipantTile = memo(function ParticipantTile({
       isLocal={isLocal}
       muted={muted}
       speaking={speaking}
-      focused={focused}
       mutedForYou={mutedForYou}
       onPress={handlePress}
       onLongPress={handleLongPress}

@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Text } from "../ui/Text";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { VideoTrack } from "@livekit/react-native";
 import { Maximize2, Minimize2, PictureInPicture2, Volume2, VolumeX, X } from "lucide-react-native";
@@ -17,10 +17,13 @@ import { useAppTranslation } from "@/lib/i18n";
 import { colors, radius, space } from "@/theme/theme";
 import { useVoiceStore } from "@/stores/voice-store";
 import { useScreenShareVolumes } from "@/stores/screen-share-volume-store";
+import { IconButton } from "../ui/IconButton";
+import { Slider } from "../ui/Slider";
+import { Text } from "../ui/Text";
 import { DraggableCameraPip } from "./DraggableCameraPip";
 import { ParticipantTile, type ParticipantTileData } from "./ParticipantTile";
-import { VolumeSlider } from "./ParticipantVolumeSheet";
 import { SelfViewPip } from "./SelfViewPip";
+import { MediaPill } from "./stage-chrome";
 import { useAutoHideControls } from "./useAutoHideControls";
 import type { VideoTrackRef } from "./track-ref";
 import { useIsInPipWindow } from "./use-pip-window";
@@ -43,15 +46,6 @@ export interface PipSubject {
   avatarUrl: string | null;
   speaking: boolean;
 }
-
-const iconButtonStyle = {
-  width: 40,
-  height: 40,
-  borderRadius: radius.pill,
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: "rgba(255,255,255,0.14)",
-} as const;
 
 /**
  * The fullscreen stream video, ISOLATED behind {@link memo} so the parent modal's
@@ -214,7 +208,9 @@ export function VideoFullscreenModal({
       supportedOrientations={allowFill ? ["portrait", "landscape"] : ["portrait"]}
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+      {/* A Modal is its own Android window: gesture-handler (the film-volume
+          slider) needs a root inside it, exactly as ui/Sheet brings its own. */}
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.rail }}>
         {/* Tap anywhere on the video to TOGGLE the chrome (video-player gesture);
             close is the explicit ✕ (or the Android back button). Fills the screen;
             in the forced landscape a wide desktop frame uses the phone's long axis. */}
@@ -233,19 +229,20 @@ export function VideoFullscreenModal({
             pointerEvents="none"
             style={{
               position: "absolute",
-              top: insets.top + space.sm,
+              top: insets.top + space.sm + 6,
               left: space.lg,
               maxWidth: width - space.lg * 2 - 144,
-              paddingHorizontal: space.md,
-              paddingVertical: space.xs,
-              borderRadius: radius.pill,
-              backgroundColor: "rgba(0,0,0,0.5)",
               opacity: controls.opacity,
             }}
           >
-            <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>
-              {label}
-            </Text>
+            <MediaPill style={{ paddingHorizontal: space.md, paddingVertical: space.xs }}>
+              <Text
+                numberOfLines={1}
+                style={{ flexShrink: 1, color: colors.fgDisplay, fontSize: 13, fontWeight: "600" }}
+              >
+                {label}
+              </Text>
+            </MediaPill>
           </Animated.View>
         ) : null}
 
@@ -259,20 +256,21 @@ export function VideoFullscreenModal({
             top: insets.top + space.sm,
             right: space.lg,
             flexDirection: "row",
-            gap: space.sm,
+            gap: space.xs,
             opacity: controls.opacity,
           }}
         >
           {canPip ? (
-            <Pressable
+            <IconButton
+              icon={PictureInPicture2}
+              variant="veil"
+              active={pipOn}
+              toggle
               onPress={() => {
                 setPipOn((v) => !v);
                 controls.reveal();
               }}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityState={{ selected: pipOn }}
-              accessibilityLabel={
+              label={
                 multiCamera
                   ? pipOn
                     ? t("mobile:voice.pip.hideCameras")
@@ -281,45 +279,25 @@ export function VideoFullscreenModal({
                     ? t("mobile:voice.pip.hide")
                     : t("mobile:voice.pip.show")
               }
-              style={{
-                ...iconButtonStyle,
-                backgroundColor: pipOn ? colors.accent : iconButtonStyle.backgroundColor,
-              }}
-            >
-              {/* Active = accent-filled, and the accent is light: cream-on-cream
-                  would vanish, so the icon flips to the dark on-accent ink. */}
-              <PictureInPicture2 size={20} color={pipOn ? colors.onAccent : colors.fg} />
-            </Pressable>
+            />
           ) : null}
           {allowFill ? (
-            <Pressable
+            <IconButton
+              icon={fill ? Minimize2 : Maximize2}
+              variant="veil"
               onPress={() => {
                 setFill((v) => !v);
                 controls.reveal();
               }}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={
-                fill ? t("mobile:voice.fullscreen.fit") : t("mobile:voice.fullscreen.fill")
-              }
-              style={iconButtonStyle}
-            >
-              {fill ? (
-                <Minimize2 size={20} color={colors.fg} />
-              ) : (
-                <Maximize2 size={20} color={colors.fg} />
-              )}
-            </Pressable>
+              label={fill ? t("mobile:voice.fullscreen.fit") : t("mobile:voice.fullscreen.fill")}
+            />
           ) : null}
-          <Pressable
+          <IconButton
+            icon={X}
+            variant="veil"
             onPress={onClose}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:voice.fullscreen.close")}
-            style={iconButtonStyle}
-          >
-            <X size={20} color={colors.fg} />
-          </Pressable>
+            label={t("mobile:voice.fullscreen.close")}
+          />
         </Animated.View>
 
         {/* Camera overlay (founder #2):
@@ -388,10 +366,14 @@ export function VideoFullscreenModal({
               opacity: controls.opacity,
             }}
           >
-            <ScreenShareVolumeBar userId={shareUserId} onAdjust={controls.reveal} />
+            <ScreenShareVolumeBar
+              userId={shareUserId}
+              onAdjustStart={controls.hold}
+              onAdjustEnd={controls.reveal}
+            />
           </Animated.View>
         ) : null}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -401,57 +383,73 @@ export function VideoFullscreenModal({
  * Reads the stored level from the persist store (so it shows the saved level even
  * while deafened) and writes through the voice store (engine + persistence). While
  * deafened the film is at 0 (master mute wins); the bar is disabled and shows the
- * mute icon. Reuses the same PanResponder slider as the per-user volume sheet.
+ * mute icon. The kit Slider drives it on the UI thread, so dragging stays smooth
+ * while the stream decodes on the same phone.
+ *
+ * The chrome is HELD (no idle timer) from the first change until the finger
+ * lifts, then re-armed — only at the drag boundaries, never per pan sample (a
+ * timer restart + setState per pixel was a needless flood on the JS thread the
+ * fullscreen viewer is already contending for, §27). Holding also means the bar
+ * can never fade out — and stop taking touches — under a finger mid-drag.
  */
 function ScreenShareVolumeBar({
   userId,
-  onAdjust,
+  onAdjustStart,
+  onAdjustEnd,
 }: {
   userId: string;
-  onAdjust: () => void;
+  onAdjustStart: () => void;
+  onAdjustEnd: () => void;
 }) {
   const { t } = useAppTranslation();
   const stored = useScreenShareVolumes((s) => s.volumes[userId] ?? DEFAULT_PARTICIPANT_VOLUME);
   const deafened = useVoiceStore((s) => s.deafened);
   const setScreenShareVolume = useVoiceStore((s) => s.setScreenShareVolume);
-  const percent = Math.round(Math.min(stored, MAX_PARTICIPANT_VOLUME) * 100);
-  const muted = deafened || percent === 0;
+  const level = Math.min(stored, MAX_PARTICIPANT_VOLUME);
+  const muted = deafened || Math.round(level * 100) === 0;
+  const adjusting = useRef(false);
 
   return (
     <View
-      accessibilityLabel={t("mobile:voice.shareVolume")}
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: space.md,
-        paddingHorizontal: space.md,
-        paddingVertical: space.xs,
+        gap: space.sm,
+        paddingLeft: space.md,
+        paddingRight: space.sm,
         borderRadius: radius.pill,
-        backgroundColor: "rgba(0,0,0,0.55)",
+        borderCurve: "continuous",
+        backgroundColor: colors.glassStrong,
       }}
     >
       {muted ? (
-        <VolumeX size={18} color={colors.fgMuted} />
+        <VolumeX size={18} color={colors.fgMuted} strokeWidth={2} />
       ) : (
-        <Volume2 size={18} color={colors.fg} />
+        <Volume2 size={18} color={colors.fg} strokeWidth={2} />
       )}
-      <View style={{ flex: 1 }}>
-        <VolumeSlider
-          value={stored}
-          disabled={deafened}
-          // Re-arm the auto-hide chrome at the drag BOUNDARIES only. Calling reveal()
-          // on every pan sample (the old onChange) restarted an Animated.timing + a
-          // setState per pixel of movement — a needless per-move flood on the same JS
-          // thread the fullscreen viewer is already contending for (§27). The live
-          // volume still updates every move; only the chrome-timer churn is dropped.
-          onStart={onAdjust}
-          onEnd={onAdjust}
-          onChange={(next) => setScreenShareVolume(userId, next)}
-        />
-      </View>
-      <Text style={{ width: 40, textAlign: "right", color: colors.fgMuted, fontSize: 12, fontWeight: "600" }}>
-        {percent}%
-      </Text>
+      <Slider
+        value={level}
+        min={0}
+        max={MAX_PARTICIPANT_VOLUME}
+        step={0.05}
+        disabled={deafened}
+        accessibilityLabel={t("mobile:voice.shareVolume")}
+        formatValue={(v) => `${Math.round(v * 100)}%`}
+        showValue
+        marks={[DEFAULT_PARTICIPANT_VOLUME]}
+        style={{ flex: 1 }}
+        onValueChange={(next) => {
+          if (!adjusting.current) {
+            adjusting.current = true;
+            onAdjustStart();
+          }
+          setScreenShareVolume(userId, next);
+        }}
+        onSlidingComplete={() => {
+          adjusting.current = false;
+          onAdjustEnd();
+        }}
+      />
     </View>
   );
 }

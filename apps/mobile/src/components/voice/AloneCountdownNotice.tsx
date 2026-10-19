@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Timer } from "lucide-react-native";
 import { aloneCountdownAt } from "@demli/media";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space } from "@/theme/theme";
+import { space } from "@/theme/theme";
 import { useVoiceStore } from "@/stores/voice-store";
+import { Banner } from "../ui/Banner";
 import { aloneCountdownLabel } from "./voice-ended";
 
 /** Tick rate for the visible countdown. One second is all the label resolves to. */
@@ -21,6 +22,10 @@ const TICK_MS = 1_000;
  *
  * No "stay" button (the founder asked for a warning, not a negotiation) and no
  * self-leave: reaching zero only changes the wording. The server closes the room.
+ *
+ * Drawn as the kit's warning Banner (gold wash, timer glyph). It drops in once
+ * when the deadline arms; the per-second text change is NOT re-announced
+ * (`live="none"`), or TalkBack would read the clock out every second.
  *
  * The per-second tick lives here, not in the voice FSM: the store holds a stable
  * deadline, so only this small component re-renders each second (§27), and no
@@ -44,18 +49,12 @@ export function AloneCountdownNotice({ marginTop }: { marginTop?: number }): JSX
   if (!label) return null;
 
   return (
-    <View
-      accessibilityRole="alert"
-      style={{
-        marginHorizontal: space.lg,
-        marginTop: marginTop ?? space.sm,
-        padding: space.md,
-        borderRadius: radius.md,
-        borderCurve: "continuous",
-        backgroundColor: "rgba(232,195,74,0.16)",
-      }}
-    >
-      <Text style={{ color: colors.warning, fontSize: 13 }}>{label}</Text>
-    </View>
+    <Banner
+      variant="warning"
+      icon={Timer}
+      title={label}
+      live="none"
+      style={{ marginHorizontal: space.lg, marginTop: marginTop ?? space.sm }}
+    />
   );
 }

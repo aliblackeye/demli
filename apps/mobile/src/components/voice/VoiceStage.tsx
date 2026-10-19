@@ -147,7 +147,7 @@ export function VoiceStage({
             onFullscreenChange={onShareFullscreenChange}
           />
         ) : hasParticipants ? (
-          <View style={{ flex: 1, padding: space.lg }}>
+          <View style={{ flex: 1, padding: space.md }}>
             <CameraStage stage={stage} />
           </View>
         ) : (

@@ -1,14 +1,19 @@
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { View } from "react-native";
+import Animated from "react-native-reanimated";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mic, MicOff, PhoneOff, Video } from "lucide-react-native";
+import { Mic, MicOff, PhoneOff, Video, Volume2 } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import type { VoiceState } from "@demli/media";
 import { isDmCallRoom } from "@/lib/call-room";
 import { TAB_BAR_CONTENT_HEIGHT, isTabRoute } from "@/lib/tab-bar";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, elevation, radius, space } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
+import { FLOATING_BAR_ENTER, FLOATING_BAR_EXIT } from "./floating-bar-motion";
+import { LiveDot, voiceStatusColor } from "./stage-chrome";
 import { localizeVoiceError } from "./voice-error";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 
@@ -60,46 +65,6 @@ function statusText(status: VoiceState["status"], t: AppTFunction): string {
   }
 }
 
-function statusDot(status: VoiceState["status"]): string {
-  if (status === "connected") return colors.online;
-  if (status === "error") return colors.danger;
-  if (status === "reconnecting" || status === "joining") return colors.idle;
-  return colors.fgFaint;
-}
-
-/** A ≥44pt round control (mic toggle / leave). Red-tinted for the "off" state. */
-function BarButton({
-  Icon,
-  danger,
-  onPress,
-  label,
-}: {
-  Icon: typeof Mic;
-  danger?: boolean;
-  onPress: () => void;
-  label: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        borderRadius: radius.pill,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: danger ? colors.dangerSurface : colors.surfaceRaised,
-        opacity: pressed ? 0.75 : 1,
-      })}
-    >
-      <Icon size={20} color={danger ? colors.danger : colors.fg} />
-    </Pressable>
-  );
-}
-
 /**
  * Global mini voice bar. Mounted once in the authed `_layout` so it floats over
  * EVERY screen while a session is live (B2's companion to app-scoped voice): it
@@ -110,6 +75,12 @@ function BarButton({
  *  - Tapping the label area returns to the voice room screen with the original
  *    route params (name/group) carried in the store's `channelMeta`.
  *  - Mic toggle + Leave are inline; both are ≥44pt touch targets.
+ *
+ * Koyu Masa: a floating glass bar (glass-strong, borderless, no outer shadow —
+ * it separates from the page by tone), rising in on the position spring and
+ * leaving on the fast step. The status dot breathes while the session is still
+ * moving (joining / reconnecting). Mic muted = the pink wash, Leave = the solid
+ * pink disc, the same grammar as the room's own dock.
  */
 export function VoiceMiniBar() {
   const { t } = useAppTranslation();
@@ -133,10 +104,13 @@ export function VoiceMiniBar() {
   // Already on the voice room screen → its own controls cover this.
   if (isVoiceRoomRoute(pathname)) return null;
 
-  const title = channelMeta?.name ? `🔊 ${channelMeta.name}` : t("mobile:voice.channelFallback");
+  // A speaker GLYPH in front of the name, never an emoji baked into the string
+  // (emoji render in the system font and read off-brand — brand-system §4.6).
+  const title = channelMeta?.name ?? t("mobile:voice.channelFallback");
   const errorMessage = localizeVoiceError(error, t);
   const subtitle =
     status === "error" && errorMessage ? errorMessage : statusText(status, t);
+  const moving = status === "joining" || status === "reconnecting";
 
   const openRoom = () => {
     router.push({
@@ -154,7 +128,9 @@ export function VoiceMiniBar() {
   const tabBarClearance = isTabRoute(pathname) ? TAB_BAR_CONTENT_HEIGHT : 0;
 
   return (
-    <View
+    <Animated.View
+      entering={FLOATING_BAR_ENTER.fromBottom}
+      exiting={FLOATING_BAR_EXIT.toBottom}
       // Float above the bottom safe area, over whatever screen is showing.
       style={{
         position: "absolute",
@@ -168,48 +144,44 @@ export function VoiceMiniBar() {
           flexDirection: "row",
           alignItems: "center",
           gap: space.sm,
-          paddingLeft: space.md,
+          paddingLeft: space.xs,
           paddingRight: space.sm,
           paddingVertical: space.sm,
-          borderRadius: radius.md,
+          borderRadius: radius.xl,
           borderCurve: "continuous",
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          backgroundColor: colors.surface,
-          // Subtle lift so it reads as an overlay, not part of the page.
-          ...elevation.panel,
+          backgroundColor: colors.glassStrong,
         }}
       >
         {/* Label area — tap to return to the voice room screen. */}
-        <Pressable
+        <Touchable
           accessibilityRole="button"
           accessibilityLabel={t("mobile:voice.a11yOpenChannel", {
             name: channelMeta?.name ?? t("mobile:voice.channelFallback"),
           })}
           onPress={openRoom}
+          pressedTone={colors.wash}
           style={{
             flex: 1,
             flexDirection: "row",
             alignItems: "center",
             gap: space.sm,
             minHeight: 44,
+            paddingHorizontal: space.sm,
+            borderRadius: radius.lg,
+            borderCurve: "continuous",
           }}
         >
-          <View
-            style={{
-              width: 9,
-              height: 9,
-              borderRadius: radius.pill,
-              backgroundColor: statusDot(status),
-            }}
-          />
+          <LiveDot color={voiceStatusColor(status)} pulsing={moving} />
           <View style={{ flex: 1 }}>
-            <Text
-              numberOfLines={1}
-              style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}
-            >
-              {title}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+              <Volume2 size={14} color={colors.fgMuted} strokeWidth={2} />
+              <Text
+                numberOfLines={1}
+                style={{ flexShrink: 1, color: colors.fg, fontSize: 14, fontWeight: "600" }}
+              >
+                {title}
+              </Text>
+            </View>
             <Text
               numberOfLines={1}
               style={{
@@ -220,32 +192,36 @@ export function VoiceMiniBar() {
               {subtitle}
             </Text>
           </View>
-        </Pressable>
+        </Touchable>
 
         {/* Camera-on status indicator (task #18) — status only, not a control;
             the full camera toggle lives on the voice room screen. */}
         {cameraEnabled ? (
           <View accessibilityRole="image" accessibilityLabel={t("mobile:voice.a11yCameraOn")}>
-            <Video size={16} color={colors.accent} />
+            <Video size={16} color={colors.accent} strokeWidth={2} />
           </View>
         ) : null}
 
         {/* Ping / connection-quality bars — self-hides unless connected. */}
         <VoiceConnectionBars />
 
-        <BarButton
-          Icon={micEnabled ? Mic : MicOff}
-          danger={!micEnabled}
+        <IconButton
+          icon={micEnabled ? Mic : MicOff}
+          variant={micEnabled ? "secondary" : "danger"}
+          size="md"
+          haptic="light"
           onPress={toggleMic}
           label={micEnabled ? t("mobile:voice.a11yMuteMic") : t("mobile:voice.a11yUnmuteMic")}
         />
-        <BarButton
-          Icon={PhoneOff}
-          danger
+        <IconButton
+          icon={PhoneOff}
+          variant="dangerSolid"
+          size="md"
+          haptic="medium"
           onPress={leave}
           label={t("mobile:voice.a11yLeaveChannel")}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 }
