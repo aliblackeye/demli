@@ -247,7 +247,8 @@
     "hours8": "8 hours",
     "indefinite": "Until I turn it back on",
     "unmute": "Unmute",
-    "mutedA11y": "Muted"
+    "mutedA11y": "Muted",
+    "forLabel": "Mute for"
   },
   "channelSettings": {
     "title": "Channel settings",
@@ -529,7 +530,65 @@
     "deleteAction": "Delete account",
     "deleteConfirmTitle": "Delete your account?",
     "deleteConfirmBody": "Your account will be frozen for 14 days. Sign in again within 14 days to restore it — after that it's permanently deleted.",
-    "deleteConfirmAction": "Delete my account"
+    "deleteConfirmAction": "Delete my account",
+    "previewHeading": "Preview",
+    "previewNote": "This is how your profile card will look once you save.",
+    "avatarSection": "Avatar",
+    "bannerSection": "Banner",
+    "avatarRemove": "Remove avatar",
+    "bannerRemove": "Remove banner",
+    "avatarHelp": "PNG, JPEG, WebP or GIF. Cropped and uploaded at 512×512.",
+    "bannerHelp": "PNG, JPEG, WebP or GIF. An animated GIF can stay as it is (up to 5 MB).",
+    "removePending": "Removed when you save",
+    "bioCount": "{{count}}/{{max}}",
+    "unsavedBar": "You have unsaved changes.",
+    "unsavedBarNudge": "Save or discard them first.",
+    "saveChanges": "Save changes",
+    "savingAvatar": "Uploading avatar…",
+    "savingBanner": "Uploading banner…",
+    "savingProfile": "Saving profile…",
+    "saveStep": "{{current}} of {{total}}",
+    "saveFailed": "Some changes didn't save.",
+    "saveFailedHint": "What saved is kept — Try again sends only the rest.",
+    "editAvatar": "Change avatar",
+    "editBanner": "Change banner"
+  },
+  "imageEditor": {
+    "avatarTitle": "Edit your avatar",
+    "bannerTitle": "Edit your banner",
+    "avatarDescription": "Drag to position, scroll to zoom. What's inside the circle is what people see.",
+    "bannerDescription": "Drag to position, scroll to zoom. The frame has the same shape as the banner on your profile card.",
+    "stageLabel": "Crop area",
+    "stageHelp": "Arrow keys move it, hold Shift to move faster. + and − zoom, 0 resets.",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset",
+    "apply": "Apply",
+    "applying": "Preparing…",
+    "chooseAnother": "Choose another image",
+    "loading": "Opening image…",
+    "hintMove": "move",
+    "hintZoom": "zoom",
+    "hintReset": "reset",
+    "previewHeading": "Preview",
+    "previewCard": "On your profile card",
+    "previewMessage": "In messages",
+    "previewSample": "How does the new photo look?",
+    "previewTime": "now",
+    "gifAvatarNotice": "Avatars are still images, so the GIF's first frame is used. A moving image can be your banner instead.",
+    "animatedTitle": "This image is animated",
+    "animatedBody": "Cropping keeps a single frame. To keep it moving, use it as it is — the card shows its centre.",
+    "keepAnimation": "Keep it moving",
+    "cropStill": "Crop it as a still",
+    "animatedKept": "It stays animated. Cropping it would make it a still.",
+    "errorTitle": "Couldn't open this image",
+    "errorType": "This file isn't a PNG, JPEG, WebP or GIF image. Choose one of those four.",
+    "errorSize": "This file is over 20 MB. Choose a smaller image — it gets much smaller after cropping anyway.",
+    "errorPixels": "This image's resolution is too high (64 megapixels at most). Choose a smaller one.",
+    "errorDecode": "This image couldn't be read — the file may be damaged. Try another one.",
+    "errorEncode": "The crop couldn't be brought down to an uploadable size. Zoom in a little and try again, or choose another image.",
+    "errorAnimatedTooLarge": "An animated banner can be 5 MB at most. Crop it into a still, or choose a smaller GIF."
   },
   "social": {
     "title": "Friends",
@@ -602,7 +661,9 @@
     "zoomReset": "Reset",
     "messagePlaceholder": "Message @{{name}}",
     "sendMessage": "Send",
-    "blockedNoMessage": "You cannot message this user while they are blocked."
+    "blockedNoMessage": "You cannot message this user while they are blocked.",
+    "closeCard": "Close profile card",
+    "presenceOnMobile": "{{status}}, on mobile"
   },
   "rail": {
     "groupsNav": "Groups",
@@ -631,7 +692,8 @@
     "dnd": "Do Not Disturb",
     "invisible": "Invisible",
     "dndDesc": "You won't hear notification sounds or get incoming-call pop-ups.",
-    "invisibleDesc": "You'll appear offline, but keep full access to the app."
+    "invisibleDesc": "You'll appear offline, but keep full access to the app.",
+    "offline": "Offline"
   },
   "members": {
     "membersNav": "Members",
@@ -1294,7 +1356,8 @@
     "settingsEmpty": "You haven't blocked anyone.",
     "settingsCount_one": "{{count}} blocked user",
     "settingsCount_other": "{{count}} blocked users",
-    "blockedSince": "Blocked {{date}}"
+    "blockedSince": "Blocked {{date}}",
+    "consequencesHeading": "When you block"
   },
   "customStatus": {
     "set": "Set a custom status",
@@ -1311,7 +1374,9 @@
     "today": "Today",
     "save": "Save",
     "expiresAt": "Clears at {{time}}",
-    "tooLong": "Keep it under {{max}} characters."
+    "tooLong": "Keep it under {{max}} characters.",
+    "previewHeading": "How it will look",
+    "count": "{{count}}/{{max}}"
   },
   "moderationLog": {
     "tab": "Audit log",
@@ -1411,13 +1476,26 @@
     "kickDescription": "They are removed from the server. A new invite link lets them back in.",
     "kickConfirm": "Kick",
     "banTitle": "Ban {{name}}?",
-    "banDescription": "They are removed from the server and cannot rejoin. You can lift the ban from server settings.",
+    "banDescription": "They are removed from the server and cannot rejoin.",
     "banConfirm": "Ban",
     "banReasonLabel": "Reason (optional)",
     "banReasonPlaceholder": "Shown in the moderation log",
     "unfriendTitle": "Remove {{name}} as a friend?",
     "unfriendDescription": "Your friendship ends and the DM drops off your list. Getting it back needs a new friend request that they accept.",
-    "unfriendConfirm": "Remove friend"
+    "unfriendConfirm": "Remove friend",
+    "timeoutTitle": "Time out {{name}}?",
+    "timeoutDescription": "Until it ends they can't send messages, add reactions or join voice in this server. They can still read; if they're in a voice room now, they're taken out of it.",
+    "timeoutDuration": "Duration",
+    "timeoutConfirm": "Time out",
+    "timeoutEnds": "Ends {{date}}",
+    "kickConsequence1": "They're removed right away; if they're in voice, they're disconnected.",
+    "kickConsequence2": "Their messages stay.",
+    "kickConsequence3": "A new invite link lets them back in.",
+    "banConsequence1": "They're removed right away; if they're in voice, they're disconnected.",
+    "banConsequence2": "No invite link brings them back.",
+    "banConsequence3": "The ban and its reason go into the moderation log.",
+    "banReasonCount": "{{count}}/{{max}}",
+    "dangerZoneLabel": "Moderation"
   },
   "ignore": {
     "settingsTitle": "Ignored users",

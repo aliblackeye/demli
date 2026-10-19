@@ -247,7 +247,8 @@
     "hours8": "8 saat",
     "indefinite": "Süresiz",
     "unmute": "Susturmayı kaldır",
-    "mutedA11y": "Susturuldu"
+    "mutedA11y": "Susturuldu",
+    "forLabel": "Süreyle sustur"
   },
   "channelSettings": {
     "title": "Kanal ayarları",
@@ -529,7 +530,65 @@
     "deleteAction": "Hesabı sil",
     "deleteConfirmTitle": "Hesabın silinsin mi?",
     "deleteConfirmBody": "Hesabın 14 gün donacak. 14 gün içinde tekrar giriş yaparsan geri gelir; sonra kalıcı olarak silinir.",
-    "deleteConfirmAction": "Hesabımı sil"
+    "deleteConfirmAction": "Hesabımı sil",
+    "previewHeading": "Önizleme",
+    "previewNote": "Kaydedince profil kartın böyle görünecek.",
+    "avatarSection": "Avatar",
+    "bannerSection": "Banner",
+    "avatarRemove": "Avatarı kaldır",
+    "bannerRemove": "Banner'ı kaldır",
+    "avatarHelp": "PNG, JPEG, WebP ya da GIF. Kırpıp 512×512 olarak yüklenir.",
+    "bannerHelp": "PNG, JPEG, WebP ya da GIF. Hareketli GIF olduğu gibi kalabilir (en fazla 5 MB).",
+    "removePending": "Kaydedince kaldırılacak",
+    "bioCount": "{{count}}/{{max}}",
+    "unsavedBar": "Kaydedilmemiş değişikliklerin var.",
+    "unsavedBarNudge": "Önce kaydet ya da vazgeç.",
+    "saveChanges": "Değişiklikleri kaydet",
+    "savingAvatar": "Avatar yükleniyor…",
+    "savingBanner": "Banner yükleniyor…",
+    "savingProfile": "Profil kaydediliyor…",
+    "saveStep": "{{current}}/{{total}}",
+    "saveFailed": "Bazı değişiklikler kaydedilemedi.",
+    "saveFailedHint": "Kaydedilenler yerinde; Tekrar dene yalnız kalanları gönderir.",
+    "editAvatar": "Avatarı değiştir",
+    "editBanner": "Banner'ı değiştir"
+  },
+  "imageEditor": {
+    "avatarTitle": "Avatarını düzenle",
+    "bannerTitle": "Banner'ını düzenle",
+    "avatarDescription": "Sürükleyerek yerleştir, kaydırarak yakınlaştır. Dairenin içi görünür.",
+    "bannerDescription": "Sürükleyerek yerleştir, kaydırarak yakınlaştır. Çerçeve, profil kartındaki banner'la aynı oranda.",
+    "stageLabel": "Kırpma alanı",
+    "stageHelp": "Ok tuşlarıyla kaydır, Shift ile daha hızlı. + ve − yakınlaştırır, 0 sıfırlar.",
+    "zoom": "Yakınlaştırma",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "reset": "Sıfırla",
+    "apply": "Uygula",
+    "applying": "Hazırlanıyor…",
+    "chooseAnother": "Başka görsel seç",
+    "loading": "Görsel açılıyor…",
+    "hintMove": "kaydır",
+    "hintZoom": "yakınlaştır",
+    "hintReset": "sıfırla",
+    "previewHeading": "Önizleme",
+    "previewCard": "Profil kartında",
+    "previewMessage": "Mesajlarda",
+    "previewSample": "Yeni fotoğraf nasıl olmuş?",
+    "previewTime": "şimdi",
+    "gifAvatarNotice": "Avatar hareketsiz bir görseldir; GIF'in ilk karesi kullanılır. Hareketli bir görseli banner olarak kullanabilirsin.",
+    "animatedTitle": "Bu görsel hareketli",
+    "animatedBody": "Kırparsan tek bir kare kalır. Hareketi korumak için olduğu gibi kullan; kartta ortası görünür.",
+    "keepAnimation": "Hareketli kalsın",
+    "cropStill": "Kırp, hareketsiz olsun",
+    "animatedKept": "Hareketli kalacak. Kırpmak istersen hareketsiz olur.",
+    "errorTitle": "Bu görsel açılamadı",
+    "errorType": "Bu dosya bir PNG, JPEG, WebP ya da GIF görseli değil. Bu dört türden birini seç.",
+    "errorSize": "Bu dosya 20 MB'tan büyük. Daha küçük bir görsel seç; kırptıktan sonra zaten küçülür.",
+    "errorPixels": "Bu görselin çözünürlüğü çok yüksek (en fazla 64 megapiksel). Daha küçük bir görsel seç.",
+    "errorDecode": "Bu görsel okunamadı; dosya bozuk olabilir. Başka bir görsel dene.",
+    "errorEncode": "Kırpılan görsel yüklenebilecek boyuta getirilemedi. Biraz yakınlaştırıp tekrar dene ya da başka bir görsel seç.",
+    "errorAnimatedTooLarge": "Hareketli banner en fazla 5 MB olabilir. Kırparak hareketsiz kullanabilir ya da daha küçük bir GIF seçebilirsin."
   },
   "social": {
     "title": "Arkadaşlar",
@@ -602,7 +661,9 @@
     "zoomReset": "Sıfırla",
     "messagePlaceholder": "@{{name}} kullanıcısına mesaj gönder",
     "sendMessage": "Gönder",
-    "blockedNoMessage": "Bu kullanıcıyı engellediğin için mesaj gönderemezsin."
+    "blockedNoMessage": "Bu kullanıcıyı engellediğin için mesaj gönderemezsin.",
+    "closeCard": "Profil kartını kapat",
+    "presenceOnMobile": "{{status}}, telefonda"
   },
   "rail": {
     "groupsNav": "Gruplar",
@@ -631,7 +692,8 @@
     "dnd": "Rahatsız Etmeyin",
     "invisible": "Görünmez",
     "dndDesc": "Bildirim sesi ve gelen arama uyarısı almazsın.",
-    "invisibleDesc": "Çevrimdışı görünürsün, ama uygulamayı tam kullanırsın."
+    "invisibleDesc": "Çevrimdışı görünürsün, ama uygulamayı tam kullanırsın.",
+    "offline": "Çevrimdışı"
   },
   "members": {
     "membersNav": "Üyeler",
@@ -1294,7 +1356,8 @@
     "settingsEmpty": "Kimseyi engellemedin.",
     "settingsCount_one": "{{count}} engellenen kullanıcı",
     "settingsCount_other": "{{count}} engellenen kullanıcı",
-    "blockedSince": "{{date}} tarihinde engellendi"
+    "blockedSince": "{{date}} tarihinde engellendi",
+    "consequencesHeading": "Engellediğinde"
   },
   "customStatus": {
     "set": "Özel durum belirle",
@@ -1311,7 +1374,9 @@
     "today": "Bugün",
     "save": "Kaydet",
     "expiresAt": "{{time}} saatinde temizlenir",
-    "tooLong": "{{max}} karakterin altında tut."
+    "tooLong": "{{max}} karakterin altında tut.",
+    "previewHeading": "Böyle görünecek",
+    "count": "{{count}}/{{max}}"
   },
   "moderationLog": {
     "tab": "Denetim kaydı",
@@ -1377,8 +1442,8 @@
     "unignore": "Yok Saymayı Bırak",
     "ignoreHint": "Bildirimleri sussun, mesajları katlansın",
     "voiceDisconnect": "Sesli Bağlantıyı Kes",
-    "timeout": "{{name}} Kullanıcısına Zaman Aşımı Uygula",
-    "timeoutRemove": "Zaman Aşımını Kaldır",
+    "timeout": "{{name}} kullanıcısına zaman aşımı ver",
+    "timeoutRemove": "Zaman aşımını kaldır",
     "kick": "{{name}} kullanıcısını at",
     "ban": "{{name}} kullanıcısını yasakla",
     "copyUsername": "Kullanıcı Adını Kopyala",
@@ -1411,13 +1476,26 @@
     "kickDescription": "Bu kişi sunucudan çıkarılır. Yeni bir davet bağlantısıyla geri katılabilir.",
     "kickConfirm": "At",
     "banTitle": "{{name}} yasaklansın mı?",
-    "banDescription": "Bu kişi sunucudan çıkarılır ve bir daha katılamaz. Yasağı sunucu ayarlarından kaldırabilirsin.",
+    "banDescription": "Bu kişi sunucudan çıkarılır ve bir daha katılamaz.",
     "banConfirm": "Yasakla",
     "banReasonLabel": "Sebep (isteğe bağlı)",
     "banReasonPlaceholder": "Denetim kaydında görünür",
     "unfriendTitle": "{{name}} arkadaşlıktan çıkarılsın mı?",
     "unfriendDescription": "Arkadaşlığınız sona erer ve DM sohbetiniz listenden kalkar. Geri almak için yeni bir arkadaşlık isteği gönderip kabul edilmesi gerekir.",
-    "unfriendConfirm": "Arkadaşlıktan çıkar"
+    "unfriendConfirm": "Arkadaşlıktan çıkar",
+    "timeoutTitle": "{{name}} zaman aşımına alınsın mı?",
+    "timeoutDescription": "Süre dolana kadar bu sunucuda mesaj yazamaz, tepki ekleyemez ve sesli odaya giremez. Okumaya devam eder; şu an sesli odadaysa odadan çıkarılır.",
+    "timeoutDuration": "Süre",
+    "timeoutConfirm": "Zaman aşımı ver",
+    "timeoutEnds": "{{date}} tarihinde biter",
+    "kickConsequence1": "Sunucudan hemen çıkarılır; sesli odadaysa bağlantısı kesilir.",
+    "kickConsequence2": "Yazdığı mesajlar silinmez.",
+    "kickConsequence3": "Yeni bir davet bağlantısıyla geri katılabilir.",
+    "banConsequence1": "Sunucudan hemen çıkarılır; sesli odadaysa bağlantısı kesilir.",
+    "banConsequence2": "Hiçbir davet bağlantısıyla geri katılamaz.",
+    "banConsequence3": "Yasak ve sebebi denetim kaydına yazılır.",
+    "banReasonCount": "{{count}}/{{max}}",
+    "dangerZoneLabel": "Moderasyon"
   },
   "ignore": {
     "settingsTitle": "Yok sayılanlar",
