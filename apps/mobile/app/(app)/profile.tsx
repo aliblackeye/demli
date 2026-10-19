@@ -32,6 +32,7 @@ import { localizeError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { logoutActiveAccount } from "@/lib/account-manager";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { summarizeProfileSave, type ProfileSaveOutcome, type ProfileSaveStep, type ProfileSaveStepResult } from "@/lib/profile-save";
 import {
   pickProfileSource,
   ProfileImageError,
@@ -50,7 +51,14 @@ const BIO_MAX = 280;
 const AVATAR_SIZE = 88;
 
 /** One request of the Save sequence — what the bar names while it runs. */
-type SaveStep = "avatar" | "banner" | "profile";
+type SaveStep = ProfileSaveStep;
+
+/** The bar's per-step label key — the same nouns the running steps use. */
+const SAVE_ITEM_KEY = {
+  avatar: "mobile:profile.saveItemAvatar",
+  banner: "mobile:profile.saveItemBanner",
+  profile: "mobile:profile.saveItemProfile",
+} as const satisfies Record<SaveStep, string>;
 
 /** What a field shows: a fresh draft, a pending removal, or the saved value. */
 type ImageEdit = { kind: "draft"; image: PickedProfileImage } | { kind: "remove" } | null;
@@ -72,7 +80,10 @@ type ImageEdit = { kind: "draft"; image: PickedProfileImage } | { kind: "remove"
  * then one PATCH for name/bio/removals — naming each step as it runs
  * ("Fotoğraf yükleniyor · 1/3") over a bar that fills step by step. Each step
  * reports on its own field: a step that landed clears its draft, a step that
- * failed keeps it, and "Tekrar dene" sends only what did not land (§26).
+ * failed keeps it, and "Tekrar dene" sends only what did not land (§26). A
+ * failure is reported as what it was: nothing landed ("Değişikliklerin
+ * kaydedilemedi") or a named split ("Fotoğraf kaydedildi · Profil bilgileri
+ * kaydedilemedi") — never "some were kept" when none were.
  *
  * Leaving with unsaved edits — header arrow, Android back, back gesture — opens
  * a sheet: save and leave, discard, or keep editing (`beforeRemove`). The date
@@ -112,8 +123,9 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [bannerError, setBannerError] = useState<string | null>(null);
-  /** The last Save applied some changes but not all (§26 honesty). */
-  const [partialFailure, setPartialFailure] = useState(false);
+  /** How the last Save failed: nothing landed, or a named split (§26 honesty). */
+  const [saveFailure, setSaveFailure] = useState<Exclude<ProfileSaveOutcome, { kind: "ok" }> | null>(null);
+  const failureShown = saveFailure !== null;
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<{ id: SaveStep; index: number; total: number } | null>(null);
   const [nameTouched, setNameTouched] = useState(false);
@@ -164,7 +176,7 @@ export default function Profile() {
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
     setNameTouched(false);
   }, [user?.displayName, user?.bio]);
 
@@ -247,7 +259,7 @@ export default function Profile() {
     if (kind === "avatar") setAvatarEdit({ kind: "draft", image });
     else setBannerEdit({ kind: "draft", image });
     setKindError(kind, null);
-    setPartialFailure(false);
+    setSaveFailure(null);
     setEditorSource(null);
   };
 
@@ -267,7 +279,7 @@ export default function Profile() {
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
     setSaving(true);
 
     const profilePatch = {
@@ -283,7 +295,7 @@ export default function Profile() {
     ];
     progress.value = 0;
 
-    let failed = false;
+    const results: ProfileSaveStepResult[] = [];
     for (const [index, id] of steps.entries()) {
       setStep({ id, index, total: steps.length });
       // The bar moves to the middle of the running step, then to its end: real
@@ -301,8 +313,9 @@ export default function Profile() {
           if (avatarEdit?.kind === "remove") setAvatarEdit(null);
           if (bannerEdit?.kind === "remove") setBannerEdit(null);
         }
+        results.push({ id, ok: true });
       } catch (err) {
-        failed = true;
+        results.push({ id, ok: false });
         if (id === "avatar") setAvatarError(imageErrorText(err));
         else if (id === "banner") setBannerError(imageErrorText(err));
         else setError(localizeError(err, t));
@@ -313,8 +326,9 @@ export default function Profile() {
     setSaving(false);
     setStep(null);
     setPendingLeave(null);
-    setPartialFailure(failed);
-    if (failed) {
+    const outcome = summarizeProfileSave(results);
+    setSaveFailure(outcome.kind === "ok" ? null : outcome);
+    if (outcome.kind !== "ok") {
       haptics.error();
       return;
     }
@@ -353,7 +367,20 @@ export default function Profile() {
     return `${t(key)} · ${t("mobile:profile.saveStep", { current: step.index + 1, total: step.total })}`;
   }, [step, t]);
 
-  const barVisible = dirty || saving || partialFailure;
+  const failureTitle =
+    saveFailure?.kind === "total" ? t("mobile:profile.saveFailedTotal") : t("mobile:profile.saveFailed");
+  /** "Fotoğraf kaydedildi · Profil bilgileri kaydedilemedi" — only for a split. */
+  const failureDetail =
+    saveFailure?.kind === "partial"
+      ? [
+          ...saveFailure.saved.map((id) => t("mobile:profile.saveItemSaved", { item: t(SAVE_ITEM_KEY[id]) })),
+          ...saveFailure.failed.map((id) => t("mobile:profile.saveItemFailed", { item: t(SAVE_ITEM_KEY[id]) })),
+        ].join(" · ")
+      : null;
+  const failureHint =
+    saveFailure?.kind === "total" ? t("mobile:profile.saveFailedTotalHint") : t("mobile:profile.saveFailedHint");
+
+  const barVisible = dirty || saving || failureShown;
   const barHeight = 120;
   const menuEdit = menu === "avatar" ? avatarEdit : bannerEdit;
   const menuHasImage = menu === "avatar" ? !!avatarPreview : !!bannerPreview;
@@ -600,16 +627,21 @@ export default function Profile() {
         >
           <Glass strong style={{ borderRadius: radius.card, padding: space.md, gap: space.md }}>
             <View accessibilityLiveRegion="polite" style={{ gap: 2 }}>
-              <Text type="ui" tone={partialFailure && !saving ? "danger" : "default"} style={{ fontWeight: "600" }}>
+              <Text type="ui" tone={failureShown && !saving ? "danger" : "default"} style={{ fontWeight: "600" }}>
                 {saving
                   ? (stepLabel ?? t("mobile:profile.savingProfile"))
-                  : partialFailure
-                    ? t("mobile:profile.saveFailed")
+                  : failureShown
+                    ? failureTitle
                     : t("mobile:profile.unsavedBar")}
               </Text>
-              {partialFailure && !saving ? (
+              {failureShown && !saving && failureDetail ? (
+                <Text type="meta" tone="default" style={{ fontWeight: "500" }}>
+                  {failureDetail}
+                </Text>
+              ) : null}
+              {failureShown && !saving ? (
                 <Text type="meta" tone="muted" style={{ fontWeight: "400" }}>
-                  {t("mobile:profile.saveFailedHint")}
+                  {failureHint}
                 </Text>
               ) : null}
             </View>
@@ -632,8 +664,8 @@ export default function Profile() {
                 style={{ flex: 1 }}
               />
               <Button
-                label={partialFailure && !saving ? t("common:buttons.retry") : t("mobile:profile.save")}
-                icon={partialFailure && !saving ? RotateCcw : Save}
+                label={failureShown && !saving ? t("common:buttons.retry") : t("mobile:profile.save")}
+                icon={failureShown && !saving ? RotateCcw : Save}
                 variant="accent"
                 onPress={() => void onSave()}
                 loading={saving}
