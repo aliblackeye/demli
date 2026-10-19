@@ -20,7 +20,12 @@ export const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 max-w-72 overflow-hidden rounded-sm surface-glass-strong px-2.5 py-1.5",
+        // A tooltip is always the topmost thing on screen: it only exists while
+        // its trigger is hovered/focused, so whatever layer the trigger lives on
+        // (settings layer z-[55], confirmations z-[58], the update banner z-[90],
+        // critical overlays z-[100]) it must paint above it. Radix copies this
+        // z-index onto its popper wrapper. Boot splash (z-[200]) stays above.
+        "z-[150] max-w-72 overflow-hidden rounded-sm surface-glass-strong px-2.5 py-1.5",
         "text-xs font-medium leading-4 text-fg",
         // A tooltip already waits out its open delay — it uses the FAST motion
         // step, not the `standard` one panels get, so it never feels laggy.
