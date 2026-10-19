@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CalendarCheck, Check, X } from "lucide-react-native";
+import { View, type StyleProp, type ViewStyle } from "react-native";
+import { CalendarCheck, Check } from "lucide-react-native";
 import { shouldPromptForBirthdate } from "@demli/client-core";
 import { Text } from "@/components/ui/Text";
-import { Button } from "@/components/Button";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/Sheet";
 import { BirthdateVerification } from "@/components/BirthdateVerification";
 import { useAppTranslation } from "@/lib/i18n";
 import { useMe } from "@/queries/social-queries";
 import { useAgePromptStore } from "@/stores/age-prompt-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
 
 /**
  * The proactive, ONE-TIME "verify your age" reminder (mobile mirror of the
@@ -29,9 +30,8 @@ import { colors, radius, space } from "@/theme/theme";
  * uses, so the set-once confirmation and the under-18 warning are identical
  * wherever the user verifies.
  */
-export function AgeVerifyBanner() {
+export function AgeVerifyBanner({ style }: { style?: StyleProp<ViewStyle> }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const me = useMe();
   const userId = me.data?.id ?? null;
   const dismissed = useAgePromptStore((s) => (userId ? !!s.dismissedByUser[userId] : true));
@@ -67,107 +67,39 @@ export function AgeVerifyBanner() {
   return (
     <>
       {visible ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.sm,
-            paddingVertical: space.sm,
-            paddingHorizontal: space.md,
-            backgroundColor: colors.surfaceRaised,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.stroke,
-          }}
-        >
-          <CalendarCheck size={16} color={colors.accent} />
-          <Text style={{ color: colors.fg, fontSize: 13, flex: 1 }} numberOfLines={2}>
-            {t("mobile:ageVerify.title")}
-          </Text>
-          <Pressable
-            onPress={() => setOpen(true)}
-            accessibilityRole="button"
-            hitSlop={8}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "700" }}>
-              {t("mobile:ageVerify.open")}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => userId && dismiss(userId)}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:ageVerify.dismiss")}
-            hitSlop={8}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <X size={16} color={colors.fgFaint} />
-          </Pressable>
-        </View>
+        <Banner
+          variant="info"
+          icon={CalendarCheck}
+          title={t("mobile:ageVerify.title")}
+          action={{ label: t("mobile:ageVerify.open"), onPress: () => setOpen(true) }}
+          onDismiss={() => userId && dismiss(userId)}
+          dismissLabel={t("mobile:ageVerify.dismiss")}
+          style={[{ marginHorizontal: space.md, marginTop: space.sm }, style]}
+        />
       ) : null}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
-        <Pressable
-          onPress={close}
-          accessibilityLabel={t("mobile:ageVerify.close")}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
-        >
-          {/* Sheet — its own Pressable swallows taps so they don't dismiss it. */}
-          <Pressable
-            onPress={() => {}}
-            style={{
-              backgroundColor: colors.surface,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
-              borderCurve: "continuous",
-              borderTopWidth: 1,
-              borderColor: colors.stroke,
-              paddingTop: space.sm,
-              paddingBottom: space.md + insets.bottom,
-              paddingHorizontal: space.md,
-              maxHeight: "88%",
-            }}
-          >
-            <View style={{ alignItems: "center", paddingBottom: space.sm }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 4,
-                  borderRadius: radius.pill,
-                  backgroundColor: colors.strokeStrong,
-                }}
-              />
+      {/* The kit Sheet (borderless card, grabber, scrim, drag-to-close, the real
+          keyboard lift for the date field) — not a hand-rolled Modal. */}
+      <Sheet
+        visible={open}
+        onClose={close}
+        title={t("mobile:ageVerify.title")}
+        description={t("mobile:ageVerify.body")}
+      >
+        {savedAdult === null ? (
+          <BirthdateVerification onSaved={(user) => setSavedAdult(user.isAdult === true)} />
+        ) : (
+          <View style={{ gap: space.md }}>
+            <View style={{ flexDirection: "row", gap: space.sm, alignItems: "flex-start" }}>
+              <Check size={16} color={colors.success} style={{ marginTop: 2 }} />
+              <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20, flex: 1 }}>
+                {savedAdult ? t("mobile:birthdate.doneAdult") : t("mobile:birthdate.doneMinor")}
+              </Text>
             </View>
-
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: space.md }}>
-              <Text
-                variant="display"
-                style={{ color: colors.fg, fontSize: 17, fontWeight: "800" }}
-              >
-                {t("mobile:ageVerify.title")}
-              </Text>
-              <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
-                {t("mobile:ageVerify.body")}
-              </Text>
-
-              {savedAdult === null ? (
-                <BirthdateVerification onSaved={(user) => setSavedAdult(user.isAdult === true)} />
-              ) : (
-                <View style={{ gap: space.md }}>
-                  <View style={{ flexDirection: "row", gap: space.sm, alignItems: "flex-start" }}>
-                    <Check size={16} color={colors.online} style={{ marginTop: 2 }} />
-                    <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20, flex: 1 }}>
-                      {savedAdult
-                        ? t("mobile:birthdate.doneAdult")
-                        : t("mobile:birthdate.doneMinor")}
-                    </Text>
-                  </View>
-                  <Button label={t("mobile:ageVerify.close")} onPress={close} />
-                </View>
-              )}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+            <Button variant="secondary" block label={t("mobile:ageVerify.close")} onPress={close} />
+          </View>
+        )}
+      </Sheet>
     </>
   );
 }
