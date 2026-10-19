@@ -697,7 +697,11 @@ export const MessageRow = memo(function MessageRow({
             "group-hover:visible group-hover:opacity-100 data-[open]:visible data-[open]:opacity-100",
             // Keyboard path: tabbing onto the avatar / name reveals the toolbar,
             // so the next Tab lands on its first button instead of skipping it.
-            "group-focus-within:visible group-focus-within:opacity-100",
+            // `:focus-visible`, NOT `:focus-within`: a mouse click on a reaction,
+            // the avatar or an image also focuses inside the row, and
+            // `focus-within` would then pin the toolbar over a row the pointer
+            // has already left.
+            "group-has-[:focus-visible]:visible group-has-[:focus-visible]:opacity-100",
           )}
         >
           {services.renderReactionPicker({
