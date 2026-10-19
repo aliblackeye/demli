@@ -64,6 +64,17 @@ export type ListRow =
   | { kind: "older-loading"; key: string }
   | { kind: "unread-divider"; key: string }
   | {
+      /**
+       * Calendar-day separator (M16): sits directly above the first visible
+       * message of a new LOCAL day. `dayStart` is that day's local midnight in
+       * epoch ms — the label ("Bugün", "Dün", a date) is resolved at render so
+       * the model stays locale-free.
+       */
+      kind: "date-divider";
+      key: string;
+      dayStart: number;
+    }
+  | {
       kind: "ignored-run";
       key: string;
       /** Identity of the run: the id of its FIRST message (stable as it grows). */
@@ -103,6 +114,19 @@ export interface BuildRowsOptions {
   ignoredAuthorIds?: ReadonlySet<string>;
   /** Run ids ({@link ListRow} `runId`) the viewer has expanded this session. */
   expandedIgnoredRuns?: ReadonlySet<string>;
+  /**
+   * Insert a `date-divider` row above the first message of every new local
+   * calendar day (M16). Opt-in so callers that do not render one get exactly
+   * the rows they always got. A divider also breaks author grouping — the
+   * message under it always keeps its header, like under the unread line.
+   */
+  dateDividers?: boolean;
+}
+
+/** Local midnight (epoch ms) of the day `iso` falls on — the date-divider key. */
+export function localDayStart(iso: string): number {
+  const date = new Date(iso);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 /** True when this message should be folded away for the viewer. */
@@ -140,12 +164,26 @@ export function buildRows(messages: ChatMessageView[], options: BuildRowsOptions
 
   let previous: ChatMessageView | null = null;
   let index = 0;
+  // Local day of the last divider emitted. Only a LATER day opens a new one: an
+  // out-of-order row (an optimistic send stamped by a skewed clock) must never
+  // emit a second divider for a day already shown — that would also duplicate
+  // the virtualizer key.
+  let lastDay: number | null = null;
 
   while (index < messages.length) {
     const message = messages[index];
     if (!message) {
       index++;
       continue;
+    }
+
+    if (options.dateDividers) {
+      const day = localDayStart(message.createdAt);
+      if (lastDay === null || day > lastDay) {
+        rows.push({ kind: "date-divider", key: `date:${day}`, dayStart: day });
+        lastDay = day;
+        previous = null; // a new day always starts with a header
+      }
     }
 
     // The "New Messages" divider sits directly above the first message that
@@ -178,6 +216,15 @@ export function buildRows(messages: ChatMessageView[], options: BuildRowsOptions
       if (!candidate) break;
       if (scan > index && candidate.id === options.dividerBeforeId) break;
       if (!isIgnoredMessage(candidate, ignoredAuthorIds)) break;
+      // A fold never spans midnight: the next day's divider must still render.
+      if (
+        scan > index &&
+        options.dateDividers &&
+        lastDay !== null &&
+        localDayStart(candidate.createdAt) > lastDay
+      ) {
+        break;
+      }
       run.push(candidate);
       scan++;
     }
