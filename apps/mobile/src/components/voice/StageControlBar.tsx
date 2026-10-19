@@ -54,6 +54,8 @@ import { IconButton } from "../ui/IconButton";
 export function StageControlBar({
   visible,
   opacity,
+  onInteractionStart,
+  onInteractionEnd,
   micEnabled,
   onToggleMic,
   cameraEnabled,
@@ -73,6 +75,13 @@ export function StageControlBar({
   visible: boolean;
   /** Animated opacity driven by the same layer (native driver). */
   opacity: Animated.Value;
+  /**
+   * A finger came down on the bar: keep it up with no idle timer, so a press or
+   * a long-press tooltip is never faded out from under the finger.
+   */
+  onInteractionStart?: () => void;
+  /** The finger lifted (or the gesture was cancelled): re-arm the idle fade. */
+  onInteractionEnd?: () => void;
   micEnabled: boolean;
   onToggleMic: () => void;
   cameraEnabled: boolean;
@@ -103,6 +112,10 @@ export function StageControlBar({
     <Animated.View
       // Hidden = untappable, so a faded bar never eats the tap that reveals it.
       pointerEvents={visible ? "box-none" : "none"}
+      // Observes touches on the buttons (they bubble), never claims them.
+      onTouchStart={onInteractionStart}
+      onTouchEnd={onInteractionEnd}
+      onTouchCancel={onInteractionEnd}
       accessibilityRole="toolbar"
       accessibilityLabel={t("mobile:call.stageControls")}
       style={{
