@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { Copy, Pencil, Pin, PinOff, Reply, SmilePlus, Trash2 } from "lucide-react-native";
 import { replyPreviewText } from "@demli/client-core";
 import { Text } from "./ui/Text";
@@ -11,11 +11,13 @@ import { PRESS } from "../theme/motion-presets";
 import { Avatar } from "./Avatar";
 import { useAppTranslation } from "@/lib/i18n";
 import { colors, radius, space } from "../theme/theme";
+import { quickReactionLayout } from "./chat/reaction-row-math";
 
 /** What the sheet shows of the message it acts on. */
 export interface MessageSheetPreview {
   authorName: string;
   authorAvatarUrl: string | null | undefined;
+  /** The message as a person reads it (`messagePlainText`), never the wire form. */
   content: string;
 }
 
@@ -30,9 +32,9 @@ export interface MessageSheetPreview {
  * turns the same sheet into a confirm step showing the message once more, with
  * the destructive button last — one surface, no system alert.
  *
- * Every affordance here is fully wired (CLAUDE.md §35 — no dead buttons). Copy,
- * pin, edit and delete render only when the caller passes their handler (the
- * caller owns the permission rules).
+ * Every affordance here is fully wired (CLAUDE.md §35 — no dead buttons).
+ * Reply, copy, pin, edit and delete render only when the caller passes their
+ * handler (the caller owns the permission rules).
  */
 export function MessageActionSheet({
   visible,
@@ -59,7 +61,8 @@ export function MessageActionSheet({
   onReact: (emoji: string) => void;
   /** Open the FULL emoji picker (all unicode + this surface's custom emoji). */
   onMore?: () => void;
-  onReply: () => void;
+  /** Reply — omitted where there is no composer to reply with (a blocked DM). */
+  onReply?: () => void;
   /** Copy the message text to the clipboard — passed only when it has text (B2). */
   onCopy?: () => void;
   /** Pin / unpin (M17) — passed ONLY when the viewer is allowed to (§35). */
@@ -73,6 +76,7 @@ export function MessageActionSheet({
   onClose: () => void;
 }) {
   const { t } = useAppTranslation();
+  const { width: windowWidth } = useWindowDimensions();
   const [confirming, setConfirming] = useState(false);
   // Closing resets to the menu, so the next open never starts on a left-over
   // confirm. (Not keyed on `preview`: that object is rebuilt on every thread
@@ -81,6 +85,12 @@ export function MessageActionSheet({
   useEffect(() => {
     if (!visible) setConfirming(false);
   }, [visible]);
+
+  const quick = quickReactionLayout(
+    windowWidth - 2 * (space.sm + space.xs),
+    emojis.length,
+    onMore !== undefined,
+  );
 
   const snippet = preview ? replyPreviewText(preview.content, t("mobile:search.attachmentOnly")) : "";
 
@@ -150,7 +160,9 @@ export function MessageActionSheet({
       contentPadding={space.sm}
     >
       {header}
-      {/* Quick reactions — one tap reacts (or un-reacts) and closes. */}
+      {/* Quick reactions — one tap reacts (or un-reacts) and closes. Sized
+          from the window (sheet padding + row padding = 2 × (sm + xs)) so the
+          "more" button always fits, down to a 320dp phone. */}
       <View
         style={{
           flexDirection: "row",
@@ -159,7 +171,7 @@ export function MessageActionSheet({
           paddingBottom: space.sm,
         }}
       >
-        {emojis.map((emoji) => {
+        {emojis.slice(0, quick.count).map((emoji) => {
           const mine = myReactions?.has(emoji) ?? false;
           return (
             <Touchable
@@ -173,14 +185,14 @@ export function MessageActionSheet({
               accessibilityState={{ selected: mine }}
               accessibilityLabel={t("mobile:message.reactWith", { emoji })}
               style={{
-                width: 44,
-                height: 44,
+                width: quick.cell,
+                height: quick.cell,
                 borderRadius: radius.pill,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Text style={{ fontSize: 22, lineHeight: 28 }}>{emoji}</Text>
+              <Text style={{ fontSize: quick.cell >= 42 ? 22 : 20, lineHeight: 28 }}>{emoji}</Text>
             </Touchable>
           );
         })}
@@ -193,8 +205,8 @@ export function MessageActionSheet({
             accessibilityRole="button"
             accessibilityLabel={t("mobile:message.reactMore")}
             style={{
-              width: 44,
-              height: 44,
+              width: quick.cell,
+              height: quick.cell,
               borderRadius: radius.pill,
               alignItems: "center",
               justifyContent: "center",
@@ -205,11 +217,13 @@ export function MessageActionSheet({
         ) : null}
       </View>
 
-      <ActionRow
-        icon={<Reply size={20} color={colors.fgMuted} />}
-        label={t("mobile:message.reply")}
-        onPress={onReply}
-      />
+      {onReply ? (
+        <ActionRow
+          icon={<Reply size={20} color={colors.fgMuted} />}
+          label={t("mobile:message.reply")}
+          onPress={onReply}
+        />
+      ) : null}
       {onCopy ? (
         <ActionRow
           icon={<Copy size={20} color={colors.fgMuted} />}
