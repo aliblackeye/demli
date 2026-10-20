@@ -110,6 +110,116 @@ export function RadioGroup({
   );
 }
 
+/**
+ * Shared wiring for every option shape: registration for roving focus, the
+ * checked/disabled state, and the arrow-key handler. Kept private so RadioItem
+ * and RadioCard can never disagree about how the group behaves.
+ */
+function useRadioOption(value: string, disabled: boolean) {
+  const ctx = React.useContext(RadioContext);
+  if (!ctx) throw new Error("Radio options must be rendered inside a RadioGroup");
+  const checked = ctx.value === value;
+  const isDisabled = disabled || ctx.disabled;
+  const { register } = ctx;
+  const ref = React.useCallback(
+    (node: HTMLButtonElement | null) => register(value, node, isDisabled),
+    [register, value, isDisabled],
+  );
+  const optionProps = {
+    ref,
+    type: "button" as const,
+    role: "radio" as const,
+    "aria-checked": checked,
+    disabled: isDisabled,
+    tabIndex: ctx.focusValue === value ? 0 : -1,
+    "data-state": checked ? "checked" : "unchecked",
+    onClick: () => ctx.select(value),
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const delta = KEY_MOVES[event.key];
+      if (delta !== undefined) {
+        event.preventDefault();
+        ctx.move(value, delta);
+      }
+    },
+  };
+  return { checked, optionProps };
+}
+
+export interface RadioCardProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> {
+  value: string;
+  label: React.ReactNode;
+  /** Second line (a bitrate, a resolution, a one-line hint). */
+  detail?: React.ReactNode;
+  /** Optional leading glyph (lucide icon element). */
+  icon?: React.ReactNode;
+  /** `center` for compact preset grids, `start` for wider cards with an icon. */
+  align?: "center" | "start";
+}
+
+/**
+ * One option drawn as a CARD — for segmented preset grids (quality tiers,
+ * frame rates, channel type) where a radio dot would be noise. Same group
+ * semantics as {@link RadioItem} (one tab stop, arrows move AND select). The
+ * selected card takes the coral wash plus a coral inner trace, so selection
+ * reads without relying on colour alone (the trace is a shape change too).
+ */
+export function RadioCard({
+  value,
+  label,
+  detail,
+  icon,
+  align = "center",
+  disabled = false,
+  className,
+  ...props
+}: RadioCardProps): JSX.Element {
+  const { checked, optionProps } = useRadioOption(value, disabled);
+  return (
+    <button
+      {...optionProps}
+      className={cn(
+        "flex min-w-0 cursor-pointer gap-3 rounded-lg px-3 py-2.5",
+        align === "center" ? "flex-col items-center gap-0.5 text-center" : "items-start text-left",
+        "transition-[background-color,box-shadow,color] motion-hover",
+        checked
+          ? "bg-accent-surface shadow-[inset_0_0_0_1px_rgb(255_132_100/0.45)]"
+          : "bg-raised/60 hover:bg-raised active:bg-raised-pressed",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app",
+        "disabled:pointer-events-none disabled:opacity-40",
+        className,
+      )}
+      {...props}
+    >
+      {icon && (
+        <span
+          aria-hidden
+          className={cn(
+            "flex shrink-0 items-center justify-center transition-colors motion-hover [&_svg]:size-4",
+            align === "start" && "mt-0.5",
+            checked ? "text-accent" : "text-fg-faint",
+          )}
+        >
+          {icon}
+        </span>
+      )}
+      <span className="flex min-w-0 flex-col">
+        <span
+          className={cn(
+            "truncate text-sm font-medium leading-5 transition-colors motion-hover",
+            checked ? "text-accent-hover" : "text-fg",
+          )}
+        >
+          {label}
+        </span>
+        {detail && (
+          <span className={cn("text-2xs leading-4 text-fg-faint", align === "center" && "line-clamp-2")}>{detail}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
 export interface RadioItemProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> {
   value: string;

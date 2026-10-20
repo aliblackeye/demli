@@ -1,17 +1,23 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, Hash, Loader2, Volume2 } from "lucide-react";
+import { m } from "framer-motion";
+import { Hash, Volume2 } from "lucide-react";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
-  cn,
+  RadioCard,
+  RadioGroup,
+  RadioItem,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { FormErrorAlert, springs } from "@demli/app-ui";
 import { CHANNEL_NAME_MAX_LENGTH } from "@demli/config";
 import type { ChannelKind, RoleId } from "@demli/types";
 import { errorKey, type CommonErrorKey } from "../lib/errors";
@@ -20,6 +26,8 @@ import { useCategories, useCreateChannel, useGroups, useRoles } from "../queries
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import { NsfwToggle } from "./NsfwToggle";
+import { HelpWithCount } from "./settings-kit";
+import { ROLE_COLOR_FALLBACK } from "./server-settings/shared";
 
 type FormError = CommonErrorKey | "desktop:createChannel.nameRequired";
 type Visibility = "public" | "restricted";
@@ -48,6 +56,7 @@ export function CreateChannelDialog(): JSX.Element {
   const [selectedRoles, setSelectedRoles] = useState<Set<RoleId>>(new Set());
   const [nsfw, setNsfw] = useState(false);
   const [error, setError] = useState<FormError | null>(null);
+  const [touched, setTouched] = useState(false);
 
   const createChannel = useCreateChannel(activeGroupId);
 
@@ -59,6 +68,7 @@ export function CreateChannelDialog(): JSX.Element {
       setSelectedRoles(new Set());
       setNsfw(false);
       setError(null);
+      setTouched(false);
     }
   }, [open]);
 
@@ -76,6 +86,7 @@ export function CreateChannelDialog(): JSX.Element {
     if (createChannel.isPending) return;
     const trimmed = name.trim();
     if (trimmed.length === 0) {
+      setTouched(true);
       setError("desktop:createChannel.nameRequired");
       return;
     }
@@ -102,9 +113,15 @@ export function CreateChannelDialog(): JSX.Element {
     );
   };
 
+  const nameError =
+    error === "desktop:createChannel.nameRequired" || (touched && name.trim().length === 0)
+      ? t("desktop:createChannel.nameRequired")
+      : undefined;
+  const formError = error !== null && error !== "desktop:createChannel.nameRequired" ? t(error) : null;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{t("desktop:createChannel.title")}</DialogTitle>
           <DialogDescription>
@@ -119,176 +136,131 @@ export function CreateChannelDialog(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          <form onSubmit={onSubmit}>
-            {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
+        <form onSubmit={onSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-5">
+            {formError && <FormErrorAlert>{formError}</FormErrorAlert>}
 
-            <div
-              role="radiogroup"
-              aria-label={t("desktop:createChannel.typeLabel")}
-              className="mb-4 space-y-1"
-            >
-              {(
-                [
-                  {
-                    value: "text",
-                    label: t("desktop:createChannel.textLabel"),
-                    hint: t("desktop:createChannel.textHint"),
-                    icon: Hash,
-                  },
-                  {
-                    value: "voice",
-                    label: t("desktop:createChannel.voiceLabel"),
-                    hint: t("desktop:createChannel.voiceHint"),
-                    icon: Volume2,
-                  },
-                ] as const
-              ).map((option) => {
-                const selected = kind === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setKind(option.value)}
-                    className={cn(
-                      "flex w-full cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-left",
-                      "transition-colors motion-instant",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                      selected
-                        ? "border-accent/60 bg-accent/10 text-fg"
-                        : "border-stroke bg-raised text-fg-muted hover:border-stroke-strong hover:text-fg",
-                    )}
-                  >
-                    <option.icon className="size-4 shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">{option.label}</span>
-                      <span className="block text-xs text-fg-faint">{option.hint}</span>
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              <p id="create-channel-type" className="text-label font-medium text-fg-muted">
+                {t("desktop:createChannel.typeLabel")}
+              </p>
+              <RadioGroup
+                value={kind}
+                onValueChange={(next) => setKind(next as ChannelKind)}
+                aria-labelledby="create-channel-type"
+                className="grid grid-cols-2 gap-2"
+              >
+                <RadioCard
+                  value="text"
+                  align="start"
+                  icon={<Hash />}
+                  label={t("desktop:createChannel.textLabel")}
+                  detail={t("desktop:createChannel.textHint")}
+                />
+                <RadioCard
+                  value="voice"
+                  align="start"
+                  icon={<Volume2 />}
+                  label={t("desktop:createChannel.voiceLabel")}
+                  detail={t("desktop:createChannel.voiceHint")}
+                />
+              </RadioGroup>
             </div>
 
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={CHANNEL_NAME_MAX_LENGTH}
-              autoFocus
-              spellCheck={false}
-              placeholder={
-                kind === "text"
-                  ? t("desktop:createChannel.textPlaceholder")
-                  : t("desktop:createChannel.voicePlaceholder")
-              }
-              aria-label={t("desktop:createChannel.nameLabel")}
-            />
+            <Field
+              label={t("desktop:createChannel.nameLabel")}
+              error={nameError}
+              help={<HelpWithCount value={name} max={CHANNEL_NAME_MAX_LENGTH} />}
+            >
+              <Input
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (error === "desktop:createChannel.nameRequired") setError(null);
+                }}
+                onBlur={() => setTouched(true)}
+                maxLength={CHANNEL_NAME_MAX_LENGTH}
+                autoFocus
+                spellCheck={false}
+                placeholder={
+                  kind === "text"
+                    ? t("desktop:createChannel.textPlaceholder")
+                    : t("desktop:createChannel.voicePlaceholder")
+                }
+              />
+            </Field>
 
             {/* NSFW is a text-channel concept; hidden for voice. */}
             {kind === "text" && (
-              <div className="mt-4">
-                <NsfwToggle checked={nsfw} onChange={setNsfw} disabled={createChannel.isPending} />
-              </div>
+              <NsfwToggle checked={nsfw} onChange={setNsfw} disabled={createChannel.isPending} />
             )}
 
             {hasRoles && (
-              <div className="mt-5 space-y-3 border-t border-stroke pt-4">
-                <div>
-                  <p className="text-sm font-semibold text-fg">
+              <section aria-labelledby="create-channel-visibility" className="space-y-3">
+                <header className="space-y-1">
+                  <p id="create-channel-visibility" className="text-sm font-semibold text-fg">
                     {t("desktop:createChannel.visibilityTitle")}
                   </p>
-                  <p className="mt-0.5 text-2xs text-fg-faint">
-                    {t("desktop:visibility.note")}
-                  </p>
-                </div>
+                  <p className="text-label text-fg-faint">{t("desktop:visibility.note")}</p>
+                </header>
 
-                <div
-                  role="radiogroup"
-                  aria-label={t("desktop:createChannel.visibilityTitle")}
-                  className="space-y-1.5"
+                <RadioGroup
+                  value={visibility}
+                  onValueChange={(next) => setVisibility(next as Visibility)}
+                  aria-labelledby="create-channel-visibility"
+                  className="rounded-xl bg-surface p-1"
                 >
-                  {(["public", "restricted"] as Visibility[]).map((value) => {
-                    const on = visibility === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => setVisibility(value)}
-                        className={cn(
-                          "flex w-full items-start gap-2.5 rounded-md border p-2.5 text-left transition-colors",
-                          on
-                            ? "border-accent/50 bg-accent/[0.06]"
-                            : "border-stroke bg-raised/40 hover:bg-raised",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                            on ? "border-accent" : "border-stroke-strong",
-                          )}
-                        >
-                          {on && <span className="size-2 rounded-full bg-accent" />}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[13px] font-medium text-fg">
-                            {value === "public"
-                              ? t("desktop:visibility.everyone")
-                              : t("desktop:visibility.selectedRoles")}
-                          </span>
-                          <span className="block text-2xs text-fg-faint">
-                            {value === "public"
-                              ? t("desktop:visibility.everyoneDesc")
-                              : t("desktop:visibility.selectedRolesDesc")}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                  <RadioItem
+                    value="public"
+                    label={t("desktop:visibility.everyone")}
+                    description={t("desktop:visibility.everyoneDesc")}
+                  />
+                  <RadioItem
+                    value="restricted"
+                    label={t("desktop:visibility.selectedRoles")}
+                    description={t("desktop:visibility.selectedRolesDesc")}
+                  />
+                </RadioGroup>
 
                 {visibility === "restricted" && (
-                  <div className="space-y-px rounded-md border border-stroke p-1">
-                    {roles?.map((role) => {
-                      const on = selectedRoles.has(role.id);
-                      return (
-                        <button
-                          key={role.id}
-                          type="button"
-                          role="checkbox"
-                          aria-checked={on}
-                          onClick={() => toggleRole(role.id)}
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] text-fg-muted transition-colors hover:bg-white/[0.04]"
-                        >
-                          <span
-                            className={cn(
-                              "flex size-4 shrink-0 items-center justify-center rounded border",
-                              on ? "border-accent bg-accent text-on-accent" : "border-stroke-strong",
-                            )}
-                          >
-                            {on && <Check className="size-3" strokeWidth={3} />}
+                  <m.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0, transition: springs.position }}
+                    className="space-y-2.5 rounded-xl bg-surface px-4 py-3"
+                  >
+                    {roles?.map((role) => (
+                      <Checkbox
+                        key={role.id}
+                        checked={selectedRoles.has(role.id)}
+                        onCheckedChange={() => toggleRole(role.id)}
+                        label={
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              aria-hidden
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: role.color ?? ROLE_COLOR_FALLBACK }}
+                            />
+                            {role.name}
                           </span>
-                          <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: role.color ?? "#95a5a6" }}
-                          />
-                          <span className="min-w-0 truncate">{role.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        }
+                        className="flex"
+                      />
+                    ))}
+                  </m.div>
                 )}
-              </div>
+              </section>
             )}
+          </DialogBody>
 
-            <Button type="submit" disabled={createChannel.isPending} className="mt-4 w-full">
-              {createChannel.isPending && <Loader2 className="size-4 animate-spin" />}
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={createChannel.isPending}>
+              {t("buttons.cancel")}
+            </Button>
+            <Button type="submit" variant="accent" loading={createChannel.isPending}>
               {t("desktop:sidebar.createChannel")}
             </Button>
-          </form>
-        </DialogBody>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

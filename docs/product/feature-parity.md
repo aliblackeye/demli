@@ -1681,3 +1681,44 @@ artık bunu vaat etmiyor; yasak kaldırma arayüzü ayrı bir iş.
 **Kanıt:** `apps/web/harness-profile.html` (yalnız geliştirme) gerçek bileşenleri sahte taşıma
 katmanıyla çizer; headless Chrome ile 0 konsol hatası, token/hover/odak/animasyon/azaltılmış
 hareket kontrolleri.
+
+## 2026-10-20 — M16 Dalga 3: ayarlar alanı Koyu Masa'da (masaüstü + web)
+
+Dal `feat/m16-ui-settings`. Ayarlar katmanı ve tüm bölümleri, sunucu ayarları sekmeleri,
+kanal/kategori/davet diyalogları, yıkıcı onaylar, Arkadaşlar, DM, grup sohbeti ve Son
+Aramalar yeni sistemde. Mobil karşılıklar Dalga 4 ekran taramasında (aşağıdaki ⏳ satırları
+o dalganın iş listesidir).
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Ayarlar tam ekran katman (açılış/kapanış hareketi, kayan mercan seçim hapı, ok tuşlarıyla gezinme, ESC ipucu) | ✅ | — (mobil zaten tam ekran yığın) | Dar web ≤899px master/detail korunur; detay sayfası yandan gelir |
+| Kaydedilmemiş profil taslağı yerel bölümlere geçişte de korunur | ✅ (hata düzeltmesi) | ✅ (`beforeRemove`) | Eskiden Mikrofon/Sesler/Dil gibi yerel bölüme tıklamak taslağı uyarısız siliyordu |
+| Takma ad satır-içi düzenleyicide Esc yalnız düzenlemeyi iptal eder | ✅ (hata düzeltmesi) | — | Eskiden Esc tüm ayarları kapatıyordu |
+| Ayarlar içinden açılan onaylar katmanın ÜSTÜNDE (diğer oturumları kapat, engeli kaldır) | ✅ (hata düzeltmesi) | — | Engeli kaldır onayı ayarların arkasında görünmez açılıyordu |
+| Başarısız sistem ayarı / oturum kapatma / üye atma / istek kabul hataları söylenir | ✅ | ⏳ Dalga 4 | Eskiden sessizce yutuluyordu (§26) |
+| Web'de tepsi / açılışta başlat anahtarları gösterilmez | ✅ | — | Web köprüsü bunları hiç uygulamıyordu; anahtarlar geri sekiyordu |
+| Sunucu ayarları: kaydedilmemiş-değişiklik çubuğu (Genel + rol düzenleyici), kapatma/sekme değişimi reddedilip çubuk uyarır | ✅ | ⏳ Dalga 4 | Genel sekmesi artık kaydedince kapanmıyor; çubuk kaybolur |
+| Rol rengi: hazır renkler + özel renk (renk seçici + doğrulanan #hex) + canlı önizleme, izinler anahtar satırı | ✅ | ⏳ Dalga 4 | |
+| Üyeler sekmesinde arama, rol menüsü onay kutulu | ✅ | ⏳ Dalga 4 | 100+ üyede `useDeferredValue` + `content-visibility` |
+| Emoji yükleyici: sürükle-bırak, önizleme, canlı ad doğrulama, kullanım göstergesi | ✅ | ⏳ Dalga 4 | |
+| Diyaloglarda canlı doğrulama + karakter sayacı; davet bağlantısı yapıştırınca kod gösterimi | ✅ | ⏳ Dalga 4 | |
+| Panoya kopyala: kopyalandı durumu + duyuru, kopyalanamazsa söylenir ve değer seçili gelir | ✅ | — (mobil paylaşım sayfası) | |
+| Arkadaşlar: sekme çubuğu, arama, durum satırı, iskelet/boş/hata | ✅ | ⏳ Dalga 4 | |
+| Grup sohbeti yükleniyor iskeleti + başlıklı hata; DM/grup başlıkları 64px | ✅ | ⏳ Dalga 4 | |
+| Rol / üye / sunucu ayarları yüklenemezse hata + yeniden dene (eskiden "henüz rol yok, oluştur" ya da sessizce salt-okunur Genel sekmesi) | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Roller yüklenmezse Üyeler sekmesi bunu söyler |
+| Sunucu taslağı başka yerden değişirse: temiz form yeni değeri izler, kirli form "başka yerden değişti" der + "Son hâlini yükle" | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Eskiden uzak düzenleme formu sahte-kirli yapıp diyaloğu kilitliyordu |
+| Rol düzenleyici dar ekranda alt alta (sarılan rol hapları + tam genişlik düzenleyici) | ✅ (390px) | — | Konteyner sorgusu: diyalog genişliğine bakar |
+| Kaydedilmemiş-çubuk uyarısı klavye odağını korur, sebebi aynı canlı bölgede duyurur | ✅ (denetim düzeltmesi) | — | |
+| Ayarlar katmanı ve güncelleme bildirimi içindeki ipuçları (tooltip) görünür | ✅ (denetim düzeltmesi) | — | İpucu her katmanın üstünde (z-150) |
+| Tek hata bloğu: ayarlar, Arkadaşlar, Son Aramalar, grup sohbeti; oturum hataları Türkçe | ✅ | ⏳ Dalga 4 | |
+| Dar ayarlar listesinde görünür klavye odağı (mercan halka) | ✅ | — | |
+
+**Kanıt:** `apps/web/harness-settings.html` (yalnız geliştirme, build'e girmez) gerçek
+bileşenleri bellek-içi sahte API ile çalıştırır; Playwright + sistem Chrome senaryoları
+(ayarlar, sunucu ayarları, diyaloglar, arkadaş/DM/grup/aramalar, güncellemeler, 390px,
+azaltılmış hareket) 0 konsol hatası/uyarısıyla geçti. Denetim turu düzeltmeleri aynı sayfada 86 kontrolle
+yeniden sürüldü (zorla başarısız okumalar `?failReads=`, uzak düzenleme `__harness.remote`).
+
+**Bilinen açık:** `MessageList` DM ve grup akışında da "#Ad kanalına hoş geldin" girişi
+gösteriyor (sohbet alanı sahibinin dosyası). Profil bölümünün kendi kaydet/vazgeç akışı
+ayrı sahipte; ayarlar katmanındaki kaydedilmemiş-değişiklik çubuğu ona bağlanmadı.

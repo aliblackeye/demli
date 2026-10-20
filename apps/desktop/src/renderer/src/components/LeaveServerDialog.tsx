@@ -1,14 +1,4 @@
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
-import {
-  Button,
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
 import { Trans } from "@demli/i18n";
 import { errorKey, type CommonErrorKey } from "../lib/errors";
@@ -16,6 +6,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { useGroups, useLeaveGroup } from "../queries/chat-queries";
 import { useAuthStore } from "../stores/auth-store";
 import { useUiStore } from "../stores/ui-store";
+import { ConfirmDialog } from "./settings-kit";
 
 /**
  * Confirm leaving a server (self-removal). Opened from the GroupRail context
@@ -46,7 +37,7 @@ export function LeaveServerDialog(): JSX.Element {
   };
 
   return (
-    <Dialog
+    <ConfirmDialog
       open={groupId !== null}
       onOpenChange={(next) => {
         if (!next) {
@@ -54,50 +45,23 @@ export function LeaveServerDialog(): JSX.Element {
           closeLeaveServer();
         }
       }}
+      title={t("desktop:rail.leaveServer")}
+      description={group?.name ?? t("desktop:leaveServer.thisServer")}
+      confirmLabel={t("desktop:rail.leaveServer")}
+      cancelLabel={t("buttons.cancel")}
+      closeLabel={t("buttons.close")}
+      onConfirm={onLeave}
+      pending={leaveGroup.isPending}
+      error={error ? <FormErrorAlert>{t(error)}</FormErrorAlert> : undefined}
     >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("desktop:rail.leaveServer")}</DialogTitle>
-          <DialogDescription>
-            {group?.name ?? t("desktop:leaveServer.thisServer")}
-          </DialogDescription>
-        </DialogHeader>
-
-        <DialogBody>
-          {error && (
-            <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>
-          )}
-
-          <p className="text-sm leading-relaxed text-fg-muted">
-            <Trans
-              t={t}
-              i18nKey="desktop:leaveServer.body"
-              values={{ server: group?.name ?? "" }}
-              components={{ strong: <span className="font-medium text-fg" /> }}
-            />
-          </p>
-
-          <div className="mt-5 flex gap-2">
-            <Button
-              variant="danger"
-              disabled={leaveGroup.isPending}
-              onClick={onLeave}
-              className="flex-1"
-            >
-              {leaveGroup.isPending && <Loader2 className="size-4 animate-spin" />}
-              {t("desktop:rail.leaveServer")}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={leaveGroup.isPending}
-              onClick={() => closeLeaveServer()}
-              className="flex-1"
-            >
-              {t("buttons.cancel")}
-            </Button>
-          </div>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
+      <p className="text-sm leading-relaxed text-fg-muted">
+        <Trans
+          t={t}
+          i18nKey="desktop:leaveServer.body"
+          values={{ server: group?.name ?? "" }}
+          components={{ strong: <span className="font-medium text-fg" /> }}
+        />
+      </p>
+    </ConfirmDialog>
   );
 }

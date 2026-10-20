@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { Hash, Volume2 } from "lucide-react";
 import {
   Button,
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
   Input,
-  cn,
+  RadioCard,
+  RadioGroup,
+  Select,
+  Textarea,
 } from "@demli/ui";
 import { FormErrorAlert } from "@demli/app-ui";
 import {
@@ -34,6 +39,7 @@ import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import { ChannelVisibilitySection } from "./server-settings/ChannelVisibilitySection";
 import { NsfwToggle } from "./NsfwToggle";
+import { DangerZone, HelpWithCount } from "./settings-kit";
 
 const DESCRIPTION_MAX_LENGTH = 280;
 
@@ -83,14 +89,6 @@ type FormError =
   | "desktop:channelSettings.maxInvalid"
   | "desktop:channelSettings.bitrateInvalid";
 
-/** Native <select> styled to match the Input primitive (dark-first). */
-const selectClass = [
-  "h-9 w-full rounded-md border border-stroke bg-raised px-2.5 text-sm text-fg",
-  "transition-colors motion-instant",
-  "focus:outline-none focus-visible:border-accent/60 focus-visible:ring-2 focus-visible:ring-accent/30",
-  "disabled:pointer-events-none disabled:opacity-50",
-].join(" ");
-
 /** Snap a stored slow-mode value to the closest preset so the select can show it. */
 function nearestSlowmodePreset(seconds: number): number {
   if (SLOWMODE_PRESETS.includes(seconds)) return seconds;
@@ -123,6 +121,7 @@ export function ChannelSettingsDialog(): JSX.Element {
   const [nsfw, setNsfw] = useState(false);
   const [error, setError] = useState<FormError | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   /** Danger zone — scrolled into view when the dialog opens with delete intent (task #1). */
   const dangerZoneRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +151,7 @@ export function ChannelSettingsDialog(): JSX.Element {
     );
     setNsfw(channel.nsfw ?? false);
     setError(null);
+    setNameTouched(false);
     // Opened from the context-menu Delete: jump straight to the confirm step and
     // reveal the danger zone rather than the generic editor (task #1).
     const deleteIntent = useUiStore.getState().channelSettingsIntent === "delete";
@@ -168,6 +168,7 @@ export function ChannelSettingsDialog(): JSX.Element {
     if (busy || !channelId || !channel) return;
     const trimmedName = name.trim();
     if (trimmedName.length === 0) {
+      setNameTouched(true);
       setError("desktop:channelSettings.nameRequired");
       return;
     }
@@ -242,37 +243,55 @@ export function ChannelSettingsDialog(): JSX.Element {
     });
   };
 
-  const textareaClass = cn(
-    "w-full resize-none rounded-md border border-stroke bg-raised px-3 py-2 text-sm text-fg",
-    "placeholder:text-fg-faint transition-colors motion-instant",
-    "focus:outline-none focus-visible:border-accent/60 focus-visible:ring-2 focus-visible:ring-accent/30",
-  );
+  const nameError =
+    error === "desktop:channelSettings.nameRequired" || (nameTouched && name.trim().length === 0)
+      ? t("desktop:channelSettings.nameRequired")
+      : undefined;
+  const maxError = error === "desktop:channelSettings.maxInvalid" ? t(error) : undefined;
+  const formError =
+    error !== null &&
+    error !== "desktop:channelSettings.nameRequired" &&
+    error !== "desktop:channelSettings.maxInvalid"
+      ? t(error)
+      : null;
+  const customBitrate =
+    audioBitrateKbps !== "" &&
+    Number.isFinite(Number(audioBitrateKbps)) &&
+    !isAudioBitratePreset(Number(audioBitrateKbps));
+  const slowmodeOptions = SLOWMODE_PRESETS.map((preset) => ({
+    value: String(preset),
+    label: slowmodeLabel(preset, t),
+  }));
 
   return (
     <Dialog open={channelId !== null} onOpenChange={(next) => !next && closeChannelSettings()}>
-      <DialogContent>
+      <DialogContent closeLabel={t("buttons.close")} className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("desktop:channelSettings.title")}</DialogTitle>
-          <DialogDescription>
-            {isVoice
-              ? t("desktop:channelSettings.voiceChannel")
-              : t("desktop:channelSettings.textChannel")}
+          <DialogDescription className="inline-flex items-center gap-1.5">
+            {isVoice ? <Volume2 aria-hidden className="size-3.5" /> : <Hash aria-hidden className="size-3.5" />}
+            {isVoice ? t("desktop:channelSettings.voiceChannel") : t("desktop:channelSettings.textChannel")}
             {channel ? ` — ${channel.name}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody>
-          {error && <FormErrorAlert className="mb-3">{t(error)}</FormErrorAlert>}
+        <DialogBody className="space-y-7">
+          {formError && <FormErrorAlert>{formError}</FormErrorAlert>}
 
-          <form onSubmit={onSave} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="channel-name" className="block text-xs font-semibold text-fg-muted">
-                {t("desktop:channelSettings.name")}
-              </label>
+          <form id="channel-settings-form" onSubmit={onSave} noValidate className="space-y-5">
+            <Field
+              label={t("desktop:channelSettings.name")}
+              error={nameError}
+              help={<HelpWithCount value={name} max={CHANNEL_NAME_MAX_LENGTH} />}
+            >
               <Input
                 id="channel-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (error === "desktop:channelSettings.nameRequired") setError(null);
+                }}
+                onBlur={() => setNameTouched(true)}
                 maxLength={CHANNEL_NAME_MAX_LENGTH}
                 spellCheck={false}
                 placeholder={
@@ -280,130 +299,96 @@ export function ChannelSettingsDialog(): JSX.Element {
                     ? t("desktop:channelSettings.namePlaceholderVoice")
                     : t("desktop:channelSettings.namePlaceholderText")
                 }
-                aria-label={t("desktop:createChannel.nameLabel")}
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1.5">
-              <label htmlFor="channel-topic" className="block text-xs font-semibold text-fg-muted">
-                {t("desktop:channelSettings.topic")}{" "}
-                <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
-              </label>
-              <textarea
+            <Field
+              label={
+                <>
+                  {t("desktop:channelSettings.topic")}{" "}
+                  <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
+                </>
+              }
+              help={<HelpWithCount value={description} max={DESCRIPTION_MAX_LENGTH} />}
+            >
+              <Textarea
                 id="channel-topic"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 maxLength={DESCRIPTION_MAX_LENGTH}
                 rows={3}
                 placeholder={t("desktop:channelSettings.topicPlaceholder")}
-                aria-label={t("desktop:channelSettings.topic")}
-                className={textareaClass}
+                className="resize-none"
               />
-            </div>
+            </Field>
 
             {isVoice ? (
               <>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="channel-max"
-                    className="block text-xs font-semibold text-fg-muted"
-                  >
-                    {t("desktop:channelSettings.maxParticipants")}{" "}
-                    <span className="font-normal text-fg-faint">
-                      {t("desktop:profile.optional")}
-                    </span>
-                  </label>
+                <Field
+                  label={
+                    <>
+                      {t("desktop:channelSettings.maxParticipants")}{" "}
+                      <span className="font-normal text-fg-faint">{t("desktop:profile.optional")}</span>
+                    </>
+                  }
+                  error={maxError}
+                  help={t("desktop:channelSettings.maxNote")}
+                >
                   <Input
                     id="channel-max"
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     step={1}
                     value={maxParticipants}
-                    onChange={(event) => setMaxParticipants(event.target.value)}
+                    onChange={(event) => {
+                      setMaxParticipants(event.target.value);
+                      if (error === "desktop:channelSettings.maxInvalid") setError(null);
+                    }}
                     placeholder={t("desktop:channelSettings.noLimit")}
-                    aria-label={t("desktop:channelSettings.maxParticipants")}
-                    className="w-32"
+                    className="w-36"
                   />
-                  <p className="text-2xs text-fg-faint">
-                    {t("desktop:channelSettings.maxNote")}
-                  </p>
-                </div>
+                </Field>
 
-                <div className="space-y-1.5">
-                  <span className="block text-xs font-semibold text-fg-muted">
+                <div className="space-y-2">
+                  <p id="channel-bitrate-label" className="text-label font-medium text-fg-muted">
                     {t("desktop:channelSettings.bitrate")}{" "}
-                    <span className="font-normal text-fg-faint">
-                      {t("desktop:channelSettings.bitrateUnit")}
-                    </span>
-                  </span>
-                  <div
-                    role="radiogroup"
-                    aria-label={t("desktop:channelSettings.bitrateAria")}
-                    className="grid grid-cols-2 gap-1"
+                    <span className="font-normal text-fg-faint">{t("desktop:channelSettings.bitrateUnit")}</span>
+                  </p>
+                  {/* Media default, then the offered steps. A channel already set
+                      to something else keeps its own option below, so opening this
+                      dialog can never silently downgrade it. */}
+                  <RadioGroup
+                    value={audioBitrateKbps === "" ? "default" : audioBitrateKbps}
+                    onValueChange={(next) => setAudioBitrateKbps(next === "default" ? "" : next)}
+                    disabled={busy}
+                    aria-labelledby="channel-bitrate-label"
+                    className="grid grid-cols-2 gap-1.5"
                   >
-                    {/* Media default, then the offered steps. A channel already set
-                        to something else keeps its own option below, so opening this
-                        dialog can never silently downgrade it. */}
-                    {BITRATE_OPTIONS.map((option) => {
-                      const selected = audioBitrateKbps === option.value;
-                      return (
-                        <button
-                          key={option.value || "default"}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          disabled={busy}
-                          onClick={() => setAudioBitrateKbps(option.value)}
-                          className={cn(
-                            "cursor-pointer rounded-md border px-2 py-2 text-left transition-colors motion-instant",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                            selected
-                              ? "border-accent/60 bg-accent/10"
-                              : "border-stroke bg-raised hover:border-stroke-strong",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "block text-sm font-medium",
-                              selected ? "text-fg" : "text-fg-muted",
-                            )}
-                          >
-                            {t(option.labelKey)}
-                          </span>
-                          <span className="mt-0.5 block text-2xs leading-tight text-fg-faint">
-                            {option.hint ?? t("desktop:channelSettings.bitrateDefaultHint")}
-                          </span>
-                        </button>
-                      );
-                    })}
+                    {BITRATE_OPTIONS.map((option) => (
+                      <RadioCard
+                        key={option.value || "default"}
+                        value={option.value || "default"}
+                        align="start"
+                        label={t(option.labelKey)}
+                        detail={option.hint ?? t("desktop:channelSettings.bitrateDefaultHint")}
+                      />
+                    ))}
                     {/* The channel's existing value when it is not one of the offered
                         steps (set before the presets landed, or via the API). Shown
                         honestly as a custom value and kept selected rather than being
                         snapped to a neighbour — snapping would change a configuration
                         the owner never touched. */}
-                    {audioBitrateKbps !== "" &&
-                      Number.isFinite(Number(audioBitrateKbps)) &&
-                      !isAudioBitratePreset(Number(audioBitrateKbps)) && (
-                        <button
-                          type="button"
-                          role="radio"
-                          aria-checked
-                          disabled={busy}
-                          onClick={() => undefined}
-                          className="cursor-default rounded-md border border-accent/60 bg-accent/10 px-2 py-2 text-left"
-                        >
-                          <span className="block text-sm font-medium text-fg">
-                            {t("desktop:channelSettings.bitrateCustom")}
-                          </span>
-                          <span className="mt-0.5 block text-2xs leading-tight text-fg-faint">
-                            {`${Number(audioBitrateKbps)} kbps`}
-                          </span>
-                        </button>
-                      )}
-                  </div>
-                  <p className="text-2xs text-fg-faint">
-                    {t("desktop:channelSettings.bitrateNote")}
-                  </p>
+                    {customBitrate && (
+                      <RadioCard
+                        value={audioBitrateKbps}
+                        align="start"
+                        label={t("desktop:channelSettings.bitrateCustom")}
+                        detail={`${Number(audioBitrateKbps)} kbps`}
+                      />
+                    )}
+                  </RadioGroup>
+                  <p className="text-label text-fg-faint">{t("desktop:channelSettings.bitrateNote")}</p>
                 </div>
               </>
             ) : (
@@ -416,86 +401,51 @@ export function ChannelSettingsDialog(): JSX.Element {
                 second-class one — the API has accepted it since the backend
                 wave. Note it is deliberately OUTSIDE the kind branch above, so
                 there is one field, not a copy per arm. */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="channel-slowmode"
-                className="block text-xs font-semibold text-fg-muted"
-              >
-                {t("desktop:channelSettings.slowmode")}
-              </label>
-              <select
+            <Field
+              label={t("desktop:channelSettings.slowmode")}
+              help={
+                isVoice ? t("desktop:channelSettings.slowmodeVoiceNote") : t("desktop:channelSettings.slowmodeNote")
+              }
+            >
+              <Select
                 id="channel-slowmode"
+                options={slowmodeOptions}
                 value={slowmodeSeconds}
-                onChange={(event) => setSlowmodeSeconds(event.target.value)}
-                aria-label={t("desktop:channelSettings.slowmode")}
-                className={selectClass}
-              >
-                {SLOWMODE_PRESETS.map((preset) => (
-                  <option key={preset} value={String(preset)}>
-                    {slowmodeLabel(preset, t)}
-                  </option>
-                ))}
-              </select>
-              <p className="text-2xs text-fg-faint">
-                {isVoice
-                  ? t("desktop:channelSettings.slowmodeVoiceNote")
-                  : t("desktop:channelSettings.slowmodeNote")}
-              </p>
-            </div>
-
-            <Button type="submit" disabled={busy} className="w-full">
-              {updateChannel.isPending && <Loader2 className="size-4 animate-spin" />}
-              {t("desktop:channelSettings.save")}
-            </Button>
+                onValueChange={setSlowmodeSeconds}
+                placeholder={t("desktop:channelSettings.slowmodeOff")}
+              />
+            </Field>
           </form>
 
           {canManageChannels && channelId && activeGroupId && (
-            <ChannelVisibilitySection groupId={activeGroupId} channelId={channelId} />
+            <div className="pt-6 shadow-[inset_0_1px_0_var(--color-stroke)]">
+              <ChannelVisibilitySection groupId={activeGroupId} channelId={channelId} />
+            </div>
           )}
 
-          <div
-            ref={dangerZoneRef}
-            className="mt-6 rounded-lg border border-danger/30 bg-danger/[0.06] p-4"
-          >
-            <p className="text-sm font-semibold text-fg">{t("desktop:channel.delete")}</p>
-            <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-              {t("desktop:channelSettings.deleteNote")}
-            </p>
-            {confirmingDelete ? (
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  disabled={busy}
-                  onClick={onDelete}
-                  className="flex-1"
-                >
-                  {deleteChannel.isPending && <Loader2 className="size-4 animate-spin" />}
-                  {t("desktop:channelSettings.confirmDelete")}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setConfirmingDelete(false)}
-                  className="flex-1"
-                >
-                  {t("buttons.cancel")}
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => setConfirmingDelete(true)}
-                className="mt-3 border-danger/40 text-danger hover:bg-danger/10"
-              >
-                {t("desktop:channel.delete")}
-              </Button>
-            )}
-          </div>
+          <DangerZone
+            innerRef={dangerZoneRef}
+            title={t("desktop:channel.delete")}
+            body={t("desktop:channelSettings.deleteNote")}
+            actionLabel={t("desktop:channel.delete")}
+            confirmLabel={t("desktop:channelSettings.confirmDelete")}
+            cancelLabel={t("buttons.cancel")}
+            onConfirm={onDelete}
+            pending={deleteChannel.isPending}
+            disabled={updateChannel.isPending}
+            confirming={confirmingDelete}
+            onConfirmingChange={setConfirmingDelete}
+          />
         </DialogBody>
+
+        <DialogFooter className="pt-4 shadow-[inset_0_1px_0_var(--color-stroke)]">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => closeChannelSettings()}>
+            {t("buttons.cancel")}
+          </Button>
+          <Button type="submit" form="channel-settings-form" variant="accent" loading={updateChannel.isPending} disabled={deleteChannel.isPending}>
+            {t("desktop:channelSettings.save")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

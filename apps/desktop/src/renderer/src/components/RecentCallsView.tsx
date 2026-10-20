@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import {
-  Loader2,
   Phone,
   PhoneCall,
   PhoneIncoming,
@@ -16,13 +15,15 @@ import {
   TooltipTrigger,
   UserAvatar,
   cn,
+  iconButtonVariants,
 } from "@demli/ui";
-import { EmptyState, RetryNotice } from "@demli/app-ui";
+import { EmptyState } from "@demli/app-ui";
 import type { UserId } from "@demli/types";
 import { isCallLive } from "@demli/client-core";
 import type { RecentCall } from "../lib/api-client";
 import { getCallController, useCallState } from "../lib/call-controller";
 import { localizeError } from "../lib/errors";
+import { InlineError } from "./settings-kit";
 import { useAppTranslation, type AppTFunction } from "../lib/i18n";
 import { formatDuration, formatMessageTimestamp } from "../lib/time";
 import { useRecentCalls } from "../queries/call-queries";
@@ -49,6 +50,7 @@ export function RecentCallsView(): JSX.Element {
     isPending,
     error,
     refetch,
+    isFetching,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -67,9 +69,9 @@ export function RecentCallsView(): JSX.Element {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-app">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-stroke px-4">
-        <PhoneCall className="size-[18px] shrink-0 text-fg-muted" />
-        <h1 className="shrink-0 text-sm font-semibold text-fg">
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-stroke px-4">
+        <PhoneCall aria-hidden className="size-5 shrink-0 text-fg-faint" />
+        <h1 className="shrink-0 font-display text-base font-medium text-fg-display">
           {t("desktop:recentCalls.title")}
         </h1>
         {/* Desktop app-update badge — the top-right corner on every surface. */}
@@ -82,11 +84,14 @@ export function RecentCallsView(): JSX.Element {
         {isPending ? (
           <RecentCallsSkeleton />
         ) : error ? (
-          <RetryNotice
-            message={localizeError(error, t)}
-            retryLabel={t("buttons.retry")}
-            onRetry={() => void refetch()}
-          />
+          <div className="px-4 pt-4">
+            <InlineError
+              message={localizeError(error, t)}
+              retryLabel={t("buttons.retry")}
+              onRetry={() => void refetch()}
+              retrying={isFetching}
+            />
+          </div>
         ) : calls.length === 0 ? (
           <EmptyState
             icon={<PhoneCall className="size-6" />}
@@ -94,8 +99,8 @@ export function RecentCallsView(): JSX.Element {
             body={t("desktop:recentCalls.emptyBody")}
           />
         ) : (
-          <div className="px-4 pb-4">
-            <ul>
+          <div className="px-4 pb-6 pt-3">
+            <ul className="space-y-0.5">
               {calls.map((entry) => (
                 <RecentCallRow
                   key={entry.id}
@@ -107,18 +112,14 @@ export function RecentCallsView(): JSX.Element {
               ))}
             </ul>
             {hasNextPage && (
-              <div className="flex justify-center pt-3">
+              <div className="flex justify-center pt-4">
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={isFetchingNextPage}
+                  loading={isFetchingNextPage}
                   onClick={() => void fetchNextPage()}
                 >
-                  {isFetchingNextPage ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    t("desktop:recentCalls.loadMore")
-                  )}
+                  {t("desktop:recentCalls.loadMore")}
                 </Button>
               </div>
             )}
@@ -139,12 +140,9 @@ function RecentCallsSkeleton(): JSX.Element {
   const { t } = useAppTranslation();
   const rowWidths = ["w-28", "w-36", "w-24", "w-32", "w-40", "w-24"];
   return (
-    <ul role="status" aria-label={t("desktop:recentCalls.loading")} className="px-4 pb-4">
+    <ul role="status" aria-label={t("desktop:recentCalls.loading")} className="space-y-0.5 px-4 pb-4 pt-3">
       {rowWidths.map((width, index) => (
-        <li
-          key={index}
-          className="flex h-16 items-center gap-3 border-t border-stroke/60 px-2 first:border-t-0"
-        >
+        <li key={index} className="flex h-16 items-center gap-3 px-3">
           <Skeleton shape="circle" width={32} />
           <div className="min-w-0 flex-1">
             <Skeleton shape="line" height={14} className={width} />
@@ -229,27 +227,30 @@ function RecentCallRow({
         : t("desktop:recentCalls.callBack");
 
   const callButton = (
-    <Button
-      variant="secondary"
-      size="icon"
+    <button
+      type="button"
       aria-label={isVideo ? t("desktop:recentCalls.callBackVideo") : t("desktop:recentCalls.callBack")}
       disabled={!canCall}
       onClick={callBack}
-      className="opacity-0 transition-opacity motion-instant group-hover:opacity-100 focus-visible:opacity-100"
+      className={cn(
+        iconButtonVariants({ variant: "solid", size: "md" }),
+        "bg-raised text-fg hover:bg-accent hover:text-on-accent active:bg-accent-pressed active:text-on-accent",
+        "opacity-0 transition-[opacity,background-color,color] motion-hover group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+      )}
     >
-      {isVideo ? <Video className="size-4" /> : <Phone className="size-4" />}
-    </Button>
+      {isVideo ? <Video /> : <Phone />}
+    </button>
   );
 
   return (
-    <li className="group flex h-16 items-center gap-2 border-t border-stroke/60 px-2 first:border-t-0">
+    <li className="group flex h-16 items-center gap-2 rounded-lg px-3 transition-colors motion-hover content-visibility-row hover:bg-hover focus-within:bg-hover">
       <button
         type="button"
-        aria-label={t("desktop:recentCalls.openConversation")}
+        aria-label={`${t("desktop:recentCalls.openConversation")}: ${call.peer.displayName}`}
         onClick={() => onOpenDm(call.peer.id)}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 rounded-md text-left",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         )}
       >
         <UserAvatar
@@ -277,16 +278,16 @@ function RecentCallRow({
           </span>
           <span
             className={cn(
-              "mt-0.5 block truncate text-xs",
-              missed ? "text-danger/80" : "text-fg-faint",
+              "mt-0.5 block truncate text-label",
+              missed ? "text-danger" : "text-fg-faint",
             )}
           >
             {callSummary(call, t)}
           </span>
         </span>
-        <span className="shrink-0 text-xs text-fg-faint">
+        <time dateTime={call.createdAt} className="shrink-0 text-label tabular-nums text-fg-faint">
           {formatMessageTimestamp(call.createdAt, t)}
-        </span>
+        </time>
       </button>
       <Tooltip>
         <TooltipTrigger asChild>

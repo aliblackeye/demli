@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Demli — settings area harness (dev only)</title>
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      DEV-ONLY page. Vite's production build has index.html as its single entry,
+      so this file and src/harness/* never reach a bundle. See
+      src/harness/settings/main.tsx for what it covers.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/harness/settings/main.tsx"></script>
+  </body>
+</html>

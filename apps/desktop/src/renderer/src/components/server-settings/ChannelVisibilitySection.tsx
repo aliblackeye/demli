@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
-import { Button, cn } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { m } from "framer-motion";
+import { Check } from "lucide-react";
+import { Button, Checkbox, RadioGroup, RadioItem, Skeleton } from "@demli/ui";
+import { FormErrorAlert, springs } from "@demli/app-ui";
 import type { ChannelId, GroupId, RoleId } from "@demli/types";
 import { errorKey, type CommonErrorKey } from "../../lib/errors";
 import { useAppTranslation } from "../../lib/i18n";
 import { useChannelRoles, useRoles, useSetChannelRoles } from "../../queries/chat-queries";
+import { ROLE_COLOR_FALLBACK } from "./shared";
 
 type Mode = "public" | "restricted";
 
@@ -61,100 +63,78 @@ export function ChannelVisibilitySection({
   };
 
   return (
-    <div className="mt-6 space-y-3 border-t border-stroke pt-5">
-      <div>
-        <p className="text-sm font-semibold text-fg">{t("desktop:visibility.title")}</p>
-        <p className="mt-0.5 text-2xs text-fg-faint">{t("desktop:visibility.note")}</p>
-      </div>
+    <section aria-labelledby="channel-visibility-title" className="space-y-3">
+      <header className="space-y-1">
+        <h3 id="channel-visibility-title" className="text-sm font-semibold text-fg">
+          {t("desktop:visibility.title")}
+        </h3>
+        <p className="text-label text-fg-faint">{t("desktop:visibility.note")}</p>
+      </header>
 
-      {error && (
-        <FormErrorAlert>{t(error)}</FormErrorAlert>
-      )}
+      {error && <FormErrorAlert>{t(error)}</FormErrorAlert>}
 
-      <div className="space-y-1.5">
-        {(["public", "restricted"] as Mode[]).map((value) => (
-          <label
-            key={value}
-            className="flex cursor-pointer items-start gap-2.5 rounded-md border border-stroke bg-raised/40 p-2.5 transition-colors hover:bg-raised has-[:checked]:border-accent/50 has-[:checked]:bg-accent/[0.06]"
-          >
-            <input
-              type="radio"
-              name="channel-visibility"
-              value={value}
-              checked={mode === value}
-              onChange={() => {
-                setMode(value);
-                setSaved(false);
-              }}
-              className="mt-0.5 size-4 shrink-0 accent-accent"
-            />
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium text-fg">
-                {value === "public"
-                  ? t("desktop:visibility.everyone")
-                  : t("desktop:visibility.selectedRoles")}
-              </span>
-              <span className="block text-2xs text-fg-faint">
-                {value === "public"
-                  ? t("desktop:visibility.everyoneDesc")
-                  : t("desktop:visibility.selectedRolesDesc")}
-              </span>
-            </span>
-          </label>
-        ))}
-      </div>
+      <RadioGroup
+        value={mode}
+        onValueChange={(next) => {
+          setMode(next as Mode);
+          setSaved(false);
+        }}
+        aria-labelledby="channel-visibility-title"
+        className="rounded-xl bg-surface p-1"
+      >
+        <RadioItem value="public" label={t("desktop:visibility.everyone")} description={t("desktop:visibility.everyoneDesc")} />
+        <RadioItem
+          value="restricted"
+          label={t("desktop:visibility.selectedRoles")}
+          description={t("desktop:visibility.selectedRolesDesc")}
+        />
+      </RadioGroup>
 
       {mode === "restricted" && (
-        <div className="space-y-px rounded-md border border-stroke p-1">
+        <m.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0, transition: springs.position }}
+          className="space-y-2.5 rounded-xl bg-surface px-4 py-3"
+        >
           {isPending && (
-            <p className="px-2 py-1.5 text-2xs text-fg-faint">
-              {t("desktop:serverSettings.loading")}
-            </p>
+            <div aria-hidden className="space-y-2.5">
+              <Skeleton shape="line" height={12} className="w-28" />
+              <Skeleton shape="line" height={12} className="w-20" />
+            </div>
           )}
-          {roles?.length === 0 && (
-            <p className="px-2 py-1.5 text-2xs text-fg-faint">
-              {t("desktop:visibility.noRoles")}
-            </p>
-          )}
-          {roles?.map((role) => {
-            const on = selected.has(role.id);
-            return (
-              <button
-                key={role.id}
-                type="button"
-                role="checkbox"
-                aria-checked={on}
-                onClick={() => toggle(role.id)}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] text-fg-muted transition-colors hover:bg-white/[0.04]"
-              >
-                <span
-                  className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded border",
-                    on ? "border-accent bg-accent text-on-accent" : "border-stroke-strong",
-                  )}
-                >
-                  {on && <Check className="size-3" strokeWidth={3} />}
+          {roles?.length === 0 && <p className="text-label text-fg-faint">{t("desktop:visibility.noRoles")}</p>}
+          {roles?.map((role) => (
+            <Checkbox
+              key={role.id}
+              checked={selected.has(role.id)}
+              onCheckedChange={() => toggle(role.id)}
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: role.color ?? ROLE_COLOR_FALLBACK }}
+                  />
+                  {role.name}
                 </span>
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: role.color ?? "#95a5a6" }}
-                />
-                <span className="min-w-0 truncate">{role.name}</span>
-              </button>
-            );
-          })}
-        </div>
+              }
+              className="flex"
+            />
+          ))}
+        </m.div>
       )}
 
-      <div className="flex items-center gap-2">
-        <Button size="sm" onClick={onSave} disabled={setChannelRoles.isPending}>
-          {setChannelRoles.isPending && <Loader2 className="size-3.5 animate-spin" />}
+      <div className="flex items-center gap-3">
+        <Button variant="secondary" size="sm" onClick={onSave} loading={setChannelRoles.isPending}>
           {t("desktop:visibility.save")}
         </Button>
         {saved && !setChannelRoles.isPending && (
-          <span className="text-2xs text-online">{t("desktop:visibility.saved")}</span>
+          <span role="status" className="inline-flex items-center gap-1 text-label font-medium text-success">
+            <Check aria-hidden className="size-3.5" />
+            {t("desktop:visibility.saved")}
+          </span>
         )}
       </div>
-    </div>
+    </section>
   );
 }

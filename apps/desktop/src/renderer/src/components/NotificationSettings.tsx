@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { Bell, BellOff, Check } from "lucide-react";
-import { cn } from "@demli/ui";
+import { Bell, BellOff, BellRing, Check, Info } from "lucide-react";
+import { Button } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { isWebSurface } from "../lib/surface";
 import { useNotificationSettings } from "../notifications/notification-settings";
@@ -8,6 +8,7 @@ import {
   useWebNotificationPermission,
   webNotificationsSupported,
 } from "../notifications/web-permission";
+import { SettingRow, SettingsGroup, SettingsNote } from "./settings-kit";
 import { Toggle } from "./Toggle";
 
 /**
@@ -54,40 +55,23 @@ function WebPermissionRow(): JSX.Element {
           ? t("desktop:notificationSettings.permissionUnsupported")
           : t("desktop:notificationSettings.permissionDefault");
 
+  const icon = status === "granted" ? Check : status === "denied" || status === "unsupported" ? BellOff : BellRing;
+
   return (
-    <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-      <div className="flex min-w-0 gap-3">
-        {status === "granted" ? (
-          <Check className="mt-0.5 size-4 shrink-0 text-success" />
-        ) : status === "denied" || status === "unsupported" ? (
-          <BellOff className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-        ) : (
-          <Bell className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-        )}
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-fg">
-            {t("desktop:notificationSettings.permission")}
-          </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">{description}</p>
-        </div>
-      </div>
-      {status === "default" && (
-        <button
-          type="button"
-          disabled={requesting}
+    <SettingRow icon={icon} title={t("desktop:notificationSettings.permission")} description={description}>
+      {status === "default" ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={requesting}
           onClick={() => {
             void request();
           }}
-          className={cn(
-            "shrink-0 rounded-md border border-stroke bg-surface px-3 py-1.5 text-xs font-medium text-fg",
-            "transition-colors hover:bg-raised disabled:opacity-60",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-          )}
         >
           {t("desktop:notificationSettings.permissionEnable")}
-        </button>
-      )}
-    </div>
+        </Button>
+      ) : undefined}
+    </SettingRow>
   );
 }
 
@@ -112,37 +96,23 @@ export function NotificationSettings(): JSX.Element {
   const showPermissionRow = isWeb && webNotificationsSupported();
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-stroke bg-surface p-1.5">
-        <h2 className="px-3.5 pb-1 pt-2.5 text-sm font-semibold text-fg">
-          {t("desktop:notificationSettings.heading")}
-        </h2>
-        <div className="divide-y divide-stroke/60">
-          <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-            <div className="flex min-w-0 gap-3">
-              <Bell className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-fg">
-                  {t("desktop:notificationSettings.enable")}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">
-                  {t("desktop:notificationSettings.enableDesc")}
-                </p>
-              </div>
-            </div>
-            <Toggle
-              checked={enabled}
-              disabled={!hasBridge}
-              onChange={setEnabled}
-              label={t("desktop:notificationSettings.enable")}
-            />
-          </div>
-          {showPermissionRow && <WebPermissionRow />}
-        </div>
-      </section>
-      <p className="text-xs leading-relaxed text-fg-faint">
-        {t("desktop:notificationSettings.note")}
-      </p>
+    <div className="space-y-8">
+      <SettingsGroup title={t("desktop:notificationSettings.heading")}>
+        <SettingRow
+          icon={Bell}
+          title={t("desktop:notificationSettings.enable")}
+          description={t("desktop:notificationSettings.enableDesc")}
+        >
+          <Toggle
+            checked={enabled}
+            disabled={!hasBridge}
+            onChange={setEnabled}
+            label={t("desktop:notificationSettings.enable")}
+          />
+        </SettingRow>
+        {showPermissionRow && <WebPermissionRow />}
+      </SettingsGroup>
+      <SettingsNote icon={Info}>{t("desktop:notificationSettings.note")}</SettingsNote>
     </div>
   );
 }

@@ -1,21 +1,25 @@
-import { useState } from "react";
-import { Check, ChevronDown, Crown, Loader2, UserMinus } from "lucide-react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { m } from "framer-motion";
+import { ChevronDown, Crown, Search, UserMinus, Users } from "lucide-react";
 import {
   Button,
+  Chip,
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
+  IconButton,
+  Input,
+  Skeleton,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   UserAvatar,
-  cn,
 } from "@demli/ui";
-import { FormErrorAlert } from "@demli/app-ui";
+import { EmptyState, FormErrorAlert, springs } from "@demli/app-ui";
 import type { GroupId, Role, RoleId, UserId } from "@demli/types";
 import type { GroupMemberWithUser } from "../../lib/api-client";
-import { errorKey, type CommonErrorKey } from "../../lib/errors";
+import { errorKey, localizeError, type CommonErrorKey } from "../../lib/errors";
 import { useAppTranslation } from "../../lib/i18n";
 import {
   useGroupDetails,
@@ -25,6 +29,22 @@ import {
 } from "../../queries/chat-queries";
 import { indexRoles, memberColor } from "../../lib/permissions";
 import { useAuthStore } from "../../stores/auth-store";
+import { InlineError, SettingsLabel } from "../settings-kit";
+import { ROLE_COLOR_FALLBACK } from "./shared";
+
+/**
+ * One sentence for a failed kick. A transport/server failure is already covered
+ * by "… atılamadı. Tekrar dene." — appending the generic line would say "try
+ * again" twice. Only a SPECIFIC reason (no permission, member already gone,
+ * rate limit) is worth adding, and then it replaces the retry advice.
+ */
+function kickFailureMessage(err: unknown, name: string, t: ReturnType<typeof useAppTranslation>["t"]): string {
+  const key = errorKey(err);
+  if (key === "errors.generic" || key === "errors.server" || key === "errors.network") {
+    return t("desktop:settingsUi.kickFailed", { name });
+  }
+  return t("desktop:settingsUi.kickFailedReason", { name, reason: t(key) });
+}
 
 /** Multi-select role assignment for one member. Keeps the menu open per toggle. */
 function RoleAssignMenu({
@@ -44,42 +64,34 @@ function RoleAssignMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" size="sm" disabled={disabled}>
-          {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        <Button variant="secondary" size="sm" disabled={disabled} loading={pending}>
           {t("desktop:serverSettings.roles")}
           <ChevronDown className="size-3.5 text-fg-muted" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end" className="w-56">
         {roles.length === 0 ? (
-          <p className="px-2 py-1.5 text-2xs text-fg-faint">
-            {t("desktop:serverSettings.noRolesToAssign")}
-          </p>
+          <p className="px-2 py-1.5 text-label text-fg-faint">{t("desktop:serverSettings.noRolesToAssign")}</p>
         ) : (
           roles.map((role) => {
             const on = assigned.has(role.id);
             return (
-              <DropdownMenuItem
+              <DropdownMenuCheckboxItem
                 key={role.id}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  onToggle(role.id, !on);
-                }}
+                checked={on}
+                // Keep the menu open: assigning several roles is one trip.
+                onSelect={(event) => event.preventDefault()}
+                onCheckedChange={(next) => onToggle(role.id, next === true)}
               >
-                <span
-                  className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded border",
-                    on ? "border-accent bg-accent text-on-accent" : "border-stroke-strong",
-                  )}
-                >
-                  {on && <Check className="size-3" strokeWidth={3} />}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: role.color ?? ROLE_COLOR_FALLBACK }}
+                  />
+                  <span className="min-w-0 truncate">{role.name}</span>
                 </span>
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: role.color ?? "#95a5a6" }}
-                />
-                <span className="min-w-0 truncate">{role.name}</span>
-              </DropdownMenuItem>
+              </DropdownMenuCheckboxItem>
             );
           })
         )}
@@ -130,110 +142,104 @@ function MemberRow({
   };
 
   return (
-    <li className="flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]">
-      <UserAvatar
-        name={member.user.displayName}
-        colorSeed={member.user.id}
-        src={member.user.avatarUrl}
-        size="sm"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span
-            className="truncate text-sm font-medium"
-            style={{ color: color ?? undefined }}
-          >
-            {member.user.displayName}
-          </span>
-          {isOwnerMember && (
-            <Crown
-              aria-label={t("desktop:serverSettings.owner")}
-              className="size-3 shrink-0 text-idle"
-            />
+    <li className="rounded-lg px-3 py-2.5 transition-colors motion-hover content-visibility-row hover:bg-hover">
+      <div className="flex items-center gap-3">
+        <UserAvatar name={member.user.displayName} colorSeed={member.user.id} src={member.user.avatarUrl} size="sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-fg" style={{ color: color ?? undefined }}>
+              {member.user.displayName}
+            </span>
+            {isOwnerMember && (
+              <Crown aria-label={t("desktop:serverSettings.owner")} className="size-3.5 shrink-0 text-warning" />
+            )}
+            <span className="truncate text-label text-fg-faint">@{member.user.username}</span>
+          </div>
+          {memberRoles.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {memberRoles.map((role) => (
+                <Chip key={role.id} variant="role" dotColor={role.color ?? ROLE_COLOR_FALLBACK} className="py-0.5 text-2xs">
+                  {role.name}
+                </Chip>
+              ))}
+            </div>
           )}
         </div>
-        {memberRoles.length > 0 && (
-          <div className="mt-0.5 flex flex-wrap gap-1">
-            {memberRoles.map((role) => (
-              <span
-                key={role.id}
-                className="inline-flex items-center gap-1 rounded-full border border-stroke bg-raised/60 px-1.5 py-px text-badge text-fg-muted"
-              >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: role.color ?? "#95a5a6" }}
-                />
-                {role.name}
-              </span>
-            ))}
-          </div>
+
+        {canManageRoles &&
+          (isGuest ? (
+            // Guests can't hold roles — explain the disabled control rather than
+            // leaving a dead, unexplained button (task #17).
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex" tabIndex={0}>
+                  <Button variant="secondary" size="sm" disabled>
+                    {t("desktop:serverSettings.roles")}
+                    <ChevronDown className="size-3.5 text-fg-muted" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t("desktop:serverSettings.guestNoRoles")}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <RoleAssignMenu
+              roles={roles}
+              assigned={assigned}
+              disabled={assignPending}
+              pending={assignPending}
+              onToggle={toggleRole}
+            />
+          ))}
+
+        {canKick && !isOwnerMember && !isSelf && !confirmKick && (
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={t("desktop:serverSettings.kickName", { name: member.user.displayName })}
+            onClick={() => {
+              kick.reset();
+              setConfirmKick(true);
+            }}
+            className="hover:bg-danger-surface hover:text-danger"
+          >
+            <UserMinus />
+          </IconButton>
         )}
       </div>
 
-      {canManageRoles &&
-        (isGuest ? (
-          // Guests can't hold roles — explain the disabled control rather than
-          // leaving a dead, unexplained button (task #17).
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button variant="secondary" size="sm" disabled>
-                  {t("desktop:serverSettings.roles")}
-                  <ChevronDown className="size-3.5 text-fg-muted" />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {t("desktop:serverSettings.guestNoRoles")}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <RoleAssignMenu
-            roles={roles}
-            assigned={assigned}
-            disabled={assignPending}
-            pending={assignPending}
-            onToggle={toggleRole}
-          />
-        ))}
-
-      {canKick && !isOwnerMember && !isSelf ? (
-        confirmKick ? (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={kick.isPending}
-              onClick={() =>
-                kick.mutate(member.userId, { onSettled: () => setConfirmKick(false) })
-              }
-            >
-              {kick.isPending && <Loader2 className="size-3.5 animate-spin" />}
-              {t("desktop:serverSettings.kick")}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmKick(false)}>
-              {t("buttons.cancel")}
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("desktop:serverSettings.kickName", {
-              name: member.user.displayName,
-            })}
-            onClick={() => setConfirmKick(true)}
-            className="text-fg-faint hover:bg-danger/10 hover:text-danger"
-          >
-            <UserMinus className="size-4" />
+      {confirmKick && (
+        <m.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0, transition: springs.position }}
+          className="mt-2.5 flex flex-wrap items-center gap-2 rounded-lg bg-danger-surface px-3 py-2 pl-11"
+        >
+          <p className="min-w-0 flex-1 text-label text-fg">
+            {t("desktop:serverSettings.kickName", { name: member.user.displayName })}
+          </p>
+          <Button variant="ghost" size="sm" disabled={kick.isPending} onClick={() => setConfirmKick(false)}>
+            {t("buttons.cancel")}
           </Button>
-        )
-      ) : null}
+          <Button
+            variant="danger"
+            size="sm"
+            loading={kick.isPending}
+            onClick={() => kick.mutate(member.userId, { onSuccess: () => setConfirmKick(false) })}
+          >
+            {t("desktop:serverSettings.kick")}
+          </Button>
+          {/* A failed kick is said on the row it failed on (§26). */}
+          {kick.isError && (
+            <p role="alert" className="w-full text-label text-danger">
+              {kickFailureMessage(kick.error, member.user.displayName, t)}
+            </p>
+          )}
+        </m.div>
+      )}
     </li>
   );
 }
 
-/** Members tab: member list with role chips, role assignment, and kick. */
+/** Members tab: searchable member list with role chips, role assignment, and kick. */
 export function MembersTab({
   groupId,
   canManageRoles,
@@ -244,54 +250,112 @@ export function MembersTab({
   canKick: boolean;
 }): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: details } = useGroupDetails(groupId);
-  const { data: roles } = useRoles(groupId);
+  const detailsQuery = useGroupDetails(groupId);
+  const { data: details, isPending } = detailsQuery;
+  const rolesQuery = useRoles(groupId);
+  const { data: roles } = rolesQuery;
   const currentUserId = useAuthStore((s) => s.user?.id);
   const setMemberRoles = useSetMemberRoles(groupId);
   const [error, setError] = useState<CommonErrorKey | null>(null);
+  const [query, setQuery] = useState("");
+  // Filtering 100+ rows on every keystroke stays smooth: the list renders the
+  // deferred term while the field itself never waits.
+  const deferredQuery = useDeferredValue(query);
 
   const ownerId = details?.group.ownerId;
-  const rolesById = indexRoles(roles);
-  const members = [...(details?.members ?? [])].sort((a, b) =>
-    a.user.displayName.localeCompare(b.user.displayName),
+  const rolesById = useMemo(() => indexRoles(roles), [roles]);
+  const members = useMemo(
+    () => [...(details?.members ?? [])].sort((a, b) => a.user.displayName.localeCompare(b.user.displayName)),
+    [details],
   );
+  const filtered = useMemo(() => {
+    const term = deferredQuery.trim().toLocaleLowerCase();
+    if (term.length === 0) return members;
+    return members.filter(
+      (m) =>
+        m.user.displayName.toLocaleLowerCase().includes(term) ||
+        m.user.username.toLocaleLowerCase().includes(term),
+    );
+  }, [members, deferredQuery]);
 
   const onAssign = (userId: UserId, roleIds: RoleId[]): void => {
     setError(null);
-    setMemberRoles.mutate(
-      { userId, roleIds },
-      { onError: (err) => setError(errorKey(err)) },
-    );
+    setMemberRoles.mutate({ userId, roleIds }, { onError: (err) => setError(errorKey(err)) });
   };
 
   return (
-    <div className="space-y-2">
-      {error && (
-        <FormErrorAlert>{t(error)}</FormErrorAlert>
+    <div className="space-y-3">
+      {error && <FormErrorAlert>{t(error)}</FormErrorAlert>}
+      <div className="relative">
+        <Search aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-fg-faint" />
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("desktop:settingsUi.memberSearch")}
+          aria-label={t("desktop:settingsUi.memberSearch")}
+          className="pl-10"
+        />
+      </div>
+      {details && (
+        <SettingsLabel>
+          {canManageRoles
+            ? t("desktop:serverSettings.memberCountAssign", { count: members.length })
+            : t("desktop:serverSettings.memberCount", { count: members.length })}
+        </SettingsLabel>
       )}
-      <p className="text-2xs text-fg-faint">
-        {canManageRoles
-          ? t("desktop:serverSettings.memberCountAssign", { count: members.length })
-          : t("desktop:serverSettings.memberCount", { count: members.length })}
-      </p>
-      <ul className="space-y-px">
-        {members.map((member) => (
-          <MemberRow
-            key={member.userId}
-            member={member}
-            ownerId={ownerId}
-            currentUserId={currentUserId}
-            roles={roles ?? []}
-            rolesById={rolesById}
-            canManageRoles={canManageRoles}
-            canKick={canKick}
-            assignPending={
-              setMemberRoles.isPending && setMemberRoles.variables?.userId === member.userId
-            }
-            onAssign={onAssign}
-          />
-        ))}
-      </ul>
+
+      {/* Members still list without roles, but the missing chips and an empty
+          role menu are explained rather than passed off as "no roles". */}
+      {details && rolesQuery.isError && !roles && (
+        <InlineError
+          message={t("desktop:settingsUi.memberRolesLoadFailed")}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void rolesQuery.refetch()}
+          retrying={rolesQuery.isFetching}
+        />
+      )}
+      {detailsQuery.isError && !details ? (
+        // A failed load is a failure, not "no member matches" an empty query.
+        <InlineError
+          message={localizeError(detailsQuery.error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void detailsQuery.refetch()}
+          retrying={detailsQuery.isFetching}
+        />
+      ) : isPending ? (
+        <ul aria-hidden className="space-y-1">
+          {[0, 1, 2, 3].map((i) => (
+            <li key={i} className="flex items-center gap-3 px-3 py-2.5">
+              <Skeleton shape="circle" width={32} />
+              <Skeleton shape="line" height={13} className={i % 2 ? "w-28" : "w-40"} />
+            </li>
+          ))}
+        </ul>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Users className="size-6" />}
+          title={t("desktop:settingsUi.memberNoMatch", { query: deferredQuery.trim() })}
+          className="py-10"
+        />
+      ) : (
+        <ul className="space-y-px">
+          {filtered.map((member) => (
+            <MemberRow
+              key={member.userId}
+              member={member}
+              ownerId={ownerId}
+              currentUserId={currentUserId}
+              roles={roles ?? []}
+              rolesById={rolesById}
+              canManageRoles={canManageRoles}
+              canKick={canKick}
+              assignPending={setMemberRoles.isPending && setMemberRoles.variables?.userId === member.userId}
+              onAssign={onAssign}
+            />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

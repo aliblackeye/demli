@@ -1,5 +1,6 @@
-import { MonitorPlay, Video } from "lucide-react";
-import { cn } from "@demli/ui";
+import { useId } from "react";
+import { MonitorPlay } from "lucide-react";
+import { RadioCard, RadioGroup, cn } from "@demli/ui";
 import {
   CAMERA_FRAME_RATES,
   CAMERA_QUALITIES,
@@ -17,6 +18,7 @@ import {
 } from "@demli/media";
 import { useAppTranslation } from "../lib/i18n";
 import { useMediaSettings } from "../stores/media-settings";
+import { SettingsBlock, SettingsGroup, SettingsNote } from "./settings-kit";
 
 const CAMERA_QUALITY_LABEL = {
   auto: "desktop:videoSettings.cameraAuto",
@@ -30,14 +32,7 @@ const SCREEN_RESOLUTION_LABEL = {
   "1440p": "2K",
 } as const satisfies Record<ScreenShareResolution, string>;
 
-function Section({ children }: { children: React.ReactNode }): JSX.Element {
-  return <section className="rounded-xl border border-stroke bg-surface p-1.5">{children}</section>;
-}
-function SectionHeading({ children }: { children: string }): JSX.Element {
-  return <h2 className="px-3.5 pb-1 pt-2.5 text-sm font-semibold text-fg">{children}</h2>;
-}
-
-/** A labelled radio row of preset cards (label + optional detail line). */
+/** A labelled radio grid of preset cards (label + optional detail line). */
 function PresetRow<T extends string | number>({
   label,
   options,
@@ -53,54 +48,36 @@ function PresetRow<T extends string | number>({
   onSelect: (value: T) => void;
   labelFor: (value: T) => string;
   detailFor?: (value: T) => string;
-  columns: number;
+  columns: 2 | 3 | 4;
 }): JSX.Element {
+  const labelId = useId();
   return (
-    <div className="p-1.5">
-      <p className="px-2 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-fg-faint">
+    <SettingsBlock className="space-y-2 p-3">
+      <p id={labelId} className="px-1 text-label font-medium text-fg-muted">
         {label}
       </p>
-      <div
-        role="radiogroup"
-        aria-label={label}
-        className="grid gap-1"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      <RadioGroup
+        value={String(selected)}
+        onValueChange={(next) => {
+          const match = options.find((option) => String(option) === next);
+          if (match !== undefined) onSelect(match);
+        }}
+        aria-labelledby={labelId}
+        className={cn(
+          "grid gap-1.5",
+          columns === 2 ? "grid-cols-2" : columns === 3 ? "grid-cols-3" : "grid-cols-4",
+        )}
       >
-        {options.map((value) => {
-          const isSelected = value === selected;
-          return (
-            <button
-              key={String(value)}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              onClick={() => onSelect(value)}
-              className={cn(
-                "cursor-pointer rounded-md border px-2 py-2 text-center transition-colors motion-instant",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                isSelected
-                  ? "border-accent/60 bg-accent/10"
-                  : "border-stroke bg-raised hover:border-stroke-strong",
-              )}
-            >
-              <span
-                className={cn(
-                  "block text-sm font-medium",
-                  isSelected ? "text-fg" : "text-fg-muted",
-                )}
-              >
-                {labelFor(value)}
-              </span>
-              {detailFor && (
-                <span className="mt-0.5 block truncate text-2xs text-fg-faint">
-                  {detailFor(value)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+        {options.map((value) => (
+          <RadioCard
+            key={String(value)}
+            value={String(value)}
+            label={labelFor(value)}
+            detail={detailFor?.(value)}
+          />
+        ))}
+      </RadioGroup>
+    </SettingsBlock>
   );
 }
 
@@ -135,9 +112,8 @@ export function VideoSettingsForm(): JSX.Element {
   };
 
   return (
-    <div className="space-y-6">
-      <Section>
-        <SectionHeading>{t("desktop:videoSettings.cameraHeading")}</SectionHeading>
+    <div className="space-y-8">
+      <SettingsGroup title={t("desktop:videoSettings.cameraHeading")}>
         <PresetRow<CameraQuality>
           label={t("desktop:videoSettings.cameraQuality")}
           options={CAMERA_QUALITIES}
@@ -147,20 +123,17 @@ export function VideoSettingsForm(): JSX.Element {
           detailFor={cameraDetail}
           columns={3}
         />
-        <div className="border-t border-stroke/60">
-          <PresetRow<CameraFrameRate>
-            label={t("desktop:videoSettings.frameRateLabel")}
-            options={CAMERA_FRAME_RATES}
-            selected={video.cameraFrameRate}
-            onSelect={setCameraFrameRate}
-            labelFor={(fps) => `${fps} FPS`}
-            columns={2}
-          />
-        </div>
-      </Section>
+        <PresetRow<CameraFrameRate>
+          label={t("desktop:videoSettings.frameRateLabel")}
+          options={CAMERA_FRAME_RATES}
+          selected={video.cameraFrameRate}
+          onSelect={setCameraFrameRate}
+          labelFor={(fps) => `${fps} FPS`}
+          columns={2}
+        />
+      </SettingsGroup>
 
-      <Section>
-        <SectionHeading>{t("desktop:videoSettings.screenHeading")}</SectionHeading>
+      <SettingsGroup title={t("desktop:videoSettings.screenHeading")}>
         <PresetRow<ScreenShareResolution>
           label={t("desktop:videoSettings.screenResolution")}
           options={SCREEN_SHARE_RESOLUTIONS}
@@ -170,23 +143,17 @@ export function VideoSettingsForm(): JSX.Element {
           detailFor={screenResolutionDetail}
           columns={4}
         />
-        <div className="border-t border-stroke/60">
-          <PresetRow<ScreenShareFrameRate>
-            label={t("desktop:videoSettings.frameRateLabel")}
-            options={SCREEN_SHARE_FRAME_RATES}
-            selected={frameRate}
-            onSelect={setScreenFrameRate}
-            labelFor={(fps) => `${fps} FPS`}
-            columns={3}
-          />
-        </div>
-      </Section>
+        <PresetRow<ScreenShareFrameRate>
+          label={t("desktop:videoSettings.frameRateLabel")}
+          options={SCREEN_SHARE_FRAME_RATES}
+          selected={frameRate}
+          onSelect={setScreenFrameRate}
+          labelFor={(fps) => `${fps} FPS`}
+          columns={3}
+        />
+      </SettingsGroup>
 
-      <div className="flex items-center gap-2">
-        <Video className="size-3.5 text-fg-faint" />
-        <MonitorPlay className="size-3.5 text-fg-faint" />
-        <p className="text-xs leading-relaxed text-fg-faint">{t("desktop:videoSettings.note")}</p>
-      </div>
+      <SettingsNote icon={MonitorPlay}>{t("desktop:videoSettings.note")}</SettingsNote>
     </div>
   );
 }

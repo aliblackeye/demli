@@ -1,9 +1,10 @@
-import { EyeOff, Loader2 } from "lucide-react";
+import { EyeOff, Info } from "lucide-react";
 import { Button, UserAvatar } from "@demli/ui";
 import { EmptyState, FormErrorAlert } from "@demli/app-ui";
 import { localizeError } from "../lib/errors";
 import { useAppTranslation } from "../lib/i18n";
 import { useIgnores, useUnignoreUser } from "../queries/social-queries";
+import { InlineError, ListSkeleton, SettingsLabel, SettingsNote } from "./settings-kit";
 
 /**
  * "Ignored users" settings section (ADR 0019 §4) — everyone the signed-in user
@@ -20,7 +21,7 @@ import { useIgnores, useUnignoreUser } from "../queries/social-queries";
  */
 export function IgnoredUsersSettings(): JSX.Element {
   const { t, i18n } = useAppTranslation();
-  const { data: ignores, isPending, error, refetch } = useIgnores();
+  const { data: ignores, isPending, error, refetch, isFetching } = useIgnores();
   const unignore = useUnignoreUser();
 
   const formatDate = (iso: string): string => {
@@ -35,64 +36,52 @@ export function IgnoredUsersSettings(): JSX.Element {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-fg">{t("desktop:ignore.settingsTitle")}</h2>
-        <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-          {t("desktop:ignore.settingsDescription")}
-        </p>
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <p className="text-sm leading-relaxed text-fg-muted">{t("desktop:ignore.settingsDescription")}</p>
         {/* The one sentence that keeps ignore and block from blurring together. */}
-        <p className="mt-1.5 text-xs leading-relaxed text-fg-faint">
-          {t("desktop:ignore.settingsVsBlock")}
-        </p>
+        <SettingsNote icon={Info}>{t("desktop:ignore.settingsVsBlock")}</SettingsNote>
       </div>
 
-      {isPending && (
-        <div role="status" className="flex items-center gap-2 py-4 text-sm text-fg-muted">
-          <Loader2 className="size-4 animate-spin" />
-          {t("desktop:moderationLog.loading")}
-        </div>
-      )}
+      {isPending && <ListSkeleton rows={3} label={t("desktop:moderationLog.loading")} />}
 
       {error && (
-        <div className="space-y-3">
-          <FormErrorAlert>{localizeError(error, t)}</FormErrorAlert>
-          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
-            {t("buttons.retry")}
-          </Button>
-        </div>
+        <InlineError
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
       )}
 
       {ignores && ignores.length === 0 && (
-        <EmptyState icon={<EyeOff className="size-6" />} title={t("desktop:ignore.settingsEmpty")} />
+        <EmptyState
+          icon={<EyeOff className="size-6" />}
+          title={t("desktop:ignore.settingsEmpty")}
+          className="py-10"
+        />
       )}
 
       {ignores && ignores.length > 0 && (
-        <>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-            {t("desktop:ignore.settingsCount", { count: ignores.length })}
-          </p>
-          <ul className="divide-y divide-stroke overflow-hidden rounded-lg border border-stroke bg-surface">
+        <div className="space-y-2">
+          <SettingsLabel>{t("desktop:ignore.settingsCount", { count: ignores.length })}</SettingsLabel>
+          <ul className="overflow-hidden rounded-xl bg-surface [&>*+*]:shadow-[inset_0_1px_0_var(--color-stroke)]">
             {ignores.map(({ user, createdAt }) => (
-              <li key={user.id} className="flex items-center gap-3 px-3 py-2.5">
-                <UserAvatar
-                  name={user.displayName}
-                  colorSeed={user.id}
-                  src={user.avatarUrl}
-                  size="sm"
-                />
+              <li
+                key={user.id}
+                className="flex items-center gap-3 px-4 py-3 transition-colors motion-hover content-visibility-row hover:bg-raised/40"
+              >
+                <UserAvatar name={user.displayName} colorSeed={user.id} src={user.avatarUrl} size="sm" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="min-w-0 truncate text-sm font-medium text-fg">
-                    {user.displayName}
-                  </span>
-                  <span className="min-w-0 truncate text-2xs text-fg-faint">
-                    @{user.username} ·{" "}
-                    {t("desktop:ignore.ignoredSince", { date: formatDate(createdAt) })}
+                  <span className="min-w-0 truncate text-sm font-medium text-fg">{user.displayName}</span>
+                  <span className="min-w-0 truncate text-label text-fg-faint">
+                    @{user.username} · {t("desktop:ignore.ignoredSince", { date: formatDate(createdAt) })}
                   </span>
                 </span>
                 <Button
                   variant="secondary"
                   size="sm"
+                  loading={unignore.isPending && unignore.variables === user.id}
                   disabled={unignore.isPending}
                   onClick={() => unignore.mutate(user.id)}
                 >
@@ -102,7 +91,7 @@ export function IgnoredUsersSettings(): JSX.Element {
             ))}
           </ul>
           {unignore.error && <FormErrorAlert>{localizeError(unignore.error, t)}</FormErrorAlert>}
-        </>
+        </div>
       )}
     </div>
   );

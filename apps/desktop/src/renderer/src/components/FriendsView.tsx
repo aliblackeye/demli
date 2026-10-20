@@ -1,16 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Check, Loader2, MessageSquare, UserPlus, Users, X } from "lucide-react";
-import {
-  Button,
-  Input,
-  Skeleton,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  UserAvatar,
-  cn,
-} from "@demli/ui";
-import { EmptyState, RetryNotice, SectionHeading } from "@demli/app-ui";
+import { m } from "framer-motion";
+import { Check, Loader2, MessageSquare, Search, UserPlus, Users, X } from "lucide-react";
+import { Button, IconButton, Input, Skeleton, UserAvatar, cn } from "@demli/ui";
+import { EmptyState, FormErrorAlert, SectionHeading, springs } from "@demli/app-ui";
 import type { FieldError, ValidationParams } from "@demli/client-core";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@demli/config";
 import type { PresenceStatus, User } from "@demli/types";
@@ -29,6 +21,7 @@ import { useChatStore } from "../stores/chat-store";
 import { MemberContextMenu } from "./MemberContextMenu";
 import { ProfileCard } from "./ProfileCard";
 import { UpdateBadge } from "./UpdateBadge";
+import { InlineError, SegmentedTabs, TabPanel, type SegmentedTab } from "./settings-kit";
 
 type FriendsTab = "online" | "all" | "pending" | "add";
 
@@ -41,7 +34,16 @@ const PRESENCE_RANK: Record<PresenceStatus, number> = {
 };
 
 /** A friend / request avatar+name that opens the profile popover on click. */
-function PersonButton({ user }: { user: User }): JSX.Element {
+const PRESENCE_LABEL = {
+  online: "desktop:members.online",
+  idle: "desktop:members.idle",
+  dnd: "desktop:members.dnd",
+  offline: "desktop:members.offline",
+  invisible: "desktop:members.offline",
+} as const satisfies Record<PresenceStatus, string>;
+
+function PersonButton({ user, showPresence = false }: { user: User; showPresence?: boolean }): JSX.Element {
+  const { t } = useAppTranslation();
   const presence = useChatStore((s) => s.presence[user.id] ?? "offline");
   const platform = useChatStore((s) => s.presencePlatforms[user.id]);
   return (
@@ -57,8 +59,8 @@ function PersonButton({ user }: { user: User }): JSX.Element {
           <button
             type="button"
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-3 rounded-md text-left",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+              "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
             )}
           >
             <UserAvatar
@@ -71,7 +73,10 @@ function PersonButton({ user }: { user: User }): JSX.Element {
             />
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-fg">{user.displayName}</span>
-              <span className="block truncate text-xs text-fg-faint">@{user.username}</span>
+              <span className="block truncate text-label text-fg-faint">
+                @{user.username}
+                {showPresence && ` · ${t(PRESENCE_LABEL[presence])}`}
+              </span>
             </span>
           </button>
         </ProfileCard>
@@ -90,13 +95,10 @@ function PeopleListSkeleton(): JSX.Element {
   const { t } = useAppTranslation();
   const nameWidths = ["w-24", "w-32", "w-20", "w-28", "w-36"];
   return (
-    <div role="status" aria-label={t("desktop:social.loading")} className="px-4">
-      <ul>
+    <div role="status" aria-label={t("desktop:social.loading")} className="px-4 pt-3">
+      <ul className="space-y-0.5">
         {nameWidths.map((width, index) => (
-          <li
-            key={index}
-            className="flex h-14 items-center gap-3 border-t border-stroke/60 px-2 first:border-t-0"
-          >
+          <li key={index} className="flex h-14 items-center gap-3 px-3">
             <Skeleton shape="circle" width={32} />
             <div className="min-w-0">
               <Skeleton shape="line" height={14} className={width} />
@@ -118,32 +120,24 @@ function FriendRow({ user }: { user: User }): JSX.Element {
   const { t } = useAppTranslation();
   const openDm = useOpenDm();
   return (
-    <li className="group flex min-h-14 flex-wrap items-center gap-2 border-t border-stroke/60 px-2 py-1 first:border-t-0">
-      <PersonButton user={user} />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="secondary"
-            size="icon"
-            aria-label={t("desktop:social.message")}
-            disabled={openDm.isPending}
-            onClick={() => openDm.mutate(user.id)}
-            className="opacity-0 transition-opacity motion-instant group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            {openDm.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <MessageSquare className="size-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="left">{t("desktop:social.message")}</TooltipContent>
-      </Tooltip>
+    <li className="group flex min-h-14 flex-wrap items-center gap-2 rounded-lg px-3 py-1.5 transition-colors motion-hover content-visibility-row hover:bg-hover focus-within:bg-hover">
+      <PersonButton user={user} showPresence />
+      <IconButton
+        variant="solid"
+        size="md"
+        label={t("desktop:social.message")}
+        tooltipSide="left"
+        disabled={openDm.isPending}
+        onClick={() => openDm.mutate(user.id)}
+        className="bg-raised opacity-0 transition-[opacity,background-color] motion-hover hover:bg-raised-hover group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+      >
+        {openDm.isPending ? <Loader2 className="animate-spin" /> : <MessageSquare />}
+      </IconButton>
       {/* Opening a DM can be refused — most often by a block that landed after
           this list was fetched (blocking severs the friendship, so the row is
           already stale). Say so on the row instead of failing silently (§26). */}
       {openDm.error && (
-        <p role="alert" className="w-full px-1 pb-1 text-2xs text-danger">
+        <p role="alert" className="w-full pb-1 pl-11 text-label text-danger">
           {localizeBlockedError(openDm.error, t, "message")}
         </p>
       )}
@@ -153,8 +147,10 @@ function FriendRow({ user }: { user: User }): JSX.Element {
 
 function FriendsList({ onlineOnly }: { onlineOnly: boolean }): JSX.Element {
   const { t } = useAppTranslation();
-  const { data: friends, isPending, error, refetch } = useFriends();
+  const { data: friends, isPending, error, refetch, isFetching } = useFriends();
   const presence = useChatStore((s) => s.presence);
+  const [query, setQuery] = useState("");
+  const term = query.trim().toLocaleLowerCase();
 
   const rows = useMemo(() => {
     const list = (friends ?? []).map((f) => ({
@@ -169,41 +165,71 @@ function FriendsList({ onlineOnly }: { onlineOnly: boolean }): JSX.Element {
     );
   }, [friends, presence, onlineOnly]);
 
+  const visible = useMemo(
+    () =>
+      term.length === 0
+        ? rows
+        : rows.filter(
+            (r) =>
+              r.user.displayName.toLocaleLowerCase().includes(term) ||
+              r.user.username.toLocaleLowerCase().includes(term),
+          ),
+    [rows, term],
+  );
+
   if (isPending) {
     return <PeopleListSkeleton />;
   }
   if (error) {
     return (
-      <RetryNotice
-        message={localizeError(error, t)}
-        retryLabel={t("buttons.retry")}
-        onRetry={() => void refetch()}
-      />
+      <div className="px-4 pt-4">
+        <InlineError
+          message={localizeError(error, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
+      </div>
     );
   }
   if (rows.length === 0) {
     return (
       <EmptyState
         icon={<Users className="size-6" />}
-        title={
-          onlineOnly ? t("desktop:social.noneOnlineTitle") : t("desktop:social.noFriendsTitle")
-        }
+        title={onlineOnly ? t("desktop:social.noneOnlineTitle") : t("desktop:social.noFriendsTitle")}
         body={onlineOnly ? t("desktop:social.noneOnlineBody") : t("desktop:social.noFriendsBody")}
       />
     );
   }
   return (
-    <div className="px-4">
-      <SectionHeading>
+    <div className="px-4 pt-4">
+      <div className="relative px-1">
+        <Search aria-hidden className="pointer-events-none absolute left-4.5 top-1/2 size-4 -translate-y-1/2 text-fg-faint" />
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("desktop:settingsUi.friendsSearch")}
+          aria-label={t("desktop:settingsUi.friendsSearch")}
+          className="pl-10"
+        />
+      </div>
+      <SectionHeading className="px-3">
         {onlineOnly
-          ? t("desktop:social.onlineCount", { count: rows.length })
-          : t("desktop:social.allCount", { count: rows.length })}
+          ? t("desktop:social.onlineCount", { count: visible.length })
+          : t("desktop:social.allCount", { count: visible.length })}
       </SectionHeading>
-      <ul>
-        {rows.map((r) => (
-          <FriendRow key={r.user.id} user={r.user} />
-        ))}
-      </ul>
+      {visible.length === 0 ? (
+        <p className="px-3 py-10 text-center text-sm text-fg-muted">
+          {t("desktop:settingsUi.friendsNoMatch", { query: query.trim() })}
+        </p>
+      ) : (
+        <ul className="space-y-0.5 pb-4">
+          {visible.map((r) => (
+            <FriendRow key={r.user.id} user={r.user} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -223,9 +249,26 @@ function PendingList(): JSX.Element {
   const incomingRows = incoming.data ?? [];
   const outgoingRows = outgoing.data ?? [];
   const empty = incomingRows.length === 0 && outgoingRows.length === 0;
+  const loadError = incoming.error ?? outgoing.error;
+  const actionError = accept.error ?? remove.error;
 
   if (isPending) {
     return <PeopleListSkeleton />;
+  }
+  if (loadError) {
+    return (
+      <div className="px-4 pt-4">
+        <InlineError
+          message={localizeError(loadError, t)}
+          retryLabel={t("buttons.retry")}
+          onRetry={() => {
+            void incoming.refetch();
+            void outgoing.refetch();
+          }}
+          retrying={incoming.isFetching || outgoing.isFetching}
+        />
+      </div>
+    );
   }
   if (empty) {
     return (
@@ -237,52 +280,44 @@ function PendingList(): JSX.Element {
     );
   }
 
+  const rowClass =
+    "group flex h-14 items-center gap-2 rounded-lg px-3 transition-colors motion-hover content-visibility-row hover:bg-hover focus-within:bg-hover";
+
   return (
-    <div className="px-4">
+    <div className="px-4 pb-4 pt-1">
+      {/* A refused accept/decline is said, not swallowed (§26). */}
+      {actionError && <FormErrorAlert className="mt-3">{localizeError(actionError, t)}</FormErrorAlert>}
+
       {incomingRows.length > 0 && (
         <>
-          <SectionHeading>
+          <SectionHeading className="px-3">
             {t("desktop:social.incomingCount", { count: incomingRows.length })}
           </SectionHeading>
-          <ul>
+          <ul className="space-y-0.5">
             {incomingRows.map(({ user }) => {
-              const acting =
-                (accept.isPending && accept.variables === user.id) ||
-                (remove.isPending && remove.variables === user.id);
+              const accepting = accept.isPending && accept.variables === user.id;
+              const declining = remove.isPending && remove.variables === user.id;
               return (
-                <li
-                  key={user.id}
-                  className="flex h-14 items-center gap-2 border-t border-stroke/60 px-2 first:border-t-0"
-                >
+                <li key={user.id} className={rowClass}>
                   <PersonButton user={user} />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        aria-label={t("desktop:social.accept")}
-                        disabled={acting}
-                        onClick={() => accept.mutate(user.id)}
-                      >
-                        <Check className="size-4 text-online" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t("desktop:social.accept")}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        aria-label={t("desktop:social.decline")}
-                        disabled={acting}
-                        onClick={() => remove.mutate(user.id)}
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t("desktop:social.decline")}</TooltipContent>
-                  </Tooltip>
+                  <IconButton
+                    variant="solid"
+                    label={t("desktop:social.accept")}
+                    disabled={accepting || declining}
+                    onClick={() => accept.mutate(user.id)}
+                    className="bg-raised text-success hover:bg-success/15"
+                  >
+                    {accepting ? <Loader2 className="animate-spin" /> : <Check />}
+                  </IconButton>
+                  <IconButton
+                    variant="solid"
+                    label={t("desktop:social.decline")}
+                    disabled={accepting || declining}
+                    onClick={() => remove.mutate(user.id)}
+                    className="bg-raised hover:bg-danger-surface hover:text-danger"
+                  >
+                    {declining ? <Loader2 className="animate-spin" /> : <X />}
+                  </IconButton>
                 </li>
               );
             })}
@@ -292,36 +327,24 @@ function PendingList(): JSX.Element {
 
       {outgoingRows.length > 0 && (
         <>
-          <SectionHeading>
+          <SectionHeading className="px-3">
             {t("desktop:social.outgoingCount", { count: outgoingRows.length })}
           </SectionHeading>
-          <ul>
+          <ul className="space-y-0.5">
             {outgoingRows.map(({ user }) => {
               const acting = remove.isPending && remove.variables === user.id;
               return (
-                <li
-                  key={user.id}
-                  className="flex h-14 items-center gap-2 border-t border-stroke/60 px-2 first:border-t-0"
-                >
+                <li key={user.id} className={rowClass}>
                   <PersonButton user={user} />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        aria-label={t("desktop:social.cancel")}
-                        disabled={acting}
-                        onClick={() => remove.mutate(user.id)}
-                      >
-                        {acting ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <X className="size-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t("desktop:social.cancel")}</TooltipContent>
-                  </Tooltip>
+                  <IconButton
+                    variant="solid"
+                    label={t("desktop:social.cancel")}
+                    disabled={acting}
+                    onClick={() => remove.mutate(user.id)}
+                    className="bg-raised hover:bg-danger-surface hover:text-danger"
+                  >
+                    {acting ? <Loader2 className="animate-spin" /> : <X />}
+                  </IconButton>
                 </li>
               );
             })}
@@ -395,9 +418,9 @@ function AddFriend(): JSX.Element {
   const invalid = error !== null;
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-6">
-      <h2 className="text-base font-semibold text-fg">{t("desktop:social.addTitle")}</h2>
-      <p className="mt-1 text-sm text-fg-muted">{t("desktop:social.addBody")}</p>
+    <div className="mx-auto max-w-xl px-6 py-8">
+      <h2 className="font-display text-xl font-medium text-fg-display">{t("desktop:social.addTitle")}</h2>
+      <p className="mt-1.5 text-sm text-fg-muted">{t("desktop:social.addBody")}</p>
 
       {/* noValidate: the browser's own bubble would speak the OS language and
           duplicate a message we already render, localized, under the field. */}
@@ -427,32 +450,39 @@ function AddFriend(): JSX.Element {
             aria-describedby={
               invalid ? `${USERNAME_HINT_ID} ${USERNAME_ERROR_ID}` : USERNAME_HINT_ID
             }
-            className="flex-1"
+            className="h-11 flex-1"
           />
-          <Button type="submit" disabled={send.isPending || username.trim().length === 0}>
-            {send.isPending && <Loader2 className="size-4 animate-spin" />}
+          <Button
+            type="submit"
+            variant="accent"
+            size="lg"
+            loading={send.isPending}
+            disabled={username.trim().length === 0}
+          >
             {t("desktop:social.addSubmit")}
           </Button>
         </div>
-        <p id={USERNAME_HINT_ID} className="mt-2 text-xs text-fg-faint">
+        <p id={USERNAME_HINT_ID} className="mt-2 text-label text-fg-faint">
           {t("desktop:social.addUsernameHint", {
             min: USERNAME_MIN_LENGTH,
             max: USERNAME_MAX_LENGTH,
           })}
         </p>
         {error && (
-          <p id={USERNAME_ERROR_ID} role="alert" className="mt-2 text-xs text-danger">
+          <p id={USERNAME_ERROR_ID} role="alert" className="mt-2 text-label text-danger">
             {localizeFieldError(t, error)}
           </p>
         )}
         {sent && (
-          <p
+          <m.p
             role="status"
-            className="mt-2 flex items-center gap-1 text-xs font-medium text-online"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0, transition: springs.position }}
+            className="mt-3 flex items-center gap-1.5 text-label font-medium text-success"
           >
             <Check className="size-3.5" />
             {t("desktop:social.addSent")}
-          </p>
+          </m.p>
         )}
       </form>
     </div>
@@ -463,37 +493,7 @@ function AddFriend(): JSX.Element {
 // Shell
 // ---------------------------------------------------------------------------
 
-function TabButton({
-  active,
-  onClick,
-  label,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  badge?: number;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? "true" : undefined}
-      className={cn(
-        "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors motion-instant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-        active ? "bg-white/[0.08] text-fg" : "text-fg-muted hover:bg-white/[0.04] hover:text-fg",
-      )}
-    >
-      {label}
-      {badge !== undefined && badge > 0 && (
-        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-badge font-bold text-on-accent">
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
+const TABS_ID = "friends";
 
 /** Home-surface center pane: the friends table + add-friend (ADR 0010 §5). */
 export function FriendsView(): JSX.Element {
@@ -502,35 +502,33 @@ export function FriendsView(): JSX.Element {
   const incoming = useFriendRequests("incoming");
   const pendingCount = incoming.data?.length ?? 0;
 
+  const tabs: SegmentedTab<FriendsTab>[] = [
+    { id: "online", label: t("desktop:social.tabOnline") },
+    { id: "all", label: t("desktop:social.tabAll") },
+    {
+      id: "pending",
+      label: t("desktop:social.tabPending"),
+      badge: pendingCount,
+      badgeLabel: t("desktop:social.incomingCount", { count: pendingCount }),
+    },
+    { id: "add", label: t("desktop:social.tabAdd") },
+  ];
+
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-app">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-stroke px-4">
-        <Users className="size-[18px] shrink-0 text-fg-muted" />
-        <h1 className="shrink-0 text-sm font-semibold text-fg">{t("desktop:social.title")}</h1>
-        <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-stroke-strong" />
-        <nav aria-label={t("desktop:social.tabsNav")} className="flex items-center gap-1">
-          <TabButton
-            active={tab === "online"}
-            onClick={() => setTab("online")}
-            label={t("desktop:social.tabOnline")}
-          />
-          <TabButton
-            active={tab === "all"}
-            onClick={() => setTab("all")}
-            label={t("desktop:social.tabAll")}
-          />
-          <TabButton
-            active={tab === "pending"}
-            onClick={() => setTab("pending")}
-            label={t("desktop:social.tabPending")}
-            badge={pendingCount}
-          />
-          <TabButton
-            active={tab === "add"}
-            onClick={() => setTab("add")}
-            label={t("desktop:social.tabAdd")}
-          />
-        </nav>
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-stroke px-4">
+        <Users aria-hidden className="size-5 shrink-0 text-fg-faint" />
+        <h1 className="shrink-0 font-display text-base font-medium text-fg-display">{t("desktop:social.title")}</h1>
+        <span aria-hidden className="h-5 w-px shrink-0 bg-stroke-strong" />
+        <SegmentedTabs
+          tabs={tabs}
+          value={tab}
+          onChange={setTab}
+          label={t("desktop:social.tabsNav")}
+          idPrefix={TABS_ID}
+          size="sm"
+          className="min-w-0 overflow-x-auto"
+        />
         {/* Desktop app-update badge — the top-right corner on every surface. */}
         <div className="ml-auto flex shrink-0 items-center">
           <UpdateBadge />
@@ -538,10 +536,12 @@ export function FriendsView(): JSX.Element {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "online" && <FriendsList onlineOnly />}
-        {tab === "all" && <FriendsList onlineOnly={false} />}
-        {tab === "pending" && <PendingList />}
-        {tab === "add" && <AddFriend />}
+        <TabPanel idPrefix={TABS_ID} id={tab} key={tab}>
+          {tab === "online" && <FriendsList onlineOnly />}
+          {tab === "all" && <FriendsList onlineOnly={false} />}
+          {tab === "pending" && <PendingList />}
+          {tab === "add" && <AddFriend />}
+        </TabPanel>
       </div>
     </div>
   );

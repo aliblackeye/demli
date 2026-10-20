@@ -78,6 +78,9 @@ export function BlockUserDialog(): JSX.Element | null {
       submitVariant={unblocking ? "primary" : "danger"}
       onSubmit={confirm}
       onClose={close}
+      // Also opened from Settings → Blocked users: the settings layer sits at
+      // z-[55], so at the default z-50 the confirmation opened invisibly BEHIND it.
+      layer="overSettings"
     >
       {!unblocking && (
         <p className="text-label text-fg-faint">{t("desktop:block.confirmNote")}</p>

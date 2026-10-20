@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
-import { BellRing, Volume2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { cn } from "@demli/ui";
+import { useId } from "react";
+import { BellRing, Info, SlidersHorizontal, Volume2 } from "lucide-react";
+import { Slider } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { playSound } from "../sounds/sound-manager";
 import { useSoundSettings } from "../sounds/sound-settings";
+import { SettingRow, SettingsBlock, SettingsGroup, SettingsNote } from "./settings-kit";
 import { Toggle } from "./Toggle";
 
 /**
@@ -14,32 +14,6 @@ import { Toggle } from "./Toggle";
  * Enabling a switch (and releasing the volume slider) plays a sample cue so
  * the user hears the result immediately.
  */
-
-function SettingRow({
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-      <div className="flex min-w-0 gap-3">
-        <Icon className="mt-0.5 size-4 shrink-0 text-fg-faint" />
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-fg">{title}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-fg-faint">{description}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 export function SoundSettings(): JSX.Element {
   const { t } = useAppTranslation();
   const enabled = useSoundSettings((s) => s.enabled);
@@ -48,81 +22,68 @@ export function SoundSettings(): JSX.Element {
   const setEnabled = useSoundSettings((s) => s.setEnabled);
   const setVolume = useSoundSettings((s) => s.setVolume);
   const setMessageEnabled = useSoundSettings((s) => s.setMessageEnabled);
+  const volumeLabelId = useId();
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-stroke bg-surface p-1.5">
-        <h2 className="px-3.5 pb-1 pt-2.5 text-sm font-semibold text-fg">
-          {t("desktop:sound.heading")}
-        </h2>
-        <div className="divide-y divide-stroke/60">
-          <SettingRow
-            icon={Volume2}
-            title={t("desktop:sound.effects")}
-            description={t("desktop:sound.effectsDesc")}
-          >
-            <Toggle
-              checked={enabled}
-              onChange={(next) => {
-                setEnabled(next);
-                if (next) playSound("voice-join");
-              }}
-              label={t("desktop:sound.effects")}
-            />
-          </SettingRow>
+    <div className="space-y-8">
+      <SettingsGroup title={t("desktop:sound.heading")}>
+        <SettingRow
+          icon={Volume2}
+          title={t("desktop:sound.effects")}
+          description={t("desktop:sound.effectsDesc")}
+        >
+          <Toggle
+            checked={enabled}
+            onChange={(next) => {
+              setEnabled(next);
+              if (next) playSound("voice-join");
+            }}
+            label={t("desktop:sound.effects")}
+          />
+        </SettingRow>
 
-          <div className={cn("px-4 py-3.5", !enabled && "opacity-50")}>
-            <div className="flex items-center justify-between gap-4">
-              <label
-                htmlFor="ui-sound-volume"
-                className="text-sm font-medium text-fg"
-              >
-                {t("desktop:sound.volume")}
-              </label>
-              <span className="text-xs tabular-nums text-fg-muted">
-                {Math.round(volume * 100)}%
-              </span>
-            </div>
-            <input
-              id="ui-sound-volume"
-              type="range"
+        <div>
+          <SettingRow
+            icon={SlidersHorizontal}
+            title={<span id={volumeLabelId}>{t("desktop:sound.volume")}</span>}
+            disabled={!enabled}
+          />
+          <SettingsBlock className="pt-0 sm:pl-[3.75rem]">
+            <Slider
+              aria-labelledby={volumeLabelId}
               min={0}
               max={100}
               step={5}
-              value={Math.round(volume * 100)}
               disabled={!enabled}
-              onChange={(e) => setVolume(Number(e.target.value) / 100)}
+              value={Math.round(volume * 100)}
+              onValueChange={(value) => setVolume(value / 100)}
               // Sample on release (not on every drag tick) so adjusting
               // doesn't machine-gun the cue.
-              onPointerUp={() => playSound("voice-join")}
-              onKeyUp={() => playSound("voice-join")}
-              className={cn(
-                "mt-2.5 h-1.5 w-full appearance-auto accent-accent",
-                enabled ? "cursor-pointer" : "cursor-not-allowed",
-              )}
+              onValueCommit={() => playSound("voice-join")}
+              formatValue={(value) => `${value}%`}
+              showValue
             />
-          </div>
-
-          <SettingRow
-            icon={BellRing}
-            title={t("desktop:sound.messageNotif")}
-            description={t("desktop:sound.messageNotifDesc")}
-          >
-            <Toggle
-              checked={messageEnabled}
-              disabled={!enabled}
-              onChange={(next) => {
-                setMessageEnabled(next);
-                if (next) playSound("message");
-              }}
-              label={t("desktop:sound.messageNotif")}
-            />
-          </SettingRow>
+          </SettingsBlock>
         </div>
-      </section>
-      <p className="text-xs leading-relaxed text-fg-faint">
-        {t("desktop:sound.note")}
-      </p>
+
+        <SettingRow
+          icon={BellRing}
+          title={t("desktop:sound.messageNotif")}
+          description={t("desktop:sound.messageNotifDesc")}
+          disabled={!enabled}
+        >
+          <Toggle
+            checked={messageEnabled}
+            disabled={!enabled}
+            onChange={(next) => {
+              setMessageEnabled(next);
+              if (next) playSound("message");
+            }}
+            label={t("desktop:sound.messageNotif")}
+          />
+        </SettingRow>
+      </SettingsGroup>
+      <SettingsNote icon={Info}>{t("desktop:sound.note")}</SettingsNote>
     </div>
   );
 }
