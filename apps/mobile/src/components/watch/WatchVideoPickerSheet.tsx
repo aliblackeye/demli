@@ -32,26 +32,32 @@
  * children — never markdown, never a link, never anything that could become
  * markup. The thumbnail is loaded from `i.ytimg.com` and nothing else can be,
  * because that is the only host the result payload names.
+ *
+ * ## Look
+ *
+ * The kit's draggable Sheet, which lifts above the keyboard by the real IME
+ * height. The field is the Koyu Masa input: surface at rest, raised while
+ * focused, the danger wash (no border) for a bad link with the message under it.
+ * A running search shows result-shaped skeleton rows; a failed one is a warning
+ * Banner; no results is the kit's empty block. The commit verb is pinned in the
+ * footer and only exists while the field holds a link.
  */
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MonitorPlay, Search, TriangleAlert } from "lucide-react-native";
+import { Image, View } from "react-native";
+import { MonitorPlay, Search, SearchX } from "lucide-react-native";
 import { parseYouTubeVideoId } from "@demli/config";
 import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
+import { EmptyState } from "@/components/EmptyState";
+import { SkeletonRow } from "@/components/Skeleton";
 import { colors, radius, space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import { Sheet } from "../ui/Sheet";
 import { Text, TextInput } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
 import { formatWatchDuration } from "./watch-queue";
 import type { WatchPickerResult, WatchPickerSearchState } from "@/queries/watch-queries";
 
@@ -93,8 +99,8 @@ export function WatchVideoPickerSheet({
   onSubmit,
 }: WatchVideoPickerSheetProps) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const [value, setValue] = useState("");
+  const [focused, setFocused] = useState(false);
   const [linkError, setLinkError] = useState(false);
   /**
    * The last query THIS sheet asked for. Guards the repeat submission — a second
@@ -189,272 +195,191 @@ export function WatchVideoPickerSheet({
    */
   const fieldHoldsLink = parseYouTubeVideoId(value.trim()) !== null;
 
+  const searching = canSearch && search.status === "searching";
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
-        <Pressable
-          onPress={onClose}
-          accessibilityLabel={t("common:buttons.close")}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-        >
-          {/* Card. Its own Pressable swallows taps so they don't dismiss the sheet. */}
-          <Pressable
-            onPress={() => {}}
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={title}
+      description={
+        canSearch
+          ? t("mobile:watchParty.searchDescription")
+          : t("mobile:watchParty.linkDescription")
+      }
+      footer={
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <Button
+            variant="secondary"
+            size="lg"
+            label={t("mobile:watchParty.cancel")}
+            onPress={onClose}
+            style={{ flex: 1 }}
+          />
+          {fieldHoldsLink ? (
+            <Button variant="accent" size="lg" label={action} onPress={submit} style={{ flex: 2 }} />
+          ) : null}
+        </View>
+      }
+    >
+      <View style={{ paddingHorizontal: space.xs, gap: space.md }}>
+        <View style={{ gap: space.xs }}>
+          <View
             style={{
-              maxHeight: "88%",
-              backgroundColor: colors.surface,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: space.sm,
+              minHeight: 48,
+              paddingLeft: space.md,
+              paddingRight: canSearch ? space.xs : space.md,
+              borderRadius: radius.lg,
               borderCurve: "continuous",
-              borderTopWidth: 1,
-              borderColor: colors.stroke,
-              paddingTop: space.md,
-              paddingBottom: space.md + insets.bottom,
-              paddingHorizontal: space.lg,
-              gap: space.md,
+              // Koyu Masa field: surface at rest, raised while focused, the danger
+              // wash (never a red border) when the link is wrong.
+              backgroundColor: linkError
+                ? colors.dangerSurface
+                : focused
+                  ? colors.surfaceRaised
+                  : colors.surface,
             }}
           >
-            {/* Grab handle. */}
-            <View
+            {canSearch ? (
+              <Search size={18} color={colors.fgMuted} strokeWidth={2} />
+            ) : (
+              <MonitorPlay size={18} color={colors.fgMuted} strokeWidth={2} />
+            )}
+            <TextInput
+              autoFocus
+              value={value}
+              onChangeText={(next) => {
+                setValue(next);
+                setLinkError(false);
+              }}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onSubmitEditing={submit}
+              // "search" on a search-capable deployment, "go" otherwise: the
+              // keyboard's own key is the primary explicit act on a phone, and
+              // it must read as the thing it will actually do.
+              returnKeyType={canSearch ? "search" : "go"}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={
+                canSearch
+                  ? t("mobile:watchParty.searchPlaceholder")
+                  : t("mobile:watchParty.linkPlaceholder")
+              }
+              placeholderTextColor={colors.fgFaint}
+              accessibilityLabel={
+                canSearch
+                  ? t("mobile:watchParty.searchLabel")
+                  : t("mobile:watchParty.linkLabel")
+              }
+              aria-invalid={linkError ? true : undefined}
               style={{
-                alignSelf: "center",
-                width: 36,
-                height: 4,
-                borderRadius: radius.pill,
-                backgroundColor: colors.strokeStrong,
+                flex: 1,
+                minHeight: 48,
+                color: colors.fg,
+                fontSize: 15,
+                paddingVertical: space.sm,
               }}
             />
-
-            <View style={{ gap: 2 }}>
-              <Text
-                variant="display"
-                style={{ color: colors.fg, fontSize: 17, fontWeight: "800" }}
-              >
-                {title}
-              </Text>
-              <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 18 }}>
-                {canSearch
-                  ? t("mobile:watchParty.searchDescription")
-                  : t("mobile:watchParty.linkDescription")}
-              </Text>
-            </View>
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-              {canSearch ? (
-                <Search size={18} color={colors.fgMuted} />
-              ) : (
-                <MonitorPlay size={18} color={colors.fgMuted} />
-              )}
-              <TextInput
-                autoFocus
-                value={value}
-                onChangeText={(next) => {
-                  setValue(next);
-                  setLinkError(false);
-                }}
-                onSubmitEditing={submit}
-                // "search" on a search-capable deployment, "go" otherwise: the
-                // keyboard's own key is the primary explicit act on a phone, and
-                // it must read as the thing it will actually do.
-                returnKeyType={canSearch ? "search" : "go"}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={
-                  canSearch
-                    ? t("mobile:watchParty.searchPlaceholder")
-                    : t("mobile:watchParty.linkPlaceholder")
-                }
-                placeholderTextColor={colors.fgFaint}
-                accessibilityLabel={
-                  canSearch
-                    ? t("mobile:watchParty.searchLabel")
-                    : t("mobile:watchParty.linkLabel")
-                }
-                aria-invalid={linkError ? true : undefined}
-                style={{
-                  flex: 1,
-                  minHeight: 48,
-                  backgroundColor: colors.surfaceRaised,
-                  borderColor: linkError ? colors.danger : colors.stroke,
-                  borderWidth: 1,
-                  borderRadius: radius.md,
-                  borderCurve: "continuous",
-                  color: colors.fg,
-                  fontSize: 15,
-                  paddingHorizontal: space.md,
-                  paddingVertical: space.sm,
-                }}
+            {/* The explicit search act. Rendered ONLY where search exists, so
+                there is never a button whose whole job the server refuses. */}
+            {canSearch ? (
+              <IconButton
+                icon={Search}
+                variant="secondary"
+                haptic="light"
+                label={t("mobile:watchParty.searchAction")}
+                disabled={value.trim().length === 0 || searching}
+                onPress={submit}
               />
-              {/* The explicit search act. Rendered ONLY where search exists, so
-                  there is never a button whose whole job the server refuses. */}
-              {canSearch ? (
-                <Pressable
-                  onPress={submit}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("mobile:watchParty.searchAction")}
-                  disabled={value.trim().length === 0 || search.status === "searching"}
-                  style={({ pressed }) => ({
-                    minWidth: 48,
-                    minHeight: 48,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: radius.md,
-                    borderCurve: "continuous",
-                    backgroundColor: colors.surfaceRaised,
-                    opacity:
-                      value.trim().length === 0 || search.status === "searching"
-                        ? 0.4
-                        : pressed
-                          ? 0.8
-                          : 1,
-                  })}
-                >
-                  {search.status === "searching" ? (
-                    <ActivityIndicator size="small" color={colors.accent} />
-                  ) : (
-                    <Search size={18} color={colors.fg} />
-                  )}
-                </Pressable>
-              ) : null}
-            </View>
-
-            {linkError ? (
-              <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 12 }}>
-                {t("mobile:watchParty.linkInvalid")}
-              </Text>
             ) : null}
+          </View>
 
-            {failureMessage !== null ? (
-              <View
-                accessibilityRole="alert"
-                style={{
-                  flexDirection: "row",
-                  gap: space.sm,
-                  borderRadius: radius.md,
-                  borderCurve: "continuous",
-                  backgroundColor: colors.surfaceRaised,
-                  padding: space.md,
-                }}
-              >
-                <TriangleAlert size={16} color={colors.warning} style={{ marginTop: 1 }} />
-                <Text style={{ flex: 1, color: colors.fg, fontSize: 12, lineHeight: 17 }}>
-                  {failureMessage}
-                </Text>
-              </View>
-            ) : null}
-
-            {showEmptyResults ? (
-              <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
-                {t("mobile:watchParty.searchNoResults", { query: search.query })}
-              </Text>
-            ) : null}
-
-            {canSearch && search.results.length > 0 ? (
-              <ScrollView
-                accessibilityLabel={t("mobile:watchParty.searchResultsLabel")}
-                style={{ maxHeight: 300 }}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ gap: space.xs }}
-              >
-                {search.results.map((result) => {
-                  const duration = formatWatchDuration(result.durationSeconds);
-                  return (
-                    <Pressable
-                      key={result.videoId}
-                      onPress={() => pick(result)}
-                      accessibilityRole="button"
-                      accessibilityLabel={result.title}
-                      style={({ pressed }) => ({
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        gap: space.sm,
-                        padding: space.sm,
-                        borderRadius: radius.md,
-                        borderCurve: "continuous",
-                        backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-                      })}
-                    >
-                      <Image
-                        source={{ uri: result.thumbnailUrl }}
-                        style={{
-                          width: 112,
-                          height: 63,
-                          borderRadius: radius.sm,
-                          backgroundColor: "#000",
-                        }}
-                        resizeMode="cover"
-                        accessibilityIgnoresInvertColors
-                      />
-                      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                        {/* Untrusted YouTube text, rendered as a text node. */}
-                        <Text
-                          numberOfLines={2}
-                          style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}
-                        >
-                          {result.title}
-                        </Text>
-                        <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 11 }}>
-                          {duration === null
-                            ? result.channelTitle
-                            : `${result.channelTitle} · ${duration}`}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : null}
-
-            <Text style={{ color: colors.fgFaint, fontSize: 11, lineHeight: 16 }}>
-              {t("mobile:watchParty.drmNote")}
+          {linkError ? (
+            <Text accessibilityRole="alert" type="label" tone="danger">
+              {t("mobile:watchParty.linkInvalid")}
             </Text>
+          ) : null}
+        </View>
 
-            <View style={{ flexDirection: "row", gap: space.sm }}>
-              <Pressable
-                onPress={onClose}
-                accessibilityRole="button"
-                style={({ pressed }) => ({
-                  flex: 1,
-                  minHeight: 48,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: radius.md,
-                  borderCurve: "continuous",
-                  backgroundColor: colors.surfaceRaised,
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
-                  {t("mobile:watchParty.cancel")}
-                </Text>
-              </Pressable>
-              {fieldHoldsLink ? (
-                <Pressable
-                  onPress={submit}
+        {failureMessage !== null ? <Banner variant="warning" title={failureMessage} /> : null}
+
+        {searching ? (
+          // Result-shaped placeholders: the list is coming, here is its shape.
+          <View
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityState={{ busy: true }}
+            accessibilityLabel={t("mobile:ui.loading")}
+          >
+            <SkeletonRow lines={2} leadingSize={63} leadingRadius={radius.sm} />
+            <SkeletonRow lines={2} leadingSize={63} leadingRadius={radius.sm} />
+            <SkeletonRow lines={2} leadingSize={63} leadingRadius={radius.sm} />
+          </View>
+        ) : null}
+
+        {showEmptyResults ? (
+          <EmptyState
+            compact
+            icon={<SearchX size={22} color={colors.fgMuted} strokeWidth={2} />}
+            title={t("mobile:watchParty.searchNoResults", { query: search.query })}
+          />
+        ) : null}
+
+        {canSearch && !searching && search.results.length > 0 ? (
+          <View accessibilityLabel={t("mobile:watchParty.searchResultsLabel")} style={{ gap: space.xs }}>
+            {search.results.map((result) => {
+              const duration = formatWatchDuration(result.durationSeconds);
+              return (
+                <Touchable
+                  key={result.videoId}
+                  onPress={() => pick(result)}
                   accessibilityRole="button"
-                  style={({ pressed }) => ({
-                    flex: 2,
-                    minHeight: 48,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: radius.md,
+                  accessibilityLabel={result.title}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: space.sm,
+                    padding: space.sm,
+                    borderRadius: radius.lg,
                     borderCurve: "continuous",
-                    backgroundColor: colors.accent,
-                    opacity: pressed ? 0.85 : 1,
-                  })}
+                  }}
                 >
-                  <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "700" }}>
-                    {action}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+                  <Image
+                    source={{ uri: result.thumbnailUrl }}
+                    style={{
+                      width: 112,
+                      height: 63,
+                      borderRadius: radius.sm,
+                      backgroundColor: colors.rail,
+                    }}
+                    resizeMode="cover"
+                    accessibilityIgnoresInvertColors
+                  />
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    {/* Untrusted YouTube text, rendered as a text node. */}
+                    <Text numberOfLines={2} style={{ color: colors.fg, fontSize: 13, lineHeight: 18 }}>
+                      {result.title}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 11 }}>
+                      {duration === null
+                        ? result.channelTitle
+                        : `${result.channelTitle} · ${duration}`}
+                    </Text>
+                  </View>
+                </Touchable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <Text type="caption" tone="faint" style={{ lineHeight: 16 }}>
+          {t("mobile:watchParty.drmNote")}
+        </Text>
+      </View>
+    </Sheet>
   );
 }

@@ -1,10 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Modal, Platform, Pressable } from "react-native";
-import { Text } from "../ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, View } from "react-native";
 import {
   Bluetooth,
   Check,
+  ChevronDown,
   Headphones,
   Phone,
   Smartphone,
@@ -19,7 +18,11 @@ import {
   subscribeAudioRoute,
 } from "@/media/audio-route";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
+import { Sheet } from "../ui/Sheet";
+import { Text } from "../ui/Text";
+import { Touchable } from "../ui/Touchable";
 
 /**
  * Audio output route picker (audit D1) — the single biggest voice gap on mobile.
@@ -38,6 +41,11 @@ import { colors, radius, space, typography } from "@/theme/theme";
  * event), so a session that auto-started on the loudspeaker says so, and a
  * headset or Bluetooth device appearing mid-call updates it. Rendered only while
  * a room's audio session is live (connected / reconnecting).
+ *
+ * Koyu Masa: the trigger is a compact surface chip (glyph + route + a chevron
+ * that says "this opens something"); the picker is the kit's draggable Sheet with
+ * radio rows — the chosen route in the coral selected-row wash with a check — and
+ * the speaker echo advice as an info banner under the list.
  */
 
 /** iOS routes — what `AudioSession.getAudioOutputs()` returns there (static). */
@@ -65,7 +73,6 @@ function routeMeta(id: string, t: AppTFunction): { Icon: LucideIcon; label: stri
 
 export function AudioOutputControl() {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
 
   const status = useVoiceStore((s) => s.status);
   const lastPick = useVoiceStore((s) => s.selectedOutputDeviceId);
@@ -109,114 +116,92 @@ export function AudioOutputControl() {
 
   return (
     <>
-      <Pressable
+      <Touchable
         onPress={onOpen}
-        hitSlop={10}
+        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={t("mobile:voice.outputA11y")}
-        style={({ pressed }) => ({
+        accessibilityValue={{ text: current.label }}
+        tone={colors.surfaceRaised}
+        pressedTone={colors.raisedHover}
+        style={{
           flexDirection: "row",
           alignItems: "center",
           gap: space.xs,
-          paddingHorizontal: space.sm,
-          paddingVertical: space.xs,
+          minHeight: 32,
+          paddingLeft: space.sm + 2,
+          paddingRight: space.sm,
           borderRadius: radius.pill,
           borderCurve: "continuous",
-          backgroundColor: colors.surfaceRaised,
-          opacity: pressed ? 0.8 : 1,
-        })}
+        }}
       >
-        <CurrentIcon size={15} color={colors.fgMuted} />
-        <Text numberOfLines={1} style={{ color: colors.fgMuted, fontSize: 12, fontWeight: "600", maxWidth: 96 }}>
+        <CurrentIcon size={15} color={colors.fg} strokeWidth={2} />
+        <Text
+          numberOfLines={1}
+          style={{ color: colors.fg, fontSize: 12, fontWeight: "600", maxWidth: 96 }}
+        >
           {current.label}
         </Text>
-      </Pressable>
+        <ChevronDown size={14} color={colors.fgMuted} strokeWidth={2} />
+      </Touchable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable
-          onPress={() => setOpen(false)}
-          accessibilityLabel={t("buttons.close")}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
-        >
-          {/* Card. Its own Pressable swallows taps so they don't dismiss the sheet. */}
-          <Pressable
-            onPress={() => {}}
-            style={{
-              backgroundColor: colors.surface,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
-              borderCurve: "continuous",
-              borderTopWidth: 1,
-              borderColor: colors.stroke,
-              paddingTop: space.md,
-              paddingBottom: space.md + insets.bottom,
-              paddingHorizontal: space.md,
-              gap: space.xs,
-            }}
-          >
-            <Text
-              style={{
-                color: colors.fgFaint,
-                fontSize: typography.size["2xs"],
-                fontWeight: "700",
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
-                paddingHorizontal: space.sm,
-                paddingBottom: space.xs,
-              }}
-            >
-              {t("mobile:voice.outputTitle")}
+      <Sheet visible={open} onClose={() => setOpen(false)} title={t("mobile:voice.outputTitle")}>
+        <View accessibilityRole="radiogroup" style={{ gap: space.xs }}>
+          {routes.length === 0 ? (
+            <Text type="ui" tone="muted" style={{ paddingHorizontal: space.sm, paddingVertical: space.md }}>
+              {t("mobile:voice.outputEmpty")}
             </Text>
-
-            {routes.length === 0 ? (
-              <Text style={{ color: colors.fgMuted, fontSize: 14, paddingHorizontal: space.sm, paddingVertical: space.md }}>
-                {t("mobile:voice.outputEmpty")}
-              </Text>
-            ) : (
-              routes.map((id) => {
-                const { Icon, label } = routeMeta(id, t);
-                const isSelected = id === selected;
-                return (
-                  <Pressable
-                    key={id}
-                    onPress={() => onSelect(id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: space.md,
-                      paddingVertical: space.md,
-                      paddingHorizontal: space.sm,
-                      borderRadius: radius.md,
-                      borderCurve: "continuous",
-                      backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-                    })}
+          ) : (
+            routes.map((id) => {
+              const { Icon, label } = routeMeta(id, t);
+              const isSelected = id === selected;
+              return (
+                <Touchable
+                  key={id}
+                  onPress={() => onSelect(id)}
+                  haptic="light"
+                  accessibilityRole="radio"
+                  accessibilityLabel={label}
+                  accessibilityState={{ checked: isSelected }}
+                  tone={isSelected ? colors.accentSurface : undefined}
+                  pressedTone={isSelected ? colors.accentSurfaceStrong : colors.wash}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.md,
+                    minHeight: 52,
+                    paddingHorizontal: space.md,
+                    borderRadius: radius.lg,
+                    borderCurve: "continuous",
+                  }}
+                >
+                  <Icon size={20} color={isSelected ? colors.accent : colors.fgMuted} strokeWidth={2} />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: isSelected ? colors.accent : colors.fg,
+                      fontSize: 15,
+                      fontWeight: isSelected ? "600" : "500",
+                    }}
                   >
-                    <Icon size={20} color={isSelected ? colors.accent : colors.fgMuted} />
-                    <Text style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: "600" }}>{label}</Text>
-                    {isSelected ? <Check size={18} color={colors.accent} /> : null}
-                  </Pressable>
-                );
-              })
-            )}
+                    {label}
+                  </Text>
+                  {isSelected ? <Check size={18} color={colors.accent} strokeWidth={2.25} /> : null}
+                </Touchable>
+              );
+            })
+          )}
+        </View>
 
-            {echoHint ? (
-              <Text
-                style={{
-                  color: colors.fgFaint,
-                  fontSize: 12,
-                  lineHeight: 17,
-                  paddingHorizontal: space.sm,
-                  paddingTop: space.xs,
-                }}
-              >
-                {t("mobile:voice.outputSpeakerEchoHint")}
-              </Text>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        {echoHint ? (
+          <Banner
+            variant="info"
+            title={t("mobile:voice.outputSpeakerEchoTitle")}
+            description={t("mobile:voice.outputSpeakerEchoHint")}
+            style={{ marginTop: space.sm }}
+          />
+        ) : null}
+      </Sheet>
     </>
   );
 }

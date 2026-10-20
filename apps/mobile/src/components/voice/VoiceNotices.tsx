@@ -1,8 +1,7 @@
-import { View } from "react-native";
-import { Text } from "../ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, radius, space } from "@/theme/theme";
+import { space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
 import { AloneCountdownNotice } from "./AloneCountdownNotice";
 import { localizeVoiceError } from "./voice-error";
 
@@ -13,6 +12,10 @@ import { localizeVoiceError } from "./voice-error";
  * mobile twin of what the desktop VoicePanel renders under its status line: the
  * "you're the only one here" countdown, then the §26 voice error (localized,
  * never a stack trace). One component, so the surfaces cannot drift again.
+ *
+ * Both are the kit's Banner: it drops in on the standard step and retracts on
+ * the fast one, so an error that clears (a reconnect that succeeded) leaves
+ * instead of blinking out, and the danger one is announced as an alert.
  */
 export function VoiceNotices({ marginTop }: { marginTop?: number }) {
   const { t } = useAppTranslation();
@@ -23,21 +26,11 @@ export function VoiceNotices({ marginTop }: { marginTop?: number }) {
     <>
       <AloneCountdownNotice marginTop={marginTop} />
       {message ? (
-        <View
-          accessibilityRole="alert"
-          style={{
-            marginHorizontal: space.lg,
-            marginTop: marginTop ?? space.sm,
-            padding: space.md,
-            borderRadius: radius.md,
-            borderCurve: "continuous",
-            backgroundColor: colors.dangerSurface,
-          }}
-        >
-          <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-            {message}
-          </Text>
-        </View>
+        <Banner
+          variant="danger"
+          title={message}
+          style={{ marginHorizontal: space.lg, marginTop: marginTop ?? space.sm }}
+        />
       ) : null}
     </>
   );

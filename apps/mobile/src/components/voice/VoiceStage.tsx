@@ -128,36 +128,46 @@ export function VoiceStage({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* The wrapper's `onTouchStart` toggles the floating controls. Touch events
-          BUBBLE in React Native, so the stage's own gestures (focus a tile, drag
-          the self-view, exit focus) all still land — this observes the tap, it
-          does not take it. */}
-      <View
-        style={{ flex: 1 }}
-        onTouchStart={chromeHidden ? undefined : stageControls.toggle}
-      >
-        {watchSlot ? (
-          watchSlot
-        ) : activeShare ? (
-          <ScreenShareStage
-            share={activeShare}
-            sharerName={sharerName}
-            participantTiles={stage.tiles}
-            fullscreen={shareFullscreen}
-            onFullscreenChange={onShareFullscreenChange}
-          />
-        ) : hasParticipants ? (
-          <View style={{ flex: 1, padding: space.lg }}>
-            <CameraStage stage={stage} />
-          </View>
-        ) : (
-          emptySlot
-        )}
+      <View style={{ flex: 1 }}>
+        {/* The stage CONTENT's `onTouchStart` toggles the floating controls. Touch
+            events BUBBLE in React Native, so the stage's own gestures (focus a
+            tile, drag the self-view, exit focus) all still land — this observes
+            the tap, it does not take it.
+
+            The bar below is this view's SIBLING, never its child: a touch that
+            starts on a bar button must not bubble into the toggle, or every press
+            would also hide the bar (and the long-press tooltip would mount inside
+            a bar that had just faded to nothing). The bar instead holds itself up
+            while a finger is on it and re-arms the idle timer on release. */}
+        <View
+          style={{ flex: 1 }}
+          onTouchStart={chromeHidden ? undefined : stageControls.toggle}
+        >
+          {watchSlot ? (
+            watchSlot
+          ) : activeShare ? (
+            <ScreenShareStage
+              share={activeShare}
+              sharerName={sharerName}
+              participantTiles={stage.tiles}
+              fullscreen={shareFullscreen}
+              onFullscreenChange={onShareFullscreenChange}
+            />
+          ) : hasParticipants ? (
+            <View style={{ flex: 1, padding: space.md }}>
+              <CameraStage stage={stage} />
+            </View>
+          ) : (
+            emptySlot
+          )}
+        </View>
 
         {!chromeHidden ? (
           <StageControlBar
             visible={stageControls.visible}
             opacity={stageControls.opacity}
+            onInteractionStart={stageControls.hold}
+            onInteractionEnd={stageControls.reveal}
             micEnabled={micEnabled}
             onToggleMic={toggleMic}
             cameraEnabled={cameraEnabled}

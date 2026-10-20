@@ -51,6 +51,7 @@ export function Banner({
   action,
   onDismiss,
   dismissLabel,
+  live,
   style,
 }: {
   variant?: BannerVariant;
@@ -64,6 +65,13 @@ export function Banner({
   onDismiss?: () => void;
   /** Spoken name of the close control when "Close" undersells it ("Don't remind me"). */
   dismissLabel?: string;
+  /**
+   * Override how a CHANGE of the banner's text is announced. Default: assertive
+   * for danger/warning, polite otherwise. A banner whose text ticks (a live
+   * countdown) passes "none" — it is still an alert when it appears, but a
+   * screen reader must not re-read it every second.
+   */
+  live?: "polite" | "assertive" | "none";
   style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useAppTranslation();
@@ -75,7 +83,7 @@ export function Banner({
       entering={ENTER}
       exiting={EXIT}
       accessibilityRole={urgent ? "alert" : "summary"}
-      accessibilityLiveRegion={urgent ? "assertive" : "polite"}
+      accessibilityLiveRegion={live ?? (urgent ? "assertive" : "polite")}
       style={[
         {
           flexDirection: "row",

@@ -1,21 +1,22 @@
 import { useCallback, useMemo } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { FlatList, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Phone } from "lucide-react-native";
+import { PhoneOff, RotateCcw, PhoneCall } from "lucide-react-native";
 import { isCallLive } from "@demli/client-core";
 import type { DmId, UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { localizeError } from "@/lib/errors";
 import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { SkeletonList, SkeletonRow } from "@/components/Skeleton";
+import { Button } from "@/components/ui/Button";
 import { RecentCallRow } from "@/components/call/RecentCallRow";
 import type { RecentCall } from "@/lib/clients";
 import { useRecentCalls } from "@/queries/call-queries";
 import { useFriends, useOpenDm } from "@/queries/social-queries";
 import { getCallController, useCallState } from "@/stores/call-store";
-import { colors, space } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /**
  * Recent Calls screen (Voice-UX #2), reachable from the You tab. A read-only,
@@ -23,6 +24,11 @@ import { colors, space } from "@/theme/theme";
  * row opens (idempotently) that DM and navigates to it; the per-row call-back
  * button re-initiates the call with the same media, gated on mutual-friend +
  * no-live-call (the server re-checks both authoritatively).
+ *
+ * Every state is drawn: first load = skeleton rows in the row's own shape, a
+ * failed load = the kit's error block (what failed, the localized reason, a
+ * retry), no history = the empty block, a next page loading = one more skeleton
+ * row at the foot of the list instead of a spinner.
  */
 export default function RecentCallsScreen() {
   const { t } = useAppTranslation();
@@ -85,26 +91,34 @@ export default function RecentCallsScreen() {
   let body: JSX.Element;
   if (isPending) {
     body = (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.fgFaint} />
+      <View style={{ paddingTop: space.sm, paddingHorizontal: space.md }}>
+        <SkeletonList count={7} lines={2} leadingSize={44} leadingRadius={radius.pill} />
       </View>
     );
   } else if (isError) {
     body = (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl, gap: space.md }}>
-        <Text selectable style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-          {localizeError(error, t)}
-        </Text>
-        <Pressable onPress={() => void refetch()} hitSlop={8}>
-          <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "600" }}>{t("buttons.retry")}</Text>
-        </Pressable>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <EmptyState
+          tone="error"
+          icon={<PhoneOff size={22} color={colors.danger} strokeWidth={2} />}
+          title={t("mobile:recentCalls.loadFailedTitle")}
+          subtitle={localizeError(error, t)}
+          action={
+            <Button
+              variant="secondary"
+              icon={RotateCcw}
+              label={t("buttons.retry")}
+              onPress={() => void refetch()}
+            />
+          }
+        />
       </View>
     );
   } else if (calls.length === 0) {
     body = (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <EmptyState
-          icon={<Phone size={22} color={colors.fgMuted} />}
+          icon={<PhoneCall size={22} color={colors.fgMuted} strokeWidth={2} />}
           title={t("mobile:recentCalls.empty")}
           subtitle={t("mobile:recentCalls.emptySubtitle")}
         />
@@ -116,9 +130,9 @@ export default function RecentCallsScreen() {
         data={calls}
         keyExtractor={(call) => call.id}
         contentContainerStyle={{
-          padding: space.md,
+          paddingHorizontal: space.xs,
+          paddingTop: space.sm,
           paddingBottom: space.md + insets.bottom,
-          gap: space.sm,
         }}
         renderItem={({ item }) => (
           <RecentCallRow
@@ -134,8 +148,8 @@ export default function RecentCallsScreen() {
         }}
         ListFooterComponent={
           isFetchingNextPage ? (
-            <View style={{ paddingVertical: space.lg }}>
-              <ActivityIndicator color={colors.fgFaint} />
+            <View style={{ paddingHorizontal: space.md }}>
+              <SkeletonRow lines={2} leadingSize={44} leadingRadius={radius.pill} />
             </View>
           ) : null
         }

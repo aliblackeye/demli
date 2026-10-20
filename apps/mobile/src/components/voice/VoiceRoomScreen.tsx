@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { Text } from "../ui/Text";
+import { ScrollView, View } from "react-native";
 import { router, Stack } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mic, MicOff, MonitorPlay, PhoneOff, MessageSquare, Tv, Volume2 } from "lucide-react-native";
+import {
+  Mic,
+  MicOff,
+  MonitorPlay,
+  PhoneOff,
+  MessageSquare,
+  RotateCcw,
+  Tv,
+  Volume2,
+  WifiOff,
+} from "lucide-react-native";
 import { unreadBadgeText, voiceChatHeaderActions } from "@demli/client-core";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import type { UserId } from "@demli/types";
 import type { VoiceState } from "@demli/media";
 import { ChatSummaryHeaderTitle } from "@/components/ChatHeaderTitle";
 import { ChatThread } from "@/components/ChatThread";
+import { EmptyState } from "@/components/EmptyState";
 import { UnreadCountBadge } from "@/components/home/UnreadCountBadge";
 import { Screen } from "@/components/Screen";
+import { Skeleton } from "@/components/Skeleton";
 import { buildMemberColorMap } from "@/lib/permissions";
 import { useGroupDetails, useRoles } from "@/queries/chat-queries";
 import { useChatStore } from "@/stores/chat-store";
@@ -21,12 +31,16 @@ import { startWatchParty } from "@/realtime/connection";
 import { useWatchSearchEnabled, useWatchVideoSearch } from "@/queries/watch-queries";
 import { WatchPartyStage } from "@/components/watch/WatchPartyStage";
 import { WatchVideoPickerSheet } from "@/components/watch/WatchVideoPickerSheet";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
 import { AudioOutputControl } from "./AudioOutputControl";
+import { LiveDot, TILE_RADIUS, voiceStatusColor } from "./stage-chrome";
 import { VoiceNotices } from "./VoiceNotices";
 import { useStageTiles } from "./use-stage-tiles";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
-import { VoiceControls } from "./VoiceControls";
+import { ControlDock, VoiceControls } from "./VoiceControls";
 import { VoiceStage } from "./VoiceStage";
 import {
   initialVoiceView,
@@ -59,48 +73,6 @@ function statusLabel(status: VoiceState["status"], t: AppTFunction): string {
     case "error":
       return t("mobile:voice.statusError");
   }
-}
-
-function statusColor(status: VoiceState["status"]): string {
-  if (status === "connected") return colors.online;
-  if (status === "error") return colors.danger;
-  if (status === "reconnecting" || status === "joining") return colors.idle;
-  return colors.fgFaint;
-}
-
-/** A ≥44pt header control. Icon-only, so the label is its accessibility name. */
-function HeaderButton({
-  Icon,
-  label,
-  danger,
-  onPress,
-  children,
-}: {
-  Icon: typeof Mic;
-  label: string;
-  danger?: boolean;
-  onPress: () => void;
-  /** Optional overlay (the chat button's unread badge). */
-  children?: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        minWidth: 40,
-        minHeight: 40,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: pressed ? 0.6 : 1,
-      })}
-    >
-      <Icon size={21} color={danger ? colors.danger : colors.accent} />
-      {children}
-    </Pressable>
-  );
 }
 
 /**
@@ -147,7 +119,6 @@ export function VoiceRoomScreen({
   intent?: VoiceScreenIntent;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
 
   const status = useVoiceStore((s) => s.status);
   const roomId = useVoiceStore((s) => s.roomId);
@@ -366,14 +337,16 @@ export function VoiceRoomScreen({
           ),
           headerRight: () =>
             showChat ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
                 {/* Mic stays one tap away while reading. The mobile shell hides
                     the global VoiceMiniBar on this route (its own controls cover
                     it), so without this the chat view would have no mute. */}
                 {inThisRoom ? (
-                  <HeaderButton
-                    Icon={micEnabled ? Mic : MicOff}
-                    danger={!micEnabled}
+                  <IconButton
+                    icon={micEnabled ? Mic : MicOff}
+                    // Muted while reading = the pink wash, the dock's grammar.
+                    variant={micEnabled ? "ghost" : "danger"}
+                    haptic="light"
                     label={
                       micEnabled
                         ? t("mobile:voice.a11yMuteMic")
@@ -384,24 +357,29 @@ export function VoiceRoomScreen({
                 ) : null}
                 {headerActions.map((action) =>
                   action === "join" ? (
-                    <HeaderButton
+                    // The chat view's primary act when you are not in the room:
+                    // the warm call to action.
+                    <IconButton
                       key={action}
-                      Icon={Volume2}
+                      icon={Volume2}
+                      variant="accent"
+                      haptic="light"
                       label={t("mobile:voice.a11yJoinChannel", { name: title })}
                       onPress={() => runHeaderAction(action)}
                     />
                   ) : action === "return-to-stage" ? (
-                    <HeaderButton
+                    <IconButton
                       key={action}
-                      Icon={MonitorPlay}
+                      icon={MonitorPlay}
                       label={t("mobile:voice.returnToStage")}
                       onPress={() => runHeaderAction(action)}
                     />
                   ) : (
-                    <HeaderButton
+                    <IconButton
                       key={action}
-                      Icon={PhoneOff}
-                      danger
+                      icon={PhoneOff}
+                      variant="dangerSolid"
+                      haptic="medium"
                       label={t("mobile:voice.a11yLeaveChannel")}
                       onPress={() => runHeaderAction(action)}
                     />
@@ -409,33 +387,32 @@ export function VoiceRoomScreen({
                 )}
               </View>
             ) : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
                 {/* Start a Watch Party. Offered only while we are actually in
                     THIS room (the gateway refuses `NOT_IN_VOICE` otherwise) and
                     only when none is running — once a party exists, changing its
                     video and ending it live in the stage's own band, so this
                     button would be a second door to a room that already has one. */}
                 {inThisRoom && !watchActive ? (
-                  <HeaderButton
-                    Icon={Tv}
+                  <IconButton
+                    icon={Tv}
                     label={t("mobile:watchParty.start")}
                     onPress={() => setWatchStartOpen(true)}
                   />
                 ) : null}
-                <HeaderButton
-                  Icon={MessageSquare}
+                <IconButton
+                  icon={MessageSquare}
                   label={t("mobile:voice.openChat")}
                   onPress={() => setView("chat")}
-                >
-                  {unreadBadge ? (
-                    <View style={{ position: "absolute", top: 0, right: 0 }}>
+                  badge={
+                    unreadBadge ? (
                       <UnreadCountBadge
                         text={unreadBadge}
                         a11yLabel={t("mobile:group.unreadA11y")}
                       />
-                    </View>
-                  ) : null}
-                </HeaderButton>
+                    ) : undefined
+                  }
+                />
               </View>
             ),
           // The expanded watch stage takes the header too — a title bar over a
@@ -470,25 +447,38 @@ export function VoiceRoomScreen({
               flexDirection: "row",
               alignItems: "center",
               gap: space.sm,
+              minHeight: 44,
               paddingHorizontal: space.lg,
-              paddingTop: space.md,
+              paddingTop: space.sm,
             }}
           >
-            {status === "joining" || status === "reconnecting" ? (
-              <ActivityIndicator size="small" color={statusColor(status)} />
-            ) : (
-              <View
+            {/* The room's state in one line: a dot that breathes while the
+                connection is still moving, the state in its own tone, then the
+                head count in the meta tone. */}
+            <LiveDot
+              color={voiceStatusColor(status)}
+              pulsing={status === "joining" || status === "reconnecting"}
+            />
+            <Text numberOfLines={1} style={{ flex: 1 }}>
+              <Text
                 style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: radius.pill,
-                  backgroundColor: statusColor(status),
+                  color:
+                    status === "connected"
+                      ? colors.success
+                      : status === "error"
+                        ? colors.danger
+                        : status === "joining" || status === "reconnecting"
+                          ? colors.warning
+                          : colors.fgMuted,
+                  fontSize: 13,
+                  fontWeight: "600",
                 }}
-              />
-            )}
-            <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-              {statusLabel(status, t)}
-              {`  ·  ${t("mobile:voice.inRoom", { n: participants.length })}`}
+              >
+                {statusLabel(status, t)}
+              </Text>
+              <Text style={{ color: colors.fgFaint, fontSize: 13, fontWeight: "500" }}>
+                {`  ·  ${t("mobile:voice.inRoom", { n: participants.length })}`}
+              </Text>
             </Text>
             {/* Audio output route picker — self-hides unless the session is live. */}
             <AudioOutputControl />
@@ -542,24 +532,48 @@ export function VoiceRoomScreen({
               <ScrollView
                 contentInsetAdjustmentBehavior="automatic"
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.lg, gap: space.xs }}
+                contentContainerStyle={{ padding: space.lg, gap: space.xs, flexGrow: 1 }}
               >
-                {connected ? (
-                  <View
-                    style={{
-                      alignItems: "center",
-                      gap: space.sm,
-                      paddingVertical: space.xl,
-                    }}
-                  >
-                    <MonitorPlay size={30} color={colors.fgFaint} />
-                    <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-                      {t("mobile:voice.waitingTitle")}
-                    </Text>
-                    <Text style={{ color: colors.fgFaint, fontSize: 12, textAlign: "center" }}>
-                      {t("mobile:voice.waitingSubtitle")}
-                    </Text>
+                {status === "error" && participants.length === 0 ? (
+                  // The join itself failed — the banner above says why; this is
+                  // the one thing you can do about it, in the place you look.
+                  <View style={{ flex: 1, justifyContent: "center" }}>
+                    <EmptyState
+                      tone="error"
+                      icon={<WifiOff size={22} color={colors.danger} strokeWidth={2} />}
+                      title={t("mobile:voice.joinFailedTitle")}
+                      subtitle={t("mobile:voice.joinFailedSubtitle")}
+                      action={
+                        <Button
+                          variant="secondary"
+                          icon={RotateCcw}
+                          label={t("mobile:voice.rejoin")}
+                          onPress={() => join(channelId, { groupId, name: channelName })}
+                        />
+                      }
+                    />
                   </View>
+                ) : (status === "joining" || status === "reconnecting") &&
+                  participants.length === 0 ? (
+                  // Taking shape, not a spinner: the two tiles the room is about
+                  // to fill, announced once as "joining".
+                  <View
+                    accessible
+                    accessibilityRole="progressbar"
+                    accessibilityState={{ busy: true }}
+                    accessibilityLabel={t("mobile:voice.statusJoining")}
+                    style={{ flex: 1, gap: space.sm }}
+                  >
+                    <Skeleton width="100%" height="auto" radius={TILE_RADIUS} style={{ flex: 1 }} />
+                    <Skeleton width="100%" height="auto" radius={TILE_RADIUS} style={{ flex: 1 }} />
+                  </View>
+                ) : connected ? (
+                  <EmptyState
+                    compact
+                    icon={<MonitorPlay size={22} color={colors.fgMuted} strokeWidth={2} />}
+                    title={t("mobile:voice.waitingTitle")}
+                    subtitle={t("mobile:voice.waitingSubtitle")}
+                  />
                 ) : null}
                 {participants.map((p) => (
                   <VoiceParticipantRow
@@ -579,15 +593,7 @@ export function VoiceRoomScreen({
               expanded state is landscape, where a 90pt control bar is a quarter
               of the height. Collapsing is one tap on the player's corner button,
               which stays visible over the film for precisely this reason. */}
-          <View
-            style={{
-              display: watchExpanded ? "none" : "flex",
-              borderTopWidth: 1,
-              borderTopColor: colors.stroke,
-              backgroundColor: colors.surface,
-              paddingBottom: insets.bottom,
-            }}
-          >
+          <ControlDock hidden={watchExpanded}>
             <VoiceControls
               micEnabled={micEnabled}
               deafened={deafened}
@@ -601,7 +607,7 @@ export function VoiceRoomScreen({
               onToggleScreenShare={toggleScreenShare}
               onLeave={handleLeave}
             />
-          </View>
+          </ControlDock>
         </>
       )}
 

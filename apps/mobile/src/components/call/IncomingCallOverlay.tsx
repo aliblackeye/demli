@@ -1,49 +1,15 @@
 import { useEffect } from "react";
-import { BackHandler, Pressable, StyleSheet, View } from "react-native";
-import { Text } from "../ui/Text";
+import { BackHandler, StyleSheet, View } from "react-native";
+import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import { router } from "expo-router";
 import { Phone, PhoneOff, Video } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
+import { CallControl } from "@/components/voice/VoiceControls";
 import { getCallController, useCallState } from "@/stores/call-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, motion, space } from "@/theme/theme";
 import { RingingScreen } from "./RingingScreen";
 import { BusyCallBanner } from "./BusyCallBanner";
-
-/** A round call action (accept / video / decline) with a label under it. */
-function ActionButton({
-  Icon,
-  color,
-  label,
-  onPress,
-}: {
-  Icon: typeof Phone;
-  color: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <View style={{ alignItems: "center", gap: space.xs }}>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        style={({ pressed }) => ({
-          width: 64,
-          height: 64,
-          borderRadius: radius.pill,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: color,
-          opacity: pressed ? 0.85 : 1,
-        })}
-      >
-        <Icon size={26} color={colors.onAccent} />
-      </Pressable>
-      <Text style={{ color: colors.fgMuted, fontSize: 12 }}>{label}</Text>
-    </View>
-  );
-}
 
 /**
  * Global incoming-call overlay (ADR 0012 / Wave 7). Mounted once in the authed
@@ -57,6 +23,12 @@ function ActionButton({
  * for a call they may decline. It ALSO renders the compact busy banner (a second
  * invite parked while already in a call) — the two never co-occur, so this one
  * component owns both "someone is calling you" surfaces.
+ *
+ * Koyu Masa (design system §5.1, "gelen arama"): the breathing coral light behind
+ * the caller, then three round actions — Decline as the solid pink disc on the
+ * left, Accept as the solid coral disc on the right (the warm call to action, not
+ * a borrowed green), video in between on the neutral disc. The overlay fades in
+ * over the screen underneath and fades out when the ring resolves.
  */
 export function IncomingCallOverlay() {
   const { t } = useAppTranslation();
@@ -104,40 +76,53 @@ export function IncomingCallOverlay() {
   };
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.app, zIndex: 50, elevation: 50 }]}>
+    <Animated.View
+      entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOut.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+      accessibilityViewIsModal
+      style={[StyleSheet.absoluteFill, { backgroundColor: colors.rail, zIndex: 50, elevation: 50 }]}
+    >
       <RingingScreen
         name={name}
         avatarUri={caller?.avatarUrl}
         statusLine={statusLine}
+        statusTone="accent"
         actions={
           <View
             style={{
               flexDirection: "row",
               justifyContent: "space-evenly",
               alignItems: "flex-start",
+              paddingBottom: space.md,
             }}
           >
-            <ActionButton
-              Icon={PhoneOff}
-              color={colors.danger}
+            <CallControl
+              icon={PhoneOff}
+              variant="dangerSolid"
+              size="xl"
+              haptic="none"
               label={t("mobile:call.decline")}
               onPress={decline}
             />
-            <ActionButton
-              Icon={Video}
-              color={colors.accent}
+            <CallControl
+              icon={Video}
+              variant="secondary"
+              size="xl"
+              haptic="none"
               label={t("mobile:call.acceptVideo")}
               onPress={() => accept(true)}
             />
-            <ActionButton
-              Icon={Phone}
-              color={colors.online}
+            <CallControl
+              icon={Phone}
+              variant="accent"
+              size="xl"
+              haptic="none"
               label={t("mobile:call.accept")}
               onPress={() => accept(false)}
             />
           </View>
         }
       />
-    </View>
+    </Animated.View>
   );
 }

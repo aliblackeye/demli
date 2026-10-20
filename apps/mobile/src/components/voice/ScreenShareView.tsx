@@ -1,10 +1,11 @@
 import { Animated, Pressable, View, type ViewStyle } from "react-native";
-import { Text } from "../ui/Text";
 import { MonitorUp } from "lucide-react-native";
 import { VideoTrack } from "@livekit/react-native";
 import type { RemoteScreenShare } from "@demli/media";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Text } from "../ui/Text";
+import { MediaPill, TILE_RADIUS, usePressWash } from "./stage-chrome";
 import { useVideoTrackRef } from "./track-ref";
 import { useAutoHideControls } from "./useAutoHideControls";
 import { VideoFullscreenModal, type PipSubject } from "./VideoFullscreenModal";
@@ -67,15 +68,14 @@ export function ScreenShareView({
   // Video-player label on the small tile: greet for a couple of seconds, then fade
   // (founder #1) — no permanent "{name} is sharing" banner sitting on the stage.
   const caption = useAutoHideControls();
+  const wash = usePressWash();
 
   const tileStyle: ViewStyle = {
     flex: 1,
-    backgroundColor: "#000",
-    borderRadius: radius.md,
+    backgroundColor: colors.rail,
+    borderRadius: TILE_RADIUS,
     borderCurve: "continuous",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.stroke,
     ...style,
   };
 
@@ -85,6 +85,7 @@ export function ScreenShareView({
         onPress={() => onFullscreenChange(true)}
         accessibilityRole="button"
         accessibilityLabel={t("mobile:voice.fullscreen.open")}
+        {...wash.handlers}
         style={{ flex: 1 }}
       >
         {/* While the fullscreen viewer is open it renders the SAME track and fully
@@ -104,23 +105,23 @@ export function ScreenShareView({
               position: "absolute",
               top: space.sm,
               left: space.sm,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.xs,
               maxWidth: "80%",
-              paddingHorizontal: space.sm,
-              paddingVertical: space.xs,
-              borderRadius: radius.pill,
-              backgroundColor: "rgba(0,0,0,0.55)",
               opacity: caption.opacity,
             }}
           >
-            <MonitorUp size={13} color={colors.online} />
-            <Text numberOfLines={1} style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
-              {label}
-            </Text>
+            <MediaPill>
+              {/* The coral "live" glyph: a share is the room's one warm light. */}
+              <MonitorUp size={13} color={colors.accent} strokeWidth={2.25} />
+              <Text
+                numberOfLines={1}
+                style={{ flexShrink: 1, color: colors.fgDisplay, fontSize: 12, fontWeight: "600" }}
+              >
+                {label}
+              </Text>
+            </MediaPill>
           </Animated.View>
         ) : null}
+        {wash.overlay}
       </Pressable>
 
       {/* Lives here so it unmounts (and dismisses) automatically the moment the

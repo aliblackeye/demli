@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, BackHandler, Easing, Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { AccessibilityInfo, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, UserPlus } from "lucide-react-native";
 import type { CallState } from "@demli/client-core";
@@ -12,52 +11,15 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useRemoteScreenShares, useVoiceStore } from "@/stores/voice-store";
 import { AudioOutputControl } from "@/components/voice/AudioOutputControl";
+import { LiveDot } from "@/components/voice/stage-chrome";
 import { useStageTiles } from "@/components/voice/use-stage-tiles";
-import { VoiceControls } from "@/components/voice/VoiceControls";
+import { ControlDock, VoiceControls } from "@/components/voice/VoiceControls";
 import { VoiceNotices } from "@/components/voice/VoiceNotices";
 import { VoiceStage } from "@/components/voice/VoiceStage";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, space, typography } from "@/theme/theme";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
 import { AddPersonSheet } from "./AddPersonSheet";
-
-/**
- * A small pulsing accent dot marking the ringing state in the call header. One
- * slow opacity loop, nothing else (§7 — not a motion demo); mirrors the desktop
- * ringing badge.
- */
-function RingingDot() {
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 700,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(anim, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [anim]);
-  return (
-    <Animated.View
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.accent,
-        opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
-      }}
-    />
-  );
-}
 
 /** mm:ss elapsed since the call went active (drives the header duration). */
 function useElapsed(active: boolean): string | null {
@@ -106,6 +68,11 @@ function useElapsed(active: boolean): string | null {
  * (peer, surface, phase) comes from the passed `state`. Fullscreen is lifted to
  * the /call screen so it can force LANDSCAPE only while a share is fullscreen
  * (founder #70), keeping the call PORTRAIT otherwise.
+ *
+ * Koyu Masa: the header is a quiet row on the black page — minimize as a ghost
+ * disc, the title in Onest, a status line whose dot breathes coral while ringing
+ * and turns into the steady green "live" dot with a tabular timer once answered —
+ * then the room's own stage and the same dock the voice room uses.
  */
 export function InCallView({
   state,
@@ -241,6 +208,22 @@ export function InCallView({
       : t("mobile:call.connecting");
   const sharerName = activeShare ? nameFor(activeShare.userId) : null;
 
+  // Screen-reader news is the PHASE (ringing → connecting → in call), said once
+  // when it changes. The visible line below ticks every second once answered, so
+  // it must not be a live region: TalkBack would read the clock aloud each second
+  // for the whole call and talk over everything else.
+  const phaseLabel = ringing
+    ? t("mobile:call.ringing")
+    : connected
+      ? t("mobile:call.inCall")
+      : t("mobile:call.connecting");
+  const announcedPhase = useRef(phaseLabel);
+  useEffect(() => {
+    if (announcedPhase.current === phaseLabel) return;
+    announcedPhase.current = phaseLabel;
+    AccessibilityInfo.announceForAccessibility(phaseLabel);
+  }, [phaseLabel]);
+
   /**
    * The primary red button. Ringing → withdraw the invite (there is no room to
    * walk out of yet). Otherwise LEAVE THE ROOM (ADR 0023 §2) — NOT hang up.
@@ -260,7 +243,7 @@ export function InCallView({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.app }}>
+    <View style={{ flex: 1, backgroundColor: colors.rail }}>
       {/* Call header: minimize · title/duration · add person. Hidden while a share
           is fullscreen (the fullscreen viewer owns the whole screen). */}
       {!shareFullscreen ? (
@@ -268,40 +251,42 @@ export function InCallView({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            gap: space.md,
+            gap: space.sm,
             paddingTop: insets.top + space.sm,
-            paddingHorizontal: space.lg,
+            paddingLeft: space.md,
+            paddingRight: space.lg,
             paddingBottom: space.sm,
           }}
         >
-          <Pressable
+          <IconButton
+            icon={ChevronDown}
+            variant="secondary"
+            label={t("mobile:call.a11yMinimize")}
             onPress={onMinimize}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:call.a11yMinimize")}
-            style={({ pressed }) => ({
-              width: 40,
-              height: 40,
-              borderRadius: radius.pill,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.surfaceRaised,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <ChevronDown size={22} color={colors.fg} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text variant="display" numberOfLines={1} style={{ color: colors.fg, fontSize: 16, fontWeight: "700" }}>
+          />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text type="subheading" tone="display" numberOfLines={1}>
               {title}
             </Text>
             {/* Ringing badge: the "calling" state stays visible while the room
                 underneath is fully usable. */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-              {ringing ? <RingingDot /> : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs + 2 }}>
+              <LiveDot
+                color={ringing ? colors.accent : connected ? colors.success : colors.warning}
+                pulsing={ringing || !connected}
+                size={6}
+              />
               <Text
                 numberOfLines={1}
-                style={{ color: ringing ? colors.accent : colors.fgMuted, fontSize: 12 }}
+                // Not live — see `phaseLabel`. Focusing it still reads phase + time.
+                accessibilityLiveRegion="none"
+                accessibilityLabel={duration ? `${phaseLabel}, ${duration}` : phaseLabel}
+                style={{
+                  color: ringing ? colors.accent : colors.fgMuted,
+                  fontSize: 12,
+                  fontWeight: "500",
+                  fontVariant: ["tabular-nums"],
+                }}
               >
                 {statusLine}
               </Text>
@@ -313,32 +298,18 @@ export function InCallView({
               asymmetry as the dead volume sheet. Self-hides unless a session is
               live, so it costs nothing while connecting. */}
           <AudioOutputControl />
-          <Pressable
-            // The upgrade endpoint requires an ACTIVE call, so this is genuinely
-            // unavailable until the peer answers — disabled with a hint (§35).
-            onPress={() => setAddOpen(true)}
-            disabled={ringing}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:call.a11yAddPerson")}
+          {/* The upgrade endpoint requires an ACTIVE call, so this is genuinely
+              unavailable until the peer answers — disabled with a hint (§35). */}
+          {/* A disc, not a labelled button: the title needs the width on a
+              360dp phone, and the long-press tooltip still names it. */}
+          <IconButton
+            icon={UserPlus}
+            variant="secondary"
+            label={t("mobile:call.a11yAddPerson")}
             accessibilityHint={ringing ? t("mobile:call.addPersonNeedsAnswer") : undefined}
-            accessibilityState={{ disabled: ringing }}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.xs,
-              paddingHorizontal: space.md,
-              height: 40,
-              borderRadius: radius.pill,
-              backgroundColor: colors.surfaceRaised,
-              opacity: ringing ? 0.4 : pressed ? 0.75 : 1,
-            })}
-          >
-            <UserPlus size={18} color={colors.fg} />
-            <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>
-              {t("mobile:call.addPerson")}
-            </Text>
-          </Pressable>
+            disabled={ringing}
+            onPress={() => setAddOpen(true)}
+          />
         </View>
       ) : null}
 
@@ -386,14 +357,7 @@ export function InCallView({
 
       {/* Controls (mic / camera / deafen / hang up), padded for the safe area. */}
       {!shareFullscreen ? (
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: colors.stroke,
-            backgroundColor: colors.surface,
-            paddingBottom: insets.bottom,
-          }}
-        >
+        <ControlDock>
           <VoiceControls
             micEnabled={micEnabled}
             deafened={deafened}
@@ -408,8 +372,11 @@ export function InCallView({
             onToggleCamera={toggleCamera}
             onToggleScreenShare={toggleScreenShare}
             onLeave={endCall}
+            // The dock's red disc says what it does, exactly like the stage bar:
+            // cancel while ringing, leave the call once it is live (ADR 0023 §2).
+            leaveLabel={ringing ? t("mobile:call.cancel") : t("mobile:call.leaveRoom")}
           />
-        </View>
+        </ControlDock>
       ) : null}
 
       <AddPersonSheet

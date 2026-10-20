@@ -17,6 +17,11 @@
  * FSM — as that bar, so there is exactly one source of truth for mic / camera /
  * share state (CLAUDE.md §11); this component owns no media logic of its own.
  *
+ * LOOK: a raised glass pill over the picture (Koyu Masa `glass-strong`), the
+ * buttons in the `veil` tone so they read on any frame. The same danger grammar
+ * as the dock: muted = pink wash, hang up = the solid pink disc, a live camera /
+ * share = the coral wash.
+ *
  * REVEAL BEHAVIOUR — the one real difference from desktop. There is no hover on
  * a phone, so the desktop's "reveal on pointer activity" has no analogue: the
  * bar is TAP-TO-TOGGLE over the stage (`useAutoHideControls`, the hook the
@@ -30,8 +35,7 @@
  * dead control §35 forbids.
  */
 
-import { Animated, Pressable, View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import { Animated, View } from "react-native";
 import {
   Expand,
   Mic,
@@ -44,68 +48,14 @@ import {
   VideoOff,
 } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { haptics } from "@/lib/haptics";
 import { colors, radius, space } from "@/theme/theme";
-
-/** One round button on the bar. Dark, translucent — it sits over live video. */
-function StageControl({
-  Icon,
-  label,
-  active = false,
-  danger = false,
-  disabled = false,
-  onPress,
-  haptic = "light",
-}: {
-  Icon: LucideIcon;
-  label: string;
-  /** The feature is ON (camera publishing, screen sharing) → accent tint. */
-  active?: boolean;
-  /** The one red button (hang up / disconnect). */
-  danger?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-  haptic?: "light" | "medium";
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        if (haptic === "medium") haptics.medium();
-        else haptics.light();
-        onPress();
-      }}
-      disabled={disabled}
-      hitSlop={4}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled, selected: danger ? undefined : active }}
-      style={({ pressed }) => ({
-        width: 42,
-        height: 42,
-        borderRadius: radius.pill,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-        backgroundColor: danger
-          ? colors.danger
-          : active
-            ? colors.accentSurfaceStrong
-            : "rgba(0,0,0,0.5)",
-        opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
-      })}
-    >
-      <Icon
-        size={20}
-        color={danger ? colors.onAccent : active ? colors.accent : "#ffffff"}
-      />
-    </Pressable>
-  );
-}
+import { IconButton } from "../ui/IconButton";
 
 export function StageControlBar({
   visible,
   opacity,
+  onInteractionStart,
+  onInteractionEnd,
   micEnabled,
   onToggleMic,
   cameraEnabled,
@@ -125,6 +75,13 @@ export function StageControlBar({
   visible: boolean;
   /** Animated opacity driven by the same layer (native driver). */
   opacity: Animated.Value;
+  /**
+   * A finger came down on the bar: keep it up with no idle timer, so a press or
+   * a long-press tooltip is never faded out from under the finger.
+   */
+  onInteractionStart?: () => void;
+  /** The finger lifted (or the gesture was cancelled): re-arm the idle fade. */
+  onInteractionEnd?: () => void;
   micEnabled: boolean;
   onToggleMic: () => void;
   cameraEnabled: boolean;
@@ -155,6 +112,10 @@ export function StageControlBar({
     <Animated.View
       // Hidden = untappable, so a faded bar never eats the tap that reveals it.
       pointerEvents={visible ? "box-none" : "none"}
+      // Observes touches on the buttons (they bubble), never claims them.
+      onTouchStart={onInteractionStart}
+      onTouchEnd={onInteractionEnd}
+      onTouchCancel={onInteractionEnd}
       accessibilityRole="toolbar"
       accessibilityLabel={t("mobile:call.stageControls")}
       style={{
@@ -166,53 +127,62 @@ export function StageControlBar({
         opacity,
       }}
     >
+      {/* The glass tone without the ui/Glass wrapper: Glass clips its children
+          (overflow hidden, for the blur layer), and that would cut off the
+          IconButtons' long-press tooltips. Android draws this same opaque
+          glass-strong tone either way. */}
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: space.sm,
-          paddingHorizontal: space.sm,
-          paddingVertical: space.sm,
+          gap: space.xs,
+          padding: space.xs + 2,
           borderRadius: radius.pill,
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.10)",
-          backgroundColor: "rgba(0,0,0,0.62)",
+          borderCurve: "continuous",
+          backgroundColor: colors.glassStrong,
         }}
       >
-        <StageControl
-          Icon={cameraEnabled ? Video : VideoOff}
+        <IconButton
+          icon={cameraEnabled ? Video : VideoOff}
           label={
             cameraEnabled
               ? t("mobile:voice.controlStopVideo")
               : t("mobile:voice.controlStartVideo")
           }
+          variant="veil"
           active={cameraEnabled}
+          toggle
           disabled={!canUseCamera && !cameraEnabled}
+          haptic="light"
           onPress={onToggleCamera}
         />
-        <StageControl
-          Icon={screenShareEnabled ? ScreenShareOff : ScreenShare}
+        <IconButton
+          icon={screenShareEnabled ? ScreenShareOff : ScreenShare}
           label={
             screenShareEnabled
               ? t("mobile:voice.controlStopShareScreen")
               : t("mobile:voice.controlShareScreen")
           }
+          variant="veil"
           active={screenShareEnabled}
+          toggle
           disabled={!canShareScreen && !screenShareEnabled}
+          haptic="light"
           onPress={onToggleScreenShare}
         />
-        <StageControl
-          Icon={micEnabled ? Mic : MicOff}
+        <IconButton
+          icon={micEnabled ? Mic : MicOff}
           label={micEnabled ? t("mobile:voice.controlMute") : t("mobile:voice.controlUnmute")}
-          // "Active" here means MUTED — the tinted state is the one worth noticing.
-          active={!micEnabled}
+          // Muted is the state worth noticing → the pink wash.
+          variant={micEnabled ? "veil" : "danger"}
           disabled={!canToggleAudio}
+          haptic="light"
           onPress={onToggleMic}
         />
-        <StageControl
-          Icon={PhoneOff}
+        <IconButton
+          icon={PhoneOff}
           label={disconnectLabel}
-          danger
+          variant="dangerSolid"
           haptic="medium"
           onPress={onDisconnect}
         />
@@ -224,18 +194,20 @@ export function StageControlBar({
               style={{
                 width: 1,
                 height: 20,
-                backgroundColor: "rgba(255,255,255,0.2)",
-                marginHorizontal: 2,
+                backgroundColor: colors.strokeStrong,
+                marginHorizontal: space.xs,
               }}
             />
-            <StageControl
-              Icon={fullscreen ? Shrink : Expand}
+            <IconButton
+              icon={fullscreen ? Shrink : Expand}
               label={
                 fullscreen
                   ? t("mobile:call.stageFullscreenExit")
                   : t("mobile:call.stageFullscreenEnter")
               }
+              variant="veil"
               active={fullscreen}
+              haptic="light"
               onPress={onToggleFullscreen}
             />
           </>

@@ -1,11 +1,12 @@
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { View } from "react-native";
 import { PhoneIncoming, PhoneOff, Smartphone } from "lucide-react-native";
 import type { CallState } from "@demli/client-core";
 import { useAppTranslation } from "@/lib/i18n";
 import { getCallController } from "@/stores/call-store";
+import { space } from "@/theme/theme";
+import { Banner } from "../ui/Banner";
+import { Button } from "../ui/Button";
 import { RingingScreen } from "./RingingScreen";
-import { colors, radius, space } from "@/theme/theme";
 
 /**
  * THE SEAT-AWAY SURFACE (ADR 0023 §1 / call-as-room plan W4) — what this phone
@@ -38,6 +39,11 @@ import { colors, radius, space } from "@/theme/theme";
  *
  * Reuses {@link RingingScreen} so the peer avatar/name keep their place across
  * ring → in-call → seat-away instead of the screen jumping between layouts.
+ *
+ * Koyu Masa: the explanation is an info Banner (what happened, and what taking
+ * the seat costs), the seat is the coral accent CTA (joining is the warm act),
+ * and ending the call for everyone is the danger WASH button — destructive, but a
+ * deliberate second choice, never as loud as the way back in.
  */
 export function SeatAwayView({ state, peerName }: { state: CallState; peerName: string }) {
   const { t } = useAppTranslation();
@@ -61,87 +67,36 @@ export function SeatAwayView({ state, peerName }: { state: CallState; peerName: 
         <View style={{ gap: space.md }}>
           {/* The one line that says WHY the controls are gone and what taking the
               seat will cost (on `elsewhere`, it drops the other device). */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.sm,
-              padding: space.md,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              borderWidth: 1,
-              borderColor: colors.stroke,
-              backgroundColor: colors.surface,
-            }}
-          >
-            <View
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: radius.pill,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.surfaceRaised,
-              }}
-            >
-              {elsewhere ? (
-                <Smartphone size={16} color={colors.accent} />
-              ) : (
-                <PhoneIncoming size={16} color={colors.accent} />
-              )}
-            </View>
-            <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 13, lineHeight: 18 }}>
-              {hint}
-            </Text>
-          </View>
+          <Banner
+            variant="info"
+            icon={elsewhere ? Smartphone : PhoneIncoming}
+            // The status line above already names the state; the banner carries
+            // only the consequence, so nothing is said twice.
+            title={hint}
+          />
 
-          <Pressable
+          <Button
+            variant="accent"
+            size="lg"
+            block
+            icon={PhoneIncoming}
+            label={takeLabel}
+            loading={state.pending}
+            haptic="medium"
             onPress={() => void getCallController().joinHere()}
-            disabled={state.pending}
-            accessibilityRole="button"
-            accessibilityLabel={takeLabel}
-            accessibilityState={{ disabled: state.pending }}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: space.sm,
-              minHeight: 52,
-              borderRadius: radius.pill,
-              backgroundColor: colors.online,
-              opacity: state.pending ? 0.5 : pressed ? 0.85 : 1,
-            })}
-          >
-            <PhoneIncoming size={20} color={colors.onAccent} />
-            <Text style={{ color: colors.onAccent, fontSize: 16, fontWeight: "700" }}>
-              {takeLabel}
-            </Text>
-          </Pressable>
+          />
 
           {/* Ending the call is still reachable from here — leaving the room did
               not take away the ability to actually finish it. */}
-          <Pressable
+          <Button
+            variant="danger"
+            size="lg"
+            block
+            icon={PhoneOff}
+            label={t("mobile:call.hangUp")}
+            haptic="medium"
             onPress={() => void getCallController().hangup()}
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:call.hangUp")}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: space.sm,
-              minHeight: 48,
-              borderRadius: radius.pill,
-              borderWidth: 1,
-              borderColor: colors.stroke,
-              backgroundColor: colors.surface,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <PhoneOff size={18} color={colors.danger} />
-            <Text style={{ color: colors.danger, fontSize: 15, fontWeight: "600" }}>
-              {t("mobile:call.hangUp")}
-            </Text>
-          </Pressable>
+          />
         </View>
       }
     />

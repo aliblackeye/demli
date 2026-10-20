@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import type { ViewStyle } from "react-native";
-import { Pressable, ScrollView, View } from "react-native";
-import { Text } from "../ui/Text";
+import { ScrollView, View } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
 import { pickSpeakingSubject, type RemoteScreenShare } from "@demli/media";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Chip } from "../ui/Chip";
 import { useActiveSpeakers } from "./active-speakers";
 import { ParticipantTile, type ParticipantTileData } from "./ParticipantTile";
 import type { PipSubject } from "./VideoFullscreenModal";
@@ -101,7 +101,7 @@ export function ScreenShareStage({
   );
 
   return (
-    <View style={{ flex: 1, padding: space.lg, gap: space.md }}>
+    <View style={{ flex: 1, padding: space.md, gap: space.md }}>
       <ScreenShareView
         share={share}
         sharerName={sharerName}
@@ -113,38 +113,21 @@ export function ScreenShareStage({
 
       {hasStrip ? (
         <View style={{ gap: space.sm }}>
-          <Pressable
+          <Chip
             onPress={() => setCollapsed((v) => !v)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: !collapsed }}
-            accessibilityLabel={
+            leading={
+              collapsed ? (
+                <Eye size={15} color={colors.fgMuted} strokeWidth={2} />
+              ) : (
+                <EyeOff size={15} color={colors.fgMuted} strokeWidth={2} />
+              )
+            }
+            label={
               collapsed
                 ? t("mobile:voice.showCamerasCount", { n: participantTiles.length })
                 : t("mobile:voice.hideCameras")
             }
-            style={({ pressed }) => ({
-              alignSelf: "flex-start",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.xs,
-              paddingHorizontal: space.md,
-              paddingVertical: space.xs,
-              borderRadius: radius.pill,
-              backgroundColor: colors.surfaceRaised,
-              opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            {collapsed ? (
-              <Eye size={15} color={colors.fgMuted} />
-            ) : (
-              <EyeOff size={15} color={colors.fgMuted} />
-            )}
-            <Text style={{ color: colors.fgMuted, fontSize: 12, fontWeight: "600" }}>
-              {collapsed
-                ? t("mobile:voice.showCamerasCount", { n: participantTiles.length })
-                : t("mobile:voice.hideCameras")}
-            </Text>
-          </Pressable>
+          />
 
           {!collapsed ? (
             <ScrollView

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
+import { animate, useReducedMotion } from "@/theme/motion";
 
 export interface AutoHideControls {
   /** Whether the chrome is currently shown (drives `pointerEvents` on controls). */
@@ -8,6 +9,12 @@ export interface AutoHideControls {
   opacity: Animated.Value;
   /** Reveal the chrome and (re)arm the idle-hide timer. */
   reveal: () => void;
+  /**
+   * Reveal the chrome and keep it up with NO idle timer — for a control the
+   * finger is still on (dragging the film volume). Follow with `reveal()` when
+   * the interaction ends, which re-arms the timer.
+   */
+  hold: () => void;
   /** Hide the chrome immediately. */
   hide: () => void;
   /** Toggle the chrome (tap-to-toggle, the video-player gesture). */
@@ -21,12 +28,20 @@ export interface AutoHideControls {
  * from being a permanent fixture on the stream (founder #1) while staying reachable
  * on demand.
  *
- * RN-only + `Animated` (opacity → native driver), so no new dependency and fully
- * OTA-safe. The `visible` flag also gates `pointerEvents` so hidden buttons never
- * swallow a tap meant to reveal them.
+ * Motion: the chrome arrives on the `standard` step and leaves on the quicker
+ * `fast` one (an overlay gets out of the way rather than drifting off), both
+ * through the shared presets — so the OS reduce-motion switch makes it appear
+ * and disappear instantly. RN `Animated` on the native driver: the consumers
+ * already hold an `Animated.Value`, and opacity is all that moves.
+ *
+ * The `visible` flag also gates `pointerEvents` so hidden buttons never swallow a
+ * tap meant to reveal them.
  */
 export function useAutoHideControls(options?: { idleMs?: number }): AutoHideControls {
   const idleMs = options?.idleMs ?? 2800;
+  const reduced = useReducedMotion();
+  const reducedRef = useRef(reduced);
+  reducedRef.current = reduced;
   const opacity = useRef(new Animated.Value(1)).current;
   const [visible, setVisible] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,7 +55,7 @@ export function useAutoHideControls(options?: { idleMs?: number }): AutoHideCont
 
   const fadeTo = useCallback(
     (to: number): void => {
-      Animated.timing(opacity, { toValue: to, duration: 220, useNativeDriver: true }).start();
+      animate(opacity, to, to > 0 ? "standard" : "fast", { reduced: reducedRef.current }).start();
     },
     [opacity],
   );
@@ -51,15 +66,19 @@ export function useAutoHideControls(options?: { idleMs?: number }): AutoHideCont
     fadeTo(0);
   }, [clear, fadeTo]);
 
-  const reveal = useCallback((): void => {
+  const hold = useCallback((): void => {
     clear();
     setVisible(true);
     fadeTo(1);
+  }, [clear, fadeTo]);
+
+  const reveal = useCallback((): void => {
+    hold();
     timer.current = setTimeout(() => {
       setVisible(false);
       fadeTo(0);
     }, idleMs);
-  }, [clear, fadeTo, idleMs]);
+  }, [hold, fadeTo, idleMs]);
 
   const toggle = useCallback((): void => {
     if (visible) hide();
@@ -73,5 +92,5 @@ export function useAutoHideControls(options?: { idleMs?: number }): AutoHideCont
     return clear;
   }, [reveal, clear]);
 
-  return { visible, opacity, reveal, hide, toggle };
+  return { visible, opacity, reveal, hold, hide, toggle };
 }

@@ -1,11 +1,12 @@
 import { memo } from "react";
 import type { ViewStyle } from "react-native";
 import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
 import { VideoTrack } from "@livekit/react-native";
 import { MicOff, VolumeX } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
+import { Text } from "../ui/Text";
+import { MediaPill, SpeakingFrame, TILE_RADIUS, usePressWash } from "./stage-chrome";
 import { useVideoTrackRef } from "./track-ref";
 
 /**
@@ -23,6 +24,10 @@ import { useVideoTrackRef } from "./track-ref";
  *
  * `objectFit="cover"` fills the tile (a face reads better cropped than
  * letterboxed); the local self-view is mirrored, the natural front-camera look.
+ *
+ * Koyu Masa: borderless on pure black, the shared tile radius, the coral
+ * {@link SpeakingFrame} for "this person is talking", and a press that washes the
+ * picture instead of fading it.
  */
 export interface CameraTileData {
   /** Stable key + roster join key — the participant identity. */
@@ -42,7 +47,6 @@ export const CameraTile = memo(function CameraTile({
   isLocal,
   muted,
   speaking,
-  focused,
   mutedForYou,
   showName = false,
   contain = false,
@@ -56,7 +60,11 @@ export const CameraTile = memo(function CameraTile({
   isLocal: boolean;
   muted: boolean;
   speaking: boolean;
-  /** Draw the accent ring even when not speaking — marks the focused/stage tile. */
+  /**
+   * Kept for API compatibility with the stage: the focused tile is already the
+   * big one, so it no longer wears a second ring that would compete with the
+   * coral speaking ring.
+   */
   focused?: boolean;
   /** Volume set to 0 by this listener → show the "muted for you" glyph. */
   mutedForYou?: boolean;
@@ -81,9 +89,9 @@ export const CameraTile = memo(function CameraTile({
 }) {
   const { t } = useAppTranslation();
   const trackRef = useVideoTrackRef(track);
+  const wash = usePressWash();
 
   const label = isLocal ? t("mobile:voice.cameraYou", { name }) : name;
-  const borderColor = speaking ? colors.online : focused ? colors.accent : colors.stroke;
   // The overlay only appears when there's something to show: the mic-off badge
   // (always, while muted), the "muted for you" glyph (volume 0), or the name.
   const showOverlay = muted || mutedForYou || showName;
@@ -96,46 +104,33 @@ export const CameraTile = memo(function CameraTile({
         mirror={isLocal}
         // Local self-view stacks above remote tiles (see zOrder docs).
         zOrder={isLocal ? 1 : 0}
-        style={{ flex: 1, backgroundColor: "#000" }}
+        style={{ flex: 1, backgroundColor: colors.rail }}
       />
-      {/* Mic-off badge (always while muted) + name (only when showName), bottom-left. */}
       {showOverlay ? (
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.xs,
-            paddingHorizontal: space.sm,
-            paddingVertical: space.xs,
-            backgroundColor: "rgba(0,0,0,0.45)",
-          }}
+        <MediaPill
+          style={{ position: "absolute", left: space.sm, bottom: space.sm, maxWidth: "88%" }}
         >
-          {muted ? <MicOff size={13} color={colors.danger} /> : null}
-          {mutedForYou ? <VolumeX size={13} color={colors.fgMuted} /> : null}
+          {muted ? <MicOff size={12} color={colors.danger} strokeWidth={2.25} /> : null}
+          {mutedForYou ? <VolumeX size={12} color={colors.fgMuted} strokeWidth={2.25} /> : null}
           {showName ? (
             <Text
               numberOfLines={1}
-              style={{ flex: 1, color: "#fff", fontSize: 12, fontWeight: "600" }}
+              style={{ flexShrink: 1, color: colors.fgDisplay, fontSize: 12, fontWeight: "600" }}
             >
               {label}
             </Text>
           ) : null}
-        </View>
+        </MediaPill>
       ) : null}
+      <SpeakingFrame speaking={speaking} />
     </>
   );
 
   const frame: ViewStyle = {
     overflow: "hidden",
-    borderRadius: radius.md,
+    borderRadius: TILE_RADIUS,
     borderCurve: "continuous",
-    backgroundColor: "#000",
-    borderWidth: 2,
-    borderColor,
+    backgroundColor: colors.rail,
     ...style,
   };
 
@@ -145,11 +140,18 @@ export const CameraTile = memo(function CameraTile({
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={350}
+        {...wash.handlers}
         accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        style={({ pressed }) => ({ ...frame, opacity: pressed ? 0.85 : 1 })}
+        // "Speaking" is part of what TalkBack reads — the ring alone is visual.
+        accessibilityLabel={
+          speaking
+            ? t("mobile:voice.speakingA11y", { name: accessibilityLabel ?? label })
+            : (accessibilityLabel ?? label)
+        }
+        style={frame}
       >
         {body}
+        {wash.overlay}
       </Pressable>
     );
   }

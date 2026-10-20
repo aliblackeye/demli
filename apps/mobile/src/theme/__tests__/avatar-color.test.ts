@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { avatarHue, avatarTileGradient, avatarTileSolid } from "../avatar-color";
+import {
+  AVATAR_GLOW_OPACITY,
+  avatarHue,
+  avatarTileGlow,
+  avatarTileGradient,
+  avatarTileSolid,
+} from "../avatar-color";
 
 /**
  * Locks the SHARED cameraless-tile color contract (theme/avatar-color.ts). The
@@ -53,5 +59,12 @@ describe("avatar-color (shared contract with desktop)", () => {
       from: "hsl(353, 55%, 30%)",
       to: "hsl(9, 60%, 18%)",
     });
+  });
+
+  it("builds the identity glow on the same hue as the desktop tile disc", () => {
+    // Desktop AvatarTile: hsl(hue 60% 50%) at opacity 0.16 over bg-surface.
+    expect(avatarTileGlow("ali")).toBe("hsl(190, 60%, 50%)");
+    expect(avatarTileGlow("burak")).toBe("hsl(353, 60%, 50%)");
+    expect(AVATAR_GLOW_OPACITY).toBe(0.16);
   });
 });
