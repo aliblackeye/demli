@@ -66,9 +66,11 @@ and the TR/EN picker writes to `localStorage["demli.locale"]`.
 The page ships a strict CSP (`default-src 'self'`, no `data:`) and makes **zero**
 third-party requests:
 
-- Fonts are the repo's own self-hosted woff2 subsets, referenced from
-  `apps/desktop/src/renderer/src/assets/fonts/` — not copied, so the landing
-  typography cannot drift from the app's. Google Fonts is not used.
+- Fonts are the product's own Onest + Inter variable woff2 subsets (SIL OFL
+  1.1), referenced from `apps/desktop/src/renderer/src/assets/fonts/` by
+  `src/app/fonts.css` — not copied; Next emits them into `_next/static/media`.
+  The OFL texts ship at `/fonts/OFL-*.txt`. Google Fonts is not used, at
+  runtime or at build time (no `next/font/google`).
 - Design tokens are imported from `packages/app-ui/src/tokens.css`; this page
   defines no colours of its own.
 - `assetsInlineLimit: 0` keeps every asset a real file, so the CSP needs no
@@ -77,6 +79,24 @@ third-party requests:
 
 Caddy should still send `frame-ancestors`, `X-Content-Type-Options` and
 `Referrer-Policy` as response headers — a meta CSP cannot express the first.
+
+## Owned assets (no template material)
+
+Everything the page shows is Demli's own and tracked in git; the publish guard
+(`scripts/check-landing-dist.mjs`) refuses any build file that is neither a
+Next build artefact nor tracked under `public/`.
+
+| What | Where | Made by |
+| --- | --- | --- |
+| Phone screens | `public/images/shots/<hero\|voice\|screen\|table>-<tr\|en>.webp` | `scripts/gen-landing-shots.mjs` — headless captures of the real components via the apps/web harness pages |
+| Phone bezel | `src/components/molecules/PhoneMockup.tsx` | CSS |
+| Light rays / footer glow | `src/components/atoms/LightRays.tsx` + `globals.css` | CSS (reduced-motion aware) |
+| Film grain | `public/images/grain.png` | `scripts/gen-landing-noise.mjs` (seeded) |
+| Dot grid | `.dot-grid` in `globals.css` | CSS |
+| Icons | `public/glyphs/*.svg` | hand-authored SVG |
+| Review avatars | `TrustBadge.tsx` | initials on CSS gradients |
+
+Re-render the screens after a UI change: `npx -y -p playwright-core@1.48.2 node scripts/gen-landing-shots.mjs`.
 
 ## Brand assets
 

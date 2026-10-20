@@ -9,15 +9,17 @@ import { Appear, APPEAR } from "../atoms/Appear";
 import { useIsMobile } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
 import { CtaButton } from "../atoms/CtaButton";
+import { LightRays } from "../atoms/LightRays";
 import { MaskIcon } from "../atoms/MaskIcon";
+import { PhoneMockup } from "../molecules/PhoneMockup";
 import { ShimmerText } from "../atoms/ShimmerText";
 
 /**
  * [Section] Hero — ölçülen yerleşim (810–1439 arası; ≥1440 değerleri
  * media query ile): kolon, gap 64 (CSS) / ölçülen container gap 52,
- * üst padding 160. BG 600px: ışık huzmesi videosu (1200×500) + noise.
+ * üst padding 160. BG 600px: CSS ışık huzmeleri (1200×500, LightRays) + grain.
  * Title Wrapper gap 32: Tagline hapı + H1 (92px→112px).
- * Bottom Wrapper: telefon görseli (564×965, 736 görünür) + CTA içeriği.
+ * Bottom Wrapper: CSS telefon çerçevesinde gerçek Demli ekranı + CTA içeriği.
  */
 export function Hero() {
   const { t } = useTranslation("landing");
@@ -50,17 +52,7 @@ export function Hero() {
         >
         <Appear spec={APPEAR.heroLightRays} className="h-full w-full">
           <Appear spec={APPEAR.heroVideo} className="h-full w-full">
-            {/* Referansta video sarmalayıcısı matrix(-1,0,0,-1,0,0) — 180° çevrik */}
-            <div className="h-full w-full rotate-180">
-              <video
-                src="/videos/light-rays-hero.webm"
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <LightRays className="h-full w-full" />
           </Appear>
         </Appear>
         </div>
@@ -77,7 +69,7 @@ export function Hero() {
           <div
             className="h-full w-full"
             style={{
-              backgroundImage: "url(/images/noise.png)",
+              backgroundImage: "url(/images/grain.png)",
               backgroundRepeat: "repeat",
               backgroundSize: "128px",
             }}
@@ -134,7 +126,7 @@ export function Hero() {
               className="absolute inset-y-0 left-[-318px] right-[-318px] rounded-[100%] opacity-[0.48] dt:left-[-398px] dt:right-[-398px]"
               style={{
                 background:
-                  "radial-gradient(50% 50% at 50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+                  "radial-gradient(50% 50% at 50% 50%, rgba(255, 132, 100, 0.24) 0%, rgba(255, 132, 100, 0) 100%)",
                 filter: "blur(8px)",
               }}
               animate={mobil ? { y: 0 } : { y: [0, 380, 0] }}
@@ -149,13 +141,12 @@ export function Hero() {
                   maskImage: "linear-gradient(rgb(0, 0, 0) 12%, rgba(0, 0, 0, 0) 100%)",
                 }}
               >
-                <Image
-                  src="/images/hero-phone.webp"
+                <PhoneMockup
+                  shot="hero"
                   alt={t("hero.phoneAlt")}
-                  width={644}
-                  height={1102}
                   priority
-                  className="h-auto w-full object-contain"
+                  softFrom={34}
+                  className="mx-auto w-[78%]"
                 />
               </Appear>
             </motion.div>

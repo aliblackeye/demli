@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// Appzen token'ları (docs/appzen-clone-reference.md) — birebir klon paleti.
+// Landing token'ları — globals.css :root ile aynı; vurgu Demli mercanı.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
@@ -20,12 +20,12 @@ const config: Config = {
         "text-primary": "#f5f5f5",
         "text-secondary": "#a3a3a3",
         "text-dim": "#737373",
-        accent: "#22c55e",
+        accent: "#ff8464",
         star: "#eab30a",
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"],
-        display: ["Stack Sans Headline", "Inter", "sans-serif"],
+        display: ["Onest", "Inter", "sans-serif"],
       },
     },
   },

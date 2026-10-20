@@ -1,9 +1,9 @@
 "use client";
 
-import { VideoBg } from "../atoms/VideoBg";
 import { useTranslation, type TFunction } from "@demli/i18n";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
+import { LightRays } from "../atoms/LightRays";
 import { ReviewCard, type ReviewCardData } from "../molecules/ReviewCard";
 import { TrustBadge } from "../molecules/TrustBadge";
 import { DOWNLOAD_ANDROID_URL, DOWNLOAD_WINDOWS_URL } from "../../lib/links";
@@ -52,8 +52,8 @@ function yorumlar(t: LandingT) {
 
 /**
  * [Section] Reviews — ölçülen: BG şeridi 467 (Features ile aynı reçete),
- * Container pt 120 / gap 80; Title: rozet (defne kanatları + avatar yığını
- * + 5 yıldız + "Trusted by 50K+ users") + 48px iki tonlu başlık;
+ * Container pt 120 / gap 80; Title: rozet (defne kanatları + baş harf
+ * avatarları + 5 yıldız + rozet metni) + 48px iki tonlu başlık;
  * Content 1357 yüksek, 2 kolon 406px gap 12, kolon içi gap 12,
  * kolon başı 83px ofset, taşan kısım kırpılır.
  */
@@ -72,12 +72,12 @@ export function Reviews() {
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
           style={{
             background:
-              "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+              "radial-gradient(50% 50%, rgba(255, 132, 100, 0.24) 0%, rgba(255, 132, 100, 0) 100%)",
             filter: "blur(8px)",
           }}
         />
-        <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px]" />
+        <div style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+          <LightRays className="h-[300px] w-[720px] max-w-none tb:h-[467px] tb:w-[1120px]" />
         </div>
         <div
           aria-hidden
@@ -92,7 +92,7 @@ export function Reviews() {
           <div
             className="h-full w-full"
             style={{
-              backgroundImage: "url(/images/noise.png)",
+              backgroundImage: "url(/images/grain.png)",
               backgroundRepeat: "repeat",
               backgroundSize: "128px",
             }}
@@ -127,10 +127,9 @@ export function Reviews() {
         {/* authored: column-masonry grid, trackCount 3 (dt) / 2 (tb) / 1 (mobil),
             rowGap 12; TÜM grid onInView y250→0 spring (damping60/stiffness500). */}
         <CardReveal y={250} className="w-full">
-          {/* Ölçülen sıralar (ref): mobil = C1/C2 serpiştirme ilk 6;
-              tb = C1(5)+C2(4) iki kolon; dt = üç kolon
-              [Emily,Layla,Tyler | Olivia,Kevin,Aisha | Jessica,Marcus,Daniel].
-              CSS columns dengelemesi deterministik değil — açık kolonlar. */}
+          {/* Sıralar: mobil = C1/C2 serpiştirme ilk 6; tb = C1(5)+C2(4) iki
+              kolon; dt = üç kolon 3+3+3. CSS columns dengelemesi
+              deterministik değil — açık kolonlar. */}
           {/* Mobil: tek kolon, 6 kart, 1728 kırpma */}
           {/* Ölçülen: mobil kolonun içerik bloğunda 44px üst ofset var
               (tb'deki 83px kolon başı ofsetinin mobil karşılığı) */}

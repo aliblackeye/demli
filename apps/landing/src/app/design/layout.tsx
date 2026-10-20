@@ -8,10 +8,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Onest } from "next/font/google";
 import { T } from "@/design/tokens";
 
-const onest = Onest({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"] });
+/** Onest — fonts.css'teki ürün fontu (build sırasında Google'dan indirilmez). */
+const onest = { className: "font-display" };
 
 const SAYFALAR = [
   ["/design", "Genel bakış"],

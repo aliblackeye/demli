@@ -1,11 +1,11 @@
 "use client";
 
-import { VideoBg } from "../atoms/VideoBg";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { useTranslation } from "@demli/i18n";
 import { CtaButton } from "../atoms/CtaButton";
 import { FadeIn } from "../atoms/FadeIn";
+import { LightRays } from "../atoms/LightRays";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
 import { SLIDE_SPRING, slideVariants } from "../atoms/SlideHoverText";
@@ -37,14 +37,14 @@ export function SiteFooter() {
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
           style={{
             background:
-              "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+              "radial-gradient(50% 50%, rgba(255, 132, 100, 0.24) 0%, rgba(255, 132, 100, 0) 100%)",
             filter: "blur(8px)",
           }}
           animate={mobil ? { y: 0 } : { y: [0, 380, 0] }}
           transition={mobil ? undefined : { duration: 4.017, ease: [0.44, 0, 0.56, 1], repeat: Infinity, times: [0, 0.5, 1] }}
         />
-        <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px] dt:h-[600px] dt:w-[1440px]" />
+        <div style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+          <LightRays className="h-[300px] w-[720px] max-w-none tb:h-[467px] tb:w-[1120px] dt:h-[600px] dt:w-[1440px]" />
         </div>
         <div
           aria-hidden
@@ -59,7 +59,7 @@ export function SiteFooter() {
           <div
             className="h-full w-full"
             style={{
-              backgroundImage: "url(/images/noise.png)",
+              backgroundImage: "url(/images/grain.png)",
               backgroundRepeat: "repeat",
               backgroundSize: "128px",
             }}
@@ -131,7 +131,7 @@ export function SiteFooter() {
             className="absolute left-1/2 top-0 h-[330px] w-[732px] max-w-none -translate-x-1/2 rounded-[100%] opacity-40 tb:h-[400px] tb:w-[872px] dt:h-[420px] dt:w-[912px]"
             style={{
               background:
-                "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+                "radial-gradient(50% 50%, rgba(255, 132, 100, 0.24) 0%, rgba(255, 132, 100, 0) 100%)",
             }}
           />
           <Image
@@ -162,13 +162,13 @@ export function SiteFooter() {
           >
             <div className="absolute inset-0">
               <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 opacity-[0.64] tb:h-[600px] tb:w-[1440px]">
-                <VideoBg src="/videos/footer-bg.webm" className="h-full w-full object-cover" />
+                <LightRays variant="ember" className="h-full w-full" />
               </div>
             </div>
             <div className="absolute left-1/2 top-0 h-[300px] w-[720px] max-w-none -translate-x-1/2 rotate-180 tb:h-[600px] tb:w-[1440px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-              <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover" />
+              <LightRays className="h-full w-full" />
             </div>
-            <div className="absolute inset-0 z-[1] mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
+            <div className="absolute inset-0 z-[1] mix-blend-screen" style={{ WebkitMaskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(64% 50% at 51.2% 0, rgba(0,0,0,0.88) 23.3143%, rgba(0,0,0,0) 100%)" }}><div className="h-full w-full" style={{ backgroundImage: "url(/images/grain.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} /></div>
           </div>
           {/* authored card padding 80 80 40 (mobil 64 24 24); iç ofsetler
               referans render'ından: logo →50→ mail →36→ sosyal →68→ telif */}

@@ -1,22 +1,23 @@
 "use client";
 
-import { VideoBg } from "../atoms/VideoBg";
-import Image from "next/image";
 import { useEffect, useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { FadeIn } from "../atoms/FadeIn";
+import { LightRays } from "../atoms/LightRays";
 import { useIsMobile } from "../atoms/CardReveal";
 import { MaskIcon } from "../atoms/MaskIcon";
 import { RevealText } from "../atoms/RevealText";
 import { ShimmerText } from "../atoms/ShimmerText";
+import { PhoneMockup, type ShotName } from "./PhoneMockup";
 
 export type FeatureCardData = {
   tag: string;
   title: string;
   description: string;
   bullets: string[];
-  phoneImage: string;
-  /** Featured kartta BG'de ışık huzmesi videosu var; dt'de düzen aynalı. */
+  /** Telefonda gösterilecek gerçek ürün ekranı (scripts/gen-landing-shots.mjs). */
+  shot: ShotName;
+  /** Featured kartta BG'de ışık huzmeleri var; dt'de düzen aynalı. */
   featured?: boolean;
   /** Ölçülen: ref'te telefon içerik akışını izler — kart 3'te metin kısa
       olduğundan telefon 429'da, kart 773 (varsayılan 453/797). */
@@ -29,7 +30,7 @@ export type FeatureCardData = {
  *   72 64 72 0, içerik sağda), başlık/açıklama 528px, telefon flex-1.
  * tb (810–1439): 730px dikey; içerik pad 64 64 0; telefon 450px'te 730×712.
  * mobil (≤809): 342px dikey; içerik pad 32 32 0; telefon 453'te 327×329.
- * Ortak: bg #0d0d0d, radius 44 (mobil 32), dots figürü, noise (screen).
+ * Ortak: bg #0d0d0d, radius 44 (mobil 32), nokta ızgarası, grain (screen).
  */
 export function FeatureCard({ data }: { data: FeatureCardData }) {
   const kisa = data.mobilePhoneTop === 429;
@@ -84,8 +85,8 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         (data.featured ? "dt:flex-row-reverse" : "dt:flex-row")
       }
     >
-      {/* authored BG: tek maskeli ebeveyn (radial 63.4% .32) altında
-          noise (op .32, screen, 65% mask) + tam-yuvarlak dots figürü */}
+      {/* BG: tek maskeli ebeveyn (radial 63.4% .32) altında grain
+          (op .32, screen, 65% mask) + tam-yuvarlak nokta ızgarası (CSS) */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -105,20 +106,17 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
               "radial-gradient(65% 50%, rgba(0, 0, 0, 0.88) 25.044%, rgba(0, 0, 0, 0) 100%)",
           }}
         >
-          <div className="h-full w-full" style={{ backgroundImage: "url(/images/noise.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} />
+          <div className="h-full w-full" style={{ backgroundImage: "url(/images/grain.png)", backgroundRepeat: "repeat", backgroundSize: "128px" }} />
         </div>
-        <figure className="absolute inset-x-0 top-[2px] h-[99%] overflow-hidden rounded-[100%]">
-          <Image src="/images/screen-frame.webp" alt="" fill className="object-cover" sizes="1120px" />
-        </figure>
+        <div className="dot-grid absolute inset-x-0 top-[2px] h-[99%] overflow-hidden rounded-[100%]" />
       </div>
       {data.featured && (
-        /* Ölçülen: ref mobilde SARMALAYICILARI tutar, VİDEOYU basmaz —
-           yalnız video tb+ (DOM şekli ref'le birebir) */
+        /* Huzmeler yalnız tb+ (mobilde sarmalayıcı boş kalır) */
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           {/* Ölçülen: mobil 880×366, tb+ 1708×712 — üst radyal maskla */}
-          <div className="absolute left-1/2 top-[-22px] h-[366px] w-[880px] max-w-none -translate-x-1/2 rotate-180 tb:h-[712px] tb:w-[1708px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+          <div className="absolute left-1/2 top-[-22px] h-[366px] w-[880px] max-w-none -translate-x-1/2 tb:h-[712px] tb:w-[1708px]" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
             <div className="hidden h-full w-full tb:block">
-              <VideoBg src="/videos/light-rays.webm" className="h-full w-full object-cover opacity-40" />
+              <LightRays className="h-full w-full opacity-40" />
             </div>
           </div>
         </div>
@@ -137,7 +135,7 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         {/* Ölçülen kademe: başlık kelimeleri ~0.15s'te blur'la başlar,
             tag ~0.6s'te y20 fade, açıklama ~0.7s, maddeler 0.8 */}
         <div className="flex w-full flex-col items-start gap-4 tb:w-[528px]">
-          {/* Fark motoru: featured kartın tag'ı YEŞİL (#22c55e); mobil 14px */}
+          {/* Featured kartın tag'ı vurgu renginde (mercan); mobil 14px */}
           <FadeIn
             amount={0.1}
             transition={{ type: "spring", bounce: 0, delay: 0.6, duration: 0.6 }}
@@ -191,9 +189,9 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         </FadeIn>
       </div>
 
-      {/* Telefon görseli — authored: alt solma maskı linear-gradient(0deg,
-          saydam 0% → siyah 56%) + saturate(1.4); tb/mobil mutlak konum,
-          dt: karşı kolonu dolduran akış öğesi. */}
+      {/* Telefon — alt solma maskı linear-gradient(0deg, saydam 0% → siyah
+          56%); tb/mobil mutlak konum, dt: karşı kolonu dolduran akış öğesi.
+          Telefon genişliğin %72'si, üstten %12 (yüzde margin genişliğe göre). */}
       <motion.div
         ref={telRef}
         className={
@@ -204,18 +202,11 @@ export function FeatureCard({ data }: { data: FeatureCardData }) {
         style={{
           WebkitMaskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
           maskImage: "linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgb(0, 0, 0) 56%)",
-          filter: "saturate(1.4)",
           y: telY,
           opacity: telOpacity,
         }}
       >
-        <Image
-          src={data.phoneImage}
-          alt={data.title}
-          width={730}
-          height={712}
-          className="h-full w-full object-cover object-top"
-        />
+        <PhoneMockup shot={data.shot} alt={data.title} className="mx-auto mt-[12%] w-[72%]" />
       </motion.div>
     </div>
   );

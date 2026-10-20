@@ -1,16 +1,16 @@
 "use client";
 
-import { VideoBg } from "../atoms/VideoBg";
 import { useTranslation } from "@demli/i18n";
 import { CardReveal } from "../atoms/CardReveal";
 import { FadeIn } from "../atoms/FadeIn";
+import { LightRays } from "../atoms/LightRays";
 import { FeatureCard, type FeatureCardData } from "../molecules/FeatureCard";
 import { SectionTagline } from "../molecules/SectionTagline";
 
 /**
  * [Section] Features — authored: section padding 160 0 (dt) / 120 40 (tb) /
  * 80 24 (mobil); Container gap 80; kartlar gap 24 (mobil 16).
- * BG şeridi 467px (video + noise 0.72 + yeşil daire).
+ * BG şeridi 467px (CSS ışık huzmeleri + grain 0.72 + mercan daire).
  */
 export function Features() {
   const { t } = useTranslation("landing");
@@ -19,7 +19,7 @@ export function Features() {
     title: t(`features.cards.${k}.title`),
     description: t(`features.cards.${k}.desc`),
     bullets: [t(`features.cards.${k}.b1`), t(`features.cards.${k}.b2`), t(`features.cards.${k}.b3`)],
-    phoneImage: `/images/feature-phone-${k === "voice" ? 1 : k === "screen" ? 2 : 3}.png`,
+    shot: k,
   }));
   return (
     <section
@@ -33,13 +33,13 @@ export function Features() {
           className="absolute inset-y-0 left-[-165px] right-[-165px] rounded-[100%] tb:left-[-155px] tb:right-[-155px] dt:left-[-398px] dt:right-[-398px]"
           style={{
             background:
-              "radial-gradient(50% 50%, rgba(34, 197, 94, 0.24) 0%, rgba(34, 197, 94, 0) 100%)",
+              "radial-gradient(50% 50%, rgba(255, 132, 100, 0.24) 0%, rgba(255, 132, 100, 0) 100%)",
             filter: "blur(8px)",
           }}
         />
         <div className="flex h-full w-full items-center justify-center">
-          <div className="rotate-180" style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
-          <VideoBg src="/videos/light-rays.webm" className="h-[300px] w-[720px] max-w-none object-cover tb:h-[467px] tb:w-[1120px]" />
+          <div style={{ WebkitMaskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)", maskImage: "radial-gradient(50% 150% at 50% 0, rgb(0,0,0) 82.2354%, rgba(0,0,0,0) 100%)" }}>
+          <LightRays className="h-[300px] w-[720px] max-w-none tb:h-[467px] tb:w-[1120px]" />
           </div>
         </div>
         <div
@@ -55,7 +55,7 @@ export function Features() {
           <div
             className="h-full w-full"
             style={{
-              backgroundImage: "url(/images/noise.png)",
+              backgroundImage: "url(/images/grain.png)",
               backgroundRepeat: "repeat",
               backgroundSize: "128px",
             }}

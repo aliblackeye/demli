@@ -1,17 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { useTranslation } from "@demli/i18n";
 import { MaskIcon } from "../atoms/MaskIcon";
 
+/** Rozetteki yüzler: yorum yazan ilk beş kişinin baş harfleri, kendi
+    gradyanlarımızla — fotoğraf yok. */
 const AVATARS = [
-  "/images/avatar-1.jpg",
-  "/images/avatar-2.jpg",
-  "/images/avatar-3.jpg",
-  "/images/avatar-4.jpg",
-  "/images/avatar-5.jpg",
-];
+  { id: "r1", bg: "linear-gradient(135deg, #ffb08f 0%, #e8624a 100%)" },
+  { id: "r2", bg: "linear-gradient(135deg, #f6c177 0%, #c97b2a 100%)" },
+  { id: "r3", bg: "linear-gradient(135deg, #9aa7ff 0%, #4b4fb8 100%)" },
+  { id: "r4", bg: "linear-gradient(135deg, #8fd3c1 0%, #2f7d6d 100%)" },
+  { id: "r5", bg: "linear-gradient(135deg, #d9a1e6 0%, #7d3f96 100%)" },
+] as const;
 
 /**
  * Defne kanatlı güven rozeti (Reviews + Footer'da aynı "Reviews Badge") —
@@ -26,12 +27,12 @@ export function TrustBadge() {
     <div className="flex items-center gap-6">
       <MaskIcon name="laurel-left" width={28} height={38} color="#eab30a" />
       <div className="flex flex-col items-center gap-2 tb:flex-row tb:gap-3">
-        {/* authored Stacked Avatars: 125×44 kenar paysız; 32px görsel,
+        {/* Yığılmış avatarlar: 125×44 kenar paysız; 32px daire,
             23px merkez adımı (bindirme -9px), 2px koyu halka */}
         <div className="flex h-[44px] items-center">
-          {AVATARS.map((src, i) => (
+          {AVATARS.map((a, i) => (
             <div
-              key={src}
+              key={a.id}
               className={
                 "h-8 w-8 overflow-hidden rounded-[1000px] " + (i > 0 ? "-ml-[9px]" : "")
               }
@@ -43,7 +44,12 @@ export function TrustBadge() {
                 viewport={{ amount: 0.5 }}
                 transition={{ type: "spring", damping: 60, stiffness: 500, mass: 1 }}
               >
-                <Image src={src} alt="" width={32} height={32} className="h-8 w-8 rounded-[1000px] object-cover" style={{ boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }} />
+                <span
+                  className="flex h-8 w-8 select-none items-center justify-center rounded-[1000px] font-display text-[13px] font-semibold leading-none text-white"
+                  style={{ background: a.bg, boxShadow: "rgb(13, 13, 13) 0px 0px 0px 2px" }}
+                >
+                  {t(`reviews.items.${a.id}.name`).charAt(0)}
+                </span>
               </motion.div>
             </div>
           ))}
