@@ -69,6 +69,44 @@ export function hwndOfWindowSource(sourceId: string): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * How long after picking a source in the share picker a capture may start. The
+ * renderer starts the sound IN PARALLEL with getDisplayMedia (so the video may
+ * not be served yet), and "app" sound needs a PID lookup first — seconds, not
+ * minutes.
+ */
+export const SHARE_GRANT_WINDOW_MS = 15_000;
+
+/**
+ * What a webContents is entitled to, from the capture module's view: the source
+ * it last armed in the share picker, when, and whether main then served that
+ * source to a getDisplayMedia (i.e. a share is live).
+ */
+export interface ShareGrant {
+  sourceId: string;
+  armedAt: number;
+  served: boolean;
+}
+
+/**
+ * May this start request capture sound? Only for a share the user started in
+ * the SAME webContents: a source armed through the picker moments ago, or a share
+ * main served and that has not been released since. "app" must target the very
+ * window being shared. Without this, any renderer code could call
+ * `processAudio.start({ mode: "system" })` and silently record the PC.
+ */
+export function processAudioStartAllowed(
+  request: ProcessAudioStartRequest,
+  grant: ShareGrant | null,
+  now: number,
+): boolean {
+  if (!grant) return false;
+  if (request.mode === "app" && request.sourceId !== grant.sourceId) return false;
+  if (grant.served) return true;
+  const age = now - grant.armedAt;
+  return age >= 0 && age <= SHARE_GRANT_WINDOW_MS;
+}
+
 /** IPC payload schema for a start request — the only shape main accepts. */
 export const processAudioStartSchema: z.ZodType<ProcessAudioStartRequest> = z.discriminatedUnion(
   "mode",

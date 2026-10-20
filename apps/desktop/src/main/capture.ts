@@ -6,6 +6,7 @@ import {
   type DesktopCapturerSource,
   type IpcMainInvokeEvent,
   type Session,
+  type WebContents,
 } from "electron";
 import { z } from "zod";
 import {
@@ -15,6 +16,7 @@ import {
   type CaptureSource,
   type CaptureSourceKind,
 } from "./capture-types";
+import type { ShareGrant } from "./process-audio-policy";
 
 /**
  * Screen-capture (main process).
@@ -82,6 +84,41 @@ interface PendingSelection {
 
 /** The single armed selection, consumed by the next display-media request. */
 let pendingSelection: PendingSelection | null = null;
+
+/**
+ * Per webContents: the source it last picked and whether that share was served.
+ * Process-audio capture is only allowed against one of these (see
+ * `processAudioStartAllowed`), so share sound can only ever be recorded for a
+ * share the user started in that same window. Released on clearSelection (the
+ * share ended or failed), a new pick, and any reload / navigation / crash.
+ */
+const shareGrants = new Map<number, ShareGrant>();
+/** webContents ids whose reset listeners are wired (once per sender). */
+const grantResetWired = new Set<number>();
+
+/** The share grant of a webContents, or null. Read by process-audio. */
+export function shareGrantFor(webContentsId: number): ShareGrant | null {
+  return shareGrants.get(webContentsId) ?? null;
+}
+
+function releaseShareGrant(webContentsId: number): void {
+  shareGrants.delete(webContentsId);
+  if (pendingSelection?.webContentsId === webContentsId) pendingSelection = null;
+}
+
+/**
+ * Call `onReset` whenever the page in `contents` goes away without the
+ * webContents itself being destroyed (main-frame navigation / reload, renderer
+ * crash) and when it is destroyed. Shared with process-audio so both modules
+ * drop per-page state on exactly the same events.
+ */
+export function onRendererReset(contents: WebContents, onReset: () => void): void {
+  contents.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) onReset();
+  });
+  contents.on("render-process-gone", () => onReset());
+  contents.once("destroyed", () => onReset());
+}
 
 /** Guard so we register IPC handlers exactly once across re-activations. */
 let ipcRegistered = false;
@@ -194,6 +231,8 @@ async function handleDisplayMediaRequest(
     }
 
     callback({ video: source });
+    const grant = shareGrants.get(selection.webContentsId);
+    if (grant && grant.sourceId === selection.sourceId) grant.served = true;
     notifyServed(selection.webContentsId, selection.sourceId);
   } catch {
     // Never throw across the Electron boundary — deny gracefully. The renderer
@@ -251,13 +290,23 @@ function registerIpcHandlers(): void {
         throw new Error("capture: unknown source id — call listSources() first");
       }
 
-      pendingSelection = { sourceId, webContentsId: event.sender.id };
+      const senderId = event.sender.id;
+      pendingSelection = { sourceId, webContentsId: senderId };
+      shareGrants.set(senderId, { sourceId, armedAt: Date.now(), served: false });
+      if (!grantResetWired.has(senderId)) {
+        grantResetWired.add(senderId);
+        onRendererReset(event.sender, () => releaseShareGrant(senderId));
+        event.sender.once("destroyed", () => grantResetWired.delete(senderId));
+      }
       return { ok: true, sourceId };
     },
   );
 
-  ipcMain.handle(CAPTURE_CHANNELS.clearSelection, async () => {
+  // The renderer calls this when a pick did not become a share AND when a live
+  // share ends, so it also ends the sender's right to capture share sound.
+  ipcMain.handle(CAPTURE_CHANNELS.clearSelection, async (event: IpcMainInvokeEvent) => {
     pendingSelection = null;
+    releaseShareGrant(event.sender.id);
   });
 }
 

@@ -5,7 +5,9 @@ import {
   hwndOfWindowSource,
   parsePidLines,
   platformSupport,
+  processAudioStartAllowed,
   processAudioStartSchema,
+  SHARE_GRANT_WINDOW_MS,
   windowsBuildFromRelease,
 } from "./process-audio-policy";
 
@@ -56,5 +58,25 @@ describe("process-audio policy", () => {
     expect(processAudioStartSchema.safeParse({ mode: "app" }).success).toBe(false);
     expect(processAudioStartSchema.safeParse({ sourceId: "window:1:0" }).success).toBe(false);
     expect(processAudioStartSchema.safeParse({ mode: "loopback" }).success).toBe(false);
+  });
+
+  it("captures sound only for a share the same window started", () => {
+    const system = { mode: "system" } as const;
+    const app = { mode: "app", sourceId: "window:7:0" } as const;
+    const now = 1_000_000;
+    // No pick, no share: a bare renderer request is refused.
+    expect(processAudioStartAllowed(system, null, now)).toBe(false);
+    // Picked moments ago (video may not be served yet): allowed.
+    const armed = { sourceId: "window:7:0", armedAt: now - 2_000, served: false };
+    expect(processAudioStartAllowed(system, armed, now)).toBe(true);
+    expect(processAudioStartAllowed(app, armed, now)).toBe(true);
+    // "app" must target the window being shared, never another one.
+    expect(processAudioStartAllowed({ mode: "app", sourceId: "window:8:0" }, armed, now)).toBe(false);
+    // A stale pick that never became a share no longer counts.
+    const stale = { ...armed, armedAt: now - SHARE_GRANT_WINDOW_MS - 1 };
+    expect(processAudioStartAllowed(system, stale, now)).toBe(false);
+    // A served (live) share keeps the right for as long as it is not released —
+    // "send system sound" is pressed minutes into a share.
+    expect(processAudioStartAllowed(system, { ...stale, served: true }, now)).toBe(true);
   });
 });

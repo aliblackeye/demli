@@ -3,13 +3,14 @@ import { spawn, execFile, type ChildProcessWithoutNullStreams } from "node:child
 import { appendFile, existsSync } from "node:fs";
 import { release } from "node:os";
 import { join } from "node:path";
-import { isEnumeratedSourceId } from "./capture";
+import { isEnumeratedSourceId, onRendererReset, shareGrantFor } from "./capture";
 import {
   appTargetIncludesDemli,
   helperCaptureArgs,
   hwndOfWindowSource,
   parsePidLines,
   platformSupport,
+  processAudioStartAllowed,
   processAudioStartSchema,
   processAudioStopSchema,
 } from "./process-audio-policy";
@@ -42,9 +43,16 @@ import {
  *     args ARRAY (no shell); the only arguments are a validated integer and a
  *     fixed mode word.
  *   - Every IPC payload is validated (zod) before use.
+ *   - A capture starts ONLY for a share the user started in the same
+ *     webContents: a source it picked in the share picker moments ago, or a
+ *     share main served and that was not released since (`shareGrantFor` +
+ *     `processAudioStartAllowed`). A bare `start({ mode: "system" })` from a
+ *     renderer that is not sharing is refused (`no_active_share`).
+ *   - At most ONE capture per webContents: a new start ends the previous one.
  *   - A capture's PCM is sent ONLY to the webContents that started it, and only
  *     that webContents may stop it. All of a webContents' captures are killed
- *     when it is destroyed (reload / close / crash), so no helper is orphaned.
+ *     when its page goes away (main-frame navigation / reload, renderer crash,
+ *     or destroy), so no helper outlives the page that asked for it.
  */
 
 // ---------------------------------------------------------------------------
@@ -159,13 +167,26 @@ function endCapture(capture: ActiveCapture, reason: string): void {
   }
 }
 
-/** Kill every capture owned by a webContents (its window reloaded / closed). */
-function cleanupForWebContents(webContentsId: number): void {
+/** Kill every capture owned by a webContents (its page reloaded / crashed / closed). */
+function cleanupForWebContents(webContentsId: number, reason = "webcontents-destroyed"): void {
   for (const capture of [...activeCaptures.values()]) {
     if (capture.webContentsId === webContentsId) {
-      endCapture(capture, "webcontents-destroyed");
+      endCapture(capture, reason);
     }
   }
+}
+
+/**
+ * Bumped per webContents on every start and every page reset, so a start whose
+ * helper is still warming up when a newer start (or a reload) lands never
+ * registers a capture behind it.
+ */
+const startGeneration = new Map<number, number>();
+
+function bumpGeneration(webContentsId: number): number {
+  const next = (startGeneration.get(webContentsId) ?? 0) + 1;
+  startGeneration.set(webContentsId, next);
+  return next;
 }
 
 /** webContents ids that already have a destroy-cleanup listener wired, so
@@ -208,8 +229,15 @@ async function startCapture(
   senderId: number,
 ): Promise<ProcessAudioStartResult> {
   const mode = request.mode;
+  if (!processAudioStartAllowed(request, shareGrantFor(senderId), Date.now())) {
+    return fail(mode, "no_active_share");
+  }
   const supported = support();
   if (!supported.supported) return fail(mode, supported.reason);
+
+  // One capture per webContents: this start supersedes any live or warming one.
+  const generation = bumpGeneration(senderId);
+  cleanupForWebContents(senderId, "superseded");
 
   const target = await resolveTarget(request);
   if (!target.ok) return fail(mode, target.reason);
@@ -271,6 +299,17 @@ async function startCapture(
   });
   if (!ready) {
     try {
+      child.kill();
+    } catch {
+      // already gone
+    }
+    return fail(mode, "activation_failed");
+  }
+  // A newer start or a page reset landed while the helper warmed up: this
+  // capture must not run next to (or after) it.
+  if (startGeneration.get(senderId) !== generation) {
+    try {
+      child.stdin.end();
       child.kill();
     } catch {
       // already gone
@@ -344,9 +383,16 @@ export function registerProcessAudio(): void {
       const senderId = event.sender.id;
       if (!wiredForCleanup.has(senderId)) {
         wiredForCleanup.add(senderId);
+        // Not only "destroyed": a reload or a renderer crash keeps the same
+        // webContents, and its helpers must not keep recording for a page that
+        // no longer exists.
+        onRendererReset(event.sender, () => {
+          bumpGeneration(senderId);
+          cleanupForWebContents(senderId, "page-reset");
+        });
         event.sender.once("destroyed", () => {
           wiredForCleanup.delete(senderId);
-          cleanupForWebContents(senderId);
+          startGeneration.delete(senderId);
         });
       }
       return startCapture(parsed.data, senderId);

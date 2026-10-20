@@ -117,6 +117,12 @@ export type ProcessAudioUnavailableReason =
    * so "app" mode would capture the call's voices — refused.
    */
   | "includes_demli"
+  /**
+   * The requesting window has not picked a source in the share picker just now
+   * and has no live share — sound is only ever captured for a share the user
+   * started (never on a bare renderer request).
+   */
+  | "no_active_share"
   | "binary_missing"
   | "spawn_failed"
   /** The helper started but Windows refused the capture. */

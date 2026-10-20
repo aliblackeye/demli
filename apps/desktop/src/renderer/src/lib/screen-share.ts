@@ -158,6 +158,17 @@ export function isWebDisplayAudioCapable(): boolean {
   );
 }
 
+/**
+ * Tell main the local share is over, so this window loses its right to start
+ * share-sound captures (main only records sound for a share the user started,
+ * see process-audio-policy `processAudioStartAllowed`). Desktop only; a no-op on
+ * the web build. Best-effort: a reload or crash releases it in main anyway.
+ */
+export function releaseShareCapture(): void {
+  if (isWebPlatform() || !isScreenCaptureAvailable()) return;
+  void window.demli.capture.clearSelection().catch(() => undefined);
+}
+
 function requireCapture(): CaptureBridge {
   if (!isScreenCaptureAvailable()) throw new ScreenShareUnavailableError();
   return window.demli.capture;

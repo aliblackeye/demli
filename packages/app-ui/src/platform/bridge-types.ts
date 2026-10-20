@@ -115,6 +115,7 @@ export type ProcessAudioUnavailableReason =
   | "unknown_source"
   | "pid_unresolved"
   | "includes_demli"
+  | "no_active_share"
   | "binary_missing"
   | "spawn_failed"
   | "activation_failed";

@@ -49,6 +49,7 @@ vi.mock("../lib/screen-share", () => ({
   captureSystemShareAudio: vi.fn(async () => null),
   loadScreenSharePrefs: () => ({}),
   makeScreenShareAcquire: () => async () => ({ video: {}, audio: null }),
+  releaseShareCapture: vi.fn(),
   startOptionsFor: () => ({ quality: "1080p30", audioMode: "none" }),
   superviseFilmAudio: () => () => undefined,
 }));
@@ -86,6 +87,26 @@ describe("voice store: one screen share start at a time", () => {
     expect(engineStart).toHaveBeenCalledTimes(2);
     await vi.waitFor(() => expect(useVoiceStore.getState().screenShareStarting).toBe(false));
     warn.mockRestore();
+  });
+
+  it("tells main the share is over only when a LIVE share ends, never during acquisition", async () => {
+    const media = (await import("@demli/media")) as unknown as {
+      __engine: { __setState: (p: object) => void };
+    };
+    const screenShare = await import("../lib/screen-share");
+    const release = vi.mocked(screenShare.releaseShareCapture);
+    release.mockClear();
+    await import("./voice-store");
+
+    // Engine notifies while the share is still coming up (flag false): no release.
+    media.__engine.__setState({ micEnabled: false });
+    expect(release).not.toHaveBeenCalled();
+    media.__engine.__setState({ screenShareEnabled: true });
+    expect(release).not.toHaveBeenCalled();
+    media.__engine.__setState({ screenShareEnabled: false });
+    expect(release).toHaveBeenCalledTimes(1);
+    media.__engine.__setState({ micEnabled: true });
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it("a start while a share is already live is ignored", async () => {

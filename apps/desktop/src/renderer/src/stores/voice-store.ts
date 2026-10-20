@@ -43,6 +43,7 @@ import {
   captureSystemShareAudio,
   loadScreenSharePrefs,
   makeScreenShareAcquire,
+  releaseShareCapture,
   startOptionsFor,
   superviseFilmAudio,
   type FilmAudioStatus,
@@ -719,6 +720,9 @@ useWatchPartyStore.subscribe(syncBandwidthPressure);
  */
 let resolvedSurfaceRoomId: string | null | undefined;
 
+/** Whether the previous engine snapshot had a live local share (edge detection). */
+let wasSharing = false;
+
 engine.subscribe((s) => {
   // Tell the engine WHAT KIND of room this is the moment it changes, so it knows
   // whether the server's alone-idle sweep applies (a server voice channel is
@@ -733,6 +737,11 @@ engine.subscribe((s) => {
   // (Stop, OS-initiated stop, leave, publish failure, dispose all flip this false).
   // The engine owns stopping the underlying track; we only forget the ref so a
   // dead track can never render on the stage (task #72).
+  // A live share just ended (any path): main must stop honouring share-sound
+  // starts for this window. Only on the true → false edge — during acquisition
+  // the flag is false too, and releasing then would cancel the share coming up.
+  if (wasSharing && !s.screenShareEnabled) releaseShareCapture();
+  wasSharing = s.screenShareEnabled;
   if (!s.screenShareEnabled) {
     setLocalScreenPreviewTrack(null);
     // The supervisor owns an AudioContext + timers; every teardown path (Stop,
