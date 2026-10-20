@@ -119,10 +119,12 @@ export function UnreadDivider() {
 const DOT_STEP_MS = 600;
 
 function Dot({ index, reduced }: { index: number; reduced: boolean }) {
-  const o = useSharedValue(reduced ? 0.6 : 0.25);
+  const o = useSharedValue(reduced ? 0.6 : 0.4);
+  const ty = useSharedValue(0);
   useEffect(() => {
     if (reduced) {
       o.value = 0.6;
+      ty.value = 0;
       return;
     }
     o.value = withDelay(
@@ -130,7 +132,7 @@ function Dot({ index, reduced }: { index: number; reduced: boolean }) {
       withRepeat(
         withSequence(
           withTiming(1, { duration: DOT_STEP_MS, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.25, { duration: DOT_STEP_MS, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.4, { duration: DOT_STEP_MS, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         false,
@@ -138,12 +140,31 @@ function Dot({ index, reduced }: { index: number; reduced: boolean }) {
         ReduceMotion.System,
       ),
     );
-    return () => cancelAnimation(o);
-  }, [reduced, index, o]);
-  const style = useAnimatedStyle(() => ({ opacity: o.value }));
+    ty.value = withDelay(
+      index * 200,
+      withRepeat(
+        withSequence(
+          withTiming(-4, { duration: DOT_STEP_MS, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: DOT_STEP_MS, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
+        undefined,
+        ReduceMotion.System,
+      ),
+    );
+    return () => {
+      cancelAnimation(o);
+      cancelAnimation(ty);
+    };
+  }, [reduced, index, o, ty]);
+  const style = useAnimatedStyle(() => ({
+    opacity: o.value,
+    transform: [{ translateY: ty.value }],
+  }));
   return (
     <Animated.View
-      style={[{ width: 5, height: 5, borderRadius: radius.pill, backgroundColor: colors.fgMuted }, style]}
+      style={[{ width: 6, height: 6, borderRadius: radius.pill, backgroundColor: colors.fgMuted }, style]}
     />
   );
 }

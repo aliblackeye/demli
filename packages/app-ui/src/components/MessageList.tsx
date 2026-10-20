@@ -672,7 +672,7 @@ export function MessageList(): JSX.Element {
         onScroll={handleScroll}
         tabIndex={0}
         aria-label={t("desktop:chat.listLabel", { channel: channel.name })}
-        className="absolute inset-0 overflow-y-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
+        className="scrollbar-always absolute inset-0 overflow-y-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
       >
         {/* A thread shorter than the viewport sits on the composer, not under
             the header (a conversation grows upward). `justify-end` only acts

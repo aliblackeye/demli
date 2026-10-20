@@ -248,7 +248,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   // message with a mention always has `<@`, so it never takes this path.
   if (blocks === null) {
     return (
-      <p className={cn("select-text whitespace-pre-wrap break-words text-sm leading-[1.45]", className)}>
+      <p className={cn("select-text whitespace-pre-wrap break-words text-[15px] leading-[1.45]", className)}>
         {content}
         {append}
       </p>
@@ -261,7 +261,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   const appendInline = append !== undefined && blocks[lastIndex]?.type === "paragraph";
   return (
     <MarkdownGroupContext.Provider value={groupId}>
-      <div className={cn("select-text space-y-0.5 text-sm leading-[1.45]", className)}>
+      <div className={cn("select-text space-y-0.5 text-[15px] leading-[1.45]", className)}>
         {blocks.map((block, i) =>
           renderBlock(block, i, appendInline && i === lastIndex ? append : undefined),
         )}

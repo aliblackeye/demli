@@ -315,6 +315,19 @@
     }
   }
 
+  --animate-typing-bounce: typing-bounce 1.4s ease-in-out infinite;
+
+  @keyframes typing-bounce {
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+    30% {
+      transform: translateY(-4px);
+      opacity: 1;
+    }
+  }
+
   /* ── Koyu Masa surfaces that MOVE (side sheets, toasts) ─────────────────
      Entrances ride the authored position spring (`--motion-ease-spring`, the
      sampled {stiffness 500, damping 60, mass 1} curve); exits use the fast
@@ -473,7 +486,7 @@ input,
 textarea,
 select,
 summary {
-  transition-property: background-color, color, border-color, opacity, box-shadow, fill, stroke;
+  transition-property: background-color, color, border-color, border-radius, opacity, box-shadow, fill, stroke;
   transition-duration: var(--motion-duration-hover);
   transition-timing-function: var(--motion-ease-standard);
 }
@@ -520,6 +533,19 @@ summary {
 }
 
 *:hover::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-fg) 30%, transparent);
+}
+
+/* Message list: scrollbar always visible so the user knows their scroll position. */
+.scrollbar-always::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-fg) 10%, transparent);
+}
+
+.scrollbar-always:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-fg) 14%, transparent);
+}
+
+.scrollbar-always::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in oklab, var(--color-fg) 30%, transparent);
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import {
   Headphones,
@@ -89,6 +89,30 @@ export function VoicePanel(): JSX.Element | null {
   const canShareScreen = status === "connected" && isScreenCaptureAvailable();
   const canUseCamera = status === "connected";
 
+  // Elapsed timer — starts when the panel mounts (status != idle) and ticks
+  // every second while connected. Resets when the room changes.
+  const connectedAtRef = useRef<number>(Date.now());
+  const [elapsed, setElapsed] = useState("00:00");
+  useEffect(() => {
+    connectedAtRef.current = Date.now();
+    setElapsed("00:00");
+  }, [roomId]);
+  useEffect(() => {
+    if (status === "idle") return;
+    const id = window.setInterval(() => {
+      const secs = Math.floor((Date.now() - connectedAtRef.current) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      const h = Math.floor(m / 60);
+      setElapsed(
+        h > 0
+          ? `${h}:${String(m % 60).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+          : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+      );
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [status]);
+
   const onScreenShareClick = (): void => {
     if (screenShareEnabled) stopScreenShare();
     else if (!screenShareStarting) setPickerOpen(true);
@@ -137,6 +161,8 @@ export function VoicePanel(): JSX.Element | null {
               {roomName}
               {groupName && <span className="text-fg-subtle"> · </span>}
               {groupName}
+              <span className="text-fg-subtle"> · </span>
+              <span className="tabular-nums">{elapsed}</span>
             </p>
           </div>
         </div>

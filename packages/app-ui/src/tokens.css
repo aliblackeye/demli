@@ -42,7 +42,7 @@
   --tc-raised-pressed: #1f1f1f;
   --tc-overlay: #171717; /* opaque stand-in for glass */
   --tc-glass: rgba(23, 23, 23, 0.72); /* + blur(10px): nav pill, panels */
-  --tc-glass-strong: rgba(23, 23, 23, 0.92); /* + blur(10px): menus, tooltips */
+  --tc-glass-strong: rgba(23, 23, 23, 0.95); /* + blur(10px): menus, tooltips */
   --tc-veil: rgba(0, 0, 0, 0.24); /* pill over media */
   --tc-scrim: rgba(0, 0, 0, 0.55); /* + blur(4px): dialog backdrop */
   --tc-selected: rgba(255, 132, 100, 0.12);

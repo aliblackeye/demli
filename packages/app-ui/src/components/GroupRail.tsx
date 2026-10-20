@@ -95,8 +95,12 @@ export interface GroupRailProps {
  */
 const RAIL_TAP = pressable;
 
-/** Rail tile geometry: a 44px box with the 16px radius, on the black rail. */
-const TILE = "relative flex size-11 cursor-pointer items-center justify-center overflow-hidden rounded-xl";
+/** Rail tile geometry: a 48px box that morphs from a circle (idle) to a
+ *  squircle (hover / active) — the same signature micro-interaction Discord
+ *  popularised. `transition-[border-radius]` on `motion-hover` (200ms ease)
+ *  produces a smooth shape shift without fighting the pressable scale spring. */
+const TILE =
+  "relative flex size-12 cursor-pointer items-center justify-center overflow-hidden rounded-full hover:rounded-xl aria-[current=true]:rounded-xl";
 
 /** Focus ring for every rail control — offset onto the black rail so it reads on any tile colour. */
 const TILE_FOCUS =
@@ -349,7 +353,7 @@ function ServerTile({
           {/* Tile-sized anchor: corner markers (count, dot, muted bell) sit on
               the TILE's corner, not the 72px row's — anchored to the row they
               overhung the rail by 4px and were clipped by its scroller. */}
-          <div className="relative size-11">
+          <div className="relative size-12">
             <Tooltip>
               <TooltipTrigger asChild>
                 <m.button
@@ -542,7 +546,7 @@ function FolderView({
       >
           <RailPill selected={containsActive && !folder.open} unread={agg.unread && !folder.open} />
           {/* Tile-sized anchor for the aggregate badge (see ServerTile). */}
-          <div className="relative size-11">
+          <div className="relative size-12">
             <Tooltip>
               <TooltipTrigger asChild>
                 <m.button

@@ -499,11 +499,11 @@ export const MessageRow = memo(function MessageRow({
                   un-wired surface just renders the name. */}
               {services.renderAuthorName?.(
                 message.authorId,
-                <span className="text-sm font-semibold text-fg-display" style={{ color: authorColor }}>
+                <span className="text-[15px] font-medium text-fg-display" style={{ color: authorColor }}>
                   {name}
                 </span>,
               ) ?? (
-                <span className="text-sm font-semibold text-fg-display" style={{ color: authorColor }}>
+                <span className="text-[15px] font-medium text-fg-display" style={{ color: authorColor }}>
                   {name}
                 </span>
               )}
@@ -693,15 +693,15 @@ export const MessageRow = memo(function MessageRow({
             // can fade: visibility flips at the END of the fade-out, and an
             // invisible toolbar is neither clickable nor in the tab order.
             "absolute -top-4 right-4 z-10 flex items-center space-x-0.5 rounded-lg bg-raised p-0.5",
-            "invisible opacity-0 transition-[opacity,visibility] motion-fast",
-            "group-hover:visible group-hover:opacity-100 data-[open]:visible data-[open]:opacity-100",
+            "invisible translate-y-1 opacity-0 transition-[opacity,visibility,transform] motion-fast",
+            "group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 data-[open]:visible data-[open]:translate-y-0 data-[open]:opacity-100",
             // Keyboard path: tabbing onto the avatar / name reveals the toolbar,
             // so the next Tab lands on its first button instead of skipping it.
             // `:focus-visible`, NOT `:focus-within`: a mouse click on a reaction,
             // the avatar or an image also focuses inside the row, and
             // `focus-within` would then pin the toolbar over a row the pointer
             // has already left.
-            "group-has-[:focus-visible]:visible group-has-[:focus-visible]:opacity-100",
+            "group-has-[:focus-visible]:visible group-has-[:focus-visible]:translate-y-0 group-has-[:focus-visible]:opacity-100",
           )}
         >
           {services.renderReactionPicker({
