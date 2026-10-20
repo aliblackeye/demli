@@ -114,7 +114,7 @@ services:
       # THEN deploy. Deploying first advertises a runtime whose APK is not on the
       # server yet, so every install is prompted to download the OLD file and is
       # re-prompted on the next launch, forever.
-      MOBILE_LATEST_RUNTIME: "2.0.0"
+      MOBILE_LATEST_RUNTIME: "2.1.0"
       # Public APK link served with that advertisement. Pinned here for the same
       # reason as the runtime above — a value stranded in .env.prod on the VPS
       # would silently go stale. This overrides .env.prod.
