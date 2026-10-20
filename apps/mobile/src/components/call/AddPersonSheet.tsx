@@ -123,7 +123,7 @@ export function AddPersonSheet({
               dimmed={waiting}
               haptic="light"
               accessibilityRole="button"
-              accessibilityLabel={`${t("mobile:call.add")}: ${name}`}
+              accessibilityLabel={t("mobile:call.a11yAddFriend", { name })}
               accessibilityState={{ busy }}
               style={{
                 flexDirection: "row",

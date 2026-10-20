@@ -90,7 +90,7 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
     <m.div
       role="dialog"
       aria-modal="true"
-      aria-label={`${callerName} — ${subtitle}`}
+      aria-label={t("desktop:call.incomingDialogLabel", { caller: callerName, subtitle })}
       data-testid="incoming-call"
       variants={overlayFade}
       initial="initial"

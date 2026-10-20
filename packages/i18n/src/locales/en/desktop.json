@@ -1277,6 +1277,7 @@
     "incomingVoice": "Incoming voice call",
     "incomingVideo": "Incoming video call",
     "incomingGroup": "Incoming group call",
+    "incomingDialogLabel": "{{caller}} — {{subtitle}}",
     "accept": "Accept",
     "acceptWithVideo": "Accept with video",
     "decline": "Decline",

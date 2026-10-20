@@ -108,7 +108,18 @@ function RecentCallRowImpl({
       <Touchable
         onPress={() => onOpen(call.peer.id)}
         accessibilityRole="button"
-        accessibilityLabel={`${call.peer.displayName}, ${callSummary(call, t)}${time ? `, ${time}` : ""}`}
+        accessibilityLabel={
+          time
+            ? t("mobile:recentCalls.rowLabelWithTime", {
+                name: call.peer.displayName,
+                summary: callSummary(call, t),
+                time,
+              })
+            : t("mobile:recentCalls.rowLabel", {
+                name: call.peer.displayName,
+                summary: callSummary(call, t),
+              })
+        }
         style={{
           flex: 1,
           flexDirection: "row",

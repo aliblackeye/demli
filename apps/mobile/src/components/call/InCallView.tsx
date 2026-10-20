@@ -280,7 +280,11 @@ export function InCallView({
                 numberOfLines={1}
                 // Not live — see `phaseLabel`. Focusing it still reads phase + time.
                 accessibilityLiveRegion="none"
-                accessibilityLabel={duration ? `${phaseLabel}, ${duration}` : phaseLabel}
+                accessibilityLabel={
+                  duration
+                    ? t("mobile:call.phaseWithDuration", { phase: phaseLabel, duration })
+                    : phaseLabel
+                }
                 style={{
                   color: ringing ? colors.accent : colors.fgMuted,
                   fontSize: 12,

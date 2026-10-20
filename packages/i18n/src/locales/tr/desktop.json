@@ -1277,6 +1277,7 @@
     "incomingVoice": "Gelen sesli arama",
     "incomingVideo": "Gelen görüntülü arama",
     "incomingGroup": "Gelen grup araması",
+    "incomingDialogLabel": "{{caller}} — {{subtitle}}",
     "accept": "Kabul et",
     "acceptWithVideo": "Görüntülü kabul et",
     "decline": "Reddet",
