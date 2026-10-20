@@ -1,7 +1,6 @@
 /**
- * Referans, ikonları SVG mask + zemin rengiyle boyuyor.
- * Aynı tekniği kullanıyoruz: mask dosyası public/icons altında,
- * renk düz background-color.
+ * İkonlar SVG mask + zemin rengiyle boyanır: mask dosyası public/glyphs
+ * altında (Demli'nin kendi çizdiği SVG'ler), renk düz background-color.
  */
 export function MaskIcon({
   name,
@@ -27,8 +26,8 @@ export function MaskIcon({
         width: width ?? size,
         height: height ?? size,
         backgroundColor: color,
-        WebkitMaskImage: `url(/icons/${name}.svg)`,
-        maskImage: `url(/icons/${name}.svg)`,
+        WebkitMaskImage: `url(/glyphs/${name}.svg)`,
+        maskImage: `url(/glyphs/${name}.svg)`,
         WebkitMaskRepeat: "no-repeat",
         maskRepeat: "no-repeat",
         WebkitMaskPosition: "center",

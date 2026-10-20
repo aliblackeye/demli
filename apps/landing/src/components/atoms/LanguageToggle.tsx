@@ -79,7 +79,7 @@ export function LanguageToggle() {
                 {d.etiket}
                 {aktif === d.kod ? (
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                    <path d="m3 7.5 2.5 2.5L11 4.5" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="m3 7.5 2.5 2.5L11 4.5" stroke="#ff8464" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : null}
               </button>

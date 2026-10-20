@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr">
-      {/* Fontlar referansın birebir woff2 dosyalarından self-host (fonts.css) */}
+      {/* Fontlar ürünün kendi woff2 dosyalarından self-host (fonts.css) */}
       <body>{children}</body>
     </html>
   );

@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Appzen klon token'ları — docs/appzen-clone-reference.md */
+/* Landing token'ları — nötr koyu yüzeyler + Demli'nin mercan vurgusu
+   (ürün token'ı --accent #ff8464, packages/app-ui). */
 :root {
   --color-base: #0d0d0d;
   --color-base-translucent: #0d0d0db8;
@@ -13,8 +14,8 @@
   --color-text-primary: #f5f5f5;
   --color-text-secondary: #a3a3a3;
   --color-text-dim: #737373;
-  --color-accent: #22c55e;
-  --color-accent-transparent: #22c55e00;
+  --color-accent: #ff8464;
+  --color-accent-transparent: #ff846400;
   --color-star: #eab30a;
 }
 
@@ -86,8 +87,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* authored: başlık preset'lerinde referans başlık preset'lerinde OpenType özellikleri: normal —
-   Stack Sans Headline cv setlerinden etkilenmemeli. */
+/* Başlıklar Onest: Inter'in cv setleri (gövde) başlıklara taşınmaz. */
 h1,
 h2,
 h3,
@@ -106,4 +106,137 @@ h3,
 .footer-strip-mask {
   -webkit-mask-image: radial-gradient(31% 29% at 50% 30.6%, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0) 100%);
   mask-image: radial-gradient(31% 29% at 50% 30.6%, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* ── Işık huzmeleri (LightRays.tsx) — CSS ile çizilir, video yok ─────────── */
+.light-rays {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.light-rays > i {
+  position: absolute;
+  display: block;
+  will-change: transform, opacity;
+}
+
+/* Tepe ortasında sıcak çekirdek */
+.light-rays .lr-core {
+  inset: -20% 10% auto;
+  height: 70%;
+  background: radial-gradient(50% 50% at 50% 30%, rgba(255, 200, 170, 0.95) 0%, rgba(255, 132, 100, 0.4) 45%, rgba(255, 132, 100, 0) 100%);
+  filter: blur(18px);
+  animation: lr-breathe 9s ease-in-out infinite alternate;
+}
+
+/* Yelpaze katmanları: üst ortaya demirli, aşağı doğru solar */
+.light-rays .lr-beams {
+  left: -30%;
+  right: -30%;
+  top: -6%;
+  height: 130%;
+  transform-origin: 50% 0;
+  filter: blur(7px);
+  -webkit-mask-image: radial-gradient(60% 100% at 50% 0, #000 18%, rgba(0, 0, 0, 0.5) 52%, transparent 88%);
+  mask-image: radial-gradient(60% 100% at 50% 0, #000 18%, rgba(0, 0, 0, 0.5) 52%, transparent 88%);
+}
+
+.light-rays .lr-beams-a {
+  animation: lr-sway-a 13s ease-in-out infinite alternate;
+}
+
+.light-rays .lr-beams-b {
+  filter: blur(12px);
+  animation: lr-sway-b 19s ease-in-out infinite alternate;
+}
+
+/* Footer kartı: iki yavaş, sıcak kor */
+.light-rays .lr-ember {
+  width: 60%;
+  height: 90%;
+  border-radius: 9999px;
+  filter: blur(40px);
+}
+
+.light-rays .lr-ember-a {
+  left: 8%;
+  top: 6%;
+  background: radial-gradient(50% 50%, rgba(255, 132, 100, 0.55) 0%, rgba(255, 132, 100, 0) 100%);
+  animation: lr-drift-a 16s ease-in-out infinite alternate;
+}
+
+.light-rays .lr-ember-b {
+  right: 6%;
+  top: 2%;
+  background: radial-gradient(50% 50%, rgba(255, 186, 120, 0.42) 0%, rgba(255, 186, 120, 0) 100%);
+  animation: lr-drift-b 21s ease-in-out infinite alternate;
+}
+
+.light-rays:not([data-active]) > i {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-rays > i {
+    animation: none !important;
+  }
+}
+
+@keyframes lr-sway-a {
+  0% {
+    transform: rotate(-3deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: rotate(3.5deg);
+    opacity: 1;
+  }
+}
+
+@keyframes lr-sway-b {
+  0% {
+    transform: rotate(4deg) scaleX(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-4deg) scaleX(0.96);
+    opacity: 0.55;
+  }
+}
+
+@keyframes lr-breathe {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes lr-drift-a {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(18%, 10%) scale(1.15);
+  }
+}
+
+@keyframes lr-drift-b {
+  0% {
+    transform: translate(0, 6%) scale(1.1);
+  }
+  100% {
+    transform: translate(-22%, -4%) scale(0.92);
+  }
+}
+
+/* Yüzey nokta ızgarası (özellik kartları) — 23px adım, 2.5px nokta */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.14) 2.2px, rgba(255, 255, 255, 0) 2.8px);
+  background-size: 23px 23px;
+  background-position: center;
 }

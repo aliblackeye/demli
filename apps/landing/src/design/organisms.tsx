@@ -7,12 +7,12 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Onest } from "next/font/google";
 import { AvatarKume, GirisAlani, Radyo, SesSurgusu, UrunButonu } from "./atoms";
 import { AyarSatiri, Composer, KatilimciTile, KullaniciCubugu, MesajSatiri, SecimKutusu } from "./molecules";
 import { SPRING, T } from "./tokens";
 
-const onest = Onest({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"] });
+/** Onest — fonts.css'teki ürün fontu (build sırasında Google'dan indirilmez). */
+const onest = { className: "font-display" };
 
 /* ── Kiplik sistemi ───────────────────────────────────────────── */
 

@@ -5,10 +5,10 @@
  * hareket satırı. Yalnız design sayfalarında kullanılır.
  */
 
-import { Onest } from "next/font/google";
 import { useState } from "react";
 
-export const onest = Onest({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"] });
+/** Onest — fonts.css'teki ürün fontu (build sırasında Google'dan indirilmez). */
+export const onest = { className: "font-display" };
 
 export function SayfaBaslik({ baslik, aciklama }: { baslik: string; aciklama: string }) {
   return (

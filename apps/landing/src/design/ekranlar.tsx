@@ -7,7 +7,6 @@
  */
 
 import { useState } from "react";
-import { Onest } from "next/font/google";
 import {
   Avatar,
   AvatarKume,
@@ -32,7 +31,8 @@ import {
 import { AyarlarKabugu } from "./organisms";
 import { T } from "./tokens";
 
-const onest = Onest({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"] });
+/** Onest — fonts.css'teki ürün fontu (build sırasında Google'dan indirilmez). */
+const onest = { className: "font-display" };
 
 /* ── Ortak kabuk parçaları ────────────────────────────────────── */
 
