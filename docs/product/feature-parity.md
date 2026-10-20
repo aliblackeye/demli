@@ -1673,7 +1673,7 @@ istisna azaltılmış hareket kipinde framer-motion'ın yalnız dev build'de yaz
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Avatar + banner kırpma editörü | ✅ | ✅ | `ImageCropDialog` + saf geometri (`lib/image-crop`, maske hep dolu) + dosya hattı (`lib/image-file`: bayttan tür, piksel bütçesi, hareketli GIF/WebP tespiti) |
+| Avatar + banner kırpma editörü | ✅ | ✅ | `ImageCropDialog` + saf geometri (`lib/image-crop`, maske hep dolu) + dosya hattı (`lib/image-file`: bayttan tür, piksel bütçesi, hareketli GIF/WebP tespiti). **HEIC/HEIF desteği (0.0.83):** `sniffImageMime` ISO BMFF `ftyp` kutusu tanır → main process'te `nativeImage` ile JPEG'e çevrilir (IPC `demli:images:heic-to-jpeg`) → renderer'a JPEG bytes döner. Renderer crash recovery: `render-process-gone` handler pencereyi 300ms sonra yeniden yükler. |
 | Profil kartı Koyu Masa (8:3 banner, cam eylem diskleri, iç panel, iskelet + hata/tekrar dene) | ✅ | ✅ | önizlemeler kartın kendi `ProfileIdentityPreview` işaretlemesini kullanır |
 | Avatar: xl/2xl boy, foto belirme geçişi (önbellekte atlanır), durum noktası halkası `--avatar-ring` değişkenini izler, çevrilmiş durum etiketi | ✅ | — | eklemeli primitive değişikliği |
 | Avatar büyütme: imlece doğru yakınlaştırma, ok/±/0 klavye, açılış/kapanış animasyonu | ✅ | ✅ |  |
