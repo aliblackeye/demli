@@ -12,6 +12,7 @@ import {
   buildPaletteItems,
   filterPaletteItems,
   foldForSearch,
+  primaryPaletteItem,
   toPaletteRows,
   type PaletteInput,
   type PaletteItem,
@@ -261,5 +262,27 @@ describe("toPaletteRows", () => {
 
   it("produces no rows at all when nothing matched", () => {
     expect(toPaletteRows([])).toEqual([]);
+  });
+});
+
+describe("primaryPaletteItem (Enter runs the top result)", () => {
+  it("is the first ITEM of the filtered rows, skipping the section heading", () => {
+    const query = "oyun";
+    const rows = toPaletteRows(filterPaletteItems(buildPaletteItems(input()), query));
+    expect(rows[0]?.type).toBe("header");
+    expect(primaryPaletteItem(rows, query)?.id).toBe(
+      rows.find((r) => r.type === "item")?.key,
+    );
+  });
+
+  it("is nothing while the field is empty — Enter must not fire whatever is listed first", () => {
+    const rows = toPaletteRows(buildPaletteItems(input()));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(primaryPaletteItem(rows, "")).toBeNull();
+    expect(primaryPaletteItem(rows, "   ")).toBeNull();
+  });
+
+  it("is nothing when the search matched nothing", () => {
+    expect(primaryPaletteItem([], "zzz")).toBeNull();
   });
 });

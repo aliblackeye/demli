@@ -1,39 +1,41 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import type { FriendGroup } from "@demli/types";
-import { Avatar } from "@/components/Avatar";
 import { BrandMark } from "@/components/BrandMark";
+import { Skeleton } from "@/components/Skeleton";
 import type { GroupDetails } from "@/lib/clients";
 import { queryKeys } from "@/lib/query-client";
-import { TAB_BAR_CONTENT_HEIGHT } from "@/lib/tab-bar";
+import { useTabScreenBottomClearance } from "@/lib/use-bottom-chrome";
 import { useGroups } from "@/queries/chat-queries";
 import { useChatStore } from "@/stores/chat-store";
 import { useHomeShellStore } from "@/stores/home-shell-store";
 import { colors, radius, space } from "@/theme/theme";
 import { deriveServerUnread } from "./server-unread";
 import { ServerActionsSheet } from "./ServerActionsSheet";
-import { RAIL_WIDTH, ServerRailItem } from "./ServerRailItem";
+import { RAIL_TILE, RAIL_WIDTH, ServerRailItem, ServerTile } from "./ServerRailItem";
 
-/** Thin separator between the Home entry and the server column. */
+/** Short separator between the Home entry and the server column. */
 function RailDivider() {
   return (
-    <View style={{ alignItems: "center", paddingVertical: space.sm }}>
-      <View style={{ width: 28, height: 2, borderRadius: 1, backgroundColor: colors.stroke }} />
+    <View importantForAccessibility="no" style={{ alignItems: "center", paddingVertical: space.xs }}>
+      <View style={{ width: 24, height: 2, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised }} />
     </View>
   );
 }
 
 /**
- * The left vertical server RAIL of the Home shell:
- *   - top: the Home / DM entry (a message-bubble glyph),
- *   - a divider,
- *   - the scrollable server avatars (unread dots, selection pill),
+ * The left vertical server RAIL of the Home shell, on the black page:
+ *   - top: the Home / DM entry (the Demli mark),
+ *   - a short divider,
+ *   - the scrollable server tiles (edge pill, unread counts),
  *   - a trailing "+" that opens the existing create/join-server flow.
+ *
+ * First load shows three tile placeholders instead of an empty column, so the
+ * rail never flashes "you have no servers" while the list is on its way.
  *
  * Selection lives in {@link useHomeShellStore}; tapping an entry only flips that
  * one value, so the PANEL swaps and exactly the two affected rail items
@@ -41,11 +43,12 @@ function RailDivider() {
  * presence/typing, so those ticks never touch it (§27).
  *
  * Long-pressing a server opens the same {@link ServerActionsSheet} as the panel
- * header (the rail's long-press gesture) — the only place membership actions live.
+ * header — the only place membership actions live.
  */
 export function ServerRail({ selectedServerId }: { selectedServerId: string | null }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
+  // Tab pill + (during a call) the voice bar — the last row scrolls clear of both.
+  const bottomClearance = useTabScreenBottomClearance();
   const queryClient = useQueryClient();
   const selectServer = useHomeShellStore((s) => s.selectServer);
   const [actionsFor, setActionsFor] = useState<FriendGroup | null>(null);
@@ -81,24 +84,18 @@ export function ServerRail({ selectedServerId }: { selectedServerId: string | nu
     // near-static); a new server's badge settles on the next unread/mute change.
   }, [servers, unreadChannelIds, mentionUnreadChannelIds, unreadCounts, notificationMutes, queryClient]);
 
+  const longPressHint = t("mobile:home.longPressOptionsA11y");
+
   return (
-    <View
-      style={{
-        width: RAIL_WIDTH,
-        backgroundColor: colors.app,
-        borderRightWidth: 1,
-        borderRightColor: colors.stroke,
-        paddingTop: space.sm,
-      }}
-    >
+    <View style={{ width: RAIL_WIDTH, backgroundColor: colors.rail, paddingTop: space.xs }}>
       <ServerRailItem
         active={selectedServerId === null}
         onPress={() => selectServer(null)}
         accessibilityLabel={t("mobile:home.railHomeA11y")}
       >
-        {/* The Demli mark, not a generic bubble glyph — the rail's Home entry is
-            the app's anchor tile (desktop GroupRail home = the same logo).
-            Selection is carried by the pill + ring, so the mark stays full-color. */}
+        {/* The Demli mark — the rail's anchor tile (desktop GroupRail home =
+            the same logo). Selection is carried by the edge pill, so the mark
+            stays full-colour. */}
         <BrandMark size="sm" />
       </ServerRailItem>
 
@@ -108,50 +105,51 @@ export function ServerRail({ selectedServerId }: { selectedServerId: string | nu
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           alignItems: "center",
-          gap: space.xs,
-          paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + space.md,
+          paddingBottom: bottomClearance + space.md,
         }}
       >
-        {servers.map((server) => {
-          const flags = serverUnread[server.id];
-          return (
-            <ServerRailItem
-              key={server.id}
-              active={selectedServerId === server.id}
-              unread={flags?.unread ?? false}
-              mention={flags?.mention ?? false}
-              count={flags?.count ?? 0}
-              onPress={() => selectServer(server.id)}
-              onLongPress={() => setActionsFor(server)}
-              accessibilityLabel={t("mobile:home.railServerA11y", { name: server.name })}
-            >
-              <Avatar name={server.name} size={48} uri={server.iconUrl} />
-            </ServerRailItem>
-          );
-        })}
-
-        {/* Create / join a server — reuses the existing new-group flow. */}
-        <View style={{ width: RAIL_WIDTH, height: 60, alignItems: "center", justifyContent: "center" }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("mobile:home.railAddServerA11y")}
-            onPress={() => router.push("/new-group")}
-            hitSlop={4}
-            style={({ pressed }) => ({
-              width: 48,
-              height: 48,
-              borderRadius: radius.pill,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: colors.stroke,
-              opacity: pressed ? 0.7 : 1,
-            })}
+        {groups.isPending ? (
+          <View
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={t("mobile:ui.loading")}
+            style={{ alignItems: "center", gap: space.sm, paddingTop: space.xs }}
           >
-            <Plus size={24} color={colors.accent} />
-          </Pressable>
-        </View>
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} width={RAIL_TILE} height={RAIL_TILE} radius={radius.xl} />
+            ))}
+          </View>
+        ) : (
+          servers.map((server) => {
+            const flags = serverUnread[server.id];
+            return (
+              <ServerRailItem
+                key={server.id}
+                active={selectedServerId === server.id}
+                unread={flags?.unread ?? false}
+                mention={flags?.mention ?? false}
+                count={flags?.count ?? 0}
+                onPress={() => selectServer(server.id)}
+                onLongPress={() => setActionsFor(server)}
+                accessibilityLabel={t("mobile:home.railServerA11y", { name: server.name })}
+                accessibilityHint={longPressHint}
+              >
+                <ServerTile name={server.name} iconUrl={server.iconUrl} />
+              </ServerRailItem>
+            );
+          })
+        )}
+
+        {/* Create / join a server — reuses the existing new-group flow. A
+            utility tile: surface fill, coral glyph, tone + give on press. */}
+        <ServerRailItem
+          active={false}
+          onPress={() => router.push("/new-group")}
+          accessibilityLabel={t("mobile:home.railAddServerA11y")}
+          tileTone={colors.surface}
+        >
+          <Plus size={22} color={colors.accent} strokeWidth={2.2} />
+        </ServerRailItem>
       </ScrollView>
 
       <ServerActionsSheet

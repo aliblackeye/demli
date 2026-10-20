@@ -1,11 +1,20 @@
 /**
- * Startup splash — the Demli mark, a REAL progress bar, and one line of status.
- * Mobile parity with the desktop/web boot splash (components/BootSplash.tsx).
+ * Startup splash — the Demli mark under the one coral light, a REAL progress
+ * bar, and one line of status. Mobile parity with the desktop/web boot splash.
  *
  * The bar is driven by {@link useBootStore}, whose phases are completed by the
  * code that actually finishes each piece of startup work (brand fonts, i18n
  * catalogs, session restore, first server payload, gateway handshake). Nothing
  * here animates a fake percentage (CLAUDE.md §35).
+ *
+ * ── One continuous surface ──────────────────────────────────────────────────
+ * The native splash (app.json `expo-splash-screen`) is the same mark at the same
+ * 112dp on the same black page, so the hand-over from the OS splash to this one
+ * is invisible: the mark does not move or resize, only the light, the bar and
+ * the status line arrive (a fade on the `fast` step). When boot finishes the
+ * whole layer fades away on the `standard` step and the sign-in screen (or
+ * Home) is underneath, on the same black page with the same light — boot →
+ * sign-in reads as one surface, as on the desktop.
  *
  * ── Never a dead end ────────────────────────────────────────────────────────
  * A splash that can hang is worse than no splash — on a phone it reads as a
@@ -25,13 +34,25 @@
  * fonts + catalogs land, then inside the providers as a full-screen overlay
  * above the navigation stack. Both mounts render from the SAME store, so the
  * mark and the bar are continuous — there is only ever one splash on screen.
+ * Nothing in here may depend on a provider (no safe-area, no i18n hook outside
+ * the `translationsReady` branches).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Pressable, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Image, View } from "react-native";
+import Animated, {
+  FadeIn,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import * as Updates from "expo-updates";
 import { RotateCw } from "lucide-react-native";
 import { Text } from "./ui/Text";
+import { Button } from "./ui/Button";
+import { Glow } from "./ui/Glow";
+import { ProgressBar } from "./ui/ProgressBar";
+import { Touchable } from "./ui/Touchable";
 import { useAppTranslation, type AppTFunction } from "../lib/i18n";
 import { useAuthStore } from "../stores/auth-store";
 import {
@@ -40,7 +61,8 @@ import {
   useBootStore,
   type BootPhase,
 } from "../stores/boot-store";
-import { colors, radius, space, typography } from "../theme/theme";
+import { motionTo, useReducedMotion } from "../theme/motion";
+import { colors, motion, radius, space, typography } from "../theme/theme";
 
 // The rounded brand mark (same asset the native splash uses). Bundled at build
 // time via require() so it is always available for the JS-level boot splash.
@@ -57,13 +79,20 @@ const FAIL_MS = 13_000;
  * The binder's own grace timers are shorter; this is the backstop.
  */
 const CEILING_AFTER_SESSION_MS = 10_000;
-/** Fade-out duration; the unmount timer sits just past it. */
-const FADE_OUT_MS = 320;
-/** How long the bar takes to glide to a newly reached percentage. */
-const BAR_EASE_MS = 260;
+/** Fade-out duration (the `standard` step); the unmount timer sits just past it. */
+const FADE_OUT_MS = motion.duration.standard;
 
-const MARK_SIZE = 112;
-const TRACK_WIDTH = 288;
+/** Must equal app.json `expo-splash-screen.imageWidth`, so the hand-over is still. */
+export const MARK_SIZE = 112;
+const TRACK_WIDTH = 240;
+const GLOW_SIZE = 420;
+
+/**
+ * The splash mounts twice per boot (see "Two mounts, one splash"). Only the
+ * FIRST mount plays the arrival fades — the second must pick up exactly where the
+ * first left off, or the bar and the light would blink at the hand-over.
+ */
+let splashArrived = false;
 
 /**
  * The line under the bar, per phase. A switch over literal keys (rather than a
@@ -102,15 +131,15 @@ export function BootSplash({
   const failedPhase = useBootStore((s) => s.failedPhase);
   const sessionSettled = useBootStore((s) => s.completed.includes("session"));
   const progress = useBootStore(selectBootProgress);
+  const reduced = useReducedMotion();
+  const [arrive] = useState(() => !splashArrived);
+  useEffect(() => {
+    splashArrived = true;
+  }, []);
 
   const [slow, setSlow] = useState(false);
   const [gone, setGone] = useState(false);
-
-  // Width + fade are laid out on the JS thread (width is not a native-driver
-  // property), which is fine: two values, both driven by discrete phase changes
-  // rather than per-frame input.
-  const barWidth = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useSharedValue(1);
 
   // ── Stall watchdogs ──────────────────────────────────────────────────────
   // Both key on `phaseSince`, so every phase change (and every retry, which
@@ -140,35 +169,18 @@ export function BootSplash({
     return () => clearTimeout(timer);
   }, [done, sessionSettled]);
 
-  // Bar glide. Only ever moves when a real phase completed.
-  useEffect(() => {
-    Animated.timing(barWidth, {
-      toValue: progress,
-      duration: BAR_EASE_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [barWidth, progress]);
-
   // ── Hand-over ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!done) return;
-    const animation = Animated.timing(opacity, {
-      toValue: 0,
-      duration: FADE_OUT_MS,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    });
-    animation.start();
+    opacity.value = motionTo(0, "standard", { reduced });
     // Unmount just after the fade. A plain timer (not the animation callback) so
     // an interrupted animation can never leave an invisible full-screen overlay
     // pinned over the app forever.
-    const timer = setTimeout(() => setGone(true), FADE_OUT_MS + 40);
-    return () => {
-      animation.stop();
-      clearTimeout(timer);
-    };
-  }, [done, opacity]);
+    const timer = setTimeout(() => setGone(true), (reduced ? 0 : FADE_OUT_MS) + 40);
+    return () => clearTimeout(timer);
+  }, [done, opacity, reduced]);
+
+  const layer = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   if (gone) return null;
 
@@ -177,56 +189,58 @@ export function BootSplash({
       // Above every in-app layer; `pointerEvents` flips to "none" as it fades so
       // it never swallows a tap meant for the app underneath.
       pointerEvents={done ? "none" : "auto"}
-      accessibilityRole="progressbar"
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 100,
-        elevation: 100,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: space.xl,
-        paddingHorizontal: space.xl,
-        backgroundColor: colors.app,
-        opacity,
-      }}
+      style={[
+        {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 100,
+          elevation: 100,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: space.xl,
+          backgroundColor: colors.rail,
+        },
+        layer,
+      ]}
     >
-      <Image
-        source={LOGO}
-        // Decorative — the bar and its status line carry the meaning.
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-        style={{ width: MARK_SIZE, height: MARK_SIZE, borderRadius: radius.lg }}
-      />
-
-      <View style={{ width: "100%", maxWidth: TRACK_WIDTH, alignItems: "center", gap: space.md }}>
-        <View
-          style={{
-            height: 4,
-            width: "100%",
-            borderRadius: radius.pill,
-            overflow: "hidden",
-            backgroundColor: colors.strokeStrong,
-          }}
+      {/* The mark sits at the exact centre — where the OS splash drew it — and
+          never moves; everything else hangs below it. */}
+      <View style={{ width: MARK_SIZE, height: MARK_SIZE, alignItems: "center", justifyContent: "center" }}>
+        <Animated.View
+          entering={arrive ? FadeIn.duration(motion.duration.arrival).reduceMotion(ReduceMotion.System) : undefined}
+          style={{ position: "absolute", width: GLOW_SIZE, height: GLOW_SIZE, alignItems: "center", justifyContent: "center" }}
+          pointerEvents="none"
         >
-          <Animated.View
-            style={{
-              height: "100%",
-              borderRadius: radius.pill,
-              backgroundColor: colors.accent,
-              width: barWidth.interpolate({
-                inputRange: [0, 1],
-                outputRange: ["0%", "100%"],
-              }),
-            }}
-          />
-        </View>
+          <Glow size={GLOW_SIZE} />
+        </Animated.View>
+        <Image
+          source={LOGO}
+          // Decorative — the bar and its status line carry the meaning.
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={{ width: MARK_SIZE, height: MARK_SIZE }}
+        />
+      </View>
+
+      <Animated.View
+        entering={arrive ? FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System) : undefined}
+        style={{
+          position: "absolute",
+          top: "50%",
+          marginTop: MARK_SIZE / 2 + space.xl,
+          width: "100%",
+          maxWidth: TRACK_WIDTH,
+          alignItems: "center",
+          gap: space.md,
+        }}
+      >
+        <ProgressBar value={progress} />
 
         {/* Reserved height so the copy appearing never nudges the bar. */}
-        <View style={{ minHeight: 44, alignItems: "center", justifyContent: "flex-start" }}>
+        <View style={{ minHeight: 88, alignItems: "center", justifyContent: "flex-start" }}>
           {translationsReady ? (
             failedPhase !== null ? (
               <BootFailure />
@@ -240,7 +254,7 @@ export function BootSplash({
             <RestartGlyphButton />
           ) : null}
         </View>
-      </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -255,40 +269,46 @@ function restartApp(): void {
 /**
  * The escape hatch for a boot that stalled BEFORE the catalogs loaded. Carries no
  * copy at all — the label is the icon — because the only honest alternative would
- * be hard-coding English into a localized app (ADR 0009).
+ * be hard-coding English into a localized app (ADR 0009). Built on the bare
+ * Touchable: this renders outside every provider.
  */
 function RestartGlyphButton(): JSX.Element {
   return (
-    <Pressable
+    <Touchable
       onPress={restartApp}
       accessibilityRole="button"
-      hitSlop={12}
-      style={({ pressed }) => ({
-        padding: space.md,
+      tone={colors.surfaceRaised}
+      pressedTone={colors.raisedHover}
+      hitSlop={6}
+      style={{
+        width: 44,
+        height: 44,
         borderRadius: radius.pill,
-        borderCurve: "continuous",
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.stroke,
-        opacity: pressed ? 0.7 : 1,
-      })}
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
       <RotateCw size={18} color={colors.fg} />
-    </Pressable>
+    </Touchable>
   );
 }
 
 function BootStatusLine({ phase, slow }: { phase: BootPhase | null; slow: boolean }): JSX.Element {
   const { t } = useAppTranslation();
   return (
-    <Text style={{ color: colors.fgMuted, fontSize: typography.size.sm, textAlign: "center" }}>
-      {phaseLabel(t, phase)}
-      {slow ? (
-        <Text style={{ color: colors.fgFaint, fontSize: typography.size.sm }}>
-          {` · ${t("mobile:boot.slow")}`}
-        </Text>
-      ) : null}
-    </Text>
+    <Animated.View key={phase ?? "ready"} entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={{ color: colors.fgFaint, fontSize: typography.size.label, lineHeight: 18, textAlign: "center" }}
+      >
+        {phaseLabel(t, phase)}
+        {slow ? (
+          <Text style={{ color: colors.fgFaint, fontSize: typography.size.label }}>
+            {` · ${t("mobile:boot.slow")}`}
+          </Text>
+        ) : null}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -314,57 +334,18 @@ function BootFailure(): JSX.Element {
   }, []);
 
   return (
-    <View style={{ alignItems: "center", gap: space.md }}>
-      <Text style={{ color: colors.fgMuted, fontSize: typography.size.sm, textAlign: "center" }}>
+    <Animated.View
+      entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+      accessibilityRole="alert"
+      style={{ alignItems: "center", gap: space.md }}
+    >
+      <Text style={{ color: colors.fgMuted, fontSize: typography.size.label, lineHeight: 18, textAlign: "center" }}>
         {t("mobile:boot.errorBody")}
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        <BootAction label={t("mobile:boot.retry")} onPress={retry} primary />
-        <BootAction label={t("mobile:boot.restart")} onPress={restartApp} />
+        <Button variant="primary" size="sm" label={t("mobile:boot.retry")} onPress={retry} />
+        <Button variant="secondary" size="sm" label={t("mobile:boot.restart")} onPress={restartApp} />
       </View>
-    </View>
-  );
-}
-
-/**
- * A minimal button local to the splash. The shared `Button` is deliberately NOT
- * used: this screen can render before the app's providers exist, so it must not
- * depend on anything below the boot gate.
- */
-function BootAction({
-  label,
-  onPress,
-  primary = false,
-}: {
-  label: string;
-  onPress: () => void;
-  primary?: boolean;
-}): JSX.Element {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        paddingHorizontal: space.lg,
-        paddingVertical: space.sm,
-        borderRadius: radius.pill,
-        borderCurve: "continuous",
-        backgroundColor: primary ? colors.accent : colors.surface,
-        borderWidth: primary ? 0 : 1,
-        borderColor: colors.stroke,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <Text
-        style={{
-          color: primary ? colors.onAccent : colors.fg,
-          fontSize: typography.size.body,
-          fontWeight: "700",
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
+    </Animated.View>
   );
 }

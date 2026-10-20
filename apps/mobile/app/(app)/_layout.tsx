@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { Redirect, Stack } from "expo-router";
+import { LayoutAnimationConfig } from "react-native-reanimated";
 import { useAppTranslation } from "@/lib/i18n";
 import { AccountSwitchingOverlay } from "@/components/AccountSwitchingOverlay";
 import { InAppNotificationBanner } from "@/components/InAppNotificationBanner";
@@ -49,11 +50,20 @@ export default function AppLayout() {
       }}
     >
       {switching ? null : (
-      <>
+      // skipExiting: when the switch unmounts this whole tree, no Reanimated
+      // `exiting` animation inside it (a toast, a banner, a badge) may keep its
+      // view alive past the removal — that late-removed view is exactly the
+      // reparenting the "view already has a parent" P0 above comes from. It only
+      // applies to THIS wrapper unmounting; ordinary exits inside still animate.
+      // One host child (collapsable off) so the flag lands on a real native tag.
+      <LayoutAnimationConfig skipExiting>
+      <View style={{ flex: 1 }} collapsable={false}>
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.surface },
-          // Space Grotesk on every native title. The root Stack already sets
+          // Borderless (Koyu Masa): the header sits on the page's own tone, no
+          // hairline — the title and the content read as one surface.
+          headerStyle: { backgroundColor: colors.app },
+          // The display face (Onest) on every native title. The root Stack already sets
           // this, but nested navigators do NOT inherit screenOptions — a
           // color-only style here silently reset ~every authed header to
           // Roboto, which is most of why mobile read as "a different app".
@@ -162,7 +172,8 @@ export default function AppLayout() {
       {/* Android system PiP: floats the active speaker's camera when the app is
           backgrounded during a live video session. Renders null except in PiP. */}
       <PipController />
-      </>
+      </View>
+      </LayoutAnimationConfig>
       )}
       {/* Covering overlay during an account switch (ADR 0013) — hides the app
           through the ordered teardown+bringup so no stale identity flashes. While

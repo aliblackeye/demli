@@ -5,44 +5,26 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Mic, MicOff, PhoneOff, Video } from "lucide-react-native";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
 import type { VoiceState } from "@demli/media";
-import { isDmCallRoom } from "@/lib/call-room";
-import { TAB_BAR_CONTENT_HEIGHT, isTabRoute } from "@/lib/tab-bar";
+import {
+  VOICE_MINI_BAR_HEIGHT,
+  isLiveStatus,
+  isVoiceMiniBarShown,
+  isVoiceRoomRoute,
+  voiceMiniBarBottom,
+} from "@/lib/bottom-chrome";
+import { isTabRoute } from "@/lib/tab-bar";
 import { useVoiceStore } from "@/stores/voice-store";
 import { colors, elevation, radius, space } from "@/theme/theme";
 import { localizeVoiceError } from "./voice-error";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 
 /**
- * Approximate rendered height of the floating bar (paddingVertical 8×2 + the
- * 44pt control row + 1px borders, rounded up). A chat screen reserves this much
- * bottom space so the bar never covers the composer (it floats `absolute` over
- * every screen). Kept generous so a slightly taller bar still clears the input.
+ * The bar's geometry and visibility predicates live in the pure, unit-tested
+ * lib/bottom-chrome so every surface that must clear the bar (chat composers,
+ * tab-screen lists, the new-DM button, the update pill) reads the same numbers
+ * this component positions itself with. Re-exported for existing importers.
  */
-export const VOICE_MINI_BAR_HEIGHT = 64;
-
-/**
- * True on the voice room route, where the bar is deliberately NOT shown — that
- * screen carries the full controls itself.
- *
- * Exported because a second surface has to agree: a chat screen reserves
- * {@link VOICE_MINI_BAR_HEIGHT} at its bottom so the floating bar cannot cover
- * the composer, and since M20 the voice room's own CHAT view is such a screen.
- * Reserving there would leave a 64px hole above the composer for a bar that is
- * not on screen, so both read this one predicate.
- */
-export function isVoiceRoomRoute(pathname: string): boolean {
-  return pathname.startsWith("/voice/");
-}
-
-/** Statuses in which a session is live and the bar should be shown. */
-export function isLiveStatus(status: VoiceState["status"]): boolean {
-  return (
-    status === "joining" ||
-    status === "connected" ||
-    status === "reconnecting" ||
-    status === "error"
-  );
-}
+export { VOICE_MINI_BAR_HEIGHT, isLiveStatus, isVoiceRoomRoute };
 
 /** Short status line for the compact bar (localized). */
 function statusText(status: VoiceState["status"], t: AppTFunction): string {
@@ -125,13 +107,10 @@ export function VoiceMiniBar() {
   const toggleMic = useVoiceStore((s) => s.toggleMic);
   const leave = useVoiceStore((s) => s.leave);
 
-  // Not in a session → nothing to show.
-  if (!roomId || !isLiveStatus(status)) return null;
-  // A DM call runs on this same engine but has its own UI (the /call screen +
-  // CallMiniBar), so the generic voice bar must not double up for it (ADR 0012).
-  if (isDmCallRoom(roomId)) return null;
-  // Already on the voice room screen → its own controls cover this.
-  if (isVoiceRoomRoute(pathname)) return null;
+  // One predicate, shared with every surface that clears the bar: hidden with no
+  // live session, for a DM call (it has its own UI — the /call screen +
+  // CallMiniBar, ADR 0012), and on the voice room screen (its own controls).
+  if (!roomId || !isVoiceMiniBarShown(roomId, status, pathname)) return null;
 
   const title = channelMeta?.name ? `🔊 ${channelMeta.name}` : t("mobile:voice.channelFallback");
   const errorMessage = localizeVoiceError(error, t);
@@ -151,7 +130,7 @@ export function VoiceMiniBar() {
 
   // On the three tab screens the bar must clear the bottom tab bar instead of
   // covering it; every other screen (chat/voice/detail) has no tab bar.
-  const tabBarClearance = isTabRoute(pathname) ? TAB_BAR_CONTENT_HEIGHT : 0;
+  const bottom = voiceMiniBarBottom(insets.bottom, isTabRoute(pathname));
 
   return (
     <View
@@ -160,7 +139,7 @@ export function VoiceMiniBar() {
         position: "absolute",
         left: space.sm,
         right: space.sm,
-        bottom: insets.bottom + space.sm + tabBarClearance,
+        bottom,
       }}
     >
       <View

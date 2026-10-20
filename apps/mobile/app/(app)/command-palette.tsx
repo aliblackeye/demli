@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { FlatList, Keyboard, Pressable, View } from "react-native";
+import { FlatList, Keyboard, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  CornerDownLeft,
   Hash,
   Headphones,
   HeadphoneOff,
@@ -19,14 +20,20 @@ import {
   X,
 } from "lucide-react-native";
 import type { GroupId } from "@demli/types";
-import { Text, TextInput } from "@/components/ui/Text";
+import { Text } from "@/components/ui/Text";
+import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { TextField } from "@/components/TextField";
+import { shellRowIconInk, shellRowTones } from "@/components/home/ShellRow";
+import { IconButton } from "@/components/ui/IconButton";
+import { Touchable } from "@/components/ui/Touchable";
 import { useAppTranslation } from "@/lib/i18n";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import {
   buildPaletteItems,
   filterPaletteItems,
   paletteSectionLabel,
+  primaryPaletteItem,
   toPaletteRows,
   type PaletteAction,
   type PaletteIcon,
@@ -71,15 +78,16 @@ function SectionHeader({ label }: { label: string }) {
   return (
     <View
       accessibilityRole="header"
-      style={{ height: HEADER_HEIGHT, justifyContent: "flex-end", paddingHorizontal: space.lg }}
+      style={{ height: HEADER_HEIGHT, justifyContent: "flex-end", paddingHorizontal: space.lg + space.xs }}
     >
       <Text
+        numberOfLines={1}
         style={{
           color: colors.fgFaint,
-          fontSize: typography.size["2xs"],
-          fontWeight: "700",
-          letterSpacing: 0.6,
-          textTransform: "uppercase",
+          fontSize: typography.size.label,
+          lineHeight: 18,
+          fontWeight: "500",
+          letterSpacing: -0.13,
           paddingBottom: space.xs,
         }}
       >
@@ -90,47 +98,79 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 /**
- * One palette row. Memoized: while typing, only rows whose item identity changed
+ * One palette row — the shell's row language at a fixed height: no fill at
+ * rest, a tone on press, and the coral wash on the TOP result while the user is
+ * typing (the row Enter runs — cmdk's highlighted first item on the desktop).
+ * Memoized: while typing, only rows whose item identity or highlight changed
  * re-render — the rest are skipped even though the list data array is new.
  */
 const PaletteItemRow = memo(function PaletteItemRow({
   item,
+  primary,
   onSelect,
 }: {
   item: PaletteItem;
+  /** The top result Enter would run. */
+  primary: boolean;
   onSelect: (action: PaletteAction) => void;
 }) {
   const Icon = ICONS[item.icon];
+  const tones = shellRowTones({ selected: primary });
   return (
-    <Pressable
+    <Touchable
       onPress={() => onSelect(item.action)}
+      tone={tones.tone}
+      pressedTone={tones.pressed}
       accessibilityRole="button"
       accessibilityLabel={item.meta ? `${item.label}, ${item.meta}` : item.label}
-      style={({ pressed }) => ({
-        height: ITEM_HEIGHT,
+      accessibilityState={{ selected: primary }}
+      style={{
+        height: ITEM_HEIGHT - 2,
+        marginVertical: 1,
         flexDirection: "row",
         alignItems: "center",
         gap: space.md,
         marginHorizontal: space.md,
-        paddingHorizontal: space.md,
-        borderRadius: radius.md,
+        paddingHorizontal: space.sm,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
-        backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-      })}
+      }}
     >
-      <Icon size={20} color={colors.fgMuted} />
-      <Text numberOfLines={1} style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: "600" }}>
+      <View
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: radius.md,
+          borderCurve: "continuous",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: primary ? colors.accentSurface : colors.surface,
+        }}
+      >
+        <Icon size={18} color={shellRowIconInk({ selected: primary })} strokeWidth={2} />
+      </View>
+      <Text
+        numberOfLines={1}
+        style={{
+          flex: 1,
+          color: primary ? colors.accentHover : colors.fg,
+          fontSize: 15,
+          lineHeight: 20,
+          fontWeight: "500",
+        }}
+      >
         {item.label}
       </Text>
       {item.meta ? (
         <Text
           numberOfLines={1}
-          style={{ maxWidth: "35%", color: colors.fgFaint, fontSize: typography.size["2xs"] }}
+          style={{ maxWidth: "35%", color: colors.fgFaint, fontSize: typography.size.sm, lineHeight: 16 }}
         >
           {item.meta}
         </Text>
       ) : null}
-    </Pressable>
+      {primary ? <CornerDownLeft size={16} color={colors.accent} /> : null}
+    </Touchable>
   );
 });
 
@@ -146,6 +186,10 @@ const PaletteItemRow = memo(function PaletteItemRow({
  * a KeyboardAvoidingView — under Android's edge-to-edge mode KAV receives no
  * keyboard inset (see lib/use-keyboard-height, written for that founder bug), so
  * KAV here would let the IME cover the last rows.
+ *
+ * While typing, the top result wears the coral wash and the keyboard's "go" key
+ * runs it (a hardware keyboard's Enter too) — the desktop cmdk's highlighted
+ * first item.
  *
  * Selecting a row dismisses the keyboard and REPLACES this screen with the
  * target, so the palette never sits in the back stack between Home and where you
@@ -306,11 +350,20 @@ export default function CommandPaletteScreen() {
     }
   };
 
+  // The top result while typing: highlighted, and what the keyboard's search key
+  // runs. Read from the debounced rows for the highlight; Enter recomputes from
+  // the LIVE input so a fast "type + Enter" never runs the previous query's row.
+  const primary = useMemo(() => primaryPaletteItem(rows, query), [rows, query]);
+  const runPrimary = () => {
+    const live = primaryPaletteItem(toPaletteRows(filterPaletteItems(items, input)), input);
+    if (live) onSelect(live.action);
+  };
+
   const renderItem = ({ item: row }: { item: PaletteRow }) =>
     row.type === "header" ? (
       <SectionHeader label={paletteSectionLabel(row.section, t as unknown as PaletteTranslate)} />
     ) : (
-      <PaletteItemRow item={row.item} onSelect={onSelect} />
+      <PaletteItemRow item={row.item} primary={primary?.id === row.item.id} onSelect={onSelect} />
     );
 
   return (
@@ -324,62 +377,35 @@ export default function CommandPaletteScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            gap: space.sm,
-            paddingHorizontal: space.md,
+            gap: space.xs,
+            paddingLeft: space.lg,
+            paddingRight: space.sm,
             paddingVertical: space.sm,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.stroke,
           }}
         >
-          <View
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.sm,
-              paddingHorizontal: space.md,
-              backgroundColor: colors.surfaceRaised,
-              borderColor: colors.stroke,
-              borderWidth: 1,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-            }}
-          >
-            <Search size={18} color={colors.fgFaint} />
-            <TextInput
+          <View style={{ flex: 1 }}>
+            <TextField
               value={input}
               onChangeText={setInput}
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
-              returnKeyType="search"
+              returnKeyType="go"
+              onSubmitEditing={runPrimary}
+              submitBehavior="submit"
               accessibilityLabel={t("mobile:commandMenu.title")}
               placeholder={t("mobile:commandMenu.placeholder")}
-              placeholderTextColor={colors.fgFaint}
-              style={{ flex: 1, color: colors.fg, fontSize: 15, paddingVertical: space.md }}
+              leading={<Search size={18} color={colors.fgFaint} />}
             />
           </View>
-          <Pressable
-            onPress={close}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t("common:buttons.close")}
-            style={({ pressed }) => ({
-              width: 44,
-              height: 44,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: pressed ? 0.6 : 1,
-            })}
-          >
-            <X size={22} color={colors.fgMuted} />
-          </Pressable>
+          <IconButton icon={X} label={t("common:buttons.close")} onPress={close} />
         </View>
 
         <FlatList<PaletteRow>
           data={rows}
           keyExtractor={(row) => row.key}
           renderItem={renderItem}
+          extraData={primary?.id}
           getItemLayout={(_, index) => ({
             length: rows[index]?.type === "header" ? HEADER_HEIGHT : ITEM_HEIGHT,
             offset: offsets[index] ?? 0,
@@ -397,14 +423,12 @@ export default function CommandPaletteScreen() {
             paddingBottom: space.xl + (keyboardHeight > 0 ? 0 : insets.bottom),
           }}
           ListEmptyComponent={
-            <View style={{ padding: space.xl, gap: space.xs }}>
-              <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-                {t("mobile:commandMenu.empty")}
-              </Text>
-              <Text style={{ color: colors.fgFaint, fontSize: 13, textAlign: "center" }}>
-                {t("mobile:commandMenu.emptyHint")}
-              </Text>
-            </View>
+            <EmptyState
+              compact
+              icon={<Search size={22} color={colors.fgMuted} />}
+              title={t("mobile:commandMenu.empty")}
+              subtitle={t("mobile:commandMenu.emptyHint")}
+            />
           }
         />
       </View>

@@ -3,13 +3,16 @@ import { ActivityIndicator, View } from "react-native";
 import { Text } from "@/components/ui/Text";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { AlertCircle, Link2Off } from "lucide-react-native";
+import { BrandMark } from "@/components/BrandMark";
+import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { localizeError } from "@/lib/errors";
 import { parseInviteCode } from "@/lib/deep-links";
 import { usePendingDeepLinkStore } from "@/deeplinks/pending-link-store";
 import { useRedeemInvite } from "@/queries/chat-queries";
 import { useAuthStore } from "@/stores/auth-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
 
 /**
  * Deep-link target for a server-invite link:
@@ -63,44 +66,56 @@ export default function JoinDeepLink() {
       style={{
         flex: 1,
         backgroundColor: colors.app,
-        padding: space.lg,
+        paddingHorizontal: space.lg,
         justifyContent: "center",
-        gap: space.lg,
       }}
     >
       <Stack.Screen options={{ title: t("mobile:join.title") }} />
 
       {invalidCode ? (
-        <View style={{ gap: space.md, alignItems: "center" }}>
-          <Text variant="display" style={{ color: colors.fg, fontSize: 16, fontWeight: "700" }}>
-            {t("mobile:join.invalidTitle")}
-          </Text>
-          <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-            {t("mobile:join.invalidBody")}
-          </Text>
-          <Button label={t("mobile:join.goHome")} variant="ghost" onPress={() => router.replace("/")} />
-        </View>
+        <EmptyState
+          icon={<Link2Off size={22} color={colors.fgMuted} />}
+          title={t("mobile:join.invalidTitle")}
+          subtitle={t("mobile:join.invalidBody")}
+          action={
+            <Button variant="secondary" label={t("mobile:join.goHome")} onPress={() => router.replace("/")} />
+          }
+        />
       ) : redeemInvite.isError ? (
-        <View style={{ gap: space.md }}>
-          <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.md }}>
-            <Text selectable style={{ color: colors.danger, fontSize: 13, textAlign: "center" }}>
-              {localizeError(redeemInvite.error, t)}
-            </Text>
-          </View>
-          <Button
-            label={t("buttons.retry")}
-            onPress={() => {
-              attempted.current = false;
-              redeemInvite.reset();
-              redeem();
-            }}
-          />
-          <Button label={t("mobile:join.goHome")} variant="ghost" onPress={() => router.replace("/")} />
-        </View>
+        <EmptyState
+          tone="error"
+          icon={<AlertCircle size={22} color={colors.danger} />}
+          title={t("mobile:join.errorTitle")}
+          subtitle={localizeError(redeemInvite.error, t)}
+          action={
+            <View style={{ flexDirection: "row", gap: space.sm }}>
+              <Button
+                variant="primary"
+                size="sm"
+                label={t("buttons.retry")}
+                onPress={() => {
+                  attempted.current = false;
+                  redeemInvite.reset();
+                  redeem();
+                }}
+              />
+              <Button variant="ghost" size="sm" label={t("mobile:join.goHome")} onPress={() => router.replace("/")} />
+            </View>
+          }
+        />
       ) : (
-        <View style={{ alignItems: "center", gap: space.md }}>
-          <ActivityIndicator color={colors.fgFaint} />
-          <Text style={{ color: colors.fgMuted, fontSize: 14 }}>{t("mobile:join.joining")}</Text>
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={t("mobile:join.joining")}
+          accessibilityState={{ busy: true }}
+          style={{ alignItems: "center", gap: space.lg }}
+        >
+          <BrandMark size="md" />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={{ color: colors.fgMuted, fontSize: 15, lineHeight: 21 }}>{t("mobile:join.joining")}</Text>
+          </View>
         </View>
       )}
     </View>

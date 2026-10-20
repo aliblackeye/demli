@@ -122,6 +122,13 @@
     "channelDescription": "Yeni mesajlar ve arkadaşlık istekleri"
   },
   "home": {
+    "bannerSwipeHintA11y": "Kapatmak için yukarı kaydır",
+    "friendsWithRequestsA11y": "Arkadaşlar — bekleyen istek var",
+    "dmLoadErrorTitle": "Mesajlar yüklenemedi",
+    "directLoadErrorTitle": "Direkt mesajlar yüklenemedi",
+    "groupChatsLoadErrorTitle": "Grup sohbetleri yüklenemedi",
+    "longPressOptionsA11y": "Seçenekler için basılı tut",
+    "storyOpenA11y": "{{name}} ile mesajlaş",
     "newServer": "Yeni sunucu",
     "newGroup": "Yeni grup",
     "settings": "Ayarlar",
@@ -220,6 +227,13 @@
     }
   },
   "friends": {
+    "onlineSection": "Çevrimiçi · {{count}}",
+    "offlineSection": "Çevrimdışı · {{count}}",
+    "loadErrorTitle": "Arkadaş listen yüklenemedi",
+    "requestsLoadErrorTitle": "İstekler yüklenemedi",
+    "tabRequestsCount": "İstekler · {{count}}",
+    "requestsBadgeA11y_one": "{{count}} bekleyen arkadaşlık isteği",
+    "requestsBadgeA11y_other": "{{count}} bekleyen arkadaşlık isteği",
     "title": "Arkadaşlar",
     "tabFriends": "Arkadaşlar",
     "tabRequests": "İstekler",
@@ -301,6 +315,7 @@
     "messageSent": "Gönderildi — sohbete gitmeden burada kalabilirsin."
   },
   "group": {
+    "loadErrorTitle": "Kanallar yüklenemedi",
     "channelsTitle": "Kanallar",
     "serverSettings": "Sunucu ayarları",
     "inviteFriends": "Arkadaşları davet et",
@@ -321,6 +336,7 @@
     "hasDraftA11y": "Gönderilmemiş taslak"
   },
   "channel": {
+    "connectedA11y": "Bağlısın",
     "fallbackTitle": "Kanal",
     "nsfw": "Yaşa uygun (18+) kanal",
     "openChatWithoutJoining": "Sohbeti aç (katılmadan)",
@@ -374,6 +390,7 @@
     "openSettings": "Ayarları aç"
   },
   "search": {
+    "startTitle": "Bu kanalda ara",
     "title": "Ara",
     "placeholder": "Mesajlarda ara",
     "hint": "Bu kanalda aramak için en az {{count}} karakter yaz.",
@@ -504,6 +521,7 @@
     "unlimitedUses": "Sınırsız kullanım"
   },
   "join": {
+    "errorTitle": "Sunucuya katılınamadı",
     "title": "Sunucuya katıl",
     "invalidTitle": "Geçersiz davet bağlantısı",
     "invalidBody": "Bu bağlantıda davet kodu eksik.",

@@ -1,8 +1,9 @@
 import { View } from "react-native";
-import { Text } from "@/components/ui/Text";
 import { router, Stack } from "expo-router";
+import { AtSign } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { colors, space } from "@/theme/theme";
 
 /**
@@ -20,29 +21,20 @@ export default function RetiredFriendCodeLink() {
   const { t } = useAppTranslation();
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.app,
-        padding: space.lg,
-        justifyContent: "center",
-        gap: space.lg,
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.app, paddingHorizontal: space.lg, justifyContent: "center" }}>
       <Stack.Screen options={{ title: t("mobile:addFriend.title") }} />
-
-      <View style={{ gap: space.md, alignItems: "center" }}>
-        <Text variant="display" style={{ color: colors.fg, fontSize: 16, fontWeight: "700", textAlign: "center" }}>
-          {t("mobile:addFriend.removedTitle")}
-        </Text>
-        <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-          {t("mobile:addFriend.removedBody")}
-        </Text>
-        <Button
-          label={t("mobile:addFriend.removedCta")}
-          onPress={() => router.replace("/friends?tab=add")}
-        />
-      </View>
+      <EmptyState
+        icon={<AtSign size={22} color={colors.fgMuted} />}
+        title={t("mobile:addFriend.removedTitle")}
+        subtitle={t("mobile:addFriend.removedBody")}
+        action={
+          <Button
+            variant="accent"
+            label={t("mobile:addFriend.removedCta")}
+            onPress={() => router.replace("/friends?tab=add")}
+          />
+        }
+      />
     </View>
   );
 }

@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { View } from "react-native";
+import Animated, {
+  FadeIn,
+  ReduceMotion,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { Text, TextInput } from "../ui/Text";
+import { withAlpha } from "../ui/kit-math";
 import { useAppTranslation } from "@/lib/i18n";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { motionTo, useReducedMotion } from "@/theme/motion";
+import { colors, motion, radius, space, typography } from "@/theme/theme";
 
 /**
  * A dependency-free date-of-birth entry (M15) — three numeric fields (day /
@@ -41,6 +50,11 @@ function toIso(dayStr: string, monthStr: string, yearStr: string): string | null
   return `${year}-${mm}-${dd}`;
 }
 
+/**
+ * One of the three date parts — the Koyu Masa field recipe (TextField): no
+ * border, the surface tone at rest lifting to the raised tone while focused (a
+ * 200ms tone change), the danger wash when the date is invalid, coral caret.
+ */
 function Field(props: {
   value: string;
   onChangeText: (t: string) => void;
@@ -48,9 +62,19 @@ function Field(props: {
   maxLength: number;
   flex: number;
   accessibilityLabel: string;
+  invalid: boolean;
 }) {
+  const reduced = useReducedMotion();
+  const focus = useSharedValue(0);
+  const rest = props.invalid ? colors.dangerSurface : colors.surface;
+  const focused = props.invalid ? withAlpha(colors.danger, 0.18) : colors.surfaceRaised;
+  const tone = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(focus.value, [0, 1], [rest, focused]),
+  }));
   return (
-    <View style={{ flex: props.flex }}>
+    <Animated.View
+      style={[{ flex: props.flex, borderRadius: radius.lg, borderCurve: "continuous", minHeight: 44 }, tone]}
+    >
       <TextInput
         value={props.value}
         onChangeText={(t) => props.onChangeText(t.replace(/[^0-9]/g, "").slice(0, props.maxLength))}
@@ -59,30 +83,40 @@ function Field(props: {
         keyboardType="number-pad"
         maxLength={props.maxLength}
         accessibilityLabel={props.accessibilityLabel}
+        aria-invalid={props.invalid ? true : undefined}
+        onFocus={() => {
+          focus.value = motionTo(1, "tone", { reduced });
+        }}
+        onBlur={() => {
+          focus.value = motionTo(0, "tone", { reduced });
+        }}
         style={{
-          backgroundColor: colors.surfaceRaised,
-          borderColor: colors.stroke,
-          borderWidth: 1,
-          borderRadius: radius.md,
-          borderCurve: "continuous",
           color: colors.fg,
           fontSize: 15,
+          lineHeight: 20,
           textAlign: "center",
+          fontVariant: ["tabular-nums"],
           paddingHorizontal: space.sm,
           paddingVertical: space.md,
         }}
       />
-    </View>
+    </Animated.View>
   );
 }
 
 export function BirthdateField({
   label,
   hint,
+  error,
   onChange,
 }: {
   label?: string;
   hint?: string;
+  /**
+   * Field-level validation message (the TextField rule): it REPLACES the hint and
+   * tints the three parts with the danger wash.
+   */
+  error?: string | null;
   /** Fires with a valid ISO `YYYY-MM-DD`, or null while the entry is incomplete/invalid. */
   onChange: (iso: string | null) => void;
 }) {
@@ -90,6 +124,7 @@ export function BirthdateField({
   const [day, setDay] = useState("");
   const [month, setMonth] = useState("");
   const [year, setYear] = useState("");
+  const invalid = !!error;
 
   const update = (nextDay: string, nextMonth: string, nextYear: string) => {
     setDay(nextDay);
@@ -99,15 +134,14 @@ export function BirthdateField({
   };
 
   return (
-    <View style={{ gap: space.xs }}>
+    <View style={{ gap: space.xs + 2 }}>
       {label ? (
         <Text
           style={{
-            color: colors.fgFaint,
-            fontSize: typography.size["2xs"],
-            fontWeight: "700",
-            letterSpacing: 0.6,
-            textTransform: "uppercase",
+            color: colors.fgMuted,
+            fontSize: typography.size.label,
+            lineHeight: 18,
+            fontWeight: "500",
           }}
         >
           {label}
@@ -121,6 +155,7 @@ export function BirthdateField({
           maxLength={2}
           flex={1}
           accessibilityLabel={t("mobile:auth.birthdatePlaceholderDay")}
+          invalid={invalid}
         />
         <Field
           value={month}
@@ -129,6 +164,7 @@ export function BirthdateField({
           maxLength={2}
           flex={1}
           accessibilityLabel={t("mobile:auth.birthdatePlaceholderMonth")}
+          invalid={invalid}
         />
         <Field
           value={year}
@@ -137,9 +173,25 @@ export function BirthdateField({
           maxLength={4}
           flex={1.4}
           accessibilityLabel={t("mobile:auth.birthdatePlaceholderYear")}
+          invalid={invalid}
         />
       </View>
-      {hint ? <Text style={{ color: colors.fgFaint, fontSize: 12 }}>{hint}</Text> : null}
+      {error ? (
+        <Animated.View
+          key={error}
+          entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+        >
+          <Text
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            style={{ color: colors.danger, fontSize: typography.size.label, lineHeight: 18 }}
+          >
+            {error}
+          </Text>
+        </Animated.View>
+      ) : hint ? (
+        <Text style={{ color: colors.fgFaint, fontSize: typography.size.label, lineHeight: 18 }}>{hint}</Text>
+      ) : null}
     </View>
   );
 }

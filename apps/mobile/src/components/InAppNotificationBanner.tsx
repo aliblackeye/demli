@@ -1,20 +1,27 @@
 import { useEffect, useRef } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { AccessibilityInfo, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { Text } from "./ui/Text";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, MessageCircle, UserPlus, X } from "lucide-react-native";
 import { toTranslateFn, useAppTranslation } from "@/lib/i18n";
-import { colors, elevation, radius, space } from "@/theme/theme";
+import { motionTo, useReducedMotion } from "@/theme/motion";
+import { OVERLAY_MOTION } from "@/theme/motion-presets";
+import { colors, motion, radius, space } from "@/theme/theme";
+import { bannerRelease } from "./in-app-banner-gesture";
+import { Glass } from "./ui/Glass";
+import { rubberBand } from "./ui/kit-math";
+import { Touchable } from "./ui/Touchable";
 import {
   useInAppNotificationStore,
   type InAppNotificationKind,
 } from "@/stores/in-app-notification-store";
 
-/** How long a banner stays before it auto-slides away. */
+/** How long a banner stays before it slides away (paused while a finger is on it). */
 const VISIBLE_MS = 4500;
-/** Off-screen resting offset (well above the notch) for the slide animation. */
-const HIDDEN_Y = -220;
 
 /** Per-kind glyph. */
 function kindIcon(kind: InAppNotificationKind) {
@@ -25,15 +32,19 @@ function kindIcon(kind: InAppNotificationKind) {
 
 /**
  * The single foreground in-app banner (founder: friend requests had NO visible
- * feedback while the app was open). Mounted once, globally, in the authed layout —
- * next to the VoiceMiniBar — so it floats over every authed screen. Slides down
- * from the top, auto-dismisses, and routes to the relevant surface on tap.
+ * feedback while the app was open). Mounted once, globally, in the authed layout
+ * — next to the VoiceMiniBar — so it floats over every authed screen, and routes
+ * to the relevant surface on tap.
  *
- * Animation is RN's built-in `Animated` (translateY on the native driver), no
- * reanimated — OTA-safe, same as the rest of the mobile app. The store holds i18n
- * keys; this component resolves them (it has the translator the realtime layer
- * lacks). Re-triggered whenever `current.id` changes, so a second request while
- * the first is still up simply replaces it and replays the slide-in.
+ * Koyu Masa: a raised glass card (no border, no lift shadow) that drops in from
+ * just above on the authored position spring (`bannerDrop` — it arrives, it does
+ * not bounce) and leaves on the fast step. A flick UP dismisses it (the way a
+ * notification is put away on a phone); a downward pull rubber-bands. The timer
+ * pauses while a finger is on it. A newer banner replaces the current one and
+ * replays the arrival. Reduced motion: it appears and leaves without travel.
+ *
+ * The store holds i18n keys; this component resolves them (it has the
+ * translator the realtime layer lacks).
  */
 export function InAppNotificationBanner() {
   const { t } = useAppTranslation();
@@ -42,32 +53,93 @@ export function InAppNotificationBanner() {
   // codebase's sanctioned loose translator (same escape hatch as system messages).
   const translate = toTranslateFn(t);
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const current = useInAppNotificationStore((s) => s.current);
   const dismiss = useInAppNotificationStore((s) => s.dismiss);
-  const translateY = useRef(new Animated.Value(HIDDEN_Y)).current;
+
+  const enter = useSharedValue(0);
+  const dy = useSharedValue(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const id = current?.id;
+
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  /** Slide away, then clear THIS banner (a newer one that replaced it is left alone). */
+  const leave = (leavingId: string) => {
+    clearTimer();
+    enter.value = withTiming(
+      0,
+      { duration: motion.duration.fast, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System },
+      (done) => {
+        if (done) scheduleOnRN(dismiss, leavingId);
+      },
+    );
+  };
+
+  const arm = () => {
+    clearTimer();
+    // Only for the banner still on screen: a gesture that finalizes after a tap
+    // already dismissed it (or a newer one replaced it) must not start a timer
+    // that would slide the NEXT banner away early.
+    if (id && useInAppNotificationStore.getState().current?.id === id) {
+      timer.current = setTimeout(() => leave(id), VISIBLE_MS);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
-    // Reset above the screen, then spring in. `setValue` guards the case where a
-    // previous banner left the value at 0 (already on-screen).
-    translateY.setValue(HIDDEN_Y);
-    const enter = Animated.spring(translateY, {
-      toValue: 0,
-      useNativeDriver: true,
-      bounciness: 8,
-      speed: 14,
+    // A replacement resets to the hidden state, then arrives.
+    dy.value = 0;
+    enter.value = 0;
+    enter.value = motionTo(1, "position", { reduced });
+    arm();
+    return clearTimer;
+    // Keyed on the banner id: each new banner gets one arrival and one timer.
+  }, [id]);
+
+  useEffect(() => {
+    if (!current) return;
+    const title = current.titleText ?? (current.titleKey ? translate(current.titleKey) : "");
+    const body =
+      current.bodyText ?? (current.bodyKey ? translate(current.bodyKey, current.bodyParams) : "");
+    AccessibilityInfo.announceForAccessibility(body ? `${title}. ${body}` : title);
+    // Announce once per banner id.
+  }, [id]);
+
+  const swipe = Gesture.Pan()
+    .activeOffsetY([-8, 8])
+    .failOffsetX([-16, 16])
+    .onBegin(() => {
+      "worklet";
+      scheduleOnRN(clearTimer);
+    })
+    .onUpdate((e) => {
+      "worklet";
+      dy.value = e.translationY < 0 ? e.translationY : rubberBand(e.translationY, 80);
+    })
+    // onFinalize, not onEnd: it runs for EVERY ending (an activated pan, a failed
+    // one — a sideways swipe — and an OS cancel), so the timer paused in onBegin
+    // is always either restarted or replaced by the dismissal.
+    .onFinalize((e, success) => {
+      "worklet";
+      if (id && bannerRelease(success, e.translationY, e.velocityY) === "dismiss") {
+        dy.value = motionTo(-160, "position", { velocity: e.velocityY, reduced });
+        scheduleOnRN(leave, id);
+      } else {
+        dy.value = motionTo(0, "position", { velocity: e.velocityY, reduced });
+        scheduleOnRN(arm);
+      }
     });
-    enter.start();
-    const timer = setTimeout(() => {
-      Animated.timing(translateY, {
-        toValue: HIDDEN_Y,
-        duration: 220,
-        useNativeDriver: true,
-      }).start(() => dismiss(id));
-    }, VISIBLE_MS);
-    return () => clearTimeout(timer);
-  }, [id, translateY, dismiss]);
+
+  const from = OVERLAY_MOTION.banner.from;
+  const style = useAnimatedStyle(() => ({
+    opacity: enter.value * (1 - Math.min(1, Math.max(0, -dy.value) / 140)),
+    transform: [{ translateY: (1 - enter.value) * from.translateY + dy.value }],
+  }));
 
   if (!current) return null;
 
@@ -78,74 +150,86 @@ export function InAppNotificationBanner() {
   const body = current.bodyText ?? (current.bodyKey ? translate(current.bodyKey, current.bodyParams) : "");
 
   const onPress = () => {
+    clearTimer();
     dismiss(current.id);
     if (current.href) router.push(current.href as never);
   };
 
   return (
-    <Animated.View
+    <View
       pointerEvents="box-none"
       style={{
         position: "absolute",
         top: insets.top + space.xs,
         left: space.md,
         right: space.md,
-        transform: [{ translateY }],
         // Above the native header + the voice mini bar.
         zIndex: 1000,
         elevation: 24,
       }}
     >
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`${title}. ${body}`}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.md,
-          paddingVertical: space.md,
-          paddingHorizontal: space.md,
-          borderRadius: radius.lg,
-          borderCurve: "continuous",
-          backgroundColor: colors.surfaceRaised,
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          ...elevation.panel,
-        }}
-      >
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: radius.pill,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: accepted ? colors.online : colors.accent,
-          }}
-        >
-          {/* Both plate colours (green / accent orange) are light, so the
-              glyph is the dark on-accent ink rather than white. */}
-          <Icon size={19} color={colors.onAccent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 14, fontWeight: "700" }}>
-            {title}
-          </Text>
-          <Text numberOfLines={1} style={{ color: colors.fgMuted, fontSize: 13, marginTop: 1 }}>
-            {body}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => dismiss(current.id)}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:friends.notif.dismiss")}
-          style={{ padding: space.xs }}
-        >
-          <X size={18} color={colors.fgFaint} />
-        </Pressable>
-      </Pressable>
-    </Animated.View>
+      <GestureDetector gesture={swipe}>
+        <Animated.View style={style}>
+          <Glass strong style={{ borderRadius: radius.xl, borderCurve: "continuous" }}>
+            <Touchable
+              onPress={onPress}
+              accessibilityRole="button"
+              accessibilityLabel={body ? `${title}. ${body}` : title}
+              accessibilityHint={t("mobile:home.bannerSwipeHintA11y")}
+              pressedTone={colors.wash}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.md,
+                paddingVertical: space.md,
+                paddingLeft: space.md,
+                paddingRight: space.xs,
+              }}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: radius.pill,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: accepted ? colors.online : colors.accent,
+                }}
+              >
+                {/* Both plate colours (green / coral) are light, so the glyph is
+                    the dark on-accent ink rather than white. */}
+                <Icon size={18} color={colors.onAccent} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1, gap: 1 }}>
+                <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 14, lineHeight: 19, fontWeight: "600" }}>
+                  {title}
+                </Text>
+                {body ? (
+                  <Text numberOfLines={2} style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 18 }}>
+                    {body}
+                  </Text>
+                ) : null}
+              </View>
+              <Touchable
+                onPress={() => leave(current.id)}
+                accessibilityRole="button"
+                accessibilityLabel={t("mobile:friends.notif.dismiss")}
+                pressedTone={colors.washStrong}
+                hitSlop={6}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: radius.pill,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={16} color={colors.fgMuted} strokeWidth={2} />
+              </Touchable>
+            </Touchable>
+          </Glass>
+        </Animated.View>
+      </GestureDetector>
+    </View>
   );
 }

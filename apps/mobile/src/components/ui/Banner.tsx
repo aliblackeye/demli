@@ -50,6 +50,7 @@ export function Banner({
   icon,
   action,
   onDismiss,
+  dismissLabel,
   style,
 }: {
   variant?: BannerVariant;
@@ -61,6 +62,8 @@ export function Banner({
   action?: { label: string; onPress: () => void };
   /** Shows a close control. Omit for a banner that clears itself (offline strip). */
   onDismiss?: () => void;
+  /** Spoken name of the close control when "Close" undersells it ("Don't remind me"). */
+  dismissLabel?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useAppTranslation();
@@ -116,7 +119,7 @@ export function Banner({
         <Touchable
           onPress={onDismiss}
           accessibilityRole="button"
-          accessibilityLabel={t("common:buttons.close")}
+          accessibilityLabel={dismissLabel ?? t("common:buttons.close")}
           pressedTone={colors.washStrong}
           hitSlop={6}
           style={{

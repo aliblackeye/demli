@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
-import { View } from "react-native";
-import { Text } from "../components/ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "../components/Button";
-import { colors, radius, space } from "../theme/theme";
+import { Button } from "../components/ui/Button";
+import { ProgressBar } from "../components/ui/ProgressBar";
 import { APK_INSTALL_SUPPORTED } from "./native-apk";
 import { useNativeUpdateStore } from "./native-update-store";
+import { UpdateScreenFrame } from "./UpdateScreenFrame";
 
 /**
  * Full-screen blocking gate for a FORCED native update — the installed APK's
@@ -55,65 +54,43 @@ export function NativeUpdateScreen() {
             : t("mobile:updates.nativeForcedBody");
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.app,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: space.xl,
-        gap: space.lg,
-      }}
-    >
-      <View style={{ gap: space.sm, alignItems: "center" }}>
-        <Text variant="display" style={{ color: colors.fg, fontSize: 20, fontWeight: "700", textAlign: "center" }}>
-          {t("mobile:updates.nativeForcedTitle")}
-        </Text>
-        <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20, textAlign: "center" }}>
-          {body}
-        </Text>
-      </View>
-
-      {phase === "downloading" ? <ProgressBar fraction={progress} /> : null}
+    <UpdateScreenFrame title={t("mobile:updates.nativeForcedTitle")} body={body}>
+      {phase === "downloading" ? (
+        <ProgressBar value={progress} accessibilityLabel={body} />
+      ) : null}
 
       {APK_INSTALL_SUPPORTED ? (
-        <View style={{ alignSelf: "stretch" }}>
-          {phase === "downloaded" ? (
-            <Button label={t("mobile:updates.nativeInstall")} onPress={() => void installDownloaded()} />
-          ) : phase === "error" ? (
-            <Button label={t("mobile:updates.nativeRetry")} onPress={() => void startUpdate()} />
-          ) : (
-            // idle / downloading / installing — a busy, non-interactive affordance.
-            <Button
-              label={
-                phase === "downloading"
-                  ? t("mobile:updates.nativeDownloading", { percent })
-                  : t("mobile:updates.nativeInstalling")
-              }
-              loading
-              disabled
-            />
-          )}
-        </View>
+        phase === "downloaded" ? (
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            label={t("mobile:updates.nativeInstall")}
+            onPress={() => void installDownloaded()}
+          />
+        ) : phase === "error" ? (
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            label={t("mobile:updates.nativeRetry")}
+            onPress={() => void startUpdate()}
+          />
+        ) : (
+          // idle / downloading / installing — a busy, non-interactive affordance.
+          <Button
+            variant="secondary"
+            size="lg"
+            block
+            label={
+              phase === "downloading"
+                ? t("mobile:updates.nativeDownloading", { percent })
+                : t("mobile:updates.nativeInstalling")
+            }
+            loading
+          />
+        )
       ) : null}
-    </View>
-  );
-}
-
-/** Slim determinate progress bar (0..1). No animation lib — width is the value. */
-function ProgressBar({ fraction }: { fraction: number }) {
-  const pct = Math.max(0, Math.min(1, fraction)) * 100;
-  return (
-    <View
-      style={{
-        alignSelf: "stretch",
-        height: 6,
-        borderRadius: radius.pill,
-        backgroundColor: colors.surfaceRaised,
-        overflow: "hidden",
-      }}
-    >
-      <View style={{ width: `${pct}%`, height: "100%", backgroundColor: colors.accent }} />
-    </View>
+    </UpdateScreenFrame>
   );
 }

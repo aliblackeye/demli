@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
-import { Text } from "../ui/Text";
+import { View } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { Text } from "../ui/Text";
+import { Button } from "../ui/Button";
 import { useAppTranslation } from "@/lib/i18n";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/auth-config";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space, typography } from "@/theme/theme";
 
 /** Self-hosted 4-colour Google "G" (no remote asset). Mirrors the desktop mark. */
 function GoogleIcon({ size = 18 }: { size?: number }) {
@@ -31,60 +31,43 @@ function GoogleIcon({ size = 18 }: { size?: number }) {
 }
 
 /**
- * "Continue with Google" — a visible-but-inactive placeholder (M15), gated by
- * {@link GOOGLE_AUTH_ENABLED}. Until OAuth is wired the button reads as disabled
- * and tapping it surfaces a "coming soon" line; flipping the env var un-greys it
- * (the actual OAuth start is still a TODO, mirroring the desktop flag). Includes
- * the "or" divider above it so the two auth screens just drop this in.
+ * "Continue with Google", gated by {@link GOOGLE_AUTH_ENABLED} (default off).
+ *
+ * It renders NOTHING while the flag is off — the desktop rule (AuthScreen): a
+ * greyed-out button with a "coming soon" line on tap is a dead control in the
+ * spot a user reaches for, and the reward for reaching is an apology (§35). One
+ * working way in beats two where one lies.
+ *
+ * With the flag on it draws the divider + the secondary button. The mobile
+ * OAuth start is not wired yet (the server half, `POST /auth/google`, exists;
+ * the client token flow does not), so the flag must stay off in every build
+ * until that lands — turning it on today would move the dead end one tap in.
  */
-export function GoogleButton() {
+export function GoogleButton({ onPress }: { onPress?: () => void }) {
   const { t } = useAppTranslation();
-  const [showSoon, setShowSoon] = useState(false);
-  const enabled = GOOGLE_AUTH_ENABLED;
+  if (!GOOGLE_AUTH_ENABLED || !onPress) return null;
 
   return (
     <View style={{ gap: space.md }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+      <View
+        importantForAccessibility="no-hide-descendants"
+        style={{ flexDirection: "row", alignItems: "center", gap: space.md }}
+      >
         <View style={{ flex: 1, height: 1, backgroundColor: colors.stroke }} />
-        <Text style={{ color: colors.fgFaint, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>
+        <Text style={{ color: colors.fgFaint, fontSize: typography.size.label, lineHeight: 18 }}>
           {t("mobile:auth.orDivider")}
         </Text>
         <View style={{ flex: 1, height: 1, backgroundColor: colors.stroke }} />
       </View>
-
-      <Pressable
-        onPress={() => {
-          if (enabled) return; // OAuth start — TODO once the provider is wired.
-          setShowSoon(true);
-        }}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !enabled }}
-        accessibilityLabel={t("mobile:auth.continueWithGoogle")}
-        style={({ pressed }) => ({
-          minHeight: 46,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: space.sm,
-          borderRadius: radius.md,
-          borderCurve: "continuous",
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          backgroundColor: colors.surfaceRaised,
-          opacity: enabled ? (pressed ? 0.85 : 1) : 0.6,
-        })}
+      <Button
+        variant="secondary"
+        size="lg"
+        block
+        label={t("mobile:auth.continueWithGoogle")}
+        onPress={onPress}
       >
         <GoogleIcon />
-        <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>
-          {t("mobile:auth.continueWithGoogle")}
-        </Text>
-      </Pressable>
-
-      {showSoon && !enabled ? (
-        <Text style={{ color: colors.fgFaint, fontSize: 12, textAlign: "center" }}>
-          {t("mobile:auth.googleSoon")}
-        </Text>
-      ) : null}
+      </Button>
     </View>
   );
 }

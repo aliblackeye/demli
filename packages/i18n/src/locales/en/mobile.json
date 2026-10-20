@@ -122,6 +122,13 @@
     "channelDescription": "New messages and friend requests"
   },
   "home": {
+    "bannerSwipeHintA11y": "Swipe up to dismiss",
+    "friendsWithRequestsA11y": "Friends — requests waiting",
+    "dmLoadErrorTitle": "Couldn't load your messages",
+    "directLoadErrorTitle": "Couldn't load your direct messages",
+    "groupChatsLoadErrorTitle": "Couldn't load your group chats",
+    "longPressOptionsA11y": "Long-press for options",
+    "storyOpenA11y": "Message {{name}}",
     "newServer": "New server",
     "newGroup": "New group",
     "settings": "Settings",
@@ -220,6 +227,13 @@
     }
   },
   "friends": {
+    "onlineSection": "Online · {{count}}",
+    "offlineSection": "Offline · {{count}}",
+    "loadErrorTitle": "Couldn't load your friends",
+    "requestsLoadErrorTitle": "Couldn't load requests",
+    "tabRequestsCount": "Requests · {{count}}",
+    "requestsBadgeA11y_one": "{{count}} pending friend request",
+    "requestsBadgeA11y_other": "{{count}} pending friend requests",
     "title": "Friends",
     "tabFriends": "Friends",
     "tabRequests": "Requests",
@@ -301,6 +315,7 @@
     "messageSent": "Sent — you can stay right here."
   },
   "group": {
+    "loadErrorTitle": "Couldn't load the channels",
     "channelsTitle": "Channels",
     "serverSettings": "Server settings",
     "inviteFriends": "Invite friends",
@@ -321,6 +336,7 @@
     "hasDraftA11y": "Unsent draft"
   },
   "channel": {
+    "connectedA11y": "You're connected",
     "fallbackTitle": "Channel",
     "nsfw": "Age-restricted (18+) channel",
     "openChatWithoutJoining": "Open chat (without joining)",
@@ -374,6 +390,7 @@
     "openSettings": "Open settings"
   },
   "search": {
+    "startTitle": "Search this channel",
     "title": "Search",
     "placeholder": "Search messages",
     "hint": "Type at least {{count}} characters to search this channel.",
@@ -504,6 +521,7 @@
     "unlimitedUses": "Unlimited uses"
   },
   "join": {
+    "errorTitle": "Couldn't join the server",
     "title": "Join server",
     "invalidTitle": "Invalid invite link",
     "invalidBody": "This link is missing an invite code.",

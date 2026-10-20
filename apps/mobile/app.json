@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#1a0806",
+    "backgroundColor": "#000000",
     "newArchEnabled": true,
     "runtimeVersion": "2.1.0",
     "updates": {
@@ -89,9 +89,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 112,
           "resizeMode": "contain",
-          "backgroundColor": "#1a0806"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-secure-store",
