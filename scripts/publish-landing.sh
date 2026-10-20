@@ -99,6 +99,16 @@ if [[ -z "$DIST_DIR" || ! -f "$DIST_DIR/index.html" ]]; then
   exit 1
 fi
 
+# Licensed template media live UNTRACKED in apps/landing/public on the founder's
+# machine (for side-by-side comparison) and Next copies public/ into the export.
+# Only build artefacts and files tracked in git may ever be uploaded — checked
+# here, before DRY_RUN's listing and before any connection. See the script.
+echo "== Checking the build carries only publishable files =="
+if ! node "$REPO_ROOT/scripts/check-landing-dist.mjs" "$DIST_DIR"; then
+  echo "Nothing uploaded." >&2
+  exit 1
+fi
+
 echo "== Publishing landing → $DEPLOY_HOST:$REMOTE_DIR =="
 echo "   source: $DIST_DIR"
 printf '  %-28s %s bytes\n' "index.html" "$(wc -c < "$DIST_DIR/index.html")"

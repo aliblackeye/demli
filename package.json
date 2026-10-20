@@ -20,7 +20,7 @@
     "db:generate": "pnpm --filter @demli/db generate",
     "db:migrate": "pnpm --filter @demli/db migrate",
     "db:seed": "pnpm --filter @demli/db seed",
-    "lint": "eslint . && node scripts/check-caddyfile.mjs && node scripts/check-brand-icons.mjs && node scripts/check-env-examples.mjs && node scripts/check-deploy-scripts.mjs",
+    "lint": "eslint . && node scripts/check-caddyfile.mjs && node scripts/check-brand-icons.mjs && node scripts/check-env-examples.mjs && node scripts/check-deploy-scripts.mjs && node --test scripts/check-landing-dist.test.mjs",
     "lint:caddy": "node scripts/check-caddyfile.mjs",
     "lint:deploy": "node scripts/check-deploy-scripts.mjs",
     "test:deploy": "bash scripts/test-remote-ssh.sh && bash scripts/test-deploy-migration.sh",
