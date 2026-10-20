@@ -12,7 +12,7 @@
  * window the bug lived in.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as MediaModule from "@demli/media";
 
 const engineStart = vi.fn<(acquire: unknown, options: unknown) => Promise<void>>();
@@ -54,6 +54,12 @@ vi.mock("../lib/screen-share", () => ({
   startOptionsFor: () => ({ quality: "1080p30", audioMode: "none" }),
   superviseFilmAudio: () => () => undefined,
 }));
+
+// Loaded once, up front: transforming the real store (and its imports) takes
+// seconds on a loaded full-workspace run, which must not count against a test.
+beforeAll(async () => {
+  await import("./voice-store");
+}, 60_000);
 
 afterEach(() => {
   engineStart.mockReset();
