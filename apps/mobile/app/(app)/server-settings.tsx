@@ -23,6 +23,7 @@ import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { resolveListLoadState } from "@/lib/load-state";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { canSeeModerationLog } from "@/lib/moderation-log";
 import { buildMemberColorMap } from "@/lib/permissions";
@@ -76,7 +77,12 @@ export default function ServerSettings() {
   const keyboard = useKeyboardHeight();
 
   const { data, isLoading, isError, error: loadError, refetch, isFetching } = useGroupDetails(groupId);
-  const { data: roles } = useRoles(groupId);
+  const rolesQuery = useRoles(groupId);
+  const roles = rolesQuery.data;
+  // "No roles yet" only after the roles request SUCCEEDED empty — never while it
+  // is loading or after it failed (that offered an owner to create a first role
+  // on a server that already has some).
+  const rolesState = resolveListLoadState(rolesQuery, roles);
   const { isOwner, can } = useServerPermissions(groupId);
   const canManageRoles = isOwner || can(PERMISSIONS.MANAGE_ROLES);
 
@@ -258,7 +264,22 @@ export default function ServerSettings() {
                     footer={t("mobile:serverSettings.rolesHint")}
                     separatorInset={ROW_ICON_INSET}
                   >
-                    {(roles ?? []).length === 0 ? (
+                    {rolesState === "loading" ? (
+                      <SettingsRow key="loading" title={t("mobile:serverSettings.loading")} busy chevron={false} />
+                    ) : null}
+                    {rolesState === "error" ? (
+                      <SettingsRow
+                        key="error"
+                        icon={CloudOff}
+                        destructive
+                        title={t("mobile:memberRoles.rolesLoadErrorTitle")}
+                        subtitle={localizeError(rolesQuery.error, t)}
+                        value={t("buttons.retry")}
+                        onPress={() => void rolesQuery.refetch()}
+                        busy={rolesQuery.isFetching}
+                      />
+                    ) : null}
+                    {rolesState === "empty" ? (
                       <SettingsRow key="none" title={t("mobile:serverSettings.noRoles")} chevron={false} />
                     ) : null}
                     {(roles ?? []).map((role) => (

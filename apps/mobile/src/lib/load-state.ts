@@ -31,3 +31,25 @@ export function resolveEntityLoadState(query: EntityQueryFlags, hasEntity: boole
   if (query.isLoading) return "loading";
   return "missing";
 }
+
+/**
+ * The same rule for a LIST (the server's roles): "empty" only after a request
+ * that SUCCEEDED with no items. Server settings used to read `roles ?? []`, so
+ * while the roles were still loading — or after the request failed — an owner
+ * was told "no roles yet" and offered to create one.
+ *
+ * Cached data always wins (a failed background refetch keeps the list). A
+ * disabled query (no group id) is neither loading nor failed and lands on
+ * "empty", exactly like `resolveEntityLoadState`'s "missing".
+ */
+export type ListLoadState = "ready" | "empty" | "error" | "loading";
+
+export function resolveListLoadState(
+  query: EntityQueryFlags,
+  list: readonly unknown[] | undefined,
+): ListLoadState {
+  if (list !== undefined) return list.length > 0 ? "ready" : "empty";
+  if (query.isError) return "error";
+  if (query.isLoading) return "loading";
+  return "empty";
+}
