@@ -1926,3 +1926,24 @@ güvenilmedi. 39 satır ✅ oldu (açılış ekranı kaynakta hazır, 2.1.0 APK 
 doğrulama + sayaç, "başka yerden değişti") ⏳ kaldı. Bu doğrulama cihazda değil kodda yapıldı;
 yukarıdaki dalların cihaz kapıları hâlâ açık. Kişi başı ses masaüstü %100 tavanı satırı en üstteki
 tabloda ("Kişi başı ses / yayın sesi tavanı").
+
+## 2026-10-20 — Push güvenilirliği (dal `fix/push-reliability`)
+
+Saha bulgusu: uygulaması kapalı bir Android'e DM atıldı, bildirim düşmedi. Üretimde ticket/receipt
+FCM'e kadar "ok" — yani hat Google'a ulaşıyor; hangi mesajın push ürettiği ise LOGDAN
+ANLAŞILAMIYORDU ve receipt hiç okunmadığı için ölü token'lar (o cihazın 4 token'ından 2'si) hiç
+budanmıyordu. Bu dal o körlüğü kapatır ve dokunma yönlendirmesini sunucunun gerçekten gönderdiği
+veriye bağlar; cihazdaki asıl kök neden (OEM pil yönetimi / kanal / izin) için aşağıdaki loglar ve
+izin şeridi şart.
+
+| Özellik | Masaüstü | Mobil | Not |
+|---|---|---|---|
+| Push dispatch logu (tür, alıcı, kapı sonrası, token, ticket) | — | ✅ (sunucu) | `[push] dispatch {...}` — her notify/notifyAlways için TEK satır; içerik yok, token yalnız sha256/12 parmak izi (`pushTokenFingerprint`). api + realtime aynı servisi kullanır. |
+| Expo receipt kontrolü + ölü token budama | — | ✅ (sunucu) | `packages/notifications/src/push-receipts.ts`: gönderimden ~15 dk sonra, bellek içi + sınırlı (10k), yeniden başlatmada kaybolur (bilinçli). `DeviceNotRegistered` budanır; InvalidCredentials/MessageTooBig/MessageRateExceeded/MismatchSenderId loglanır, budanmaz. |
+| Push teslim özellikleri (kanal, öncelik, TTL, gruplama) | — | ✅ (sunucu) | Her push `messages-v2` (2.0.0 ve 2.1.0 ikisi de bu kanalı açıyor; zil de aynı HIGH kanalda — yeni kanal eski kurulumu "Diğer" kanalına düşürürdü), `priority: high`. TTL: mesaj 3 gün, arkadaşlık 7 gün, zil = zil süresi. DM artık konuşma başına tek bildirim (`dm:<id>` etiketi, son satır görünür) — kanal patlamasıyla aynı kural. Düz grup sohbeti push'u kendi ekranına (`groupChatId`) ve sohbet adıyla gider. |
+| Bildirime dokununca doğru yer | — | ✅ (OTA) | Saf yönlendirici `apps/mobile/src/push/notification-target.ts` (`parseNotificationTarget` → `notificationHref` / `callRingDecision`). DM → o DM (akış + karşı taraf + isim hazır); kanal/mention → o kanal; grup sohbeti → grup sohbeti; zil → hâlâ çalıyorsa gelen-arama katmanı (soğuk açılışta `resyncActiveCall` ile), bittiyse DM; cevapsız arama → DM, rota yoksa Son aramalar. Sunucu verisi → mobil rota sözleşmesi `packages/notifications/src/__tests__/mobile-tap-contract.test.ts` ile kilitli. Mesaja kaydırma: push'un mesajı en yenisi, sohbet zaten orada açılıyor (ayrıca iş yapılmadı). |
+| Bildirim izni kapalı şeridi + ayarlara git | — | ✅ (OTA) | Ana sayfa şeridi (`NotificationPermissionBanner`) izin kesin "hayır" iken; tek eylem: istenebiliyorsa "İzin ver", değilse "Ayarları aç". Oturum boyunca kapatılabilir. Ayarlar satırıyla aynı mağaza (`push/permission-store.ts`). |
+| Push token'ı her açılışta / ön plana dönüşte / izin sonrası yeniden kayıt | — | ✅ (OTA) | Eskiden oturum başına bir kez; Ayarlar'dan izin veren kullanıcının token'ı bir sonraki girişe kadar sunucuya gitmiyordu. Ön plan yenilemesi 60 sn kısmalı ve izin penceresi AÇMAZ. |
+
+⚠️ Cihaz doğrulaması AÇIK (founder kuralı — emülatör/uygulama bu dalda çalıştırılmadı). Başka
+cihazda cevaplanan zilin SESSİZ `call_ended` push'unu istemcide kapatmak hâlâ yok (üstteki 🚧 satır).
