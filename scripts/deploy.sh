@@ -207,7 +207,10 @@ rendered_webhook_key="$(
   webhook block in ${LIVEKIT_TEMPLATE}. The running SFU is untouched."
 grep -qF "${LIVEKIT_WEBHOOK_URL}" "${livekit_next}" || fail "the rendered LiveKit config does not post to ${LIVEKIT_WEBHOOK_URL} —
   the server-side join check would be off. Check ${LIVEKIT_TEMPLATE}."
-if grep -qF -- "${LIVEKIT_API_SECRET}" "${livekit_next}"; then
+# The secret is fed to grep as a pattern FILE on a process substitution, never as
+# an argument: argv is world-readable in /proc/<pid>/cmdline and `ps` for as long
+# as grep runs, so `grep -qF -- "$SECRET"` would publish it to every local user.
+if grep -qFf <(printf '%s\n' "${LIVEKIT_API_SECRET}") "${livekit_next}"; then
 	fail "the LiveKit API SECRET appears in the rendered config. It must only ever
   reach the SFU through LIVEKIT_KEYS (docker-compose.prod.yml). Nothing written."
 fi

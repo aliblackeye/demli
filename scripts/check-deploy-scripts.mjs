@@ -593,6 +593,38 @@ const shellScripts = [
   }
 }
 
+// ---------------------------------------------------------------------------
+// 9. A secret never travels as a command-line argument of grep/awk/sed.
+//
+// deploy.sh used to check the rendered LiveKit config with
+//     grep -qF -- "${LIVEKIT_API_SECRET}" "$file"
+// which puts the secret in grep's argv — readable by every user on the VPS via
+// /proc/<pid>/cmdline or `ps` while it runs. Secrets go in on stdin / a pattern
+// file (`grep -qFf <(printf '%s\n' "$SECRET")`) or through ENVIRON in awk.
+// ---------------------------------------------------------------------------
+{
+  const SECRET_VAR = /\$\{?[A-Z0-9_]*(SECRET|PASSWORD|PASSWD|TOKEN|PRIVATE_KEY)[A-Z0-9_]*\}?/;
+  const TOOL = /(^|[\s;|&(`])(grep|egrep|fgrep|awk|sed)\s/;
+  let offenders = 0;
+  for (const { name, body } of shellScripts) {
+    for (const { line, n } of stripComments(body)) {
+      const tool = TOOL.exec(line);
+      if (!tool) continue;
+      // Everything after the tool name, minus a process substitution / heredoc
+      // feeding it (those are not argv).
+      const args = line
+        .slice(tool.index + tool[0].length)
+        .split("|")[0]
+        .replace(/<\([^)]*\)/g, "");
+      if (SECRET_VAR.test(args)) {
+        offenders++;
+        fail("secret-argv", `${name}:${n} passes a secret as a ${tool[2]} argument (visible in ps / /proc): ${line.trim()}`);
+      }
+    }
+  }
+  if (!offenders) pass("no deploy/publish script passes a secret as a grep/awk/sed argument");
+}
+
 for (const p of passes) console.log(`  ok   ${p}`);
 for (const f of failures) console.error(`  FAIL ${f}`);
 if (failures.length) {
