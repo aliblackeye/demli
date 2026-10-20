@@ -10,6 +10,7 @@ import { View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createI18n, I18nextProvider, type i18n as I18nInstance } from "@demli/i18n";
 import { queryClient } from "@/lib/query-client";
@@ -38,6 +39,7 @@ import { ForegroundServiceController } from "@/components/voice/ForegroundServic
 import { PendingDeepLinkController } from "@/deeplinks/PendingDeepLinkController";
 import { BootPhaseBinder } from "@/components/BootPhaseBinder";
 import { BootSplash } from "@/components/BootSplash";
+import { Toaster } from "@/components/ui/Toast";
 import { markBootPhase } from "@/stores/boot-store";
 import { colors, fontFamily } from "@/theme/theme";
 import { useAppFonts } from "@/theme/fonts";
@@ -172,6 +174,9 @@ export default function RootLayout() {
   }
 
   return (
+    // Gesture-handler root: the kit's sliders, swipeable toasts and draggable
+    // sheets need one ancestor (sheets bring their own inside each Modal).
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.app }}>
     <SafeAreaProvider>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
@@ -226,11 +231,15 @@ export default function RootLayout() {
                   phase is done, then fades out. Deliberately INSIDE both gates:
                   a blocking OTA / native-update screen replaces these children,
                   so the splash can never hide it. */}
+              {/* The single toast host for `toast()` (components/ui/toast-store),
+                  under the boot splash so nothing toasts over a booting app. */}
+              <Toaster />
               <BootSplash translationsReady />
             </NativeUpdateGate>
           </UpdateGate>
         </QueryClientProvider>
       </I18nextProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

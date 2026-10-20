@@ -8,14 +8,25 @@
  * the app must pass through.
  *
  * Engine-neutral presets: `MOTION_PRESETS` (in motion-presets.ts) describes
- * each named motion as plain data. `animate()` below is the RN `Animated`
- * adapter used today; a Reanimated adapter (`withSpring` / `withTiming`) maps
- * the very same presets when Wave 4 brings Reanimated into the native build, so
- * call sites name a preset ("position", "tone") rather than an engine.
+ * each named motion as plain data, and two adapters run it:
+ *
+ *  - `animate()` — RN core `Animated`, for the screens not yet moved over.
+ *  - `motionTo()` — Reanimated 4 (`withSpring` / `withTiming`), worklet-safe, for
+ *    the primitive kit in components/ui. Same presets, same numbers, so a sheet
+ *    driven by either engine lands on the same curve.
+ *
+ * Call sites name a preset ("position", "tone"), never an engine or a number.
  */
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing } from "react-native";
-import { MOTION_PRESETS, type MotionPresetName } from "./motion-presets";
+import {
+  Easing as ReanimatedEasing,
+  ReduceMotion,
+  withSpring,
+  withTiming,
+  type AnimationCallback,
+} from "react-native-reanimated";
+import { MOTION_PRESETS, PRESS, springConfigOf, type MotionPresetName } from "./motion-presets";
 import { motion } from "./theme";
 
 /** The shared decelerating curve — panels, state changes, presses. */
@@ -134,4 +145,72 @@ export function useArrivalStyle(enabled: boolean): {
       },
     ],
   };
+}
+
+// ── Reanimated adapter ────────────────────────────────────────────────────────
+
+/** The two curves as Reanimated easing factories (UI-thread safe). */
+const REANIMATED_EASINGS = {
+  standard: ReanimatedEasing.bezier(...motion.easing.standard),
+  arrival: ReanimatedEasing.bezier(...motion.easing.arrival),
+} as const;
+
+/**
+ * Animate a shared value to `toValue` on a named preset — the Reanimated twin of
+ * {@link animate}. Callable from a worklet (gesture `onEnd`, `useAnimatedReaction`)
+ * and from JS.
+ *
+ * Reduced motion is honoured twice over: every config carries
+ * `ReduceMotion.System`, so the OS switch makes Reanimated jump straight to the
+ * end value even if a caller forgot to check; and `reduced: true` (from
+ * {@link useReducedMotion}) forces the jump explicitly for logic that must not
+ * wait on a frame. `velocity` hands a released gesture's speed to the spring so
+ * a flicked sheet keeps its momentum instead of restarting from rest.
+ */
+export function motionTo(
+  toValue: number,
+  preset: MotionPresetName,
+  options: { reduced?: boolean; velocity?: number; onDone?: AnimationCallback } = {},
+): number {
+  "worklet";
+  const reduceMotion = options.reduced ? ReduceMotion.Always : ReduceMotion.System;
+  const spec = MOTION_PRESETS[preset];
+  if (spec.type === "spring") {
+    return withSpring(
+      toValue,
+      { ...springConfigOf(spec, options.velocity ?? 0), reduceMotion },
+      options.onDone,
+    );
+  }
+  return withTiming(
+    toValue,
+    { duration: spec.duration, easing: REANIMATED_EASINGS[spec.easing], reduceMotion },
+    options.onDone,
+  );
+}
+
+/**
+ * The tactile press spring (scale down while held, release back). Separate from
+ * the named presets because it is a desktop `pressable` mirror, not a token.
+ */
+export function pressTo(toValue: number, reduced = false): number {
+  "worklet";
+  return withSpring(toValue, {
+    ...springConfigOf(PRESS.spring),
+    reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System,
+  });
+}
+
+/**
+ * Press feedback timing for a tone change. Pressing in is the `instant` step
+ * (120ms — feedback must not lag the finger); letting go fades back on the
+ * `tone` step (200ms), the same 200ms the desktop hover takes.
+ */
+export function toneTo(pressed: boolean, reduced = false): number {
+  "worklet";
+  return withTiming(pressed ? 1 : 0, {
+    duration: pressed ? motion.duration.instant : motion.duration.hover,
+    easing: REANIMATED_EASINGS.standard,
+    reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System,
+  });
 }

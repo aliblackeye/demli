@@ -50,6 +50,12 @@ const AVATAR_SOURCE = join("apps", "mobile", "src", "components", "Avatar.tsx");
  * NEW one in an already-listed file still fails until it is accounted for.
  */
 const JUSTIFIED_NULL: Record<string, { count: number; reason: string }> = {
+  "apps/mobile/app/(dev)/ui-kit.tsx": {
+    count: 3,
+    reason:
+      "the dev-only primitive kit (redirects home in release builds) demonstrating the " +
+      "initials fallback at three sizes — the fallback itself is what is under review there",
+  },
   "apps/mobile/src/components/member/AvatarLightbox.tsx": {
     count: 1,
     reason:

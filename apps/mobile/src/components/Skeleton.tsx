@@ -1,46 +1,68 @@
-import { useEffect } from "react";
-import { Animated, type DimensionValue, type ViewStyle } from "react-native";
+import { useEffect, type ReactNode } from "react";
+import { View, type DimensionValue, type ViewStyle } from "react-native";
+import Animated, {
+  Easing,
+  ReduceMotion,
+  cancelAnimation,
+  makeMutable,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import { useAppTranslation } from "@/lib/i18n";
+import { useReducedMotion } from "../theme/motion";
 import { colors, radius as radii, space } from "../theme/theme";
 
 /**
- * Lightweight loading placeholders (audit #13) — an opacity "pulse" in place of a
- * bare spinner, so a first load reads as content taking shape rather than a blank
- * screen. Deliberately shimmer-free (no gradient sweep, no reanimated): a single
- * shared Animated value drives every placeholder off the native thread, so any
- * number of skeletons on screen cost one interpolation, never a per-item JS loop
- * (CLAUDE.md §27). OTA-safe — pure JS, no native module.
+ * Loading placeholders: blocks in the `wash-strong` tone (the design-system
+ * skeleton fill, so they read on every container tone) with an opacity pulse —
+ * the desktop `Skeleton`'s Tailwind `animate-pulse`, step for step: full
+ * opacity → 50% → full over 2s on cubic-bezier(0.4, 0, 0.6, 1). Content taking
+ * shape rather than a bare spinner; no gradient sweep (the system's choice is
+ * the pulse, on both platforms).
+ *
+ * Performance (§27): ONE module-level shared value drives every block on
+ * screen, on the UI thread. It is ref-counted, so the loop runs only while at
+ * least one animated skeleton is mounted and is cancelled the moment the last
+ * one unmounts — any number of skeletons cost one timing animation, never a
+ * per-item JS loop, and no block measures itself or mounts extra views.
+ *
+ * Reduced motion: no pulse — the blocks render static at full fill, and the
+ * loop is not even started for a viewer who asked for less motion.
  */
 
-// One module-level driver, ref-counted so the loop runs ONLY while skeletons are
-// mounted and stops (resetting to a stable value) the moment the last one hides.
-const pulse = new Animated.Value(0);
-let mounted = 0;
-let loop: Animated.CompositeAnimation | null = null;
+/** Half of the desktop 2s pulse: one way, then reversed. */
+const PULSE_HALF_MS = 1000;
+/** The pulse's low point (Tailwind `pulse` keyframe at 50%). */
+const PULSE_LOW = 0.5;
+const pulse = makeMutable(0);
+let animatedCount = 0;
 
 function acquirePulse(): void {
-  mounted += 1;
-  if (mounted === 1) {
-    loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 750, useNativeDriver: true }),
-      ]),
+  animatedCount += 1;
+  if (animatedCount === 1) {
+    pulse.value = 0;
+    pulse.value = withRepeat(
+      withTiming(1, {
+        duration: PULSE_HALF_MS,
+        easing: Easing.bezier(0.4, 0, 0.6, 1),
+        reduceMotion: ReduceMotion.System,
+      }),
+      -1,
+      true,
     );
-    loop.start();
   }
 }
 
 function releasePulse(): void {
-  mounted -= 1;
-  if (mounted <= 0) {
-    mounted = 0;
-    loop?.stop();
-    loop = null;
-    pulse.setValue(0);
+  animatedCount = Math.max(0, animatedCount - 1);
+  if (animatedCount === 0) {
+    cancelAnimation(pulse);
+    pulse.value = 0;
   }
 }
 
-/** A single pulsing placeholder block. */
+/** A single placeholder block. */
 export function Skeleton({
   width,
   height,
@@ -52,13 +74,15 @@ export function Skeleton({
   radius?: number;
   style?: ViewStyle;
 }) {
+  const reduced = useReducedMotion();
   useEffect(() => {
+    if (reduced) return;
     acquirePulse();
     return releasePulse;
-  }, []);
-
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
-
+  }, [reduced]);
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: reduced ? 1 : 1 - (1 - PULSE_LOW) * pulse.value,
+  }));
   return (
     <Animated.View
       style={[
@@ -67,12 +91,31 @@ export function Skeleton({
           height,
           borderRadius: radius,
           borderCurve: "continuous",
-          backgroundColor: colors.surfaceRaised,
-          opacity,
+          backgroundColor: colors.washStrong,
         },
         style,
+        pulseStyle,
       ]}
     />
+  );
+}
+
+/**
+ * The accessible wrapper every composed placeholder uses: one "loading"
+ * announcement for the whole block instead of a dozen empty shapes.
+ */
+function LoadingRegion({ children, style }: { children: ReactNode; style?: ViewStyle }) {
+  const { t } = useAppTranslation();
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={t("mobile:ui.loading")}
+      accessibilityState={{ busy: true }}
+      style={style}
+    >
+      {children}
+    </View>
   );
 }
 
@@ -90,7 +133,7 @@ export function SkeletonRow({
   leadingRadius?: number;
 }) {
   return (
-    <Animated.View
+    <View
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -100,11 +143,11 @@ export function SkeletonRow({
       }}
     >
       <Skeleton width={leadingSize} height={leadingSize} radius={leadingRadius} />
-      <Animated.View style={{ flex: 1, gap: space.sm }}>
+      <View style={{ flex: 1, gap: space.sm }}>
         <Skeleton width="52%" height={13} radius={radii.sm} />
         {lines > 1 ? <Skeleton width="78%" height={11} radius={radii.sm} /> : null}
-      </Animated.View>
-    </Animated.View>
+      </View>
+    </View>
   );
 }
 
@@ -121,11 +164,11 @@ export function SkeletonList({
   leadingRadius?: number;
 }) {
   return (
-    <Animated.View style={{ gap: space.sm }}>
+    <LoadingRegion style={{ gap: space.sm }}>
       {Array.from({ length: count }).map((_, i) => (
         <SkeletonRow key={i} lines={lines} leadingSize={leadingSize} leadingRadius={leadingRadius} />
       ))}
-    </Animated.View>
+    </LoadingRegion>
   );
 }
 
@@ -135,9 +178,9 @@ export function SkeletonList({
  */
 export function SkeletonChannelRows({ count = 5 }: { count?: number }) {
   return (
-    <Animated.View style={{ paddingHorizontal: space.md, gap: space.xs }}>
+    <LoadingRegion style={{ paddingHorizontal: space.md, gap: space.xs }}>
       {Array.from({ length: count }).map((_, i) => (
-        <Animated.View
+        <View
           key={i}
           style={{
             flexDirection: "row",
@@ -146,15 +189,15 @@ export function SkeletonChannelRows({ count = 5 }: { count?: number }) {
             paddingHorizontal: space.lg,
             paddingVertical: space.md,
             backgroundColor: colors.surface,
-            borderRadius: radii.md,
+            borderRadius: radii.lg,
             borderCurve: "continuous",
           }}
         >
           <Skeleton width={20} height={20} radius={radii.sm} />
           <Skeleton width={`${40 + ((i * 13) % 35)}%`} height={13} radius={radii.sm} />
-        </Animated.View>
+        </View>
       ))}
-    </Animated.View>
+    </LoadingRegion>
   );
 }
 
@@ -166,22 +209,22 @@ export function SkeletonChannelRows({ count = 5 }: { count?: number }) {
  */
 export function SkeletonMessages({ count = 6 }: { count?: number }) {
   return (
-    <Animated.View style={{ flex: 1, paddingHorizontal: space.md, paddingTop: space.md, gap: space.lg }}>
+    <LoadingRegion style={{ flex: 1, paddingHorizontal: space.md, paddingTop: space.md, gap: space.lg }}>
       {Array.from({ length: count }).map((_, i) => {
         const twoLines = i % 3 !== 1;
         return (
-          <Animated.View key={i} style={{ flexDirection: "row", gap: space.md }}>
+          <View key={i} style={{ flexDirection: "row", gap: space.md }}>
             <Skeleton width={40} height={40} radius={radii.pill} />
-            <Animated.View style={{ flex: 1, gap: space.sm, paddingTop: 2 }}>
+            <View style={{ flex: 1, gap: space.sm, paddingTop: 2 }}>
               <Skeleton width={`${28 + ((i * 11) % 22)}%`} height={12} radius={radii.sm} />
               <Skeleton width={`${62 + ((i * 17) % 30)}%`} height={12} radius={radii.sm} />
               {twoLines ? (
                 <Skeleton width={`${40 + ((i * 23) % 35)}%`} height={12} radius={radii.sm} />
               ) : null}
-            </Animated.View>
-          </Animated.View>
+            </View>
+          </View>
         );
       })}
-    </Animated.View>
+    </LoadingRegion>
   );
 }

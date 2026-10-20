@@ -1349,5 +1349,8 @@
       "timeout": "Timeout",
       "timeout_remove": "Timeout removed"
     }
+  },
+  "ui": {
+    "loading": "Loading"
   }
 }
