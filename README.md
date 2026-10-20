@@ -3,39 +3,50 @@
 [![CI](https://github.com/aliblackeye/demli/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/aliblackeye/demli/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-A private, realtime communication app for friend groups — text channels, voice rooms, screen sharing, cameras, and DM calls. Three clients: a Windows Electron desktop app (installer via `pnpm package:win`, silent auto-update), an Android Expo/React Native app (EAS OTA + in-app APK self-updater), and a web SPA sharing the desktop renderer. Backed by a self-hosted VPS (Fastify API + WS gateway + LiveKit SFU + Postgres/Redis).
+A private, realtime communication app for friend groups — text channels, voice rooms, screen sharing, cameras, and DM calls. Three clients: a Windows Electron desktop app (installer via `pnpm package:win`, silent auto-update), an Android Expo/React Native app (EAS OTA + in-app APK self-updater), and a web SPA sharing the desktop renderer. Backend: a rented VPS running the Fastify API, the WS gateway, the LiveKit SFU and Redis behind Caddy, with a managed Postgres database (Supabase).
 
 Built for one group of friends rather than for scale: invite-only servers, no public directory, no ads, no recommendation feed. The bar it is held to is audio and video that stay stable through a bad connection, and desktop and mobile that do the same things — parity is tracked per feature, not claimed.
 
 ## Screenshots
 
-Captured from the Electron app running against a local stack. The accounts, the
-server and the conversation are invented fixtures — no real user data. The UI is
-in Turkish here; the app ships TR and EN.
+The M16 "Koyu Masa" interface (black surfaces, coral accent, Inter + Onest). Each
+image is a headless-browser capture of the desktop renderer's real components,
+mounted by the dev-only harness pages in `apps/web` with the network faked;
+`scripts/gen-readme-shots.mjs` regenerates them. People, servers and messages are
+invented fixtures — no real user data. The UI is in Turkish here; the app ships TR
+and EN.
 
-![Text channel: group rail, channel list, messages, member list](docs/images/chat.png)
+![Desktop app: server rail, channel list, a text channel with replies and reactions, member list](docs/images/chat.webp)
 
-A text channel — server rail, channel list, message list with replies and reactions, member list with presence.
+A text channel — server rail, channel list with the occupants of a voice room (the speaker ringed in coral, a muted member), messages with a reply and reactions, member list grouped by presence. Bottom left: the voice panel while connected.
 
-![Voice channel with three participants and the channel's text chat](docs/images/voice.png)
+![Video stage with six participants; the one speaking has a lit coral border](docs/images/voice.webp)
 
-A voice room with three connected participants (one muted) and the voice channel's own text chat. Bottom left is the voice panel: mic, deafen, camera, screen share.
+The video stage of a voice room: one tile per person, the current speaker lit, mute and screen-share badges on the name chips.
 
-![Microphone settings: input mode, sensitivity, noise suppression](docs/images/settings-microphone.png)
+![Screen-share picker: windows and screens, three sound options, resolution and frame rate](docs/images/screen-share-picker.webp)
 
-Microphone settings — input mode (push-to-talk, voice activity, always on), sensitivity, music mode, and noise-suppression levels.
+The Windows screen-share picker. Sound is an explicit choice — *no sound*, *only this app* (the shared window's process), or *system sound with Demli excluded* — so people in the call never hear themselves back. Resolution up to 2K, 15–60 fps.
 
-![Message search inside a channel with the match highlighted](docs/images/search.png)
+![Microphone settings: input mode, sensitivity, music mode, noise suppression levels, echo cancellation](docs/images/settings-microphone.webp)
 
-Message search inside a channel, matches highlighted, while still connected to voice.
+Microphone settings — input mode (push-to-talk, voice activity, always on), sensitivity, music mode, three noise-suppression levels, echo cancellation and automatic gain.
+
+![Avatar crop editor with a circular mask, zoom slider, and live profile-card and message previews](docs/images/avatar-crop.webp)
+
+The avatar crop editor: drag, zoom with wheel, slider or keyboard, and see the result on the profile card and in a message before saving. Banners get the same editor with a wide mask.
+
+![Message search panel next to a channel, with the matched word highlighted in each result](docs/images/search.webp)
+
+Message search inside a channel, matches highlighted.
 
 ## Stack
 
 | Layer     | Choice                                              |
 | --------- | --------------------------------------------------- |
 | Desktop   | Electron + React + TypeScript + Vite + Tailwind CSS |
-| Mobile    | Expo + React Native (Android-first watcher app)     |
-| UI        | shadcn/ui + Radix primitives                         |
+| Mobile    | Expo + React Native (Android)                       |
+| UI        | shadcn/ui + Radix primitives, Inter + Onest          |
 | API       | Fastify + zod                                        |
 | Realtime  | WebSocket (`ws`) — typed events only                 |
 | Media     | LiveKit (WebRTC) — voice + screen share              |
@@ -53,7 +64,7 @@ apps/
   api/          Fastify HTTP API
   realtime/     WebSocket gateway
   web/          web SPA (Vite) — mounts the desktop renderer unchanged
-  landing/      public marketing/download page (Vite)
+  landing/      public marketing/download page (Next.js)
 packages/
   types/         shared domain types (single source of truth)
   protocol/      typed realtime event contract
@@ -141,8 +152,8 @@ pnpm gen:icons
 # 3. commit the regenerated outputs (they are versioned — no build-time step)
 ```
 
-`scripts/gen-icons.mjs` paints the brand plate (indigo gradient — a token, not the
-logo) behind the mark, scales it per surface, and derives the Android white-alpha
+`scripts/gen-icons.mjs` paints the brand plate (a warm orange gradient — a token,
+not the logo) behind the mark, scales it per surface, and derives the Android white-alpha
 notification silhouette from the mark's alpha channel. It is idempotent. To restore
 the built-in default mark, run `node scripts/gen-icons.mjs --reseed` (rewrites
 `assets/brand/logo.png` from the bundled vector, then regenerates everything).
@@ -158,9 +169,30 @@ and window icons are wired to these — no more placeholder glyph.
 The original MVP (milestones 0–5: bootstrap → desktop UI → chat backend → voice →
 screen share → hardening) **has shipped and runs in production**, followed by the
 mobile app, roles, attachments, i18n (TR/EN), friends/DMs/profiles, message
-enrichment, DM 1-1 calls with seamless group upgrade, multi-account, NSFW channels,
-and the account lifecycle (freeze/purge — ADR 0014). Auto-update is live on both
-platforms.
+enrichment, DM 1-1 calls that can be upgraded to a group call, multi-account, NSFW
+channels, and the account lifecycle (freeze/purge — ADR 0014). Auto-update is live on
+both platforms.
+
+**M16** (desktop 0.0.81, Android runtime 2.1.0) moved every platform to the "Koyu Masa"
+design system and fixed the call-audio problems found in field use:
+
+- Screen-share sound without echo. On Windows the old whole-device loopback and
+  mixer-input capture are gone; Demli's own capture helper takes either the shared
+  app's sound only or the system sound with Demli's process tree excluded, so the
+  call's voices are not sent back. If an app's sound cannot be isolated, nothing is
+  sent and the panel offers system sound instead. Needs Windows 10 2004 or later.
+- Web screen share asks the browser for tab audio by default, keeps Demli's own tab
+  out of the list, and tells you when the surface you picked carries no sound
+  (Chromium sends no sound for a single window).
+- Echo cancellation can only be turned off after confirming you use headphones;
+  older saved settings with it off were switched back on once.
+- Kick, ban and timeout also remove the person from the voice room, and a signed
+  LiveKit join webhook re-checks access, so a media token they still hold no longer
+  lets them back in.
+- Choosing *Invisible* no longer shows you as offline on your own screen.
+- Avatar and banner crop editor (desktop and web; mobile still picks without
+  cropping).
+- Mobile screen sharing still sends picture only.
 
 Current phase: quality depth rather than new scaffolding — keeping the voice and call
 experience the best it can be on every surface, and holding the two platforms at parity.
@@ -183,9 +215,10 @@ name. Contributing means agreeing to the CLA in [CONTRIBUTING.md](CONTRIBUTING.m
 which keeps a commercial licence possible; it is a licence to the maintainer, not an
 assignment — your copyright stays yours.
 
-Third-party code and fonts we ship (Microsoft's audio-loopback sample, Inter,
-Onest, two patched npm packages) carry their own MIT/OFL notices —
-all of them are listed in [THIRD-PARTY.md](THIRD-PARTY.md).
+Third-party code and fonts we ship (the audio-capture helper adapted from
+Microsoft's ApplicationLoopback sample and its statically linked MinGW-w64 runtime,
+Inter, Onest, three patched npm packages) carry their own MIT / OFL / Apache-2.0 /
+ZPL notices — all of them are listed in [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## How this repo is run
 
