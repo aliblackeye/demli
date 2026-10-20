@@ -5,8 +5,11 @@ other people, and their licences require their notices to travel with every copy
 including the copies inside `Demli-Setup.exe`, the Android APK, and the web build.
 This file is where those notices live.
 
-Everything below is MIT or SIL OFL 1.1. Both are compatible with the AGPL, so
-nothing here restricts what you may do with a fork.
+The components below are under MIT, SIL OFL 1.1 or Apache-2.0, plus the runtime
+licences named in the process-audio entry (ZPL 2.1, BSD-3-Clause, and GCC's
+runtime libraries under GPL-3.0 with the Runtime Library Exception). All of them
+are compatible with the AGPL-3.0, so nothing here restricts what you may do with
+a fork.
 
 ---
 
@@ -72,11 +75,20 @@ M16 "Koyu Masa" design system.
 
 **Where:** `patches/` — applied by pnpm at install time.
 
-- `@livekit/react-native-webrtc` — MIT
-- `@supersami/rn-foreground-service` — MIT
+- `@livekit/react-native` 2.11.1 — **Apache-2.0**, Copyright LiveKit, Inc.
+  (https://github.com/livekit/client-sdk-react-native). Demli modifies two of its
+  Android files (`LiveKitReactNative.kt`, `LivekitReactNativeModule.kt`); the
+  changes are in `patches/@livekit__react-native@2.11.1.patch`, and as Apache-2.0
+  §4(b) requires, both changed files carry a prominent `NOTE (Demli patch)`
+  notice. The package
+  ships no NOTICE file. Full licence text:
+  [`licenses/Apache-2.0-livekit-react-native.txt`](licenses/Apache-2.0-livekit-react-native.txt).
+- `@livekit/react-native-webrtc` 144.1.1 — MIT
+- `@supersami/rn-foreground-service` 2.2.5 — MIT
 
-Both licences permit modification and redistribution of modified versions. Every
-patch hunk carries a `NOTE (Demli patch)` comment explaining why it exists.
+All three licences permit modification and redistribution of modified versions.
+Every patched file carries `NOTE (Demli patch)` comments explaining why each change
+exists.
 
 ## Design influences — no code, no licence obligation
 
