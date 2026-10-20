@@ -45,6 +45,7 @@ import {
 } from "@demli/media";
 import {
   getShareAudioCapability,
+  pickerStartAudioMode,
   isScreenCaptureAvailable,
   isWebDisplayAudioCapable,
   isWebPlatform,
@@ -499,7 +500,10 @@ export function SourcePicker({ open, onOpenChange, onSelect }: SourcePickerProps
 
   const start = (sourceId: string): void => {
     const kind = kindOf(sourceId);
-    onSelect(sourceId, { quality: screenQuality, audioMode: prefs.audioMode[kind] });
+    onSelect(sourceId, {
+      quality: screenQuality,
+      audioMode: pickerStartAudioMode(capability, prefs.audioMode[kind]),
+    });
     onOpenChange(false);
   };
 

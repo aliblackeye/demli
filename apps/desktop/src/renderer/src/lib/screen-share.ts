@@ -214,6 +214,21 @@ export async function getShareAudioCapability(): Promise<ShareAudioCapability> {
   }
 }
 
+/**
+ * The audio mode the picker actually starts a share with. When main has already
+ * said this machine cannot capture share sound (macOS, old Windows, missing
+ * helper) the picker shows that and starts WITHOUT sound — asking for sound
+ * there only produced a false "viewers hear nothing" warning on a share whose
+ * silence the sharer was already told about. Web (capability unknown, null) and
+ * a still-loading capability keep the remembered choice.
+ */
+export function pickerStartAudioMode(
+  capability: ShareAudioCapability | null,
+  remembered: ShareAudioMode,
+): ShareAudioMode {
+  return capability !== null && !capability.supported ? "none" : remembered;
+}
+
 /** The audio mode a source starts with: a window shares its app, a screen the system. */
 export function defaultShareAudioMode(sourceId: string): Exclude<ShareAudioMode, "none"> {
   return isWindowSource(sourceId) ? "app" : "system";
