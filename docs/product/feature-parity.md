@@ -263,6 +263,9 @@ zaten gelmişti; bu dalga onun ALTINDAKİ sistemi kuruyor.
 | Voice panel geçen süre (elapsed) | ✅ mm:ss / h:mm:ss | — (mobil voice panel'de henüz yok) |
 | Ses efektleri: Discord-kalibreli premium aile | ✅ gen-sounds.mjs premium family | ✅ aynı .ogg asset'ler |
 | Yeni ses cue'ları (mention/deafen/call/error) | ✅ 7 yeni cue | ✅ 7 yeni cue |
+| Reply preview mini avatar | ✅ UserAvatar xs, `useAvatarUrl` | ⛔ (mobil reply preview'da avatar yok) |
+| Tooltip ok (arrow) | ✅ Radix Arrow, glass-strong fill | — (mobilde tooltip yok) |
+| Channel sidebar font 15px | ✅ `text-[15px]` | — (mobil kanal listesi ayrı bileşen) |
 
 Bilinen boşluklar: mobil arrival animasyonu **cihaz/emülatör doğrulaması bekliyor** (yerel APK
 Windows MAX_PATH nedeniyle derlenmedi; mobil typecheck + 188 unit test + `expo export` temiz).

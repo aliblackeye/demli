@@ -14,29 +14,26 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 export const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 8, ...props }, ref) => (
+>(({ className, sideOffset = 8, children, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        // A tooltip is always the topmost thing on screen: it only exists while
-        // its trigger is hovered/focused, so whatever layer the trigger lives on
-        // (settings layer z-[55], confirmations z-[58], the update banner z-[90],
-        // critical overlays z-[100]) it must paint above it. Radix copies this
-        // z-index onto its popper wrapper. Boot splash (z-[200]) stays above.
-        "z-[150] max-w-72 overflow-hidden rounded-sm surface-glass-strong px-2.5 py-1.5",
+        "z-[150] max-w-72 rounded-sm surface-glass-strong px-2.5 py-1.5",
         "text-xs font-medium leading-4 text-fg",
-        // A tooltip already waits out its open delay — it uses the FAST motion
-        // step, not the `standard` one panels get, so it never feels laggy.
-        // Enter is unconditional (covers Radix's instant-open AND delayed-open
-        // states); the data-[state=closed] exit is a more specific selector so it
-        // wins on dismiss → the tooltip fades out instead of vanishing.
         "animate-pop-in-fast data-[state=closed]:animate-pop-out",
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+      <TooltipPrimitive.Arrow
+        width={10}
+        height={5}
+        style={{ fill: "var(--color-glass-strong)" }}
+      />
+    </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ));
 TooltipContent.displayName = "TooltipContent";

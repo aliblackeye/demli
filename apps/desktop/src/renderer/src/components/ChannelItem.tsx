@@ -462,7 +462,7 @@ export function ChannelItem({
             shellRowClass({ selected: highlighted, unread: showUnread, muted }),
             // Compact 32px rows: the overhaul's 44px rhythm read as oversized to
             // the founder.
-            "group h-8 gap-2 px-2 text-sm",
+            "group h-8 gap-2 px-2 text-[15px]",
             // Reserve room on the right for the always-on touch/narrow kebab so it
             // never overlaps the unread/mute/lock badges (kebab is hover-only on a
             // fine pointer, where no reservation is needed).

@@ -236,8 +236,9 @@ function ReplyPreviewLine({
   onJump?: (messageId: MessageId) => void;
 }): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  const { useDisplayName } = useMessageRowServices();
+  const { useDisplayName, useAvatarUrl } = useMessageRowServices();
   const name = useDisplayName(replyTo.authorId) ?? t("desktop:chat.unknownUser");
+  const avatarUrl = useAvatarUrl(replyTo.authorId);
   const clickable = !replyTo.deleted && onJump !== undefined;
 
   return (
@@ -251,8 +252,7 @@ function ReplyPreviewLine({
           : t("desktop:chat.replyPreviewAria", { name })
       }
       className={cn(
-        // Safari 12: no flex `gap` → `space-x-1` reproduces the icon/name gutter.
-        "group/reply mb-0.5 flex max-w-full items-center space-x-1 text-left text-xs text-fg-faint",
+        "group/reply mb-0.5 flex max-w-full items-center gap-1 text-left text-xs text-fg-faint",
         "rounded-sm transition-colors motion-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         clickable && "cursor-pointer hover:text-fg-muted",
         !clickable && "cursor-default",
@@ -263,6 +263,12 @@ function ReplyPreviewLine({
         <span className="truncate italic">{t("desktop:chat.replyDeleted")}</span>
       ) : (
         <>
+          <UserAvatar
+            src={avatarUrl ?? undefined}
+            name={name}
+            colorSeed={replyTo.authorId}
+            size="xs"
+          />
           <span className="shrink-0 font-medium text-fg-muted transition-colors motion-hover group-hover/reply:text-fg">
             {name}
           </span>
