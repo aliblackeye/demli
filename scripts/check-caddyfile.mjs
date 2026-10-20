@@ -70,6 +70,9 @@ const EXPECTED_HOSTS = [
   "livekit.{$DOMAIN}",
 ];
 
+/** The landing block is recognised by this exact connect-src: it reaches only GitHub (nav star count). */
+const LANDING_CONNECT_SRC = "'self' https://api.github.com";
+
 /** connect-src sources the web app CSP must allow. */
 const REQUIRED_CONNECT_SRC = [
   "https://api.{$DOMAIN}",
@@ -259,7 +262,7 @@ for (let i = 0; i < lines.length; i++) {
   const m = lines[i].match(/connect-src ([^;"]+)[;"]/);
   if (!m) continue;
   const sources = m[1].trim();
-  if (sources === "'self'") continue; // landing block: reaches nothing
+  if (sources === LANDING_CONNECT_SRC) continue; // landing block: reaches only GitHub
   checkedCsp++;
   const missing = REQUIRED_CONNECT_SRC.filter((r) => !sources.includes(r));
   if (missing.length) {
@@ -288,7 +291,7 @@ for (let i = 0; i < lines.length; i++) {
   // nothing and frames nothing.
   if (!/Content-Security-Policy\s+"/.test(lines[i])) continue;
   const connect = lines[i].match(/connect-src ([^;"]+)[;"]/);
-  if (!connect || connect[1].trim() === "'self'") continue;
+  if (!connect || connect[1].trim() === LANDING_CONNECT_SRC) continue;
 
   const m = lines[i].match(/frame-src ([^;"]+)[;"]/);
   if (!m) {
@@ -324,7 +327,7 @@ let checkedImgSrc = 0;
 for (let i = 0; i < lines.length; i++) {
   if (!/Content-Security-Policy\s+"/.test(lines[i])) continue;
   const connect = lines[i].match(/connect-src ([^;"]+)[;"]/);
-  if (!connect || connect[1].trim() === "'self'") continue; // landing block: no app
+  if (!connect || connect[1].trim() === LANDING_CONNECT_SRC) continue; // landing block: no app
 
   const m = lines[i].match(/img-src ([^;"]+)[;"]/);
   if (!m) {

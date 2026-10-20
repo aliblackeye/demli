@@ -78,15 +78,17 @@ livekit.{$DOMAIN} {
 #
 # CSP is STRICTER than the web app's below: the landing talks to nothing — no
 # API, no WebSocket, no Supabase — so nothing outside 'self' is reachable.
-# NOTE for apps/landing: inline <script> is NOT allowed (script-src has no
-# 'unsafe-inline'); keep JS in emitted files. Inline styles ARE allowed because
-# bundlers and critical-CSS inlining commonly need them.
+# Inline <script> IS allowed: Next's static export bootstraps every page with
+# inline flight-data scripts (self.__next_f.push), and with script-src 'self'
+# alone the landing rendered a blank black page. The site has no user content,
+# no forms and no input reflection, so the XSS surface is the build itself.
+# connect-src adds only api.github.com, for the nav GitHub star count.
 {$DOMAIN} {
 	root * /srv/landing
 	encode zstd gzip
 
 	header {
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; manifest-src 'self'"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'"
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
