@@ -1,13 +1,16 @@
 import { useMemo } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { Pin, Users } from "lucide-react-native";
+import { CloudOff, Pin, Users } from "lucide-react-native";
 import type { UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChatThread } from "@/components/ChatThread";
 import { ChatSummaryHeaderTitle } from "@/components/ChatHeaderTitle";
+import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { SkeletonMessages } from "@/components/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { openPinsSheet } from "@/lib/pins-sheet";
 import { localizeError } from "@/lib/errors";
 import { useGroupChatDetails } from "@/queries/group-chat-queries";
@@ -23,7 +26,9 @@ export default function GroupChatScreen() {
   const params = useLocalSearchParams<{ groupChatId: string; name?: string }>();
   const groupChatId = params.groupChatId;
 
-  const { data, isLoading, isError, error, refetch } = useGroupChatDetails(groupChatId ?? null);
+  const { data, isLoading, isError, isRefetching, error, refetch } = useGroupChatDetails(
+    groupChatId ?? null,
+  );
   const group = data?.group;
   const title = group?.name ?? params.name ?? t("mobile:groupChatDetails.fallbackTitle");
 
@@ -44,28 +49,20 @@ export default function GroupChatScreen() {
           headerTitle: () => <ChatSummaryHeaderTitle title={title} memberIds={memberIds} />,
           headerRight: () =>
             group ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space["4.5"] }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginRight: -space.sm }}>
                 {/* A flat group chat has no role system — any member may pin. */}
-                <Pressable
-                  onPress={openPinsSheet}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("mobile:pins.open")}
-                >
-                  <Pin size={21} color={colors.accent} />
-                </Pressable>
-                <Pressable
+                <IconButton icon={Pin} label={t("mobile:pins.open")} size="lg" onPress={openPinsSheet} />
+                <IconButton
+                  icon={Users}
+                  label={t("mobile:groupChatDetails.membersA11y")}
+                  size="lg"
                   onPress={() =>
                     router.push({
                       pathname: "/group-chat-details",
                       params: { groupChatId, name: group.name },
                     })
                   }
-                  hitSlop={10}
-                  accessibilityLabel={t("mobile:groupChatDetails.membersA11y")}
-                >
-                  <Users size={22} color={colors.accent} />
-                </Pressable>
+                />
               </View>
             ) : null,
         }}
@@ -74,19 +71,27 @@ export default function GroupChatScreen() {
       {group ? (
         <ChatThread channelId={group.streamId} groupId={group.id} name={group.name} />
       ) : isError ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl, gap: space.md }}>
-          <Text selectable style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-            {localizeError(error, t)}
-          </Text>
-          <Pressable onPress={() => void refetch()} hitSlop={8}>
-            <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "600" }}>{t("buttons.retry")}</Text>
-          </Pressable>
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <EmptyState
+            tone="error"
+            icon={<CloudOff size={22} color={colors.danger} />}
+            title={t("mobile:chat.chatLoadFailedTitle")}
+            subtitle={localizeError(error, t)}
+            action={
+              <Button
+                label={t("buttons.retry")}
+                variant="secondary"
+                loading={isRefetching}
+                onPress={() => void refetch()}
+              />
+            }
+          />
         </View>
-      ) : (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          {isLoading ? <ActivityIndicator color={colors.fgFaint} /> : null}
-        </View>
-      )}
+      ) : isLoading ? (
+        // The thread's own first-load shape, so the hand-off to <ChatThread>
+        // (which shows the same skeleton while its first page loads) is seamless.
+        <SkeletonMessages />
+      ) : null}
     </Screen>
   );
 }

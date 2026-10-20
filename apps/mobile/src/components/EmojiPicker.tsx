@@ -1,15 +1,10 @@
-import { useMemo, useState } from "react";
-import {
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Image, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { Text } from "./ui/Text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Sheet } from "./ui/Sheet";
+import { Touchable } from "./ui/Touchable";
 import { useAppTranslation } from "@/lib/i18n";
+import { haptics } from "@/lib/haptics";
 import { EMOJI_CATEGORIES, type EmojiCategoryId } from "../lib/emoji-data";
 import { useCustomEmojis } from "../queries/chat-queries";
 import { colors, radius, space } from "../theme/theme";
@@ -17,14 +12,24 @@ import { useCustomEmojiContext } from "./CustomEmojiContext";
 
 /** Grid density — 8 columns reads well from ~360dp up without cramping the glyphs. */
 const COLUMNS = 8;
+const SHEET_PADDING = space.sm;
+
+type TabId = EmojiCategoryId | "custom";
 
 /**
- * A JS-only unicode emoji picker (audit ref #3) presented as a bottom sheet. The
- * composer opens it; a tap inserts the glyph at the caret and keeps the sheet up
- * so several can be added in a row, closed via the grabber / a
- * backdrop tap. No native emoji-keyboard module is pulled in, so it stays
- * OTA-safe; one shared FlatList renders the active category's glyphs, and only
- * the visible column of category tabs stays mounted (CLAUDE.md §27).
+ * The JS-only emoji picker (audit ref #3) on the kit's draggable Sheet: the
+ * composer opens it to insert, the message sheet's "more" opens it to react.
+ * Picking CLOSES it (founder UX: the panel covers the composer, so staying
+ * open means you cannot see what you inserted).
+ *
+ * The category bar sits at the bottom, where the thumb already is (the phone
+ * keyboard's own emoji layout); switching category returns the grid to the
+ * top. The server's custom emoji get their own first tab, only when the
+ * server has any (§35 — an empty tab that can never fill is a dead affordance).
+ *
+ * No native emoji module is pulled in (OTA-safe). One category renders at a
+ * time, its cells are plain Pressables with a wash on press — a few hundred
+ * cheap views, not a few hundred animated ones (§27).
  */
 export function EmojiPicker({
   visible,
@@ -36,25 +41,27 @@ export function EmojiPicker({
   onClose: () => void;
 }) {
   const { t } = useAppTranslation();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [categoryId, setCategoryId] = useState<EmojiCategoryId | "custom">(
-    EMOJI_CATEGORIES[0]!.id,
-  );
+  const scrollRef = useRef<ScrollView>(null);
+  const [categoryId, setCategoryId] = useState<TabId>(EMOJI_CATEGORIES[0]!.id);
 
   // The server's custom emoji (M17). The screen's provider supplies the group;
-  // outside a server surface it is null and the tab is not offered at all (§35 —
-  // an empty tab that can never fill is a dead affordance).
+  // outside a server surface it is null and the tab is not offered at all.
   const { groupId, byName } = useCustomEmojiContext();
   const { data: emojiMeta } = useCustomEmojis(visible ? groupId : null);
   const customEmojis = emojiMeta?.emojis ?? [];
   const hasCustom = groupId !== null && customEmojis.length > 0;
-  const activeId = categoryId === "custom" && !hasCustom ? EMOJI_CATEGORIES[0]!.id : categoryId;
+  const activeId: TabId = categoryId === "custom" && !hasCustom ? EMOJI_CATEGORIES[0]!.id : categoryId;
 
   const active = useMemo(
     () => EMOJI_CATEGORIES.find((c) => c.id === activeId) ?? EMOJI_CATEGORIES[0]!,
     [activeId],
   );
+
+  // A new category starts at its top.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [activeId]);
 
   // Explicit literal-key lookup (not a `t(dynamic)`) so the typed catalog stays
   // compile-checked — each category's accessible name.
@@ -70,182 +77,116 @@ export function EmojiPicker({
     symbols: t("mobile:emojiPicker.category.symbols"),
   };
 
-  // Cell size from the live width so the grid fills the sheet edge-to-edge at any
-  // screen size (the sheet spans the full width minus its horizontal padding).
-  const cell = Math.floor((width - space.md * 2) / COLUMNS);
+  // Cells fill the sheet edge to edge at any width.
+  const cell = Math.floor((width - SHEET_PADDING * 2) / COLUMNS);
+
+  const pick = (value: string) => {
+    haptics.selection();
+    onSelect(value);
+    onClose();
+  };
+
+  const tabs: { id: TabId; label: string; glyph: string }[] = [
+    ...(hasCustom ? [{ id: "custom" as const, label: t("mobile:emojiPicker.category.custom"), glyph: "✦" }] : []),
+    ...EMOJI_CATEGORIES.map((c) => ({ id: c.id, label: categoryLabel[c.id], glyph: c.icon })),
+  ];
+
+  const activeTitle = activeId === "custom" ? t("mobile:emojiPicker.category.custom") : categoryLabel[active.id];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        accessibilityLabel={t("common:buttons.close")}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
-      >
-        {/* Sheet — its own Pressable swallows taps so they don't dismiss it. */}
-        <Pressable
-          onPress={() => {}}
-          style={{
-            height: "58%",
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            borderCurve: "continuous",
-            borderTopWidth: 1,
-            borderColor: colors.stroke,
-            paddingBottom: insets.bottom,
-          }}
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={t("mobile:emojiPicker.title")}
+      snapPoints={["62%"]}
+      contentPadding={SHEET_PADDING}
+      scrollRef={scrollRef}
+      footer={
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={{ gap: 2 }}
+          accessibilityRole="tablist"
         >
-          {/* Grabber. */}
-          <View style={{ alignItems: "center", paddingTop: space.sm, paddingBottom: space.xs }}>
-            <View
-              style={{ width: 40, height: 4, borderRadius: radius.pill, backgroundColor: colors.strokeStrong }}
-            />
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: space.md,
-              paddingBottom: space.xs,
-            }}
-          >
-            <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
-              {t("mobile:emojiPicker.title")}
-            </Text>
-            <Pressable
-              onPress={onClose}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t("common:buttons.close")}
-            >
-              <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "600" }}>
-                {t("common:buttons.close")}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Category tabs. */}
-          <View style={{ flexDirection: "row", paddingHorizontal: space.sm, paddingBottom: space.xs, gap: 2 }}>
-            {hasCustom ? (
-              <Pressable
-                onPress={() => setCategoryId("custom")}
-                accessibilityRole="button"
-                accessibilityState={{ selected: activeId === "custom" }}
-                accessibilityLabel={t("mobile:emojiPicker.category.custom")}
+          {tabs.map((tab) => {
+            const selected = tab.id === activeId;
+            return (
+              <Touchable
+                key={tab.id}
+                onPress={() => setCategoryId(tab.id)}
+                tone={selected ? colors.accentSurface : undefined}
+                pressedTone={selected ? colors.accentSurfaceStrong : colors.wash}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={tab.label}
                 style={{
-                  flex: 1,
+                  width: 44,
+                  height: 40,
+                  borderRadius: radius.lg,
                   alignItems: "center",
-                  paddingVertical: space.xs,
-                  borderRadius: radius.sm,
-                  borderCurve: "continuous",
-                  backgroundColor:
-                    categoryId === "custom" ? colors.surfaceRaised : "transparent",
+                  justifyContent: "center",
                 }}
               >
                 <Text
                   style={{
-                    color: colors.fg,
-                    fontSize: 14,
-                    fontWeight: "700",
-                    opacity: categoryId === "custom" ? 1 : 0.55,
+                    fontSize: tab.id === "custom" ? 16 : 20,
+                    color: selected ? colors.accent : colors.fgMuted,
+                    opacity: selected ? 1 : 0.6,
                   }}
                 >
-                  {":)"}
+                  {tab.glyph}
                 </Text>
-              </Pressable>
-            ) : null}
-            {EMOJI_CATEGORIES.map((category) => {
-              const selected = category.id === activeId;
-              return (
-                <Pressable
-                  key={category.id}
-                  onPress={() => setCategoryId(category.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={categoryLabel[category.id]}
-                  style={{
-                    flex: 1,
-                    alignItems: "center",
-                    paddingVertical: space.xs,
-                    borderRadius: radius.sm,
-                    borderCurve: "continuous",
-                    backgroundColor: selected ? colors.surfaceRaised : "transparent",
-                  }}
-                >
-                  <Text style={{ fontSize: 20, opacity: selected ? 1 : 0.55 }}>{category.icon}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
-          {activeId === "custom" ? (
-            // A custom emoji inserts its `:name:` SHORTCODE, not a URL — the
+              </Touchable>
+            );
+          })}
+        </ScrollView>
+      }
+    >
+      <Text type="caption" tone="faint" style={{ paddingHorizontal: space.xs, paddingBottom: space.xs }}>
+        {activeTitle}
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {activeId === "custom"
+          ? // A custom emoji inserts its `:name:` SHORTCODE, not a URL — the
             // message stays plain text over the wire and the renderer resolves
             // the image at paint (§28).
-            <FlatList
-              key="custom"
-              data={customEmojis}
-              keyExtractor={(emoji) => emoji.id}
-              numColumns={COLUMNS}
-              keyboardShouldPersistTaps="always"
-              contentContainerStyle={{ paddingHorizontal: space.md, paddingVertical: space.sm }}
-              renderItem={({ item }) => {
-                const url = byName.get(item.name);
-                return (
-                  <Pressable
-                    onPress={() => {
-                      onSelect(`:${item.name}:`);
-                      onClose();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`:${item.name}:`}
-                    style={({ pressed }) => ({
-                      width: cell,
-                      height: cell,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: radius.sm,
-                      backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-                    })}
-                  >
-                    {url ? (
-                      <Image
-                        source={{ uri: url }}
-                        accessibilityIgnoresInvertColors
-                        style={{ width: 28, height: 28 }}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 9 }}>
-                        :{item.name}:
-                      </Text>
-                    )}
-                  </Pressable>
-                );
-              }}
-            />
-          ) : (
-          <FlatList
-            key={active.id}
-            data={active.emojis}
-            keyExtractor={(emoji, i) => `${emoji}-${i}`}
-            numColumns={COLUMNS}
-            keyboardShouldPersistTaps="always"
-            initialNumToRender={64}
-            contentContainerStyle={{ paddingHorizontal: space.md, paddingVertical: space.sm }}
-            renderItem={({ item }) => (
+            customEmojis.map((item) => {
+              const url = byName.get(item.name);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => pick(`:${item.name}:`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`:${item.name}:`}
+                  style={({ pressed }) => ({
+                    width: cell,
+                    height: cell,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: radius.lg,
+                    backgroundColor: pressed ? colors.washStrong : "transparent",
+                  })}
+                >
+                  {url ? (
+                    <Image
+                      source={{ uri: url }}
+                      accessibilityIgnoresInvertColors
+                      style={{ width: 28, height: 28 }}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 9 }}>
+                      :{item.name}:
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            })
+          : active.emojis.map((item, i) => (
               <Pressable
-                // Founder UX: picking an emoji CLOSES the sheet — the 58%-tall
-                // panel hides the composer, so staying open means you can't see
-                // what you just inserted. One emoji per open beats blind typing.
-                onPress={() => {
-                  onSelect(item);
-                  onClose();
-                }}
+                key={`${item}-${i}`}
+                onPress={() => pick(item)}
                 accessibilityRole="button"
                 accessibilityLabel={t("mobile:emojiPicker.insert", { emoji: item })}
                 style={({ pressed }) => ({
@@ -253,17 +194,14 @@ export function EmojiPicker({
                   height: cell,
                   alignItems: "center",
                   justifyContent: "center",
-                  borderRadius: radius.sm,
-                  backgroundColor: pressed ? colors.surfaceRaised : "transparent",
+                  borderRadius: radius.lg,
+                  backgroundColor: pressed ? colors.washStrong : "transparent",
                 })}
               >
-                <Text style={{ fontSize: 26 }}>{item}</Text>
+                <Text style={{ fontSize: 26, lineHeight: 32 }}>{item}</Text>
               </Pressable>
-            )}
-          />
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+            ))}
+      </View>
+    </Sheet>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Pin, Search } from "lucide-react-native";
 import type { UserId } from "@demli/types";
@@ -8,12 +8,13 @@ import { ChatThread } from "@/components/ChatThread";
 import { ChatSummaryHeaderTitle } from "@/components/ChatHeaderTitle";
 import { NsfwChannelGate } from "@/components/NsfwChannelGate";
 import { Screen } from "@/components/Screen";
+import { IconButton } from "@/components/ui/IconButton";
 import { openPinsSheet } from "@/lib/pins-sheet";
 import { buildMemberColorMap } from "@/lib/permissions";
 import { useGroupDetails, useRoles } from "@/queries/chat-queries";
 import { useMe } from "@/queries/social-queries";
 import { useNsfwGateStore } from "@/stores/nsfw-gate-store";
-import { colors, space } from "@/theme/theme";
+import { space } from "@/theme/theme";
 
 /**
  * Chat view for one text channel in a server. The conversation itself lives in
@@ -80,29 +81,21 @@ export default function ChannelScreen() {
             <ChatSummaryHeaderTitle title={title} memberIds={memberIds} glyph="hash" />
           ),
           headerRight: () => (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space["4.5"] }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginRight: -space.sm }}>
               {/* The pin board lives in <ChatThread> (it needs the channel id),
                   so the header just publishes an open command (lib/pins-sheet). */}
-              <Pressable
-                onPress={openPinsSheet}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={t("mobile:pins.open")}
-              >
-                <Pin size={21} color={colors.accent} />
-              </Pressable>
-              <Pressable
+              <IconButton icon={Pin} label={t("mobile:pins.open")} size="lg" onPress={openPinsSheet} />
+              <IconButton
+                icon={Search}
+                label={t("mobile:search.title")}
+                size="lg"
                 onPress={() =>
                   router.push({
                     pathname: "/channel-search",
                     params: { channelId, name: params.name ?? "" },
                   })
                 }
-                hitSlop={10}
-                accessibilityLabel={t("mobile:search.title")}
-              >
-                <Search size={22} color={colors.accent} />
-              </Pressable>
+              />
             </View>
           ),
         }}

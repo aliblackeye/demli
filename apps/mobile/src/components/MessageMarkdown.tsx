@@ -28,7 +28,11 @@ import { useCustomEmojiUrlMap } from "./CustomEmojiContext";
  * and draws a highlighted pill; a user mention taps through to their profile.
  */
 
-const BASE_STYLE = { color: colors.fg, fontSize: 15, lineHeight: 21 } as const;
+const BASE_STYLE: { color: string; fontSize: number; lineHeight: number } = {
+  color: colors.fg,
+  fontSize: 15,
+  lineHeight: 21,
+};
 /**
  * Inline custom-emoji box. Matches the body line height (21) so an emoji sits in
  * the text run without ever growing the row — RN cannot size an inline image in
@@ -53,9 +57,11 @@ function MentionText({ id }: { id: string }): JSX.Element {
     ? `@${id}`
     : `@${user?.displayName ?? user?.username ?? t("mobile:chat.unknownAuthor")}`;
 
+  // Koyu Masa mention chip: coral wash + the light coral ink; a mention of YOU
+  // takes the stronger wash so it is found at a glance in a busy thread.
   const style = {
-    color: colors.accent,
-    fontWeight: "600" as const,
+    color: colors.accentHover,
+    fontWeight: "500" as const,
     backgroundColor: mentionsMe ? colors.accentSurfaceStrong : colors.accentSurface,
   };
 
@@ -114,7 +120,7 @@ function Spoiler({ children, plain }: { children: ReactNode; plain: string }): J
   const { t } = useAppTranslation();
   const [revealed, setRevealed] = useState(false);
   if (revealed) {
-    return <Text style={{ backgroundColor: colors.surfaceRaised, borderRadius: 3 }}>{children}</Text>;
+    return <Text style={{ backgroundColor: colors.wash, borderRadius: 3 }}>{children}</Text>;
   }
   return (
     <Text
@@ -122,7 +128,9 @@ function Spoiler({ children, plain }: { children: ReactNode; plain: string }): J
       suppressHighlighting
       accessibilityRole="button"
       accessibilityLabel={t("mobile:message.spoilerReveal")}
-      style={{ backgroundColor: colors.fgMuted, color: "transparent", borderRadius: 3 }}
+      // An opaque raised block: the words are present (for the reveal) but the
+      // ink is transparent, so nothing shows through until the tap.
+      style={{ backgroundColor: colors.surfaceRaised, color: "transparent", borderRadius: 3 }}
     >
       {plain}
     </Text>
@@ -191,7 +199,7 @@ function renderInline(node: MarkdownInline, key: number): ReactNode {
       return (
         <Text
           key={key}
-          style={{ fontFamily: MONO, fontSize: 13.5, backgroundColor: colors.surfaceRaised, color: colors.fg }}
+          style={{ fontFamily: MONO, fontSize: 13.5, backgroundColor: colors.surface, color: colors.fg }}
         >
           {" "}
           {node.value}
@@ -221,11 +229,16 @@ function renderInlineList(nodes: MarkdownInline[]): ReactNode {
 }
 
 /** Render one block node. `append` renders inline after a paragraph's text. */
-function renderBlock(block: MarkdownBlock, key: number, append?: ReactNode): ReactNode {
+function renderBlock(
+  block: MarkdownBlock,
+  key: number,
+  base: typeof BASE_STYLE,
+  append?: ReactNode,
+): ReactNode {
   switch (block.type) {
     case "paragraph":
       return (
-        <Text key={key} style={BASE_STYLE}>
+        <Text key={key} style={base}>
           {renderInlineList(block.children)}
           {append}
         </Text>
@@ -234,9 +247,14 @@ function renderBlock(block: MarkdownBlock, key: number, append?: ReactNode): Rea
       return (
         <View
           key={key}
-          style={{ borderLeftWidth: 2, borderLeftColor: colors.strokeStrong, paddingLeft: space.sm }}
+          style={{
+            borderLeftWidth: 3,
+            borderLeftColor: colors.strokeStrong,
+            borderRadius: 2,
+            paddingLeft: space.sm + 2,
+          }}
         >
-          <Text style={{ ...BASE_STYLE, color: colors.fgMuted }}>
+          <Text style={{ ...base, color: colors.fgMuted }}>
             {renderInlineList(block.children)}
           </Text>
         </View>
@@ -247,12 +265,10 @@ function renderBlock(block: MarkdownBlock, key: number, append?: ReactNode): Rea
           key={key}
           style={{
             backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.stroke,
-            borderRadius: radius.sm,
+            borderRadius: radius.md,
             borderCurve: "continuous",
-            paddingHorizontal: space.sm,
-            paddingVertical: space.xs,
+            paddingHorizontal: space.md,
+            paddingVertical: space.sm,
           }}
         >
           <Text style={{ fontFamily: MONO, fontSize: 13, lineHeight: 19, color: colors.fg }}>
@@ -275,20 +291,27 @@ export function MessageMarkdown({
   content,
   append,
   groupId,
+  color,
 }: {
   content: string;
   append?: ReactNode;
   /** Server context so a mention taps through to a role-aware profile. */
   groupId?: string;
+  /**
+   * Body ink override — the thread draws a sending row faint and a failed one
+   * muted. Mentions, links and code keep their own colours.
+   */
+  color?: string;
 }): JSX.Element {
   const blocks = useMemo(
     () => (hasMarkdown(content) ? parseMessageMarkdown(content) : null),
     [content],
   );
+  const base = useMemo(() => (color ? { ...BASE_STYLE, color } : BASE_STYLE), [color]);
 
   if (blocks === null) {
     return (
-      <Text style={BASE_STYLE}>
+      <Text style={base}>
         {content}
         {append}
       </Text>
@@ -301,9 +324,9 @@ export function MessageMarkdown({
     <MentionGroupContext.Provider value={groupId}>
       <View style={{ gap: 4 }}>
         {blocks.map((block, i) =>
-          renderBlock(block, i, appendInline && i === lastIndex ? append : undefined),
+          renderBlock(block, i, base, appendInline && i === lastIndex ? append : undefined),
         )}
-        {append !== undefined && !appendInline ? <Text style={BASE_STYLE}>{append}</Text> : null}
+        {append !== undefined && !appendInline ? <Text style={base}>{append}</Text> : null}
       </View>
     </MentionGroupContext.Provider>
   );

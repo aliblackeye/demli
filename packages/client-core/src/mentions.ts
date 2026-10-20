@@ -89,22 +89,45 @@ export function detectMentionQuery(text: string, caret: number): MentionQuery | 
 }
 
 /**
+ * One character folded for a case-insensitive, Turkish-safe name match.
+ *
+ * Plain `toLowerCase` is wrong for Turkish names in both directions: "İ" lowers
+ * to "i" + U+0307 (so "İsmail" no longer starts with "is"), and "ı" never folds
+ * to "i" (so "@ır" can't find "Irmak"). A person typing a name treats I / İ / ı
+ * / i as the same letter, so they all fold to "i". Every other character takes
+ * the FIRST code unit of its lower-case form, which keeps the folded string the
+ * same length as the input — so an index into the folded text is an index into
+ * the original (the composer bolds the matched prefix by that length).
+ */
+export function foldMentionChar(ch: string): string {
+  if (ch === "I" || ch === "İ" || ch === "ı") return "i";
+  return ch.toLowerCase().charAt(0);
+}
+
+/** {@link foldMentionChar} over a whole string; output length equals input length. */
+export function foldMentionText(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) out += foldMentionChar(text.charAt(i));
+  return out;
+}
+
+/**
  * Rank candidates for a query: prefix matches first, then substring matches,
  * with broadcast rows (`@everyone`/`@here`) floated to the top when they match.
- * Case-insensitive over label + username. Capped to `limit`. An empty query
- * lists everything (broadcast first), so opening the picker with a bare `@`
- * shows the roster.
+ * Case-insensitive and Turkish-safe ({@link foldMentionText}) over label +
+ * username. Capped to `limit`. An empty query lists everything (broadcast
+ * first), so opening the picker with a bare `@` shows the roster.
  */
 export function rankMentionCandidates(
   query: string,
   candidates: MentionCandidate[],
   limit = 8,
 ): MentionCandidate[] {
-  const q = query.trim().toLowerCase();
+  const q = foldMentionText(query.trim());
   const scored: { c: MentionCandidate; score: number }[] = [];
   for (const c of candidates) {
-    const label = c.label.toLowerCase();
-    const username = c.username?.toLowerCase() ?? "";
+    const label = foldMentionText(c.label);
+    const username = c.username ? foldMentionText(c.username) : "";
     let score: number;
     if (q.length === 0) {
       score = 2;
