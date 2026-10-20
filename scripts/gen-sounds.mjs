@@ -128,17 +128,25 @@ const ACTIVE_FAMILY = "porcelain";
 // Note frequencies (equal temperament, A4 = 440).
 const NOTE = {
   C4: 261.63,
+  D4: 293.66,
   E4: 329.63,
   F4: 349.23,
   G4: 392.0,
+  Ab4: 415.3,
   A4: 440.0,
+  Bb4: 466.16,
+  B4: 493.88,
   C5: 523.25,
   D5: 587.33,
+  Eb5: 622.25,
   E5: 659.25,
   F5: 698.46,
   G5: 783.99,
   A5: 880.0,
+  B5: 987.77,
   C6: 1046.5,
+  D6: 1174.66,
+  E6: 1318.51,
 };
 
 // ---------------------------------------------------------------------------
@@ -1130,6 +1138,10 @@ function seedFor(familyId, cueName) {
  * @returns {{ cues: Record<string, Float32Array>, rings: Record<string, Float32Array> }}
  */
 function buildFamily(familyId) {
+  // The premium family has its own builder — it uses per-category synthesis
+  // techniques rather than the shared motif-through-a-single-timbre approach.
+  if (familyId === "premium") return buildPremiumSet();
+
   const fam = FAMILIES.find((f) => f.id === familyId);
   if (!fam) throw new Error(`unknown family "${familyId}"`);
   /** @type {Record<string, Float32Array>} */
@@ -1145,11 +1157,526 @@ function buildFamily(familyId) {
   return { cues, rings };
 }
 
+// ---------------------------------------------------------------------------
+// "Premium" family — Discord-grade UI sounds
+// ---------------------------------------------------------------------------
+// Unlike the modal families above (which share the MOTIFS catalog and differ
+// only in timbre), the premium family uses a DIFFERENT synthesis technique per
+// cue category: pure percussive noise for toggles, struck-bell modes for voice
+// events, a bright pop for messages, swept noise for screen share, and actual
+// short melodies for rings. This is what Discord gets right: each category has
+// its own material identity, so you know what happened WITHOUT looking.
+//
+// The builder bypasses the shared renderCue/addNote pipeline and builds every
+// cue from scratch, using the low-level primitives (addStrike, addModes,
+// addBody, addBreath, addRoom, normalizeLufs, trimTail, fadeEdges).
+// ---------------------------------------------------------------------------
+
+/**
+ * A pitch-swept sine burst: the core of the "pop" and "whoosh" sounds.
+ *
+ * @param {Float32Array} buf
+ * @param {{ start:number, startHz:number, endHz:number, peak:number,
+ *           durationSec:number, seed?:number }} spec
+ */
+function addSweepTone(buf, spec) {
+  const n0 = Math.floor(spec.start * SR);
+  const nLen = Math.min(buf.length - n0, Math.ceil(spec.durationSec * SR));
+  if (nLen <= 0) return;
+  const nAttack = Math.max(1, Math.floor(0.001 * SR));
+  const tauSamples = Math.max(1, spec.durationSec * SR * 0.35);
+  let phase = 0;
+  for (let i = 0; i < nLen; i++) {
+    const idx = n0 + i;
+    if (idx >= buf.length) break;
+    const t = i / nLen;
+    // Exponential pitch sweep between start and end frequencies
+    const hz = spec.startHz * Math.pow(spec.endHz / spec.startHz, t);
+    const env = (i < nAttack ? i / nAttack : 1) * Math.exp(-i / tauSamples);
+    phase += (2 * Math.PI * hz) / SR;
+    buf[idx] += Math.sin(phase) * env * spec.peak;
+  }
+}
+
+/**
+ * Filtered noise sweep for whoosh/screen-share sounds.
+ *
+ * @param {Float32Array} buf
+ * @param {{ start:number, durationSec:number, peak:number,
+ *           startHz:number, endHz:number, bandwidth:number,
+ *           seed:number }} spec
+ */
+function addNoiseSweep(buf, spec) {
+  const n0 = Math.floor(spec.start * SR);
+  const nLen = Math.min(buf.length - n0, Math.ceil(spec.durationSec * SR));
+  if (nLen <= 0) return;
+  const rng = makeRng(spec.seed);
+  // Generate full noise, then apply a time-varying bandpass via modulation
+  const noise = new Float32Array(nLen);
+  for (let i = 0; i < nLen; i++) noise[i] = rng() * 2 - 1;
+  // Smooth the noise to approximate bandpass
+  lowPass(noise, spec.bandwidth * 2, 2);
+  // Re-normalize
+  let p = 0;
+  for (let i = 0; i < nLen; i++) p = Math.max(p, Math.abs(noise[i]));
+  if (p === 0) return;
+  const g = 1 / p;
+  const nAttack = Math.max(1, Math.floor(0.005 * SR));
+  const nRelease = Math.max(1, Math.floor(0.02 * SR));
+  for (let i = 0; i < nLen; i++) {
+    const idx = n0 + i;
+    if (idx >= buf.length) break;
+    const t = i / nLen;
+    const hz = spec.startHz * Math.pow(spec.endHz / spec.startHz, t);
+    // Ring-modulate the noise with a sine at the sweep frequency to centre it
+    const carrier = Math.sin((2 * Math.PI * hz * i) / SR);
+    let env = 1;
+    if (i < nAttack) env = i / nAttack;
+    else if (i > nLen - nRelease) env = (nLen - i) / nRelease;
+    // Bell-shaped amplitude: louder in the middle of the sweep
+    const bell = Math.sin(Math.PI * t);
+    buf[idx] += noise[i] * g * carrier * env * bell * spec.peak;
+  }
+}
+
+/**
+ * Build the complete premium cue set. Each cue category uses distinct synthesis.
+ *
+ * @returns {{ cues: Record<string, Float32Array>, rings: Record<string, Float32Array> }}
+ */
+function buildPremiumSet() {
+  /** @type {Record<string, Float32Array>} */
+  const cues = {};
+  /** @type {Record<string, Float32Array>} */
+  const rings = {};
+
+  // Shared constants
+  const ROOM_DRY = { mix: 0.04, feedback: 0.45, damp: 0.55 };    // minimal room
+  const ROOM_VOICE = { mix: 0.08, feedback: 0.5, damp: 0.4 };    // a touch more for voice
+  const ROOM_RING = { mix: 0.1, feedback: 0.55, damp: 0.38 };    // rings get the most space
+
+  // -----------------------------------------------------------------------
+  // TOGGLES: pure percussive noise clicks — NO tonal component
+  // mute = dampened "thock" (low, closed)
+  // unmute = brighter "tick" (higher, open)
+  // deafen = two quick mute hits
+  // undeafen = two quick unmute hits
+  // -----------------------------------------------------------------------
+
+  // mute: a dampened low thock — 80ms
+  {
+    const buf = new Float32Array(Math.round(0.12 * SR));
+    // Low-band noise burst: the switch closing
+    addStrike(buf, {
+      start: 0.0, peak: 0.7, decayMs: 8.0,
+      lowHz: 120, highHz: 1800, poles: 3, seed: seedFor("premium", "mute"),
+    });
+    // A very short sub-bass thump for weight
+    addBody(buf, { start: 0.0, freq: 90, peak: 0.25, decaySec: 0.015 });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 15, maxSec: 0.1 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -28, LUFS_PEAK_CEILING_DB);
+    cues["mute"] = trimmed;
+  }
+
+  // unmute: brighter tick — 70ms
+  {
+    const buf = new Float32Array(Math.round(0.12 * SR));
+    addStrike(buf, {
+      start: 0.0, peak: 0.7, decayMs: 5.0,
+      lowHz: 800, highHz: 6000, poles: 2, seed: seedFor("premium", "unmute"),
+    });
+    // Tiny bright body ping — just enough to register as "open"
+    addBody(buf, { start: 0.0, freq: 2200, peak: 0.12, decaySec: 0.008 });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 15, maxSec: 0.1 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -28, LUFS_PEAK_CEILING_DB);
+    cues["unmute"] = trimmed;
+  }
+
+  // deafen: two quick low thocks (mute doubled)
+  {
+    const buf = new Float32Array(Math.round(0.18 * SR));
+    for (let tap = 0; tap < 2; tap++) {
+      const t = tap * 0.055;
+      addStrike(buf, {
+        start: t, peak: 0.65, decayMs: 7.0,
+        lowHz: 120, highHz: 1800, poles: 3,
+        seed: seedFor("premium", "deafen") + tap * 997,
+      });
+      addBody(buf, { start: t, freq: 90, peak: 0.22, decaySec: 0.013 });
+    }
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 15, maxSec: 0.15 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -28, LUFS_PEAK_CEILING_DB);
+    cues["deafen"] = trimmed;
+  }
+
+  // undeafen: two quick bright ticks (unmute doubled)
+  {
+    const buf = new Float32Array(Math.round(0.18 * SR));
+    for (let tap = 0; tap < 2; tap++) {
+      const t = tap * 0.055;
+      addStrike(buf, {
+        start: t, peak: 0.65, decayMs: 4.5,
+        lowHz: 800, highHz: 6000, poles: 2,
+        seed: seedFor("premium", "undeafen") + tap * 997,
+      });
+      addBody(buf, { start: t, freq: 2200, peak: 0.1, decaySec: 0.007 });
+    }
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 15, maxSec: 0.15 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -28, LUFS_PEAK_CEILING_DB);
+    cues["undeafen"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // VOICE PRESENCE: struck bell/chime with percussive attack
+  // Wide intervals (5th = C5->G5) for instant recognition
+  // Peer versions: softer attack, quieter (-3 LUFS)
+  // -----------------------------------------------------------------------
+
+  // Bell partial recipe: a cleaner, more "crystalline" bell than the ceramic families
+  const BELL_PARTIALS = [
+    { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+    { ratio: 2.0, gain: 0.55, decayScale: 0.7 },
+    { ratio: 3.0, gain: 0.3, decayScale: 0.5 },
+    { ratio: 4.24, gain: 0.18, decayScale: 0.35 },
+    { ratio: 5.96, gain: 0.1, decayScale: 0.25 },
+    { ratio: 8.3, gain: 0.05, decayScale: 0.16 },
+  ];
+
+  /**
+   * One bell note for the premium voice cues.
+   * @param {Float32Array} buf
+   * @param {number} start
+   * @param {number} freq
+   * @param {number} gain
+   * @param {number} decaySec
+   * @param {number} seed
+   * @param {number} [strikeBright]  1 = normal, <1 = softer attack
+   */
+  function addBellNote(buf, start, freq, gain, decaySec, seed, strikeBright = 1) {
+    // Sharp strike: a short bright click that reads as "struck metal"
+    addStrike(buf, {
+      start,
+      peak: 0.22 * gain * strikeBright,
+      decayMs: 2.0,
+      lowHz: 1200 * strikeBright,
+      highHz: 8000 * strikeBright,
+      poles: 2,
+      seed,
+    });
+    // Bell modes
+    addModes(buf, {
+      start, freq,
+      peak: 0.4 * gain,
+      decaySec,
+      partials: BELL_PARTIALS,
+      detune: 3,
+      seed: seed + 7919,
+    });
+    // Sub body
+    addBody(buf, {
+      start,
+      freq: freq * 0.5,
+      peak: 0.1 * gain,
+      decaySec: decaySec * 0.4,
+    });
+  }
+
+  // voice-join: ascending perfect 5th (C5 -> G5), bright and confident
+  {
+    const buf = new Float32Array(Math.round(0.45 * SR));
+    const s = seedFor("premium", "voice-join");
+    addBellNote(buf, 0.0, NOTE.C5, 0.85, 0.18, s);
+    addBellNote(buf, 0.075, NOTE.G5, 1.0, 0.22, s + 1013);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.4 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -20, LUFS_PEAK_CEILING_DB);
+    cues["voice-join"] = trimmed;
+  }
+
+  // voice-leave: descending perfect 5th (G5 -> C5)
+  {
+    const buf = new Float32Array(Math.round(0.45 * SR));
+    const s = seedFor("premium", "voice-leave");
+    addBellNote(buf, 0.0, NOTE.G5, 0.9, 0.18, s);
+    addBellNote(buf, 0.075, NOTE.C5, 1.0, 0.22, s + 1013);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.4 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -20, LUFS_PEAK_CEILING_DB);
+    cues["voice-leave"] = trimmed;
+  }
+
+  // peer-join: ascending 5th (G4 -> D5), softer attack, quieter
+  {
+    const buf = new Float32Array(Math.round(0.4 * SR));
+    const s = seedFor("premium", "peer-join");
+    addBellNote(buf, 0.0, NOTE.G4, 0.7, 0.16, s, 0.65);
+    addBellNote(buf, 0.065, NOTE.D5, 0.8, 0.19, s + 1013, 0.65);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.35 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -23, LUFS_PEAK_CEILING_DB);
+    cues["peer-join"] = trimmed;
+  }
+
+  // peer-leave: descending 5th (D5 -> G4), softer attack, quieter
+  {
+    const buf = new Float32Array(Math.round(0.4 * SR));
+    const s = seedFor("premium", "peer-leave");
+    addBellNote(buf, 0.0, NOTE.D5, 0.8, 0.16, s, 0.65);
+    addBellNote(buf, 0.065, NOTE.G4, 0.7, 0.19, s + 1013, 0.65);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.35 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -23, LUFS_PEAK_CEILING_DB);
+    cues["peer-leave"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // MESSAGES: bright water-droplet pop
+  // message = single pop, very short
+  // mention = same pop + a subtle "sparkle" hit 50ms later
+  // -----------------------------------------------------------------------
+
+  // message: a single bright pop (pitch-dropping sine burst + a tiny noise click)
+  {
+    const buf = new Float32Array(Math.round(0.22 * SR));
+    const s = seedFor("premium", "message");
+    // The pop: a fast pitch-drop from ~2200 Hz to ~800 Hz
+    addSweepTone(buf, {
+      start: 0.0, startHz: 2200, endHz: 800, peak: 0.4, durationSec: 0.06,
+    });
+    // Tiny click at onset
+    addStrike(buf, {
+      start: 0.0, peak: 0.15, decayMs: 1.5,
+      lowHz: 2000, highHz: 8000, poles: 2, seed: s,
+    });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 20, maxSec: 0.18 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -24, LUFS_PEAK_CEILING_DB);
+    cues["message"] = trimmed;
+  }
+
+  // mention: the pop + a brighter sparkle hit 50ms later
+  {
+    const buf = new Float32Array(Math.round(0.28 * SR));
+    const s = seedFor("premium", "mention");
+    // Same pop
+    addSweepTone(buf, {
+      start: 0.0, startHz: 2200, endHz: 800, peak: 0.4, durationSec: 0.06,
+    });
+    addStrike(buf, {
+      start: 0.0, peak: 0.15, decayMs: 1.5,
+      lowHz: 2000, highHz: 8000, poles: 2, seed: s,
+    });
+    // Sparkle: higher-pitched pop 50ms later
+    addSweepTone(buf, {
+      start: 0.05, startHz: 3600, endHz: 1400, peak: 0.25, durationSec: 0.04,
+    });
+    addStrike(buf, {
+      start: 0.05, peak: 0.1, decayMs: 1.2,
+      lowHz: 3000, highHz: 12000, poles: 2, seed: s + 2027,
+    });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 20, maxSec: 0.2 });
+    fadeEdges(trimmed, 1);
+    normalizeLufs(trimmed, -22, LUFS_PEAK_CEILING_DB);
+    cues["mention"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // SCREEN SHARE: filtered noise whoosh/sweep
+  // screen-start = rising sweep
+  // screen-stop = falling sweep
+  // -----------------------------------------------------------------------
+
+  // screen-start: rising whoosh
+  {
+    const buf = new Float32Array(Math.round(0.4 * SR));
+    const s = seedFor("premium", "screen-start");
+    // Rising noise sweep: 400 Hz -> 3500 Hz
+    addNoiseSweep(buf, {
+      start: 0.0, durationSec: 0.28, peak: 0.35,
+      startHz: 400, endHz: 3500, bandwidth: 2000, seed: s,
+    });
+    // A punctuating bright click at the end of the sweep
+    addStrike(buf, {
+      start: 0.22, peak: 0.18, decayMs: 2.0,
+      lowHz: 1500, highHz: 7000, poles: 2, seed: s + 3571,
+    });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.35 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -20, LUFS_PEAK_CEILING_DB);
+    cues["screen-start"] = trimmed;
+  }
+
+  // screen-stop: falling whoosh
+  {
+    const buf = new Float32Array(Math.round(0.4 * SR));
+    const s = seedFor("premium", "screen-stop");
+    // Falling noise sweep: 3500 Hz -> 400 Hz
+    addNoiseSweep(buf, {
+      start: 0.0, durationSec: 0.28, peak: 0.35,
+      startHz: 3500, endHz: 400, bandwidth: 2000, seed: s,
+    });
+    addStrike(buf, {
+      start: 0.0, peak: 0.14, decayMs: 2.0,
+      lowHz: 1500, highHz: 7000, poles: 2, seed: s + 3571,
+    });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.35 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -20, LUFS_PEAK_CEILING_DB);
+    cues["screen-stop"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // CALLS: melodic and warm
+  // -----------------------------------------------------------------------
+
+  // call-connected: warm chord resolve (C5 + E5 + G5 together, like arrival)
+  {
+    const buf = new Float32Array(Math.round(0.55 * SR));
+    const s = seedFor("premium", "call-connected");
+    // A warm 3-note chord struck simultaneously with staggered slight delays
+    addBellNote(buf, 0.0, NOTE.C5, 0.8, 0.25, s);
+    addBellNote(buf, 0.015, NOTE.E5, 0.75, 0.25, s + 1013);
+    addBellNote(buf, 0.03, NOTE.G5, 0.85, 0.3, s + 2026);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.4 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -19, LUFS_PEAK_CEILING_DB);
+    cues["call-connected"] = trimmed;
+  }
+
+  // call-ended: gentle descending tone — finality without harshness
+  {
+    const buf = new Float32Array(Math.round(0.45 * SR));
+    const s = seedFor("premium", "call-ended");
+    addBellNote(buf, 0.0, NOTE.E5, 0.75, 0.16, s, 0.7);
+    addBellNote(buf, 0.1, NOTE.C5, 0.85, 0.2, s + 1013, 0.7);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.4 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -21, LUFS_PEAK_CEILING_DB);
+    cues["call-ended"] = trimmed;
+  }
+
+  // peer-left-call: soft pop going away (descending, fading)
+  {
+    const buf = new Float32Array(Math.round(0.35 * SR));
+    const s = seedFor("premium", "peer-left-call");
+    // A descending pop — higher to lower, getting quieter
+    addSweepTone(buf, {
+      start: 0.0, startHz: 1800, endHz: 600, peak: 0.3, durationSec: 0.08,
+    });
+    addStrike(buf, {
+      start: 0.0, peak: 0.1, decayMs: 2.0,
+      lowHz: 1200, highHz: 5000, poles: 2, seed: s,
+    });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.3 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -21.5, LUFS_PEAK_CEILING_DB);
+    cues["peer-left-call"] = trimmed;
+  }
+
+  // error: low "bonk" — a detuned thud with a slight comedic quality
+  {
+    const buf = new Float32Array(Math.round(0.3 * SR));
+    const s = seedFor("premium", "error");
+    // Dull low noise thud
+    addStrike(buf, {
+      start: 0.0, peak: 0.55, decayMs: 10.0,
+      lowHz: 80, highHz: 1200, poles: 3, seed: s,
+    });
+    // Detuned low modes: slightly inharmonic for "bonk" quality
+    addModes(buf, {
+      start: 0.0, freq: 165, peak: 0.35, decaySec: 0.08,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.3, gain: 0.3, decayScale: 0.4 },
+        { ratio: 3.7, gain: 0.12, decayScale: 0.2 },
+      ],
+      detune: 15, // heavy detune for the "off" comedic quality
+      seed: s + 7919,
+    });
+    addBody(buf, { start: 0.0, freq: 80, peak: 0.3, decaySec: 0.04 });
+    addRoom(buf, ROOM_DRY);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 20, maxSec: 0.22 });
+    fadeEdges(trimmed, 2);
+    normalizeLufs(trimmed, -22, LUFS_PEAK_CEILING_DB);
+    cues["error"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // RINGS: actual melodies
+  // -----------------------------------------------------------------------
+
+  // ring-incoming: a catchy 4-note melody, warm doorbell feel
+  // Pattern: E5 - G5 - B5 - E6 (ascending arpeggio, then silence to loop)
+  {
+    const buf = new Float32Array(Math.round(3.2 * SR));
+    const s = seedFor("premium", "ring-incoming");
+    // First phrase: ascending major arpeggio
+    addBellNote(buf, 0.0, NOTE.E5, 0.9, 0.35, s);
+    addBellNote(buf, 0.18, NOTE.G5, 0.85, 0.35, s + 1013);
+    addBellNote(buf, 0.36, NOTE.B5, 0.9, 0.35, s + 2026);
+    addBellNote(buf, 0.54, NOTE.E6, 1.0, 0.45, s + 3039);
+    // Second phrase: the answer — descending resolution
+    addBellNote(buf, 1.1, NOTE.E6, 0.85, 0.3, s + 4052);
+    addBellNote(buf, 1.28, NOTE.B5, 0.9, 0.3, s + 5065);
+    addBellNote(buf, 1.46, NOTE.G5, 0.85, 0.35, s + 6078);
+    addBellNote(buf, 1.64, NOTE.E5, 1.0, 0.5, s + 7091);
+    // Silence for the rest of the period (the loop gap)
+    addRoom(buf, ROOM_RING);
+    fadeEdges(buf, 2);
+    normalizeLufs(buf, -16, LUFS_PEAK_CEILING_DB);
+    rings["ring-incoming"] = buf;
+  }
+
+  // ring-outgoing: a simple 2-note gentle pattern
+  {
+    const buf = new Float32Array(Math.round(3.4 * SR));
+    const s = seedFor("premium", "ring-outgoing");
+    // Gentle two-note: G5 then E5 (descending major 3rd, like a "question")
+    addBellNote(buf, 0.0, NOTE.G5, 0.7, 0.4, s, 0.75);
+    addBellNote(buf, 0.35, NOTE.E5, 0.65, 0.45, s + 1013, 0.75);
+    // Repeat once in the period
+    addBellNote(buf, 1.2, NOTE.G5, 0.65, 0.4, s + 2026, 0.7);
+    addBellNote(buf, 1.55, NOTE.E5, 0.6, 0.45, s + 3039, 0.7);
+    addRoom(buf, ROOM_RING);
+    fadeEdges(buf, 2);
+    normalizeLufs(buf, -19, LUFS_PEAK_CEILING_DB);
+    rings["ring-outgoing"] = buf;
+  }
+
+  return { cues, rings };
+}
+
 /** Every selectable family id, in listening order (new candidates first). */
-const FAMILY_IDS = ["porcelain", "teaglass", "stoneware", "felt", "marimba", "glass"];
+const FAMILY_IDS = ["premium", "porcelain", "teaglass", "stoneware", "felt", "marimba", "glass"];
 
 /** Founder-facing label/blurb for a family id. */
 function familyInfo(id) {
+  if (id === "premium") {
+    return {
+      label: "Premium",
+      blurb:
+        "Discord-seviye: toggle'lar perkusif gürültü, ses olayları çan, mesajlar pop, ekran paylaşımı whoosh, ziller melodi — her kategori farklı tınıda.",
+    };
+  }
   const fam = FAMILIES.find((f) => f.id === id);
   if (!fam) throw new Error(`unknown family "${id}"`);
   return { label: fam.label, blurb: fam.blurb };
@@ -1350,7 +1877,7 @@ function printMeasurements(rows) {
 }
 
 /** Families on the listening page: the three new candidates, then the shipped one. */
-const PREVIEW_IDS = ["porcelain", "teaglass", "stoneware", "felt"];
+const PREVIEW_IDS = ["premium", "porcelain", "teaglass", "stoneware", "felt"];
 /** The family that is live in production before this refresh (the "old" column). */
 const PREVIOUS_FAMILY = "felt";
 
