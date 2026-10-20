@@ -173,8 +173,11 @@ export function StageControlBar({
         <IconButton
           icon={micEnabled ? Mic : MicOff}
           label={micEnabled ? t("mobile:voice.controlMute") : t("mobile:voice.controlUnmute")}
-          // Muted is the state worth noticing → the pink wash.
+          // Muted is the state worth noticing → the pink wash. Drawn by the
+          // variant, so it is announced through `selected` (a screen reader
+          // must hear "muted" too), not `active`, which would draw it solid.
           variant={micEnabled ? "veil" : "danger"}
+          selected={!micEnabled}
           disabled={!canToggleAudio}
           haptic="light"
           onPress={onToggleMic}

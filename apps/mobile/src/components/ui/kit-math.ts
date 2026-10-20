@@ -185,3 +185,18 @@ export function placeTooltip(input: {
     side: fitsAbove ? "above" : "below",
   };
 }
+
+/**
+ * What a screen reader is told about the button's state. `selected` overrides
+ * `active` when the two differ: a muted mic is DRAWN in the danger wash (not the
+ * active tone) yet must still be announced as selected, or a blind user cannot
+ * tell muted from live.
+ */
+export function iconButtonAccessibilityState(
+  toggle: boolean,
+  active: boolean,
+  selected?: boolean,
+): { checked: boolean } | { selected: boolean } {
+  const on = selected ?? active;
+  return toggle ? { checked: on } : { selected: on };
+}

@@ -21,7 +21,7 @@ import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated
 import type { LucideIcon } from "lucide-react-native";
 import { PRESS } from "@/theme/motion-presets";
 import { colors, motion, radius, space } from "@/theme/theme";
-import { placeTooltip, withAlpha } from "./kit-math";
+import { iconButtonAccessibilityState, placeTooltip, withAlpha } from "./kit-math";
 import { Text } from "./Text";
 import { CLEAR, Touchable, type HapticKind } from "./Touchable";
 
@@ -134,6 +134,11 @@ export type IconButtonProps = {
    * on/off state instead of as a plain button.
    */
   toggle?: boolean;
+  /**
+   * The announced on/off state when it is not what `active` draws — see
+   * {@link iconButtonAccessibilityState}. Defaults to `active`.
+   */
+  selected?: boolean;
   disabled?: boolean;
   haptic?: HapticKind;
   /** A small counter / dot in the corner (a pending count, a live marker). */
@@ -153,6 +158,7 @@ export function IconButton({
   shape = "circle",
   active = false,
   toggle = false,
+  selected,
   disabled = false,
   haptic,
   badge,
@@ -229,7 +235,7 @@ export function IconButton({
         accessibilityRole={toggle ? "togglebutton" : "button"}
         accessibilityLabel={label}
         accessibilityHint={accessibilityHint}
-        accessibilityState={toggle ? { checked: active } : { selected: active }}
+        accessibilityState={iconButtonAccessibilityState(toggle, active, selected)}
         testID={testID}
         style={{
           width: s.box,
