@@ -1,20 +1,17 @@
 /**
- * A cameraless participant tile for the video stage — the hero of the "Demli
- * Voice v2" look (founder design). Camera-on and camera-off participants are
- * EQUAL tiles in the grid; this is the camera-off half:
+ * A cameraless participant tile for the video stage. Camera-on and camera-off
+ * participants are EQUAL tiles in the grid; this is the camera-off half:
  *
- *  - a warm, near-black RADIAL gradient base (the app's warm ramp tokens), with
- *  - a soft, identity-hued GLOW disc blurred behind the avatar, and
- *  - a large avatar circle with Space Grotesk (`font-display`) initials.
+ *  - a neutral surface-tone base (Koyu Masa: depth by tone, no gradient ramp),
+ *  - a faint identity-hued glow disc blurred behind the avatar, so a person
+ *    keeps one colour across desktop and phone (lib/video-stage `tileHue`, the
+ *    same seed the mobile renderer uses), and
+ *  - a large avatar circle with Onest (`font-display`) initials.
  *
- * Speaking is signalled the Demli way: a pulsing ACCENT ring around the avatar
- * plus an accent box-shadow halo on the whole tile (not the old green ring). The
- * focused/stage tile (`large`) wears an "ODAKTA" badge top-right. No cropping, no
- * video — just identity.
- *
- * The glow + avatar hue are derived from the same seed (user id) as the mobile
- * renderer (see lib/video-stage `tileHue`), so a person reads as one identity
- * colour across desktop and phone.
+ * Speaking is the ONE warm light on the stage: a coral ring + soft coral inner
+ * glow over the whole tile that fades in and out with the voice, and a breathing
+ * coral ring around the avatar. The focused/stage tile (`large`) wears the
+ * "ODAKTA" veil pill top-right. No cropping, no video — just identity.
  *
  * Memoized on the `participant` object: the voice store keeps each participant
  * row referentially stable across no-op speaking ticks, so only the tile whose
@@ -27,7 +24,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
 } from "react";
-import { UserAvatar, cn } from "@demli/ui";
+import { UserAvatar, badgeVariants, cn } from "@demli/ui";
 import type { VoiceParticipant } from "@demli/media";
 import { useAppTranslation } from "../lib/i18n";
 import { tileHue } from "../lib/video-stage";
@@ -41,10 +38,73 @@ export interface AvatarTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring + ODAKTA badge). */
+  /** Highlight this tile as the current stage item (ODAKTA pill). */
   active?: boolean;
   /** Larger avatar for the focused/stage view — also flags the tile as focused. */
   large?: boolean;
+}
+
+/**
+ * The speaking light, drawn as an overlay ABOVE the tile's content.
+ *
+ * Every layer is `inset`, and that is load-bearing rather than a style
+ * preference: these tiles live in scroll containers, and a box that scrolls has
+ * to clip — `overflow-y:auto` forces `overflow-x` to `auto` too, so it clips on
+ * all four sides. An outset glow got sheared off along the grid's top edge and
+ * down the outermost columns (founder: "gradyanlı parlayan borderlar
+ * kırpılıyor"). Drawing it inside the border box leaves nothing to clip, in any
+ * container, at any tile count (tile-glow-inset.test.ts).
+ *
+ * An overlay rather than the tile's own box-shadow because an inset shadow
+ * paints UNDER the tile's children — on a camera tile the video would cover it.
+ * Opacity is what animates, so the light fades rather than blinks (200ms).
+ */
+export const SPEAKING_GLOW =
+  "shadow-[inset_0_0_0_2px_var(--color-accent),inset_0_0_36px_-8px_var(--color-accent)]";
+
+export function SpeakingGlow({ on }: { on: boolean }): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      data-testid="speaking-glow"
+      data-on={on || undefined}
+      className={cn(
+        "pointer-events-none absolute inset-0 z-[5] rounded-[inherit] transition-opacity motion-hover",
+        SPEAKING_GLOW,
+        on ? "opacity-100" : "opacity-0",
+      )}
+    />
+  );
+}
+
+/**
+ * The keyboard focus mark of a stage tile, drawn as an overlay above the tile's
+ * content for the same reason as the speaking light: a `focus-visible:ring` is a
+ * box-shadow on the tile itself, and a full-bleed <video> paints straight over
+ * it, so a keyboard user tabbing into the grid saw nothing on a camera or share
+ * tile.
+ *
+ * Deliberately a different SHAPE from the speaking light, so focus and "this
+ * person is talking" never read as the same thing: a crisp white 2px edge with a
+ * black 2px keyline inside it (legible on bright video and on the black stage),
+ * no coral and no soft halo. Inset, so a scroll container cannot clip it
+ * (tile-glow-inset.test.ts). It only shows when the tile ITSELF is
+ * focus-visible — focus on a control inside the tile does not light the tile.
+ */
+export const TILE_FOCUS_RING =
+  "shadow-[inset_0_0_0_2px_var(--color-fg-display),inset_0_0_0_4px_var(--color-rail)]";
+
+export function TileFocusRing(): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      data-testid="tile-focus-ring"
+      className={cn(
+        "pointer-events-none absolute inset-0 z-20 rounded-[inherit] opacity-0 transition-opacity motion-hover group-focus-visible/tile:opacity-100",
+        TILE_FOCUS_RING,
+      )}
+    />
+  );
 }
 
 export const AvatarTile = memo(function AvatarTile({
@@ -65,8 +125,8 @@ export const AvatarTile = memo(function AvatarTile({
   const avatarUrl = user?.avatarUrl ?? (participant.isLocal ? (me?.avatarUrl ?? null) : null);
   const interactive = Boolean(onSelect);
   const hue = tileHue(participant.userId);
-  // "Focused" for the ODAKTA badge / accent framing: the promoted stage tile
-  // (large) or an explicitly-marked active tile. Never for a plain grid tile.
+  // "Focused" for the ODAKTA pill: the promoted stage tile (large) or an
+  // explicitly-marked active tile. Never for a plain grid tile.
   const focused = large || active;
 
   const tile: ReactElement = (
@@ -85,72 +145,47 @@ export const AvatarTile = memo(function AvatarTile({
             },
           }
         : {})}
-      // Per-identity warm radial base (Demli Voice v2 .dc.html): each tile carries
-      // the person's hue as a deep radial, darkening to the rail floor — not a flat
-      // neutral ramp. hsl() + the glow disc below read as one identity colour.
-      style={{
-        backgroundImage: `radial-gradient(120% 95% at 30% 12%, hsl(${hue} 55% 13%) 0%, hsl(${hue} 48% 8%) 55%, var(--color-rail) 100%)`,
-      }}
+      data-testid="avatar-tile"
+      data-speaking={participant.speaking || undefined}
       className={cn(
         // Entrance is orchestrated by the VideoStage grid wrapper (framer stagger)
-        // so tiles resolve in sequence; keeping a CSS `animate-fade-up` here too
-        // would double the entrance. The speaking pulse-ring below stays CSS (§27).
-        "group/tile relative flex items-center justify-center overflow-hidden rounded-2xl",
-        // Elevation + edge as a composable box-shadow. Idle: a cream hairline.
-        // Speaking: an accent ring + a soft accent glow. Focused-but-quiet: a
-        // steady accent ring.
-        //
-        // Every ACCENT layer is `inset`, and that is load-bearing rather than a
-        // style preference. These tiles live in scroll containers, and a box that
-        // scrolls has to clip: `overflow-y:auto` forces `overflow-x` to `auto`
-        // too, so it clips on all four sides. An outset glow therefore got sheared
-        // off along the grid's top edge and down the outermost columns (founder:
-        // "gradyanlı parlayan borderlar kırpılıyor"). Padding the container cannot
-        // fix it either — padding is inside the scrollport, so tiles would just
-        // scroll into it and bleed over the toolbar instead.
-        //
-        // Drawing the glow INSIDE the tile removes the problem rather than
-        // budgeting for it: there is nothing outside the border box left to clip,
-        // in any container, at any tile count. The one shadow that stays outset is
-        // the black elevation drop — it is invisible against the dark stage even
-        // when clipped, and it is what keeps the tile from looking pasted on.
-        "shadow-[inset_0_0_0_1px_var(--color-stroke-strong),0_14px_40px_-18px_rgba(0,0,0,0.9)]",
-        focused &&
-          !participant.speaking &&
-          "shadow-[inset_0_0_0_2px_var(--color-accent),0_14px_40px_-18px_rgba(0,0,0,0.9)]",
-        participant.speaking &&
-          "shadow-[inset_0_0_0_2px_var(--color-accent),inset_0_0_38px_-6px_var(--color-accent),0_16px_40px_-18px_rgba(0,0,0,0.9)]",
+        // so tiles resolve in sequence; the speaking ring below stays CSS (§27).
+        "group/tile relative flex items-center justify-center overflow-hidden rounded-xl bg-surface",
+        "[--avatar-ring:var(--color-surface)]",
         interactive &&
-          "cursor-pointer outline-none transition motion-standard hover:brightness-110 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
+          // Hover is a tone change (surface → raised, 200ms); nothing lifts.
+          "cursor-pointer outline-none transition-colors motion-hover hover:bg-raised hover:[--avatar-ring:var(--color-raised)]",
         className,
       )}
     >
       {/* Identity glow — a soft, blurred disc behind the avatar, hued off the
-          same seed as mobile so the tile carries the person's colour. */}
+          same seed as mobile so the tile carries the person's colour. Data, not
+          palette: the hue is derived per user, like UserAvatar's seed colour. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-[60px]"
-        style={{ backgroundColor: `hsl(${hue} 72% 52%)` }}
+        className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-[0.16] blur-[60px]"
+        style={{ backgroundColor: `hsl(${hue} 60% 50%)` }}
       />
 
-      {/* Avatar + speaking pulse ring. The wrapper scales for the large stage so
-          the ring and circle grow together. UserAvatar draws the identity circle
-          and initials (font-display via className); its own green speaking ring is
-          suppressed — the accent pulse ring below is the Demli signal. */}
+      {/* Avatar + speaking ring. The wrapper scales for the large stage so the
+          ring and circle grow together (transform only). */}
       <div className={cn("relative transition-transform motion-standard", large && "scale-[1.6]")}>
-        {participant.speaking && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -inset-1.5 animate-pulse-ring rounded-full border-2 border-accent"
-          />
-        )}
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute -inset-1.5 rounded-full border-2 border-accent transition-opacity motion-hover",
+            participant.speaking
+              ? "animate-pulse-ring opacity-100 motion-reduce:animate-none"
+              : "opacity-0",
+          )}
+        />
         <UserAvatar
           name={name}
           colorSeed={participant.userId}
           src={avatarUrl}
           size="lg"
           speaking={false}
-          className="relative rounded-full font-display shadow-[inset_0_0_0_2px_rgba(248,238,212,0.18),0_10px_30px_-10px_rgba(0,0,0,0.6)]"
+          className="relative font-display"
         />
       </div>
 
@@ -161,12 +196,22 @@ export const AvatarTile = memo(function AvatarTile({
         screenSharing={participant.screenSharing}
       />
 
-      {/* Focused/stage badge — the Demli "ODAKTA" pill (accent fill, dark ink). */}
+      {/* Focused/stage marker — a quiet veil pill with a coral dot, not a second
+          coral fill competing with the speaking light. */}
       {focused && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-accent px-2.5 py-1 font-display text-badge font-bold tracking-wide text-on-accent">
+        <span
+          className={cn(
+            badgeVariants({ variant: "veil" }),
+            "absolute right-3 top-3 z-10 gap-1.5 bg-scrim font-display text-badge font-semibold tracking-wide text-fg-display",
+          )}
+        >
+          <span aria-hidden className="size-1.5 rounded-full bg-accent" />
           {t("desktop:stage.focused")}
         </span>
       )}
+
+      <SpeakingGlow on={participant.speaking} />
+      {interactive && <TileFocusRing />}
     </div>
   );
 

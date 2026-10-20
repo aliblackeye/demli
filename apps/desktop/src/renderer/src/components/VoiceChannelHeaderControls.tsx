@@ -58,8 +58,10 @@ export function VoiceChannelHeaderControls({
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
+                  variant="accent"
+                  data-testid="voice-header-join"
                   onClick={() => joinVoiceChannel(channel, groupName)}
-                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  className="h-8 gap-1.5 px-3 text-xs"
                 >
                   <PhoneCall className="size-3.5" aria-hidden />
                   {t("desktop:channel.joinVoiceShort")}
@@ -80,7 +82,7 @@ export function VoiceChannelHeaderControls({
                   size="icon"
                   aria-label={t("desktop:voice.returnToStage")}
                   onClick={returnToVoiceStage}
-                  className={cn("text-accent hover:text-accent")}
+                  className={cn("bg-accent-surface text-accent-hover hover:bg-accent/20 hover:text-accent-hover")}
                 >
                   <MonitorPlay className="size-[18px]" />
                 </Button>
@@ -97,7 +99,7 @@ export function VoiceChannelHeaderControls({
                 size="icon"
                 aria-label={t("desktop:voice.disconnect")}
                 onClick={leaveVoiceRoom}
-                className="hover:bg-danger/15 hover:text-danger"
+                className="hover:bg-danger/12 hover:text-danger active:bg-danger/20"
               >
                 <PhoneOff className="size-[18px]" />
               </Button>

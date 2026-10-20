@@ -843,7 +843,8 @@
     "empty": "Paylaşılabilir ekran veya pencere bulunamadı.",
     "screensHeading": "Ekranlar",
     "windowsHeading": "Pencereler",
-    "screensHint": "Film için oynadığı pencereyi seç: yalnız onun sesi gider."
+    "screensHint": "Film için oynadığı pencereyi seç: yalnız onun sesi gider.",
+    "loading": "Ekranların ve pencerelerin listeleniyor…"
   },
   "shareAudio": {
     "statusLive": "Ekranını sesiyle paylaşıyorsun",
@@ -902,7 +903,8 @@
     "selfViewOff": "Kendi kameranı gizle",
     "selfViewCameraOff": "Kameran kapalı",
     "quietParticipants_one": "{{count}} kişi daha — konuşunca görünür",
-    "quietParticipants_other": "{{count}} kişi daha — konuşunca görünür"
+    "quietParticipants_other": "{{count}} kişi daha — konuşunca görünür",
+    "live": "CANLI"
   },
   "devices": {
     "description": "Demli'nin hangi mikrofonu, ses çıkışını ve kamerayı kullanacağını seç.",
@@ -1225,7 +1227,10 @@
     "busyCallingYou": "{{name}} seni arıyor",
     "busyVideoCallingYou": "{{name}} seni görüntülü arıyor",
     "busySwitchHint": "Cevaplarsan mevcut araman sona erer",
-    "returnToCall": "Aramaya dön"
+    "returnToCall": "Aramaya dön",
+    "addPersonLoading": "Arkadaşların yükleniyor…",
+    "addPersonNoMatch": "“{{query}}” ile eşleşen arkadaş yok.",
+    "addPersonLoadFailed": "Arkadaş listen yüklenemedi. Tekrar deneyebilirsin."
   },
   "recentCalls": {
     "navLabel": "Son Aramalar",

@@ -386,7 +386,7 @@ function WatchPartyPlayerImpl({
           : t("desktop:watchParty.errorPlayback");
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden rounded-xl bg-black", className)}>
+    <div className={cn("relative h-full w-full overflow-hidden rounded-xl bg-rail", className)}>
       {frame.src === null ? (
         // Unreachable in practice (the server only ever stores a normalized id),
         // but a null URL must render an explanation rather than an empty frame.
@@ -423,11 +423,11 @@ function WatchPartyPlayerImpl({
       )}
 
       {autoplayBlocked && !isHost && frame.src !== null && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
-          <p className="px-6 text-center text-sm text-white/80">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 surface-scrim animate-fade-in">
+          <p className="px-6 text-center text-sm text-fg">
             {t("desktop:watchParty.autoplayBlocked")}
           </p>
-          <Button size="sm" onClick={onStartPlayback}>
+          <Button size="sm" variant="accent" onClick={onStartPlayback}>
             <Play className="size-4" />
             {t("desktop:watchParty.startPlayback")}
           </Button>
@@ -435,9 +435,9 @@ function WatchPartyPlayerImpl({
       )}
 
       {errorMessage !== null && (
-        <div className="absolute inset-x-0 bottom-0 flex items-start gap-2 bg-black/80 px-4 py-3">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
-          <p className="text-xs leading-relaxed text-white/85">{errorMessage}</p>
+        <div role="alert" className="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded-xl surface-glass-strong px-4 py-3 animate-fade-in">
+          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          <p className="text-xs leading-relaxed text-fg">{errorMessage}</p>
         </div>
       )}
     </div>

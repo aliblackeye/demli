@@ -30,7 +30,6 @@
  */
 
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 import {
   Maximize2,
   Mic,
@@ -42,52 +41,9 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
+import { cn } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
-
-function StageControl({
-  label,
-  icon: Icon,
-  active = false,
-  disabled = false,
-  disabledHint,
-  danger = false,
-  onClick,
-}: {
-  label: string;
-  icon: LucideIcon;
-  active?: boolean;
-  disabled?: boolean;
-  disabledHint?: string;
-  danger?: boolean;
-  onClick: () => void;
-}): JSX.Element {
-  const button = (
-    <Button
-      variant="secondary"
-      size="icon-sm"
-      aria-label={label}
-      aria-pressed={danger ? undefined : active}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "size-9 rounded-full border border-white/10 bg-black/45 text-white",
-        "hover:bg-black/65 hover:text-white",
-        active && !danger && "bg-accent/25 text-accent hover:bg-accent/35",
-        danger && "bg-danger/85 text-on-accent hover:bg-danger hover:text-on-accent",
-      )}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-  return (
-    <Tooltip>
-      {/* span keeps the tooltip working on a disabled button (same as CallDock). */}
-      <TooltipTrigger asChild>{disabled ? <span>{button}</span> : button}</TooltipTrigger>
-      <TooltipContent side="top">{disabledHint ?? label}</TooltipContent>
-    </Tooltip>
-  );
-}
+import { CallControl } from "./CallControls";
 
 export interface StageControlBarProps {
   /** Whether the auto-hide layer currently wants the bar shown (mouse path). */
@@ -146,7 +102,7 @@ export function StageControlBar({
     event.stopPropagation();
   };
 
-  const divider: ReactNode = <span aria-hidden className="mx-0.5 h-5 w-px bg-white/20" />;
+  const divider: ReactNode = <span aria-hidden className="mx-1 h-5 w-px rounded-full bg-stroke-strong" />;
 
   return (
     <div
@@ -160,58 +116,82 @@ export function StageControlBar({
       onClick={swallow}
       onDoubleClick={swallow}
       onFocusCapture={onInteract}
+      data-testid="stage-control-bar"
+      data-visible={visible || undefined}
       className={cn(
-        "absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5",
-        "rounded-full border border-white/10 bg-black/55 p-1.5 backdrop-blur-md",
-        "shadow-[0_10px_30px_-12px_rgba(0,0,0,0.8)] transition-opacity motion-fast",
-        visible ? "opacity-100" : "pointer-events-none opacity-0",
+        // Koyu Masa floating layer: strong glass, pill radius, no border, no
+        // shadow. Reveal/hide is opacity + a 6px rise on the fast step, so the
+        // bar arrives with the pointer instead of popping.
+        "absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1",
+        "rounded-pill surface-glass-strong p-1.5",
+        "transition-[opacity,translate] motion-fast",
+        visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0",
         // Keyboard: tabbing into a faded bar must show it (and make it clickable).
-        "focus-within:pointer-events-auto focus-within:opacity-100",
+        "focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100",
         // Touch: no hover exists, so never hide it on a coarse pointer.
-        "pointer-coarse:pointer-events-auto pointer-coarse:opacity-100",
+        "pointer-coarse:pointer-events-auto pointer-coarse:translate-y-0 pointer-coarse:opacity-100",
       )}
     >
-      <StageControl
+      <CallControl
         label={cameraEnabled ? t("desktop:voice.stopCamera") : t("desktop:voice.camera")}
         icon={cameraEnabled ? Video : VideoOff}
-        active={cameraEnabled}
+        tone={cameraEnabled ? "on" : "neutral"}
+        pressed={cameraEnabled}
+        size="round"
+        surface="glass"
         disabled={!canUseCamera && !cameraEnabled}
         disabledHint={t("desktop:call.connecting")}
         onClick={onToggleCamera}
       />
-      <StageControl
+      <CallControl
         label={
           screenShareEnabled ? t("desktop:voice.stopSharing") : t("desktop:voice.shareScreen")
         }
         icon={screenShareEnabled ? MonitorOff : Monitor}
-        active={screenShareEnabled}
+        tone={screenShareEnabled ? "on" : "neutral"}
+        pressed={screenShareEnabled}
+        size="round"
+        surface="glass"
         disabled={!canShareScreen && !screenShareEnabled}
         disabledHint={screenShareDisabledHint}
         onClick={onToggleScreenShare}
       />
-      <StageControl
+      <CallControl
         label={micEnabled ? t("desktop:voice.mute") : t("desktop:voice.unmute")}
         icon={micEnabled ? Mic : MicOff}
-        active={!micEnabled}
+        tone={micEnabled ? "neutral" : "off"}
+        pressed={!micEnabled}
+        size="round"
+        surface="glass"
         onClick={onToggleMic}
       />
-      <StageControl
+      {/* Leave reads as danger by SHAPE as well as colour: the only wide pill on
+          the bar, solid pink with dark ink, set off by a gap. */}
+      <CallControl
         label={disconnectLabel}
         icon={PhoneOff}
-        danger
+        tone="leave"
+        size="round"
+        surface="glass"
+        wide
+        className="ml-1"
         onClick={onDisconnect}
+        data-testid="stage-leave"
       />
       {canFullscreen && (
         <>
           {divider}
-          <StageControl
+          <CallControl
             label={
               fullscreen
                 ? t("desktop:stage.fullscreenExit")
                 : t("desktop:stage.fullscreenEnter")
             }
             icon={fullscreen ? Minimize2 : Maximize2}
-            active={fullscreen}
+            tone={fullscreen ? "on" : "neutral"}
+            pressed={fullscreen}
+            size="round"
+            surface="glass"
             onClick={onToggleFullscreen}
           />
         </>

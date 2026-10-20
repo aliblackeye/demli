@@ -1,7 +1,6 @@
 import { useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import { AnimatePresence, m } from "framer-motion";
 import {
-  Activity,
   Headphones,
   HeadphoneOff,
   Mic,
@@ -13,7 +12,8 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
+import { cn } from "@demli/ui";
+import { transitions } from "@demli/app-ui";
 import type { VoiceStatus } from "@demli/media";
 import { useGroupDetails } from "../queries/chat-queries";
 import { useAppTranslation } from "../lib/i18n";
@@ -27,6 +27,9 @@ import { ShareAudioStatus, VoiceErrorNotice } from "./ShareAudioStatus";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 import { SourcePicker } from "./SourcePicker";
 import { CameraPreviewDialog } from "./CameraPreviewDialog";
+import { CallControl, LiveDot, type LiveDotTone } from "./CallControls";
+
+type ActiveStatus = Exclude<VoiceStatus, "idle">;
 
 const STATUS_KEY = {
   joining: "desktop:voice.statusJoining",
@@ -34,64 +37,20 @@ const STATUS_KEY = {
   reconnecting: "desktop:voice.statusReconnecting",
   error: "desktop:voice.statusError",
   leaving: "desktop:voice.statusLeaving",
-} as const satisfies Record<Exclude<VoiceStatus, "idle">, string>;
+} as const satisfies Record<ActiveStatus, string>;
 
-const STATUS_CLASS: Record<Exclude<VoiceStatus, "idle">, string> = {
-  joining: "text-idle",
-  // Demli Voice v2 (.dc.html): a live voice connection reads in the brand ACCENT,
-  // not green — it matches the "Ses bağlandı" card in the founder's design.
-  connected: "text-accent",
-  reconnecting: "text-idle",
-  error: "text-danger",
-  leaving: "text-fg-faint",
+/**
+ * Status → text tone + dot. Connected reads in the brand coral (the room's warm
+ * light); the two in-between states are amber and their dot breathes, so
+ * "still working on it" is visible without reading the words.
+ */
+const STATUS_TONE: Record<ActiveStatus, { text: string; dot: LiveDotTone }> = {
+  joining: { text: "text-warning", dot: "pending" },
+  connected: { text: "text-accent", dot: "live" },
+  reconnecting: { text: "text-warning", dot: "pending" },
+  error: { text: "text-danger", dot: "error" },
+  leaving: { text: "text-fg-faint", dot: "idle" },
 };
-
-function ControlButton({
-  label,
-  active,
-  activeDanger = false,
-  disabled = false,
-  disabledHint,
-  onClick,
-  icon: Icon,
-}: {
-  label: string;
-  active?: boolean;
-  activeDanger?: boolean;
-  disabled?: boolean;
-  disabledHint?: string;
-  onClick?: () => void;
-  icon: LucideIcon;
-}): JSX.Element {
-  const button = (
-    <Button
-      variant="secondary"
-      size="icon-sm"
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "w-full",
-        // Accent highlight for a non-danger "on" control (camera / screen share),
-        // matching the call control bar (task #4). Danger wins when both apply.
-        active && !activeDanger && "bg-accent/20 text-accent hover:bg-accent/30",
-        activeDanger && "bg-danger/15 text-danger hover:bg-danger/25",
-      )}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-  return (
-    <Tooltip>
-      {/* span keeps tooltips working on disabled buttons */}
-      <TooltipTrigger asChild>
-        {disabled ? <span className="w-full">{button}</span> : button}
-      </TooltipTrigger>
-      <TooltipContent side="top">{disabledHint ?? label}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 /** Voice status card at the bottom of the channel sidebar — driven by the real LiveKit engine. */
 export function VoicePanel(): JSX.Element | null {
@@ -122,6 +81,7 @@ export function VoicePanel(): JSX.Element | null {
     details?.channels.find((c) => c.id === roomId)?.name ??
     (roomId?.startsWith("dmcall:") ? t("desktop:call.regionLabel") : undefined) ??
     t("desktop:voice.fallbackRoom");
+  const groupName = roomLabel?.groupName ?? null;
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cameraPreviewOpen, setCameraPreviewOpen] = useState(false);
@@ -143,46 +103,53 @@ export function VoicePanel(): JSX.Element | null {
 
   if (status === "idle") return null;
 
+  const tone = STATUS_TONE[status];
+
   return (
     <section
       aria-label={t("desktop:voice.panelLabel")}
-      className={cn(
-        // Frosted "voice connected" glass card (Demli Voice v2): translucent warm
-        // surface, cream hairline, an inset top highlight and a soft lift, so the
-        // panel reads as a raised control surface at the foot of the sidebar.
-        "mx-2 mb-1.5 rounded-xl border border-stroke bg-surface/80 p-2.5 backdrop-blur",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_24px_-12px_rgba(0,0,0,0.5)]",
-      )}
+      data-testid="voice-panel"
+      data-status={status}
+      // Koyu Masa control card: one surface step above the sidebar, radius 16,
+      // no border and no shadow — the tone difference is the edge.
+      className="mx-2 mb-2 rounded-xl bg-surface p-2.5 animate-pop-in"
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {/* Demli Voice v2: an accent activity glyph next to the connection state,
-              like the "Ses bağlandı" card in the founder's .dc.html. */}
-          <Activity className={cn("size-4 shrink-0", STATUS_CLASS[status])} />
+        <div className="flex min-w-0 items-center gap-2.5 pl-0.5">
+          <LiveDot tone={tone.dot} />
           <div className="min-w-0">
-            <p className={cn("text-xs font-semibold", STATUS_CLASS[status])}>
-              {t(STATUS_KEY[status])}
+            {/* The status line crossfades as the FSM moves (joining → connected
+                → reconnecting …): one word changing in place, never a jump. */}
+            <AnimatePresence mode="wait" initial={false}>
+              <m.p
+                key={status}
+                role="status"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, transition: transitions.fast }}
+                exit={{ opacity: 0, transition: transitions.instant }}
+                className={cn("truncate text-label font-semibold", tone.text)}
+              >
+                {t(STATUS_KEY[status])}
+              </m.p>
+            </AnimatePresence>
+            <p className="truncate text-2xs text-fg-faint" title={groupName ? `${roomName} · ${groupName}` : roomName}>
+              {roomName}
+              {groupName && <span className="text-fg-subtle"> · </span>}
+              {groupName}
             </p>
-            <p className="truncate text-2xs text-fg-muted">{roomName}</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {/* Ping / connection-quality bars — self-hides unless connected. */}
           <VoiceConnectionBars />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("desktop:voice.disconnect")}
-                onClick={leave}
-                className="hover:bg-danger/15 hover:text-danger"
-              >
-                <PhoneOff className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{t("desktop:voice.disconnect")}</TooltipContent>
-          </Tooltip>
+          <CallControl
+            label={t("desktop:voice.disconnect")}
+            icon={PhoneOff}
+            tone="leave"
+            size="round-sm"
+            onClick={leave}
+            data-testid="voice-panel-leave"
+          />
         </div>
       </div>
 
@@ -194,22 +161,23 @@ export function VoicePanel(): JSX.Element | null {
           type="button"
           onClick={showVoiceStage}
           className={cn(
-            "mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1 text-2xs font-medium",
-            "bg-accent/15 text-accent transition-colors motion-instant hover:bg-accent/25",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+            "mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg px-2 text-2xs font-semibold",
+            "bg-accent-surface text-accent-hover transition-colors motion-hover hover:bg-accent/20 active:bg-accent/28",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+            "animate-fade-in",
           )}
         >
-          <MonitorPlay className="size-3.5 shrink-0" />
+          <MonitorPlay className="size-3.5 shrink-0" aria-hidden />
           {t("desktop:voice.returnToStage")}
         </button>
       )}
 
-      <VoiceErrorNotice className="mt-1.5" />
+      <VoiceErrorNotice className="mt-2" />
 
       {/* "Odada tek kişi sensin" uyarısı — sunucunun yalnız-kalma süpürmesinin
           istemci karşılığı. Yalnız DM araması ve grup-DM sesli kanalında görünür;
           sunucu sesli kanalında motor sayacı hiç kurmadığı için hiç çıkmaz. */}
-      <AloneCountdownNotice className="mt-1.5" />
+      <AloneCountdownNotice className="mt-2" />
 
       {/* NB: the voice roster is NOT repeated here. The occupants already list in
           the channel sidebar under the connected voice channel (VoiceOccupantRow),
@@ -219,37 +187,42 @@ export function VoicePanel(): JSX.Element | null {
       {/* Share sound, the same component the DM call dock uses: measured state
           (waiting / live / failed), which capture feeds it, and why there is no
           sound when the sharer asked for some (§35). */}
-      <ShareAudioStatus className="mt-1.5" />
+      <ShareAudioStatus className="mt-2" />
 
-      {/* 4 kontrol kaldı (ses-ayar butonu founder isteğiyle gitti) — satırı doldur. */}
-      <div className="mt-2 grid grid-cols-4 gap-1">
-        <ControlButton
+      {/* Four controls fill the row (the voice-settings button left on founder
+          request). Muted / deafened read as the pink "off" wash with the struck
+          glyph; camera / share read as the coral "on" wash while live. */}
+      <div className="mt-2.5 grid grid-cols-4 gap-1">
+        <CallControl
           label={micEnabled ? t("desktop:voice.mute") : t("desktop:voice.unmute")}
-          active={!micEnabled}
-          activeDanger={!micEnabled}
-          onClick={toggleMic}
           icon={micEnabled ? Mic : MicOff}
+          tone={micEnabled ? "neutral" : "off"}
+          pressed={!micEnabled}
+          onClick={toggleMic}
         />
-        <ControlButton
+        <CallControl
           label={deafened ? t("desktop:voice.undeafen") : t("desktop:voice.deafen")}
-          active={deafened}
-          activeDanger={deafened}
-          onClick={toggleDeafen}
           icon={deafened ? HeadphoneOff : Headphones}
+          tone={deafened ? "off" : "neutral"}
+          pressed={deafened}
+          onClick={toggleDeafen}
         />
-        <ControlButton
+        <CallControl
           label={cameraEnabled ? t("desktop:voice.stopCamera") : t("desktop:voice.camera")}
-          active={cameraEnabled}
+          icon={cameraEnabled ? Video : VideoOff}
+          tone={cameraEnabled ? "on" : "neutral"}
+          pressed={cameraEnabled}
           disabled={!canUseCamera && !cameraEnabled}
           disabledHint={t("desktop:voice.connectFirst")}
           onClick={onCameraClick}
-          icon={cameraEnabled ? Video : VideoOff}
         />
-        <ControlButton
+        <CallControl
           label={
             screenShareEnabled ? t("desktop:voice.stopSharing") : t("desktop:voice.shareScreen")
           }
-          active={screenShareEnabled}
+          icon={screenShareEnabled ? MonitorOff : Monitor}
+          tone={screenShareEnabled ? "on" : "neutral"}
+          pressed={screenShareEnabled}
           disabled={!canShareScreen && !screenShareEnabled}
           disabledHint={
             status === "connected"
@@ -257,7 +230,6 @@ export function VoicePanel(): JSX.Element | null {
               : t("desktop:voice.connectFirst")
           }
           onClick={onScreenShareClick}
-          icon={screenShareEnabled ? MonitorOff : Monitor}
         />
       </div>
 

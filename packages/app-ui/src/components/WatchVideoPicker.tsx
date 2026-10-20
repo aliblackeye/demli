@@ -124,7 +124,7 @@ export function WatchVideoPicker({
   onResetSearch,
   onSubmit,
 }: WatchVideoPickerProps): JSX.Element {
-  const { t } = useTranslation(["desktop"]);
+  const { t } = useTranslation(["desktop", "common"]);
   const [value, setValue] = useState("");
   const [linkError, setLinkError] = useState(false);
   /**
@@ -216,7 +216,7 @@ export function WatchVideoPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" closeLabel={t("common:buttons.close")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -284,7 +284,7 @@ export function WatchVideoPicker({
           {failureMessage !== null && (
             <p
               role="alert"
-              className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-fg"
+              className="flex items-start gap-2 rounded-lg bg-warning/12 px-3 py-2 text-xs leading-relaxed text-fg"
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
               <span>{failureMessage}</span>
@@ -292,7 +292,7 @@ export function WatchVideoPicker({
           )}
 
           {showEmptyResults && (
-            <p className="rounded-lg border border-stroke bg-raised/60 px-3 py-2 text-xs text-fg-muted">
+            <p className="rounded-lg bg-surface px-3 py-2 text-xs text-fg-muted">
               {t("desktop:watchParty.searchNoResults", { query: search.query })}
             </p>
           )}
@@ -310,8 +310,8 @@ export function WatchVideoPicker({
                       type="button"
                       onClick={() => pick(result)}
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-lg border border-transparent p-1.5 text-left transition-colors",
-                        "hover:border-stroke hover:bg-raised/70 focus-visible:border-accent focus-visible:outline-none",
+                        "flex w-full items-start gap-3 rounded-lg p-1.5 text-left transition-colors motion-hover",
+                        "hover:bg-wash active:bg-wash-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
                       )}
                     >
                       {/* Served by i.ytimg.com, which is on the img-src allow
@@ -324,7 +324,7 @@ export function WatchVideoPicker({
                         loading="lazy"
                         width={112}
                         height={63}
-                        className="h-[63px] w-28 shrink-0 rounded-md bg-black object-cover"
+                        className="h-[63px] w-28 shrink-0 rounded-md bg-rail object-cover"
                         onError={(e) => {
                           e.currentTarget.style.visibility = "hidden";
                         }}
@@ -347,7 +347,7 @@ export function WatchVideoPicker({
             </ul>
           )}
 
-          <p className="rounded-lg border border-stroke bg-raised/60 px-3 py-2 text-2xs leading-relaxed text-fg-muted">
+          <p className="rounded-lg bg-surface px-3 py-2 text-2xs leading-relaxed text-fg-muted">
             {t("desktop:watchParty.drmNote")}
           </p>
         </DialogBody>

@@ -1,6 +1,6 @@
-import { Check, Mic, Video, Volume2 } from "lucide-react";
+import { Mic, Video, Volume2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@demli/ui";
+import { RadioGroup, RadioItem } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { useVoiceStore } from "../stores/voice-store";
 import {
@@ -11,6 +11,12 @@ import {
   type MediaDevice,
 } from "../lib/media-devices";
 
+/**
+ * One device kind (microphone / output / camera) as the design system's radio
+ * rows: one tab stop per group, arrow keys move AND select (WAI-ARIA radio
+ * group), the chosen device takes the coral wash. The selection goes straight to
+ * the engine, which live-switches the running track when connected.
+ */
 function DeviceGroup({
   label,
   kind,
@@ -26,48 +32,50 @@ function DeviceGroup({
   devices: MediaDevice[];
   selectedId: string;
   onSelect: (deviceId: string) => void;
-  /** Shown instead of the radio list when no device is enumerated (camera before permission). */
+  /**
+   * Shown instead of the radio list when no device is enumerated. Only the
+   * camera can be empty: audio lists always carry the system-default entry
+   * (lib/media-devices `toDevices`).
+   */
   emptyHint?: string;
 }): JSX.Element {
   const { t } = useAppTranslation();
+  const headingId = `device-group-${kind}`;
   return (
-    <fieldset>
-      <legend className="flex items-center gap-1.5 pb-2 text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-        <Icon className="size-3.5" />
+    <section aria-labelledby={headingId} className="rounded-xl bg-surface p-2" data-testid={`device-group-${kind}`}>
+      <h3
+        id={headingId}
+        className="flex items-center gap-1.5 px-2 pb-1.5 pt-1 text-2xs font-semibold uppercase tracking-wider text-fg-faint"
+      >
+        <Icon aria-hidden className="size-3.5" />
         {label}
-      </legend>
+      </h3>
       {devices.length === 0 && emptyHint ? (
-        <p className="text-xs leading-relaxed text-fg-faint">{emptyHint}</p>
+        // Nothing enumerated (a camera before permission is granted): say so in
+        // the group's own space instead of an empty box.
+        <p className="px-2 pb-2 text-label leading-relaxed text-fg-faint">{emptyHint}</p>
       ) : (
-        <div role="radiogroup" aria-label={label} className="space-y-1">
-          {devices.map((device, index) => {
-            const selected = device.deviceId === selectedId;
-            return (
-              <button
-                key={device.deviceId}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => onSelect(device.deviceId)}
-                className={cn(
-                  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2",
-                  "text-left text-sm transition-colors motion-instant",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                  selected
-                    ? "border-accent/60 bg-accent/10 text-fg"
-                    : "border-stroke bg-raised text-fg-muted hover:border-stroke-strong hover:text-fg",
-                )}
-              >
-                <span className="min-w-0 truncate">
+        <RadioGroup
+          aria-labelledby={headingId}
+          value={selectedId}
+          onValueChange={onSelect}
+          className="gap-0.5"
+        >
+          {devices.map((device, index) => (
+            <RadioItem
+              key={device.deviceId}
+              value={device.deviceId}
+              label={
+                <span className="block truncate">
                   {device.label || fallbackLabel(kind, device.deviceId, index, t)}
                 </span>
-                {selected && <Check className="size-4 shrink-0 text-accent" />}
-              </button>
-            );
-          })}
-        </div>
+              }
+              className="[&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
+            />
+          ))}
+        </RadioGroup>
       )}
-    </fieldset>
+    </section>
   );
 }
 
@@ -90,7 +98,7 @@ export function DeviceSettingsForm(): JSX.Element {
   const setVideoDevice = useVoiceStore((s) => s.setVideoDevice);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2.5">
       <DeviceGroup
         label={t("desktop:devices.input")}
         kind="audioinput"
@@ -116,7 +124,7 @@ export function DeviceSettingsForm(): JSX.Element {
         onSelect={setVideoDevice}
         emptyHint={t("desktop:devices.cameraNote")}
       />
-      <p className="text-xs leading-relaxed text-fg-faint">{t("desktop:devices.note")}</p>
+      <p className="px-1 pt-1 text-2xs leading-relaxed text-fg-faint">{t("desktop:devices.note")}</p>
     </div>
   );
 }

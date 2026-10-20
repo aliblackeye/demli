@@ -124,7 +124,7 @@ function WatchQueuePanelImpl({
     <aside
       aria-label={t("desktop:watchParty.queueTitle")}
       className={cn(
-        "flex h-full min-h-0 w-full flex-col gap-2 rounded-xl border border-stroke bg-rail/60 p-2",
+        "flex h-full min-h-0 w-full flex-col gap-2 rounded-xl bg-surface p-2",
         className,
       )}
     >
@@ -133,7 +133,7 @@ function WatchQueuePanelImpl({
         <h3 className="min-w-0 flex-1 truncate text-xs font-semibold text-fg">
           {t("desktop:watchParty.queueTitle")}
         </h3>
-        <span className="shrink-0 rounded-full bg-raised px-1.5 py-0.5 text-2xs tabular-nums text-fg-muted">
+        <span className="shrink-0 rounded-pill bg-raised px-1.5 py-0.5 text-2xs font-medium tabular-nums text-fg-muted">
           {items.length}
         </span>
         {canControl && (
@@ -151,14 +151,14 @@ function WatchQueuePanelImpl({
       {notice !== null && (
         <p
           role="alert"
-          className="shrink-0 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1.5 text-2xs leading-relaxed text-fg"
+          className="shrink-0 rounded-lg bg-danger-surface px-2 py-1.5 text-2xs leading-relaxed text-fg"
         >
           {notice}
         </p>
       )}
 
       {nowPlaying !== null && (
-        <div className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2 py-1.5">
+        <div className="shrink-0 rounded-lg bg-accent-surface px-2.5 py-2">
           <p className="text-2xs font-semibold uppercase tracking-wide text-accent">
             {t("desktop:watchParty.queueNowPlaying")}
           </p>
@@ -219,13 +219,14 @@ function WatchQueuePanelImpl({
                 }
                 onDragEnd={canControl ? () => finishDrag(null) : undefined}
                 className={cn(
-                  "group relative flex items-start gap-2 rounded-lg border border-transparent px-1.5 py-1.5 transition-colors",
-                  "hover:bg-raised/70",
+                  "group relative flex items-start gap-2 rounded-lg px-1.5 py-1.5 transition-colors motion-hover",
+                  "hover:bg-wash",
+                  canControl && "cursor-grab active:cursor-grabbing",
                   draggingId === item.itemId && "opacity-50",
                   dropTargetId === item.itemId &&
                     draggingId !== null &&
                     draggingId !== item.itemId &&
-                    "border-accent/60 bg-accent/10",
+                    "bg-accent-surface shadow-[inset_0_0_0_1px_var(--color-accent)]",
                 )}
               >
                 <span className="mt-0.5 w-4 shrink-0 text-right text-2xs tabular-nums text-fg-faint">
@@ -255,9 +256,10 @@ function WatchQueuePanelImpl({
                   // row's right edge on hover/focus instead of taxing every row.
                   <div
                     className={cn(
-                      "absolute right-1.5 top-1 flex items-center gap-0.5 rounded-md",
-                      "border border-stroke bg-raised px-0.5 py-0.5 shadow-sm",
-                      "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100",
+                      "absolute right-1.5 top-1 flex items-center gap-0.5 rounded-lg",
+                      "surface-glass-strong p-0.5",
+                      "opacity-0 transition-opacity motion-hover focus-within:opacity-100 group-hover:opacity-100",
+                      "pointer-coarse:opacity-100",
                     )}
                   >
                     {/* Move buttons are the KEYBOARD path — real buttons in the
@@ -296,7 +298,7 @@ function WatchQueuePanelImpl({
                       size="icon-sm"
                       aria-label={t("desktop:watchParty.queueRemove", { title })}
                       onClick={() => onRemove(item.itemId)}
-                      className="text-danger hover:text-danger"
+                      className="text-danger hover:bg-danger/12 hover:text-danger"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

@@ -1,17 +1,30 @@
+import { useEffect, useRef } from "react";
+import type { LucideIcon } from "lucide-react";
 import { m } from "framer-motion";
-import { Phone, PhoneOff, Video } from "lucide-react";
-import { Button, UserAvatar, cn } from "@demli/ui";
+import { Phone, PhoneIncoming, PhoneOff, Users, Video } from "lucide-react";
+import { UserAvatar } from "@demli/ui";
 import { overlayFade, popIn } from "@demli/app-ui";
 import type { CallState } from "@demli/client-core";
 import { useAppTranslation } from "../lib/i18n";
 import { getCallController } from "../lib/call-controller";
 import { useVoiceStore } from "../stores/voice-store";
+import { CallControl, type CallControlTone } from "./CallControls";
 
 /**
  * Global incoming-call overlay (ADR 0012 Wave 6) — renders on top of every
  * screen while a call is ringing in. Shows the caller, and Accept /
  * Accept-with-video / Decline. The ringtone, native toast, and window raise are
  * driven by {@link CallLayer}; this component is the visual + the actions.
+ *
+ * Koyu Masa card: base tone on the blurred scrim, radius 24, no border, no
+ * shadow, with the coral glow band across the top (the profile-card motif). The
+ * caller's avatar BREATHES — a soft coral halo swelling and settling behind it
+ * while the phone rings, which is the one thing on screen that moves. It stops
+ * under reduced motion (the halo stays, still).
+ *
+ * Every action is a labelled circle, so the three choices are told apart by
+ * position, glyph, word AND colour — never colour alone (decline pink and accept
+ * green collapse under red-green colour blindness).
  *
  * Parent guarantees `state.phase === "incoming"`.
  */
@@ -30,6 +43,16 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
   // SHOW they are busy rather than look ignored.
   const busy = state.pending;
 
+  // Keyboard users land INSIDE the ring card (on the card itself, not on a
+  // button — a stray Enter must never answer or decline), and focus goes back
+  // where it was once the ring ends.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    cardRef.current?.focus({ preventScroll: true });
+    return () => previous?.focus?.({ preventScroll: true });
+  }, []);
+
   const caller = state.peer;
   const isGroup = state.surface?.kind === "group";
   const subtitle = isGroup
@@ -37,6 +60,8 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
     : state.media === "video"
       ? t("desktop:call.incomingVideo")
       : t("desktop:call.incomingVoice");
+  const SubtitleIcon = isGroup ? Users : state.media === "video" ? Video : PhoneIncoming;
+  const callerName = caller?.displayName ?? t("desktop:call.notifyIncomingTitle");
 
   const accept = (withVideo: boolean): void => {
     const controller = getCallController();
@@ -65,63 +90,85 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
     <m.div
       role="dialog"
       aria-modal="true"
-      aria-label={subtitle}
+      aria-label={`${callerName} — ${subtitle}`}
+      data-testid="incoming-call"
       variants={overlayFade}
       initial="initial"
       animate="animate"
       exit="exit"
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center surface-scrim"
     >
       <m.div
+        ref={cardRef}
+        tabIndex={-1}
         variants={popIn}
-        className="w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-stroke bg-surface p-6 text-center shadow-2xl"
+        className="relative w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-card bg-app px-6 pb-6 pt-9 text-center outline-none"
       >
-        <div className="flex justify-center">
+        {/* The coral glow band — the room's warm light, held at the top edge. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(70%_100%_at_50%_0%,var(--color-accent-glow),transparent_72%)]"
+        />
+
+        <div className="relative flex justify-center">
           <span className="relative flex">
-            {/* Pulsing ring to signal the live call */}
-            <span className="absolute inset-0 animate-ping rounded-full bg-accent/30" aria-hidden />
+            {/* Breathing halo: a blurred coral disc swelling and settling on the
+                1.6s pulse while the call rings (`pulse-ring` keyframes). */}
+            <span
+              aria-hidden
+              data-testid="incoming-call-halo"
+              className="absolute -inset-3 rounded-full bg-accent-glow blur-md animate-pulse-ring motion-reduce:animate-none"
+            />
+            <span aria-hidden className="absolute -inset-1 rounded-full shadow-[0_0_0_2px_var(--color-accent)]" />
             <UserAvatar
               name={caller?.displayName ?? "?"}
               colorSeed={caller?.id ?? "call"}
               src={caller?.avatarUrl ?? null}
               size="lg"
+              ring={false}
               className="relative"
             />
           </span>
         </div>
 
-        <h2 className="mt-4 text-lg font-semibold text-fg">
-          {caller?.displayName ?? t("desktop:call.notifyIncomingTitle")}
+        <h2 className="relative mt-6 truncate font-display text-xl font-medium text-fg-display">
+          {callerName}
         </h2>
-        <p className="mt-0.5 text-sm text-fg-muted">{subtitle}</p>
+        <p className="relative mt-1 flex items-center justify-center gap-1.5 text-label text-fg-muted">
+          <SubtitleIcon aria-hidden className="size-3.5 shrink-0" />
+          {subtitle}
+        </p>
 
         {busyElsewhere && (
-          <p className="mt-3 rounded-md border border-idle/30 bg-idle/10 px-3 py-2 text-xs text-idle">
+          <p className="relative mt-4 rounded-lg bg-warning/12 px-3 py-2 text-2xs leading-snug text-warning">
             {t("desktop:call.busyWarning")}
           </p>
         )}
 
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <CallCircleButton
+        <div className="relative mt-7 grid grid-cols-3 gap-2" aria-busy={busy || undefined}>
+          <RingAction
             label={t("desktop:call.decline")}
+            icon={PhoneOff}
+            tone="leave"
             onClick={decline}
-            variant="danger"
             disabled={busy}
-            icon={<PhoneOff className="size-5" />}
+            testId="incoming-decline"
           />
-          <CallCircleButton
+          <RingAction
             label={t("desktop:call.acceptWithVideo")}
+            icon={Video}
+            tone="neutral"
             onClick={() => accept(true)}
-            variant="neutral"
             disabled={busy}
-            icon={<Video className="size-5" />}
+            testId="incoming-accept-video"
           />
-          <CallCircleButton
+          <RingAction
             label={t("desktop:call.accept")}
+            icon={Phone}
+            tone="accept"
             onClick={() => accept(false)}
-            variant="accept"
             disabled={busy}
-            icon={<Phone className="size-5" />}
+            testId="incoming-accept"
           />
         </div>
       </m.div>
@@ -129,34 +176,36 @@ export function IncomingCallDialog({ state }: { state: CallState }): JSX.Element
   );
 }
 
-function CallCircleButton({
+/** One labelled answer circle: the 56px control with its word under it. */
+function RingAction({
   label,
-  onClick,
-  variant,
   icon,
-  disabled = false,
+  tone,
+  onClick,
+  disabled,
+  testId,
 }: {
   label: string;
+  icon: LucideIcon;
+  tone: CallControlTone;
   onClick: () => void;
-  variant: "accept" | "danger" | "neutral";
-  icon: JSX.Element;
-  disabled?: boolean;
+  disabled: boolean;
+  testId: string;
 }): JSX.Element {
-  const tone =
-    variant === "accept"
-      ? "bg-online text-on-accent hover:bg-online/90"
-      : variant === "danger"
-        ? "bg-danger text-on-accent hover:bg-danger/90"
-        : "bg-raised text-fg hover:bg-overlay";
   return (
-    <Button
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn("size-12 rounded-full p-0 disabled:opacity-60", tone)}
-    >
-      {icon}
-    </Button>
+    <div className="flex flex-col items-center gap-2">
+      <CallControl
+        label={label}
+        icon={icon}
+        tone={tone}
+        size="hero"
+        disabled={disabled}
+        onClick={onClick}
+        data-testid={testId}
+      />
+      <span aria-hidden className="text-2xs font-medium leading-tight text-fg-muted">
+        {label}
+      </span>
+    </div>
   );
 }

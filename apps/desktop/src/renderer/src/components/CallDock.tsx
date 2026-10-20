@@ -5,7 +5,7 @@
  * of the conversation). It carries the call-SPECIFIC controls the removed
  * full-screen surface used to hold:
  *
- *  - live connection status (green "Voice/Video connected") + the peer's name;
+ *  - live connection status + the peer's name;
  *  - camera (preview-before-publish via {@link CameraPreviewDialog}, #101),
  *    screen-share (via {@link SourcePicker}), add-person → seamless group upgrade;
  *  - hang up (or cancel while still ringing out);
@@ -14,7 +14,9 @@
  *
  * Mic / deafen / voice-settings are NOT duplicated here — they already live in the
  * always-present UserFooter user bar, which drives the same engine. This keeps the
- * dock compact, exactly like the server {@link VoicePanel} it mirrors.
+ * dock compact, exactly like the server {@link VoicePanel} it mirrors — and it is
+ * drawn with the SAME card, status dot and {@link CallControl}s, so a DM call and
+ * a voice channel read as one product (M16 §1).
  *
  * INSTANT ROOM (founder directive): the controls are live from the RINGING phase
  * onward, not only after the peer answers — the caller's `start()` already joined
@@ -27,7 +29,6 @@
  */
 
 import { useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import {
   LogOut,
   Monitor,
@@ -38,62 +39,37 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@demli/ui";
+import { Button, cn } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { getCallController } from "../lib/call-controller";
 import { useDms } from "../queries/social-queries";
 import { isScreenCaptureAvailable } from "../lib/screen-share";
 import { useVoiceStore } from "../stores/voice-store";
-import { useDmCallSurface } from "../hooks/useDmCallSurface";
+import { useDmCallSurface, type DmCallSurface } from "../hooks/useDmCallSurface";
 import { AloneCountdownNotice } from "./AloneCountdownNotice";
 import { ShareAudioStatus, VoiceErrorNotice } from "./ShareAudioStatus";
 import { VoiceConnectionBars } from "./VoiceConnectionBars";
 import { SourcePicker } from "./SourcePicker";
 import { CameraPreviewDialog } from "./CameraPreviewDialog";
 import { AddCallMemberDialog } from "./AddCallMemberDialog";
+import { CallControl, LiveDot } from "./CallControls";
 
-function DockControl({
-  label,
-  active = false,
-  disabled = false,
-  disabledHint,
-  onClick,
-  icon: Icon,
-}: {
-  label: string;
-  active?: boolean;
-  disabled?: boolean;
-  disabledHint?: string;
-  onClick?: () => void;
-  icon: LucideIcon;
-}): JSX.Element {
-  const button = (
-    <Button
-      variant="secondary"
-      size="icon-sm"
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn("w-full", active && "bg-accent/20 text-accent hover:bg-accent/30")}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-  return (
-    <Tooltip>
-      {/* span keeps tooltips working on disabled buttons */}
-      <TooltipTrigger asChild>
-        {disabled ? <span className="w-full">{button}</span> : button}
-      </TooltipTrigger>
-      <TooltipContent side="top">{disabledHint ?? label}</TooltipContent>
-    </Tooltip>
-  );
-}
+/** The dock's card — the same surface the server-channel VoicePanel uses. */
+const DOCK_CARD = "mx-2 mb-2 rounded-xl bg-surface p-2.5 animate-pop-in";
 
 export function CallDock(): JSX.Element | null {
+  return <CallDockView surface={useDmCallSurface()} />;
+}
+
+/**
+ * The dock itself, fed the call surface instead of reading it. Split only so the
+ * dev harness can render every call phase (ringing, connecting, live, seat away)
+ * through the REAL component without a live call controller; production always
+ * goes through {@link CallDock}.
+ */
+export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Element | null {
   const { t } = useAppTranslation();
-  const { state, onCallDm, callDmId, seatedHere } = useDmCallSurface();
+  const { state, onCallDm, callDmId, seatedHere } = surface;
   const { data: dms } = useDms();
 
   const status = useVoiceStore((s) => s.status);
@@ -115,8 +91,8 @@ export function CallDock(): JSX.Element | null {
     state.peer ?? (dms ?? []).find((d) => d.id === callDmId)?.participant ?? null;
   const peerName = peer?.displayName ?? t("desktop:call.calling");
 
-  // Status line: ringing → "Ringing…"; connected → voice/video-connected (green);
-  // otherwise the media is still coming up → "Connecting…".
+  // Status line: ringing → "Ringing…"; connected → voice/video-connected (the
+  // room's coral light); otherwise the media is still coming up → "Connecting…".
   const statusText = ringing
     ? t("desktop:call.ringing")
     : connected
@@ -124,7 +100,7 @@ export function CallDock(): JSX.Element | null {
         ? t("desktop:call.videoConnected")
         : t("desktop:call.voiceConnected")
       : t("desktop:call.connecting");
-  const statusClass = ringing ? "text-idle" : connected ? "text-online" : "text-idle";
+  const statusClass = ringing || !connected ? "text-warning" : "text-accent";
 
   const canShareScreen = connected && isScreenCaptureAvailable();
 
@@ -162,45 +138,52 @@ export function CallDock(): JSX.Element | null {
     return (
       <section
         aria-label={t("desktop:call.controlsLabel")}
-        className="mx-2 mb-1.5 rounded-lg border border-stroke bg-surface p-2"
+        data-testid="call-dock"
+        data-seat={state.seat}
+        className={DOCK_CARD}
       >
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-            <Smartphone className="size-3.5" />
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-surface text-accent-hover">
+            {elsewhere ? (
+              <Smartphone aria-hidden className="size-4" />
+            ) : (
+              <LogOut aria-hidden className="size-4" />
+            )}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-fg">
+            {/* Two lines, never an ellipsis: at the real w-60 sidebar the TR/EN
+                seat titles are wider than one line, and this is the sentence that
+                says where the call is. */}
+            <p
+              data-testid="call-dock-title"
+              title={elsewhere ? t("desktop:call.seatElsewhere") : t("desktop:call.seatVacant")}
+              className="line-clamp-2 break-words text-label font-semibold leading-snug text-fg"
+            >
               {elsewhere ? t("desktop:call.seatElsewhere") : t("desktop:call.seatVacant")}
             </p>
-            <p className="truncate text-2xs text-fg-muted">{peerName}</p>
+            <p className="truncate text-2xs text-fg-faint">{peerName}</p>
           </div>
         </div>
-        <p className="mt-1.5 text-2xs leading-snug text-fg-muted">
+        <p className="mt-2 text-2xs leading-snug text-fg-muted">
           {elsewhere ? t("desktop:call.seatElsewhereHint") : t("desktop:call.seatVacantHint")}
         </p>
-        <div className="mt-2 flex items-center gap-1">
+        <div className="mt-2.5 flex items-center gap-1.5">
           <Button
             size="sm"
+            variant="accent"
             className="flex-1"
             onClick={() => void getCallController()?.joinHere()}
-            disabled={state.pending}
+            loading={state.pending}
           >
             {elsewhere ? t("desktop:call.bringHere") : t("desktop:call.rejoin")}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("desktop:call.hangUp")}
-                onClick={() => void getCallController()?.hangup()}
-                className="hover:bg-danger/15 hover:text-danger"
-              >
-                <PhoneOff className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{t("desktop:call.hangUp")}</TooltipContent>
-          </Tooltip>
+          <CallControl
+            label={t("desktop:call.hangUp")}
+            icon={PhoneOff}
+            tone="leave"
+            size="round-sm"
+            onClick={() => void getCallController()?.hangup()}
+          />
         </div>
       </section>
     );
@@ -209,32 +192,40 @@ export function CallDock(): JSX.Element | null {
   return (
     <section
       aria-label={t("desktop:call.controlsLabel")}
-      className="mx-2 mb-1.5 rounded-lg border border-stroke bg-surface p-2"
+      data-testid="call-dock"
+      data-phase={state.phase}
+      className={DOCK_CARD}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className={cn("text-xs font-semibold", statusClass)}>{statusText}</p>
-          <p className="truncate text-2xs text-fg-muted">{peerName}</p>
+        <div className="flex min-w-0 items-center gap-2.5 pl-0.5">
+          <LiveDot tone={ringing || !connected ? "pending" : "live"} />
+          <div className="min-w-0">
+            {/* The connection state is the line a user reads first, so it wraps
+                (two lines max) instead of truncating: "Görüntülü bağlantı kuruldu"
+                does not fit one line of the 240px sidebar next to the bars and
+                the leave control. */}
+            <p
+              role="status"
+              data-testid="call-dock-status"
+              title={statusText}
+              className={cn("line-clamp-2 break-words text-label font-semibold leading-snug", statusClass)}
+            >
+              {statusText}
+            </p>
+            <p className="truncate text-2xs text-fg-faint">{peerName}</p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {/* Ping / connection-quality bars — self-hides unless connected. */}
           <VoiceConnectionBars />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={ringing ? t("desktop:call.cancel") : t("desktop:call.leaveRoom")}
-                onClick={end}
-                className="hover:bg-danger/15 hover:text-danger"
-              >
-                {ringing ? <PhoneOff className="size-4" /> : <LogOut className="size-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {ringing ? t("desktop:call.cancel") : t("desktop:call.leaveRoom")}
-            </TooltipContent>
-          </Tooltip>
+          <CallControl
+            label={ringing ? t("desktop:call.cancel") : t("desktop:call.leaveRoom")}
+            icon={ringing ? PhoneOff : LogOut}
+            tone="leave"
+            size="round-sm"
+            onClick={end}
+            data-testid="call-dock-leave"
+          />
         </div>
       </div>
 
@@ -250,38 +241,40 @@ export function CallDock(): JSX.Element | null {
 
       {/* Controls are live from the ringing phase on — the room is already joined.
           Gating is per-control on the ENGINE status, never on the call phase. */}
-      <div className="mt-2 grid grid-cols-3 gap-1">
-        <DockControl
+      <div className="mt-2.5 grid grid-cols-3 gap-1">
+        <CallControl
           label={cameraEnabled ? t("desktop:voice.stopCamera") : t("desktop:voice.camera")}
-          active={cameraEnabled}
+          icon={cameraEnabled ? Video : VideoOff}
+          tone={cameraEnabled ? "on" : "neutral"}
+          pressed={cameraEnabled}
           disabled={!connected && !cameraEnabled}
           disabledHint={t("desktop:call.connecting")}
           onClick={onCameraClick}
-          icon={cameraEnabled ? Video : VideoOff}
         />
-        <DockControl
+        <CallControl
           label={
             screenShareEnabled ? t("desktop:voice.stopSharing") : t("desktop:voice.shareScreen")
           }
-          active={screenShareEnabled}
+          icon={screenShareEnabled ? MonitorOff : Monitor}
+          tone={screenShareEnabled ? "on" : "neutral"}
+          pressed={screenShareEnabled}
           disabled={!canShareScreen && !screenShareEnabled}
           disabledHint={
             connected ? t("desktop:voice.shareNeedsDesktop") : t("desktop:call.connecting")
           }
           onClick={onScreenShareClick}
-          icon={screenShareEnabled ? MonitorOff : Monitor}
         />
-        <DockControl
+        <CallControl
           // The upgrade endpoint requires an ACTIVE call (409 otherwise), so this
           // one really is unavailable while ringing — disabled with a hint, not
           // hidden and not a dead button (§35).
           label={t("desktop:call.addPerson")}
+          icon={UserPlus}
           disabled={!connected || ringing}
           disabledHint={
             ringing ? t("desktop:call.addPersonNeedsAnswer") : t("desktop:call.connecting")
           }
           onClick={() => setAddOpen(true)}
-          icon={UserPlus}
         />
       </div>
 

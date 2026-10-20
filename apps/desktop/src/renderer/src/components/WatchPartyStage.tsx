@@ -201,20 +201,26 @@ export function WatchPartyStage({
     <div className={cn("flex h-full w-full min-h-0 flex-col gap-2", className)}>
       {/* Status band. Compact on purpose — the video is the point, and this is
           the smallest amount of chrome that still answers "who is driving?". */}
-      <div className="flex shrink-0 items-center gap-2 rounded-lg border border-stroke bg-rail/60 px-3 py-1.5">
+      <div
+        data-testid="watch-band"
+        // Borderless band one tone above the stage card; the coral TV glyph is
+        // the party's one warm mark.
+        className="flex shrink-0 items-center gap-2 rounded-xl bg-surface py-1.5 pl-3 pr-1.5"
+      >
         <Tv className="size-4 shrink-0 text-accent" aria-hidden />
-        <span className="shrink-0 text-xs font-semibold text-fg">
+        <span className="shrink-0 font-display text-label font-medium text-fg-display">
           {t("desktop:watchParty.title")}
         </span>
-        <span aria-hidden className="h-3.5 w-px shrink-0 bg-stroke-strong" />
+        <span aria-hidden className="size-1 shrink-0 rounded-full bg-fg-subtle" />
         <div className="flex min-w-0 items-center gap-1.5">
           <UserAvatar
             name={hostName ?? "?"}
             colorSeed={session.hostId}
             src={hostAvatarUrl}
             size="xs"
+            className="[--avatar-ring:var(--color-surface)]"
           />
-          <p className="truncate text-xs text-fg-muted">
+          <p className="truncate text-label text-fg-muted">
             {isHost
               ? t("desktop:watchParty.youAreHost")
               : t("desktop:watchParty.hostedBy", {
@@ -296,11 +302,10 @@ export function WatchPartyStage({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="secondary"
+                  variant="danger"
                   size="icon-sm"
                   aria-label={t("desktop:watchParty.stop")}
                   onClick={() => stopWatchParty(channelId)}
-                  className="text-danger hover:text-danger"
                 >
                   <Square className="size-4" />
                 </Button>
@@ -311,7 +316,7 @@ export function WatchPartyStage({
         )}
 
         {!isHost && (
-          <p className="hidden shrink-0 text-2xs text-fg-faint sm:block">
+          <p className="hidden shrink-0 rounded-pill bg-wash px-2 py-0.5 text-2xs text-fg-faint sm:block">
             {t("desktop:watchParty.viewerMode")}
           </p>
         )}
@@ -320,9 +325,9 @@ export function WatchPartyStage({
       {refusalMessage !== null && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-1.5"
+          className="flex shrink-0 items-center gap-2 rounded-xl bg-danger-surface py-1.5 pl-3 pr-1.5 animate-fade-in"
         >
-          <p className="min-w-0 flex-1 text-xs text-fg">{refusalMessage}</p>
+          <p className="min-w-0 flex-1 text-label text-fg">{refusalMessage}</p>
           <Button variant="ghost" size="sm" onClick={clearRefusal}>
             {t("desktop:watchParty.dismiss")}
           </Button>

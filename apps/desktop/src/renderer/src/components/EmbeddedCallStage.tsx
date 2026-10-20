@@ -40,9 +40,10 @@ import { UserAvatar } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
 import { useDms } from "../queries/social-queries";
 import { useVideoStageStore } from "../stores/video-stage-store";
-import { useDmCallSurface } from "../hooks/useDmCallSurface";
+import { useDmCallSurface, type DmCallSurface } from "../hooks/useDmCallSurface";
 import { VideoStage } from "./VideoStage";
 import { StageHeightHandle } from "./StageHeightHandle";
+import { LiveDot } from "./CallControls";
 
 /** Embedded-stage height bounds (px). Default sits ~half the typical window. */
 const MIN_HEIGHT = 220;
@@ -59,8 +60,17 @@ const clampHeight = (n: number): number =>
   n < MIN_HEIGHT ? MIN_HEIGHT : n > MAX_HEIGHT ? MAX_HEIGHT : n;
 
 export function EmbeddedCallStage(): JSX.Element | null {
+  return <EmbeddedCallStageView surface={useDmCallSurface()} />;
+}
+
+/**
+ * The stage itself, fed the call surface instead of reading it — split only so
+ * the dev harness can render the ringing and the live phase through the REAL
+ * component; production always goes through {@link EmbeddedCallStage}.
+ */
+export function EmbeddedCallStageView({ surface }: { surface: DmCallSurface }): JSX.Element | null {
   const { t } = useAppTranslation();
-  const { state, onCallDm, callDmId, seatedHere } = useDmCallSurface();
+  const { state, onCallDm, callDmId, seatedHere } = surface;
   const { data: dms } = useDms();
   // A tile blown up to fullscreen leaves the flow (fixed inset-0), so collapse our
   // reserved height to 0 while it does — the chat beneath stays correct behind the
@@ -91,29 +101,30 @@ export function EmbeddedCallStage(): JSX.Element | null {
     <section
       aria-label={t("desktop:call.regionLabel")}
       style={{ height: fullscreen ? 0 : height }}
-      className="flex shrink-0 flex-col overflow-hidden bg-app"
+      className="flex shrink-0 flex-col overflow-hidden bg-rail"
     >
       {/* Ringing badge — a slim row, never a blocking panel: the room underneath
           stays fully usable while the peer's phone rings. */}
       {ringing && (
         <div
           role="status"
-          className="flex shrink-0 items-center gap-2 border-b border-stroke/70 bg-surface/40 px-4 py-1.5"
+          data-testid="call-ringing-band"
+          // Borderless band one tone above the conversation; it slides in with the
+          // ring and is the only thing that tells you the other phone is ringing.
+          className="flex shrink-0 items-center gap-2.5 bg-surface px-4 py-2 animate-fade-in"
         >
-          <span className="relative flex size-2 shrink-0" aria-hidden>
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent/70" />
-            <span className="relative inline-flex size-2 rounded-full bg-accent" />
-          </span>
+          <LiveDot tone="pending" />
           <UserAvatar
             name={peer?.displayName ?? "?"}
             colorSeed={peer?.id ?? callDmId ?? "call"}
             src={peer?.avatarUrl ?? null}
             size="xs"
+            className="[--avatar-ring:var(--color-surface)]"
           />
-          <p className="truncate text-xs font-semibold text-fg">
+          <p className="truncate text-label font-semibold text-fg-display">
             {peer?.displayName ?? t("desktop:call.calling")}
           </p>
-          <p className="shrink-0 text-xs text-fg-muted">{t("desktop:call.ringing")}</p>
+          <p className="shrink-0 text-label text-warning">{t("desktop:call.ringing")}</p>
           <p className="ml-auto hidden truncate text-2xs text-fg-faint sm:block">
             {t("desktop:call.ringingStageHint")}
           </p>

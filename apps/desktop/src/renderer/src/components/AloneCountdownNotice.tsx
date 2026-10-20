@@ -49,13 +49,17 @@ export function AloneCountdownNotice({ className }: { className?: string }): JSX
   return (
     <p
       role="status"
+      data-testid="alone-countdown"
+      // Koyu Masa notice: a borderless amber wash (warning shares the gold
+      // token) with the glyph carrying the meaning alongside the colour. The
+      // ticking time uses tabular figures so the line does not jitter each second.
       className={cn(
-        "flex items-start gap-1.5 rounded-md border border-idle/40 bg-idle/10",
-        "px-2 py-1.5 text-2xs leading-snug text-idle",
+        "flex items-start gap-2 rounded-lg bg-warning/12 px-2.5 py-2",
+        "text-2xs leading-snug tabular-nums text-warning animate-fade-in",
         className,
       )}
     >
-      <UserMinus className="mt-px size-3.5 shrink-0" />
+      <UserMinus aria-hidden className="mt-px size-3.5 shrink-0" />
       <span>{label}</span>
     </p>
   );

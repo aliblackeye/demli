@@ -18,6 +18,8 @@ import { memo, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } fro
 import { cn } from "@demli/ui";
 import { startLocalPreviewPlayback } from "../lib/video-playback";
 import { VideoTileLabel } from "./VideoTileLabel";
+import { ShareLiveBadges, useReceivedVideoHeight } from "./ScreenShareTile";
+import { TileFocusRing } from "./AvatarTile";
 
 export interface LocalScreenShareTileProps {
   /** The raw local screen-capture video track (same one published to LiveKit). */
@@ -26,8 +28,6 @@ export interface LocalScreenShareTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
 }
 
 export const LocalScreenShareTile = memo(function LocalScreenShareTile({
@@ -35,9 +35,11 @@ export const LocalScreenShareTile = memo(function LocalScreenShareTile({
   label,
   className,
   onSelect,
-  active = false,
 }: LocalScreenShareTileProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // What you are SENDING, read off your own capture frames — the same measured
+  // pill viewers see on their side.
+  const sentHeight = useReceivedVideoHeight(videoRef, track);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -73,20 +75,31 @@ export const LocalScreenShareTile = memo(function LocalScreenShareTile({
             },
           }
         : {})}
+      data-testid="local-screen-tile"
       className={cn(
-        "relative flex w-full items-center justify-center overflow-hidden",
-        "rounded-lg border border-stroke bg-black",
-        interactive &&
-          "cursor-pointer outline-none transition hover:border-accent/60 focus-visible:ring-2 focus-visible:ring-accent",
-        active && "border-accent ring-2 ring-accent",
+        "group/tile relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-rail",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
       <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
+      {interactive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-wash opacity-0 transition-opacity motion-hover group-hover/tile:opacity-100"
+        />
+      )}
+      {/* You are live: the same CANLI pill viewers see on your share. */}
+      <ShareLiveBadges height={sentHeight} showQuality />
       {/* Persistent identity chip — same component + bottom-left placement as the
           camera tiles and the remote screen tile (founder #3): "Your broadcast",
           always visible so you can tell your own preview at a glance. */}
       <VideoTileLabel name={label} screenSharing />
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 });

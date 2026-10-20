@@ -36,6 +36,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
+  Select,
+  Skeleton,
   cn,
 } from "@demli/ui";
 import { useAppTranslation } from "../lib/i18n";
@@ -201,20 +204,26 @@ export function CameraPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" closeLabel={t("buttons.close")}>
         <DialogHeader>
           <DialogTitle>{t("desktop:voice.cameraPreview.title")}</DialogTitle>
           <DialogDescription>{t("desktop:voice.cameraPreview.description")}</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-3">
+        <DialogBody className="space-y-4">
           {/* Preview surface. Upright, whole frame, NOT mirrored — consistent with
               the live self-view (LocalCameraTile): the local user sees exactly
-              what peers see. */}
-          <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-stroke bg-black">
+              what peers see. Borderless on the page black, radius 16. */}
+          <div
+            data-testid="camera-preview"
+            data-state={errorMessage ? "error" : ready ? "ready" : "starting"}
+            className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-rail"
+          >
             {errorMessage ? (
-              <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
-                <VideoOff className="size-8 text-fg-faint" />
-                <p className="text-sm leading-snug text-fg-muted">{errorMessage}</p>
+              <div role="alert" className="flex flex-col items-center gap-3 px-6 py-8 text-center animate-fade-in">
+                <span className="flex size-11 items-center justify-center rounded-full bg-danger-surface text-danger">
+                  <VideoOff aria-hidden className="size-5" />
+                </span>
+                <p className="text-label leading-snug text-fg-muted">{errorMessage}</p>
                 <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
                   {t("desktop:voice.cameraPreview.retry")}
                 </Button>
@@ -227,14 +236,20 @@ export function CameraPreviewDialog({
                   playsInline
                   muted
                   className={cn(
-                    "h-full w-full object-contain transition-opacity",
+                    "h-full w-full object-contain transition-opacity motion-standard",
                     ready ? "opacity-100" : "opacity-0",
                   )}
                 />
                 {!ready && (
-                  <p className="absolute text-xs text-fg-faint">
-                    {t("desktop:voice.cameraPreview.starting")}
-                  </p>
+                  // Starting: the frame's own shape pulses while the camera wakes
+                  // up — a skeleton, not a spinner (founder rule).
+                  <div role="status" className="absolute inset-0 flex items-center justify-center">
+                    <Skeleton className="absolute inset-0 rounded-none" />
+                    <p className="relative flex items-center gap-1.5 text-2xs font-medium text-fg-muted">
+                      <Video aria-hidden className="size-3.5" />
+                      {t("desktop:voice.cameraPreview.starting")}
+                    </p>
+                  </div>
                 )}
               </>
             )}
@@ -243,33 +258,25 @@ export function CameraPreviewDialog({
           {/* Camera picker — reuses the shared enumeration (labels appear once
               camera access is granted). Hidden until there is a real choice. */}
           {cameras.length > 0 && (
-            <label className="flex flex-col gap-1.5">
-              <span className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">
-                {t("desktop:voice.cameraPreview.device")}
-              </span>
-              <select
-                value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
-                className={cn(
-                  "w-full rounded-md border border-stroke bg-raised px-3 py-2 text-sm text-fg",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                )}
-              >
-                {cameras.map((device, index) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || fallbackLabel("videoinput", device.deviceId, index, t)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Field label={t("desktop:voice.cameraPreview.device")}>
+              <Select
+                value={deviceId === "" ? undefined : deviceId}
+                onValueChange={setDeviceId}
+                placeholder={t("desktop:devices.systemDefault")}
+                options={cameras.map((device, index) => ({
+                  value: device.deviceId,
+                  label: device.label || fallbackLabel("videoinput", device.deviceId, index, t),
+                }))}
+              />
+            </Field>
           )}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("desktop:voice.cameraPreview.cancel")}
           </Button>
-          <Button onClick={confirm} disabled={!!error} className="gap-1.5">
-            <Video className="size-4" />
+          <Button variant="accent" onClick={confirm} disabled={!!error}>
+            <Video aria-hidden className="size-4" />
             {t("desktop:voice.cameraPreview.confirm")}
           </Button>
         </DialogFooter>

@@ -74,6 +74,10 @@ export function StageResizeHandle({
       role="separator"
       aria-orientation="vertical"
       aria-label={ariaLabel}
+      // A focusable separator is a value control (WAI-ARIA window splitter).
+      aria-valuenow={Math.round(widthPx)}
+      aria-valuemin={minPx}
+      aria-valuemax={maxPx}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -81,15 +85,15 @@ export function StageResizeHandle({
       onPointerCancel={endDrag}
       onKeyDown={onKeyDown}
       className={cn(
-        "group/resize relative flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center",
-        "outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "group/resize relative flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center rounded-full",
+        "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
       )}
     >
       {/* Slim grip line that thickens/accents on hover or focus. */}
       <span
         className={cn(
-          "h-10 w-0.5 rounded-full bg-stroke transition-colors",
-          "group-hover/resize:bg-accent group-focus-visible/resize:bg-accent",
+          "h-10 w-1 rounded-full bg-stroke-strong transition-colors motion-hover",
+          "group-hover/resize:bg-accent group-focus-visible/resize:bg-accent group-active/resize:bg-accent-pressed",
         )}
       />
     </div>

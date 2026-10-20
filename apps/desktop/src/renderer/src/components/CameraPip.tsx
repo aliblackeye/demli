@@ -32,7 +32,7 @@
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { VideoOff, X } from "lucide-react";
-import { Button, UserAvatar, cn } from "@demli/ui";
+import { UserAvatar, cn } from "@demli/ui";
 import type { CameraSource } from "@demli/media";
 import { useAppTranslation } from "../lib/i18n";
 import { useElementSize, type Size } from "../hooks/useElementSize";
@@ -76,17 +76,16 @@ function SelfViewCameraOff(): JSX.Element {
     <div
       data-testid="self-view-camera-off"
       className={cn(
-        "flex h-full w-full flex-col items-center justify-center gap-1.5",
-        "rounded-lg border border-stroke-strong bg-rail",
-        // Same warm identity ramp as a camera-off participant tile, dimmed for a
-        // 220px box so the caption stays the loudest thing in it.
-        "bg-[radial-gradient(120%_95%_at_30%_12%,rgba(245,84,22,0.10)_0%,rgba(12,4,3,0.9)_60%,var(--color-rail)_100%)]",
+        // Same neutral surface as a camera-off participant tile; the caption is
+        // the loudest thing in a 220px box, because the STATE is the message.
+        "flex h-full w-full flex-col items-center justify-center gap-2 rounded-[inherit] bg-surface",
+        "[--avatar-ring:var(--color-surface)]",
       )}
     >
       <UserAvatar name={name} colorSeed={me?.id ?? name} src={me?.avatarUrl ?? null} size="md" />
       <div className="flex items-center gap-1 px-2">
-        <VideoOff className="size-3 shrink-0 text-fg-muted" />
-        <span className="truncate text-[11px] font-medium text-fg-muted">
+        <VideoOff aria-hidden className="size-3 shrink-0 text-fg-muted" />
+        <span className="truncate text-2xs font-medium text-fg-muted">
           {t("desktop:stage.selfViewCameraOff")}
         </span>
       </div>
@@ -177,22 +176,31 @@ export function CameraPip({
       className={cn(
         // aspect-video gives the overlay a definite height (the camera tiles fill
         // it with h-full and no longer carry their own aspect ratio).
-        "absolute z-20 aspect-video w-[220px] max-w-[45%] cursor-move touch-none select-none",
-        "rounded-lg shadow-2xl ring-1 ring-black/60",
-        live && "opacity-95",
+        "group/pip absolute z-20 aspect-video w-[220px] max-w-[45%] touch-none select-none overflow-hidden rounded-xl",
+        // Floating over video it needs ONE functional edge, or a dark frame
+        // melts into a dark film: a hairline in the stroke token, nothing more.
+        "ring-1 ring-stroke-strong",
+        live ? "cursor-grabbing opacity-95" : "cursor-grab",
+        // On release the box GLIDES to its corner on the position spring
+        // instead of teleporting; while dragging it tracks the pointer 1:1.
+        !live && "transition-[left,top] motion-spring",
       )}
     >
       {tile}
-      <Button
+      <button
+        type="button"
         data-pip-close
-        variant="secondary"
-        size="icon-sm"
         aria-label={self ? t("desktop:stage.selfViewOff") : t("desktop:stage.pipOff")}
         onClick={onClose}
-        className="absolute right-1 top-1 size-6 bg-black/60 text-white hover:bg-black/80"
+        className={cn(
+          "absolute right-1.5 top-1.5 z-30 flex size-6 items-center justify-center rounded-full surface-glass-strong text-fg",
+          "opacity-0 transition-[opacity,background-color] motion-hover hover:bg-raised",
+          "group-hover/pip:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "pointer-coarse:opacity-100",
+        )}
       >
-        <X className="size-3.5" />
-      </Button>
+        <X aria-hidden className="size-3.5" />
+      </button>
     </div>
   );
 }

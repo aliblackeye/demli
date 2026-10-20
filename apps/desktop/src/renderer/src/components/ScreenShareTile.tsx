@@ -15,9 +15,10 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
 } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import { cn } from "@demli/ui";
+import { Slider, badgeVariants, cn } from "@demli/ui";
 import {
   DEFAULT_PARTICIPANT_VOLUME,
   ELEMENT_PLAYBACK_MAX_VOLUME,
@@ -29,6 +30,8 @@ import { useVoiceStore } from "../stores/voice-store";
 import { useScreenShareVolumes } from "../stores/screen-share-volume-store";
 import { useAutoHideOverlay } from "../hooks/useAutoHideOverlay";
 import { VideoTileLabel } from "./VideoTileLabel";
+import { LivePill } from "./CallControls";
+import { TileFocusRing } from "./AvatarTile";
 
 export interface ScreenShareTileProps {
   share: RemoteScreenShare;
@@ -37,8 +40,6 @@ export interface ScreenShareTileProps {
   className?: string;
   /** When provided the tile becomes clickable (promote to / exit the stage). */
   onSelect?: () => void;
-  /** Highlight this tile as the current stage item (accent ring). */
-  active?: boolean;
   /**
    * Show the per-share FILM-audio volume slider (task #82). On for the large
    * watching stage; off for tiny filmstrip tiles where it would just crowd.
@@ -48,6 +49,61 @@ export interface ScreenShareTileProps {
 
 /** 5% slider increments up to 100% — matches the per-user volume menu. */
 const VOLUME_STEP = 0.05;
+
+/**
+ * The resolution the viewer is ACTUALLY receiving, read from the decoded frames
+ * (`videoHeight`), never from what the sharer asked for: with adaptiveStream and
+ * simulcast the SFU can hand a small tile a lower layer, and the pill must not
+ * claim a 1080p the viewer is not getting. Updates on the element's `resize`
+ * event (fired when the decoded size changes, e.g. a layer switch) — no timer.
+ * Null until the first frame, so nothing is shown before it is known.
+ */
+export function useReceivedVideoHeight(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  key: unknown,
+): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const read = (): void => setHeight(el.videoHeight > 0 ? el.videoHeight : null);
+    read();
+    el.addEventListener("resize", read);
+    el.addEventListener("loadedmetadata", read);
+    return () => {
+      el.removeEventListener("resize", read);
+      el.removeEventListener("loadedmetadata", read);
+    };
+  }, [videoRef, key]);
+  return height;
+}
+
+/** The top-left "CANLI · 1080p" pair shared by the remote and local share tiles. */
+export function ShareLiveBadges({
+  height,
+  showQuality,
+}: {
+  height: number | null;
+  showQuality: boolean;
+}): JSX.Element {
+  const { t } = useAppTranslation();
+  return (
+    <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1.5">
+      <LivePill label={t("desktop:stage.live")} />
+      {showQuality && height !== null && (
+        <span
+          data-testid="share-quality"
+          className={cn(
+            badgeVariants({ variant: "veil" }),
+            "bg-scrim px-1.5 py-px text-badge font-semibold leading-4 tabular-nums text-fg-display",
+          )}
+        >
+          {`${height}p`}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /**
  * Hover control for the WATCHED share's film-audio volume — SEPARATE from the
@@ -77,49 +133,49 @@ function ScreenShareVolumeControl({
     if (!draggingRef.current) setValue(stored);
   }, [stored]);
 
-  const percent = Math.round(value * 100);
   const commit = (next: number): void => {
     setValue(next);
     setScreenShareVolume(userId, next);
   };
+  const silent = value <= MIN_PARTICIPANT_VOLUME + 1e-6 || deafened;
 
   return (
     <div
       // Sit above the tile's own click target so adjusting audio never promotes /
       // exits the stage; and don't fade the control mid-drag.
       onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
+      onPointerDown={() => (draggingRef.current = true)}
+      onPointerUp={() => (draggingRef.current = false)}
+      onPointerCancel={() => (draggingRef.current = false)}
+      data-testid="share-volume"
       className={cn(
-        "absolute right-3 top-3 flex items-center gap-2 rounded-md px-2 py-1.5",
-        // Frosted control chip over the shared screen: warm-neutral glass with a
-        // 1px hairline + inner edge highlight (glass-edge) so it reads as lifted
-        // glass rather than a flat black box (redesign-skill "true glassmorphism").
-        "border border-white/10 bg-black/60 text-white backdrop-blur transition-opacity motion-fast glass-edge",
+        // Koyu Masa floating chip over the film: strong glass, pill, no border.
+        "absolute right-3 top-3 z-10 flex w-52 items-center gap-2 rounded-pill surface-glass-strong py-1 pl-3 pr-1.5",
+        "transition-opacity motion-fast",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
+        // Keyboard: focusing the slider of a faded chip shows it.
+        "focus-within:pointer-events-auto focus-within:opacity-100",
       )}
     >
-      {value <= MIN_PARTICIPANT_VOLUME + 1e-6 || deafened ? (
-        <VolumeX className="size-3.5 shrink-0 text-white/80" aria-hidden />
+      {silent ? (
+        <VolumeX className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
       ) : (
-        <Volume2 className="size-3.5 shrink-0 text-white/80" aria-hidden />
+        <Volume2 className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
       )}
-      <input
-        type="range"
+      <Slider
+        className="flex-1 gap-2"
         min={MIN_PARTICIPANT_VOLUME}
         max={ELEMENT_PLAYBACK_MAX_VOLUME}
         step={VOLUME_STEP}
         value={value}
         disabled={deafened}
+        onValueChange={commit}
+        formatValue={(v) => `${Math.round(v * 100)}%`}
+        showValue
         aria-label={t("desktop:voice.shareVolumeFor", { name })}
-        aria-valuetext={`${percent}%`}
-        onPointerDown={() => (draggingRef.current = true)}
-        onPointerUp={() => (draggingRef.current = false)}
-        onChange={(e) => commit(e.currentTarget.valueAsNumber)}
-        className="h-1.5 w-24 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-40"
       />
-      <span className="w-8 text-right text-badge font-medium tabular-nums text-white/80">
-        {percent}%
-      </span>
     </div>
   );
 }
@@ -134,7 +190,6 @@ export const ScreenShareTile = memo(function ScreenShareTile({
   sharerName,
   className,
   onSelect,
-  active = false,
   showVolume = false,
 }: ScreenShareTileProps): JSX.Element {
   const { t } = useAppTranslation();
@@ -144,6 +199,7 @@ export const ScreenShareTile = memo(function ScreenShareTile({
   // sharer's NAME is a separate, PERSISTENT corner label (founder #3), matching
   // the camera tiles' identity chip.
   const { visible: controlsVisible, handlers: autoHide } = useAutoHideOverlay();
+  const receivedHeight = useReceivedVideoHeight(videoRef, share);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -185,14 +241,12 @@ export const ScreenShareTile = memo(function ScreenShareTile({
             },
           }
         : {})}
+      data-testid="screen-share-tile"
       className={cn(
-        "relative flex w-full items-center justify-center overflow-hidden",
-        "rounded-lg border border-stroke bg-black",
-        // Inset rings — this tile also renders inside the scrollable camera panel,
-        // which clips on all four sides. See AvatarTile for the full reasoning.
-        interactive &&
-          "cursor-pointer outline-none transition hover:border-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
-        active && "border-accent ring-2 ring-inset ring-accent",
+        "group/tile relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-rail",
+        // Focus is drawn by <TileFocusRing> (an inset overlay above the video),
+        // not by a ring on this box: the <video> would paint over it.
+        interactive && "cursor-pointer outline-none",
         className,
       )}
     >
@@ -203,6 +257,13 @@ export const ScreenShareTile = memo(function ScreenShareTile({
         muted
         className="h-full w-full object-contain"
       />
+      {interactive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-wash opacity-0 transition-opacity motion-hover group-hover/tile:opacity-100"
+        />
+      )}
+      <ShareLiveBadges height={receivedHeight} showQuality={showVolume} />
       {/* Persistent identity chip: WHO is sharing, always visible, same component +
           bottom-left placement as the camera tiles' name label (founder #3). The
           screen glyph marks it as a share at a glance. */}
@@ -214,6 +275,9 @@ export const ScreenShareTile = memo(function ScreenShareTile({
           visible={controlsVisible}
         />
       )}
+      {/* Keyboard focus mark — above the <video>, which would cover a ring on
+          the tile box. */}
+      {interactive && <TileFocusRing />}
     </div>
   );
 });
