@@ -152,6 +152,13 @@ interface VoiceStore extends VoiceState {
   /** True while {@link VoiceStore.sendSystemShareSound} is starting the capture. */
   shareAudioSwitching: boolean;
   /**
+   * True from the moment a share is requested until it is live or has failed.
+   * Acquisition can take seconds ("app" sound warms up a process capture) while
+   * `screenShareEnabled` is still false; share controls read this to stay
+   * disabled so the picker cannot be reopened and a second share started.
+   */
+  screenShareStarting: boolean;
+  /**
    * Join a voice channel (fetches a token, connects the engine). Fire-and-forget.
    * `options.audioBitrateKbps` (the channel's configured mic bitrate, M7c) is
    * applied to this join's mic publish; null/omitted uses the media default.
@@ -428,6 +435,7 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
   roomLabel: null,
   screenShareAudio: IDLE_SHARE_AUDIO,
   shareAudioSwitching: false,
+  screenShareStarting: false,
 
   join: (channelId, options) => {
     const { roomId, status } = engine.getState();
@@ -524,9 +532,14 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
   },
 
   startScreenShare: (sourceId, options) => {
+    // One share at a time: a start already coming up (or a live share) owns the
+    // token, the staged audio state and the self-preview. A second start here
+    // would supersede the first's bookkeeping while the first still publishes.
+    const current = useVoiceStore.getState();
+    if (current.screenShareStarting || current.screenShareEnabled) return;
     const shareOptions = options ?? startOptionsFor(sourceId, loadScreenSharePrefs());
     stopFilmAudioSupervisor();
-    useVoiceStore.setState({ screenShareAudio: IDLE_SHARE_AUDIO });
+    useVoiceStore.setState({ screenShareAudio: IDLE_SHARE_AUDIO, screenShareStarting: true });
     const shareToken = ++shareAttempt;
     // What acquisition decided is STAGED here and committed only after the
     // engine reports the share live. Writing it during acquisition raced the
@@ -564,7 +577,10 @@ export const useVoiceStore = create<VoiceStore>()(() => ({
         });
         watchShareAudio(audioTrack);
       })
-      .catch(reportVoiceError);
+      .catch(reportVoiceError)
+      .finally(() => {
+        if (shareToken === shareAttempt) useVoiceStore.setState({ screenShareStarting: false });
+      });
   },
 
   sendSystemShareSound: () => {

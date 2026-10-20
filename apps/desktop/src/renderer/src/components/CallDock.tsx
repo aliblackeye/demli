@@ -75,6 +75,7 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
   const status = useVoiceStore((s) => s.status);
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
+  const screenShareStarting = useVoiceStore((s) => s.screenShareStarting);
   const toggleCamera = useVoiceStore((s) => s.toggleCamera);
   const startScreenShare = useVoiceStore((s) => s.startScreenShare);
   const stopScreenShare = useVoiceStore((s) => s.stopScreenShare);
@@ -116,7 +117,7 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
   };
   const onScreenShareClick = (): void => {
     if (screenShareEnabled) stopScreenShare();
-    else setPickerOpen(true);
+    else if (!screenShareStarting) setPickerOpen(true);
   };
   // Preview-before-publish (#101): opening the camera goes through the preview
   // dialog; closing it is a direct toggle — same flow as VoicePanel / the old
@@ -253,14 +254,24 @@ export function CallDockView({ surface }: { surface: DmCallSurface }): JSX.Eleme
         />
         <CallControl
           label={
-            screenShareEnabled ? t("desktop:voice.stopSharing") : t("desktop:voice.shareScreen")
+            screenShareEnabled
+              ? t("desktop:voice.stopSharing")
+              : screenShareStarting
+                ? t("desktop:voice.shareStarting")
+                : t("desktop:voice.shareScreen")
           }
           icon={screenShareEnabled ? MonitorOff : Monitor}
           tone={screenShareEnabled ? "on" : "neutral"}
           pressed={screenShareEnabled}
-          disabled={!canShareScreen && !screenShareEnabled}
+          // Disabled while a share is coming up — a second pick would start a
+          // second share over the first.
+          disabled={(!canShareScreen || screenShareStarting) && !screenShareEnabled}
           disabledHint={
-            connected ? t("desktop:voice.shareNeedsDesktop") : t("desktop:call.connecting")
+            screenShareStarting
+              ? t("desktop:voice.shareStarting")
+              : connected
+                ? t("desktop:voice.shareNeedsDesktop")
+                : t("desktop:call.connecting")
           }
           onClick={onScreenShareClick}
         />

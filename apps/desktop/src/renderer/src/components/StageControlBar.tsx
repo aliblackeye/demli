@@ -55,6 +55,11 @@ export interface StageControlBarProps {
   /** False while the engine is not connected — camera cannot publish yet. */
   canUseCamera: boolean;
   screenShareEnabled: boolean;
+  /**
+   * True while a share is being acquired/published. The button is disabled and
+   * reads "starting…" so the picker cannot be reopened for a second share.
+   */
+  screenShareStarting?: boolean;
   onToggleScreenShare: () => void;
   /** False when connecting, or on a platform without screen capture (web). */
   canShareScreen: boolean;
@@ -84,6 +89,7 @@ export function StageControlBar({
   onToggleCamera,
   canUseCamera,
   screenShareEnabled,
+  screenShareStarting = false,
   onToggleScreenShare,
   canShareScreen,
   screenShareDisabledHint,
@@ -145,15 +151,19 @@ export function StageControlBar({
       />
       <CallControl
         label={
-          screenShareEnabled ? t("desktop:voice.stopSharing") : t("desktop:voice.shareScreen")
+          screenShareEnabled
+            ? t("desktop:voice.stopSharing")
+            : screenShareStarting
+              ? t("desktop:voice.shareStarting")
+              : t("desktop:voice.shareScreen")
         }
         icon={screenShareEnabled ? MonitorOff : Monitor}
         tone={screenShareEnabled ? "on" : "neutral"}
         pressed={screenShareEnabled}
         size="round"
         surface="glass"
-        disabled={!canShareScreen && !screenShareEnabled}
-        disabledHint={screenShareDisabledHint}
+        disabled={(!canShareScreen || screenShareStarting) && !screenShareEnabled}
+        disabledHint={screenShareStarting ? t("desktop:voice.shareStarting") : screenShareDisabledHint}
         onClick={onToggleScreenShare}
       />
       <CallControl

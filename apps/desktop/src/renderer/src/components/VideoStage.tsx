@@ -273,6 +273,7 @@ export function VideoStage(): JSX.Element {
   const selectedVideoDeviceId = useVoiceStore((s) => s.selectedVideoDeviceId);
   const participants = useVoiceStore((s) => s.participants);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
+  const screenShareStarting = useVoiceStore((s) => s.screenShareStarting);
   const micEnabled = useVoiceStore((s) => s.micEnabled);
   const voiceStatus = useVoiceStore((s) => s.status);
   const toggleMic = useVoiceStore((s) => s.toggleMic);
@@ -475,7 +476,7 @@ export function VideoStage(): JSX.Element {
   };
   const onStageScreenShare = (): void => {
     if (screenShareEnabled) stopScreenShare();
-    else setStagePickerOpen(true);
+    else if (!screenShareStarting) setStagePickerOpen(true);
   };
   // Preview-before-publish (#101) — identical wiring to CallDock / VoicePanel, so
   // the camera behaves the same wherever it is turned on.
@@ -793,6 +794,7 @@ export function VideoStage(): JSX.Element {
         onToggleCamera={onStageCamera}
         canUseCamera={voiceConnected}
         screenShareEnabled={screenShareEnabled}
+        screenShareStarting={screenShareStarting}
         onToggleScreenShare={onStageScreenShare}
         canShareScreen={canShareScreenFromStage}
         screenShareDisabledHint={

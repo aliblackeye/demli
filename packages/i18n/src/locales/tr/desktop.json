@@ -788,6 +788,7 @@
     "undeafen": "Sağırlaştırmayı kaldır",
     "shareScreen": "Ekranını paylaş",
     "stopSharing": "Ekran paylaşımını durdur",
+    "shareStarting": "Ekran paylaşımı başlıyor…",
     "shareNeedsDesktop": "Ekran paylaşımı masaüstü uygulaması gerektirir",
     "connectFirst": "Önce ses kanalına bağlan",
     "voiceSettings": "Ses ayarları",

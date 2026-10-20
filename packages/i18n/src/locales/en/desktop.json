@@ -788,6 +788,7 @@
     "undeafen": "Undeafen",
     "shareScreen": "Share your screen",
     "stopSharing": "Stop sharing your screen",
+    "shareStarting": "Starting screen share…",
     "shareNeedsDesktop": "Screen sharing needs the desktop app",
     "connectFirst": "Connect to voice first",
     "voiceSettings": "Voice settings",
