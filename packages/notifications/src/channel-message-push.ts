@@ -1,6 +1,7 @@
 import type { Repositories } from "@demli/db";
 import type { ChannelId, GroupId, UserId } from "@demli/types";
 import { mentionPushBody, resolveMentionRecipients } from "./mention-recipients.js";
+import { MESSAGE_PUSH_TTL_SECONDS } from "./message-push.js";
 import { filterMutedRecipients, type NotificationMuteStore } from "./mute-filter.js";
 import type { OfflineNotifier } from "./notifications.js";
 
@@ -184,9 +185,17 @@ export async function dispatchChannelMessagePush(
 
   const author = await repos.users.findById(authorId);
   const authorName = author?.displayName ?? "New message";
+  const group = await repos.groups.findById(groupId);
+  // A flat group chat (kind "group") is ONE conversation, not a server with
+  // channels: the client opens it on its own screen (`groupChatId`), and the
+  // title is the chat's name rather than "Name #<hidden stream channel>".
+  const isGroupChat = group?.kind === "group";
+  const routing: Record<string, unknown> = isGroupChat
+    ? { groupChatId: groupId, name: group?.name ?? channelName }
+    : { name: channelName };
 
-  // --- Mention push: unchanged format (author-titled, type "mention", no
-  // collapse). `isMention: true` lets a `mode:"mentions"` mute through. ---
+  // --- Mention push: author-titled, type "mention", no collapse.
+  // `isMention: true` lets a `mode:"mentions"` mute through. ---
   if (mentioned.length > 0) {
     const recipients = await filterMutedRecipients(
       repos.notificationMutes,
@@ -198,7 +207,8 @@ export async function dispatchChannelMessagePush(
       await notifier.notify(recipients, {
         title: authorName,
         body: mentionPushBody(content),
-        data: { type: "mention", channelId, groupId, messageId },
+        data: { type: "mention", channelId, groupId, messageId, ...routing },
+        ttlSeconds: MESSAGE_PUSH_TTL_SECONDS,
       });
     }
   }
@@ -213,18 +223,23 @@ export async function dispatchChannelMessagePush(
       log,
     );
     if (recipients.length > 0) {
-      const group = await repos.groups.findById(groupId);
-      const { title, body } = channelMessagePushContent({
-        groupName: group?.name ?? "New message",
-        channelName,
-        authorName,
-        content,
-      });
+      const { title, body } = isGroupChat
+        ? {
+            title: group?.name ?? "New message",
+            body: `${authorName}: ${mentionPushBody(content)}`,
+          }
+        : channelMessagePushContent({
+            groupName: group?.name ?? "New message",
+            channelName,
+            authorName,
+            content,
+          });
       await notifier.notify(recipients, {
         title,
         body,
-        data: { type: "message", channelId, groupId, name: channelName, messageId },
+        data: { type: "message", channelId, groupId, messageId, ...routing },
         collapseKey: channelPushCollapseKey(channelId),
+        ttlSeconds: MESSAGE_PUSH_TTL_SECONDS,
       });
     }
   }

@@ -30,7 +30,7 @@
  */
 
 import type { RealtimeMutationPublisher, Repositories } from "@demli/db";
-import { callMissedPush, type OfflineNotifier } from "@demli/notifications";
+import { callMissedPush, resolveMissedCallDm, type OfflineNotifier } from "@demli/notifications";
 import { serverEvent } from "@demli/protocol";
 import type { UserId } from "@demli/types";
 
@@ -104,7 +104,12 @@ export function createDmCallDisconnectReaper(
         for (const call of missed) {
           await deps.notifier?.notifyAlways(
             [call.calleeId],
-            callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
+            callMissedPush({
+              callerName: caller.displayName,
+              callId: call.id,
+              reason: "timeout",
+              dm: await resolveMissedCallDm(deps.repos.dms, call),
+            }),
           );
         }
       }

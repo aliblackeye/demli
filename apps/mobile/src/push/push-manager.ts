@@ -24,21 +24,24 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { shouldShowForegroundPush } from "@demli/client-core";
 import { getApi, type DevicePlatform } from "@/lib/clients";
+import { getCallController } from "@/stores/call-store";
 import { visibleContext } from "@/notifications/visible-context";
 import {
+  callRingDecision,
+  notificationHref,
   parseNotificationTarget,
   streamIdOfPush,
   type NotificationTarget,
 } from "./notification-target";
 
 /**
- * The Android channel our LOCAL notifications are posted on (the update-ready
- * notice below targets it explicitly). Remote pushes do not name a channel — the
- * server payload carries no `channelId` — so their routing is expo's own default
- * and is NOT verified here.
+ * The ONE Android channel every notification is posted on: remote pushes (the
+ * server names it — `ANDROID_PUSH_CHANNEL_ID` in packages/notifications, pinned
+ * to this constant by a test there) and our local update-ready notice. Message
+ * pushes and call rings share it; it is HIGH importance (heads-up + sound).
  *
  * Versioned on purpose. An Android channel is IMMUTABLE once created — later
  * `setNotificationChannelAsync` calls cannot change its sound or importance, only
@@ -187,10 +190,15 @@ function easProjectId(): string | undefined {
   return extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 }
 
-/** Ensure the OS notification permission, prompting once if undetermined. */
-async function ensurePermission(): Promise<boolean> {
+/**
+ * Ensure the OS notification permission. `prompt: false` only READS it — the
+ * foreground re-registration must never re-open the system dialog on every
+ * app switch.
+ */
+async function ensurePermission(prompt: boolean): Promise<boolean> {
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
+  if (!prompt) return false;
   // `canAskAgain === false` means permanently denied — asking again is a no-op,
   // so we skip the prompt and just report "not granted".
   if (!current.canAskAgain) return false;
@@ -200,16 +208,25 @@ async function ensurePermission(): Promise<boolean> {
 
 /**
  * Request permission (if needed), mint the Expo push token, and register it with
- * the server. Idempotent-ish: safe to call again for the same session; the
- * server upserts. Returns the registered token, or null when permission was
- * denied / no token could be minted (e.g. emulator without Google Play). Never
- * throws.
+ * the server. Idempotent: the server upserts, so this runs on every launch, every
+ * return to the foreground and after a permission grant — FCM rotates tokens
+ * (app data cleared, restore, reinstall) and a token the server pruned as dead
+ * must come back the next time the app is opened. Returns the registered token,
+ * or null when permission is missing / no token could be minted (e.g. emulator
+ * without Google Play). Never throws.
+ *
+ * `prompt` (default true) allows the one-time system permission dialog; the
+ * foreground refresh passes false.
  */
-export async function registerPushToken(): Promise<string | null> {
+export async function registerPushToken(
+  options: { prompt?: boolean } = {},
+): Promise<string | null> {
   try {
-    const granted = await ensurePermission();
+    const granted = await ensurePermission(options.prompt ?? true);
     if (!granted) {
-      console.warn("[push] notification permission not granted — skipping registration");
+      if (options.prompt ?? true) {
+        console.warn("[push] notification permission not granted — skipping registration");
+      }
       return null;
     }
 
@@ -250,68 +267,30 @@ export async function unregisterPushToken(): Promise<void> {
 // Tap routing
 // ---------------------------------------------------------------------------
 
-/** Drop undefined values so expo-router never receives `undefined` params. */
-function definedParams(params: Record<string, string | undefined>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) out[key] = value;
-  }
-  return out;
-}
-
-/** Navigate to the surface a tapped notification points at (expo-router). */
-export function routeToNotificationTarget(target: NotificationTarget): void {
-  switch (target.kind) {
-    case "friends":
-      router.push("/friends");
+/**
+ * Navigate to the surface a tapped notification points at (expo-router). The
+ * destination is decided by the pure, tested `notification-target` functions;
+ * this only performs it.
+ *
+ * A RING tap first re-reads the authoritative call (`resyncActiveCall`): a phone
+ * opened from a killed state by the ring has no `call.invite` event yet (the
+ * gateway does not replay one on connect), so without the re-read the incoming
+ * overlay would never appear. Still ringing → the overlay is up, stay put; ring
+ * over → the DM (or voice channel) the call belonged to.
+ */
+export async function routeToNotificationTarget(target: NotificationTarget): Promise<void> {
+  try {
+    if (target.kind === "callRing") {
+      await getCallController().resyncActiveCall("manual");
+      const state = getCallController().getState();
+      const decision = callRingDecision(target, { phase: state.phase, callId: state.callId });
+      if (decision === "overlay") return;
+      router.push(decision as Href);
       return;
-    case "dm":
-      router.push({
-        pathname: "/dm/[dmId]",
-        params: definedParams({
-          dmId: target.dmId,
-          streamId: target.streamId,
-          name: target.name,
-          userId: target.userId,
-        }),
-      });
-      return;
-    case "groupChat":
-      router.push({
-        pathname: "/group-chat/[groupChatId]",
-        params: definedParams({ groupChatId: target.groupChatId, name: target.name }),
-      });
-      return;
-    case "channel":
-      router.push({
-        pathname: "/channel/[channelId]",
-        params: definedParams({
-          channelId: target.channelId,
-          groupId: target.groupId,
-          name: target.name,
-        }),
-      });
-      return;
-    case "call":
-      // ADR 0012: land near the call; the live ring UI is driven by the socket.
-      // Group-upgrade ring → the group's voice channel; 1-1 DM call → friends.
-      if (target.groupId && target.voiceChannelId) {
-        router.push({
-          pathname: "/voice/[channelId]",
-          params: definedParams({
-            channelId: target.voiceChannelId,
-            groupId: target.groupId,
-            name: target.name,
-          }),
-        });
-      } else {
-        router.push("/friends");
-      }
-      return;
-    default: {
-      const _exhaustive: never = target;
-      void _exhaustive;
     }
+    router.push(notificationHref(target) as Href);
+  } catch (err) {
+    console.warn(`[push] tap routing failed: ${String(err)}`);
   }
 }
 
@@ -324,4 +303,13 @@ export function targetFromResponse(
 ): NotificationTarget | null {
   if (!response) return null;
   return parseNotificationTarget(response.notification.request.content.data);
+}
+
+/**
+ * A stable id for a notification response, so the same tap delivered twice (the
+ * live listener AND `getLastNotificationResponseAsync` on a warm start) is
+ * routed once.
+ */
+export function responseKey(response: Notifications.NotificationResponse): string {
+  return `${response.notification.request.identifier}:${response.actionIdentifier}`;
 }

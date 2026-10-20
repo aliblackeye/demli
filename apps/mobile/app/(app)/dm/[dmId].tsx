@@ -11,11 +11,12 @@ import { DmHeaderTitle } from "@/components/ChatHeaderTitle";
 import { EmptyState } from "@/components/EmptyState";
 import { MemberActionSheet, type MemberSheetTarget } from "@/components/member/MemberActionSheet";
 import { Screen } from "@/components/Screen";
+import { SkeletonMessages } from "@/components/Skeleton";
 import { IconButton } from "@/components/ui/IconButton";
 import { toast } from "@/components/ui/Toast";
 import { openPinsSheet } from "@/lib/pins-sheet";
 import { useBlocks, useUnblockUser } from "@/queries/member-queries";
-import { useFriends } from "@/queries/social-queries";
+import { useDms, useFriends } from "@/queries/social-queries";
 import { getCallController, useCallState } from "@/stores/call-store";
 import { colors, space } from "@/theme/theme";
 
@@ -39,7 +40,16 @@ export default function DmScreen() {
     name?: string;
     userId?: string;
   }>();
-  const { dmId, streamId, name, userId } = params;
+  // A notification tap (missed call, a ring that already ended, an older
+  // server's DM push) can open this screen with only `dmId`. Fill the rest from
+  // the DM list — the same rows Home renders — instead of showing
+  // "conversation unavailable" for a DM the user plainly has.
+  const { data: dms, isPending: dmsPending } = useDms();
+  const listed = dms?.find((d) => d.id === params.dmId);
+  const dmId = params.dmId;
+  const streamId = params.streamId ?? listed?.streamId;
+  const userId = params.userId ?? listed?.participant.id;
+  const name = params.name ?? listed?.participant.displayName;
   const title = name ?? t("mobile:dm.fallbackTitle");
 
   // Call gate (ADR 0012 §3): only an accepted friend can be called. A DM survives
@@ -175,6 +185,10 @@ export default function DmScreen() {
           allowMentionBroadcast={false}
           blocked={blocked}
         />
+      ) : dmsPending ? (
+        // Opened from a notification with only the DM id: the list that fills in
+        // the stream is still loading — draw the thread's shape, not "unavailable".
+        <SkeletonMessages />
       ) : (
         <View style={{ flex: 1, justifyContent: "center" }}>
           <EmptyState

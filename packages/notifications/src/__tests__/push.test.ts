@@ -13,6 +13,11 @@ import {
   type ExpoPushClient,
   type PushTokenStore,
 } from "../push.js";
+import {
+  pushTokenFingerprint,
+  type PendingReceipt,
+  type PushReceiptTracker,
+} from "../push-receipts.js";
 
 /** In-memory token store recording deletions. */
 function makeStore(rows: UserPushToken[]): PushTokenStore & { deleted: string[] } {
@@ -163,7 +168,12 @@ describe("ExpoPushService", () => {
     const expo = makeExpo({ throwOnSend: true });
     const svc = new ExpoPushService({ tokens: store, expo });
 
-    await expect(svc.sendToUsers(["u1"], { title: "t", body: "b" })).resolves.toBeUndefined();
+    await expect(svc.sendToUsers(["u1"], { title: "t", body: "b" })).resolves.toMatchObject({
+      tokens: 2,
+      ok: 0,
+      invalid: 1,
+      errors: { chunk_failed: 1 },
+    });
     // Malformed token pruned; the valid one's send failed but did not throw.
     expect(store.deleted).toEqual(["bad"]);
   });
@@ -174,6 +184,62 @@ describe("ExpoPushService", () => {
     await svc1.sendToUsers([], { title: "t", body: "b" });
     await svc1.sendToUsers(["nobody"], { title: "t", body: "b" });
     expect(emptyExpo.sent).toEqual([]);
+  });
+
+  it("returns a summary with fingerprints, never the raw tokens", async () => {
+    const store = makeStore([
+      { userId: "u1", token: tok(1), platform: "android" },
+      { userId: "u1", token: tok(2), platform: "android" },
+    ]);
+    const expo = makeExpo({
+      ticketsFor: (chunk) =>
+        chunk.map((m) =>
+          m.to === tok(2)
+            ? ({ status: "error", message: "x", details: { error: "MessageRateExceeded" } } as ExpoPushTicket)
+            : ({ status: "ok", id: "r1" } as ExpoPushTicket),
+        ),
+    });
+    const summary = await new ExpoPushService({ tokens: store, expo }).sendToUsers(["u1"], {
+      title: "t",
+      body: "b",
+    });
+    expect(summary).toMatchObject({ tokens: 2, ok: 1, errors: { MessageRateExceeded: 1 } });
+    expect(summary.tokenIds).toEqual([pushTokenFingerprint(tok(1)), pushTokenFingerprint(tok(2))]);
+    expect(JSON.stringify(summary)).not.toContain("ExponentPushToken");
+  });
+
+  it("queues every ok ticket for a delayed receipt check", async () => {
+    const store = makeStore([
+      { userId: "u1", token: tok(1), platform: "android" },
+      { userId: "u2", token: tok(2), platform: "android" },
+    ]);
+    const tracked: PendingReceipt[] = [];
+    const receipts = { track: (e: readonly PendingReceipt[]) => tracked.push(...e) };
+    const expo = makeExpo({
+      ticketsFor: (chunk) => chunk.map((m) => ({ status: "ok", id: `rid-${String(m.to)}` }) as ExpoPushTicket),
+    });
+    await new ExpoPushService({
+      tokens: store,
+      expo,
+      receipts: receipts as unknown as PushReceiptTracker,
+    }).sendToUsers(["u1", "u2"], { title: "t", body: "b", data: { type: "dm_message" } });
+    expect(tracked).toEqual([
+      { receiptId: `rid-${tok(1)}`, token: tok(1), kind: "dm_message" },
+      { receiptId: `rid-${tok(2)}`, token: tok(2), kind: "dm_message" },
+    ]);
+  });
+
+  it("builds a receipt tracker automatically when the client can fetch receipts", () => {
+    const expo = {
+      ...makeExpo(),
+      chunkPushNotificationReceiptIds: (ids: string[]) => [ids],
+      getPushNotificationReceiptsAsync: async () => ({}),
+    };
+    expect(new ExpoPushService({ tokens: makeStore([]), expo }).receipts).not.toBeNull();
+    expect(new ExpoPushService({ tokens: makeStore([]), expo: makeExpo() }).receipts).toBeNull();
+    expect(
+      new ExpoPushService({ tokens: makeStore([]), expo, receipts: false }).receipts,
+    ).toBeNull();
   });
 
   it("dedupes recipient ids before fetching tokens", async () => {

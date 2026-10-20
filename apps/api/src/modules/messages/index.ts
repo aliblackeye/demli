@@ -16,7 +16,7 @@ import {
 import {
   dispatchChannelMessagePush,
   filterMutedRecipients,
-  mentionPushBody,
+  dmMessagePush,
   type OfflineNotifier,
 } from "@demli/notifications";
 import { contentMentionsUser, serverEvent } from "@demli/protocol";
@@ -299,11 +299,17 @@ export async function registerMessagesModule(
             !(await server.repos.userIgnores.isIgnoring(dm.participant.id, user.id))
               ? dmRecipients
               : [];
-          await notifier?.notify(dmNotifiable, {
-            title: user.displayName,
-            body: mentionPushBody(message.content),
-            data: { type: "dm_message", dmId: dm.id, channelId, messageId: message.id },
-          });
+          await notifier?.notify(
+            dmNotifiable,
+            dmMessagePush({
+              authorId: user.id,
+              authorName: user.displayName,
+              dmId: dm.id,
+              channelId,
+              messageId: message.id,
+              content: message.content,
+            }),
+          );
         } else {
           // Non-DM (group/server) channel: fan the "all messages" offline push
           // (#94) out to every member who can SEE the channel — @mentioned members

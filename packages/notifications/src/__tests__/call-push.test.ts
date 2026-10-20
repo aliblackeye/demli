@@ -18,6 +18,7 @@ import {
   callPushTag,
   callRingPush,
   ExpoPushService,
+  resolveMissedCallDm,
 } from "../index.js";
 
 async function send(notification: Parameters<ExpoPushService["sendToUsers"]>[1]): Promise<ExpoPushMessage> {
@@ -101,6 +102,59 @@ describe("call pushes", () => {
       ttl: CALL_MISSED_PUSH_TTL_SECONDS,
       data: { type: "call_ended", callId: "c1", reason: "timeout" },
     });
+  });
+
+  it("a 1-1 ring names the caller for the tap; an upgrade ring does not hijack the voice title", () => {
+    expect(
+      callRingPush({ callerName: "Ali", callId: "c1", ringSeconds: 30, target: { dmId: "d1" }, callerId: "u-ali" })
+        .data,
+    ).toEqual({ type: "call_invite", callId: "c1", dmId: "d1", name: "Ali", userId: "u-ali" });
+    expect(
+      callRingPush({
+        callerName: "Ali",
+        callId: "c1",
+        ringSeconds: 30,
+        target: { groupId: "g1", voiceChannelId: "v1" },
+        callerId: "u-ali",
+      }).data,
+    ).toEqual({ type: "call_invite", callId: "c1", groupId: "g1", voiceChannelId: "v1" });
+  });
+
+  it("a missed call carries the DM route (dmId WITH its stream) only when it is known", async () => {
+    const dm = { dmId: "d1", channelId: "s1", userId: "u-ali" };
+    expect(callMissedPush({ callerName: "Ali", callId: "c1", reason: "timeout", dm }).data).toEqual({
+      type: "call_ended",
+      callId: "c1",
+      reason: "timeout",
+      dmId: "d1",
+      channelId: "s1",
+      userId: "u-ali",
+      name: "Ali",
+    });
+    expect(callMissedPush({ callerName: "Ali", callId: "c1", reason: "timeout" }).data).toEqual({
+      type: "call_ended",
+      callId: "c1",
+      reason: "timeout",
+    });
+  });
+
+  it("resolveMissedCallDm reads the callee's side and never throws", async () => {
+    const lookup = {
+      findById: async (dmId: string, viewer: string) =>
+        viewer === "callee" ? { id: dmId, streamId: "s1", participant: { id: "caller" } } : null,
+    };
+    await expect(resolveMissedCallDm(lookup, { dmId: "d1", calleeId: "callee" })).resolves.toEqual({
+      dmId: "d1",
+      channelId: "s1",
+      userId: "caller",
+    });
+    await expect(resolveMissedCallDm(undefined, { dmId: "d1", calleeId: "callee" })).resolves.toBeUndefined();
+    await expect(
+      resolveMissedCallDm(
+        { findById: async () => Promise.reject(new Error("db down")) },
+        { dmId: "d1", calleeId: "callee" },
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it("answered elsewhere is silent: no title, body or sound, but the call_ended data", async () => {

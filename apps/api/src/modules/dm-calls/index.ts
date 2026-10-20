@@ -6,6 +6,7 @@ import {
   callClearedPush,
   callMissedPush,
   callRingPush,
+  resolveMissedCallDm,
   type OfflineNotifier,
   type PushNotification,
 } from "@demli/notifications";
@@ -452,10 +453,14 @@ export async function registerDmCallsModule(
     await announceCallEnded(call, "timeout");
     const caller = await server.repos.users.findById(call.callerId);
     if (caller) {
-      dispatchCallPush(
-        [call.calleeId],
-        callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
-        "ring retraction",
+      // The DM route lookup rides in the same un-awaited chain as the push (K2.1):
+      // nothing on the request path waits for it. It never rejects.
+      void resolveMissedCallDm(server.repos.dms, call).then((dm) =>
+        dispatchCallPush(
+          [call.calleeId],
+          callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout", dm }),
+          "ring retraction",
+        ),
       );
     }
   }
@@ -635,6 +640,7 @@ export async function registerDmCallsModule(
           callId: call.id,
           ringSeconds: RING_TIMEOUT_SECONDS,
           target: { dmId },
+          callerId: user.id,
         }),
         "ring",
       );
@@ -942,14 +948,17 @@ export async function registerDmCallsModule(
       // Not awaited, same as the ring (K2.1): the caller's teardown must not wait
       // on a push provider either — that delay is how a cancel and an accept end
       // up overlapping in the first place.
-      dispatchCallPush(
-        [call.calleeId],
-        callMissedPush({
-          callerName: user.displayName,
-          callId: call.id,
-          reason: timedOut ? "timeout" : "canceled",
-        }),
-        "ring retraction",
+      void resolveMissedCallDm(server.repos.dms, call).then((dm) =>
+        dispatchCallPush(
+          [call.calleeId],
+          callMissedPush({
+            callerName: user.displayName,
+            callId: call.id,
+            reason: timedOut ? "timeout" : "canceled",
+            dm,
+          }),
+          "ring retraction",
+        ),
       );
 
       return { call: ended };

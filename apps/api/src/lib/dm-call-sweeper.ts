@@ -55,7 +55,7 @@
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { ParticipantInfo_State, RoomServiceClient } from "livekit-server-sdk";
 import type { RealtimeMutationPublisher, Repositories } from "@demli/db";
-import { callMissedPush, type OfflineNotifier } from "@demli/notifications";
+import { callMissedPush, resolveMissedCallDm, type OfflineNotifier } from "@demli/notifications";
 import { serverEvent } from "@demli/protocol";
 import type { CallId, DmCall, UserId } from "@demli/types";
 import { livekitHttpUrl } from "../modules/media/voice-session.js";
@@ -530,7 +530,12 @@ export function createDmCallSweeper(options: DmCallSweeperOptions): DmCallSweepe
       if (!caller) return;
       await notifier.notifyAlways(
         [call.calleeId],
-        callMissedPush({ callerName: caller.displayName, callId: call.id, reason: "timeout" }),
+        callMissedPush({
+          callerName: caller.displayName,
+          callId: call.id,
+          reason: "timeout",
+          dm: await resolveMissedCallDm(repos.dms, call),
+        }),
       );
     } catch (err) {
       log.warn({ err, callId: call.id }, "dm-call sweep: ring retraction push failed");

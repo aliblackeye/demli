@@ -1,6 +1,24 @@
 import type { PresenceReader } from "@demli/db";
 import type { UserId } from "@demli/types";
-import type { PushNotification, PushService } from "./push.js";
+import { pushKindOf, type PushNotification, type PushService } from "./push.js";
+
+/** Recipient ids listed per dispatch line, at most (bounded log size). */
+const MAX_LOGGED_USERS = 10;
+
+/** First 8 chars of a UUID — enough to find the row, short enough to scan. */
+function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
+/** The non-content id a push is about (message / call / friend), for correlation. */
+function refOf(notification: PushNotification): string | null {
+  const data = notification.data ?? {};
+  for (const key of ["messageId", "callId", "userId"]) {
+    const value = data[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return null;
+}
 
 /**
  * Away-gated push dispatch (task #46, WhatsApp model #110).
@@ -62,15 +80,38 @@ export function createOfflineNotifier(deps: OfflineNotifierDeps): OfflineNotifie
     notification: PushNotification,
     gateAway: boolean,
   ): Promise<void> {
+    const ids = [...new Set(recipientUserIds)];
+    if (ids.length === 0) return;
+    // ONE structured line per dispatch (field report 2026-10-20: a message that
+    // produced no notification left no trace, so "was a push even sent?" could
+    // not be answered). Ids and counts only — never the title/body, never a
+    // token in clear (fingerprints, see `pushTokenFingerprint`).
+    const line: Record<string, unknown> = {
+      kind: pushKindOf(notification),
+      ref: refOf(notification),
+      gate: gateAway ? "away" : "always",
+      recipients: ids.length,
+    };
     try {
-      const ids = [...new Set(recipientUserIds)];
-      if (ids.length === 0) return;
       const audience = gateAway ? await deps.presence.filterAway(ids) : ids;
-      if (audience.length === 0) return;
-      await deps.push.sendToUsers(audience, notification);
+      line["away"] = audience.length;
+      line["users"] = audience.slice(0, MAX_LOGGED_USERS).map(shortId);
+      if (audience.length > 0) {
+        const summary = await deps.push.sendToUsers(audience, notification);
+        if (summary) {
+          line["tokens"] = summary.tokens;
+          line["ok"] = summary.ok;
+          line["errors"] = summary.errors;
+          if (summary.invalid > 0) line["invalid"] = summary.invalid;
+          if (summary.pruned > 0) line["pruned"] = summary.pruned;
+          line["tok"] = summary.tokenIds;
+        }
+      }
     } catch (err) {
-      log(`[push] notify failed: ${err instanceof Error ? err.message : String(err)}`);
+      line["failed"] = err instanceof Error ? err.message : String(err);
+      log(`[push] notify failed: ${String(line["failed"])}`);
     }
+    log(`[push] dispatch ${JSON.stringify(line)}`);
   }
 
   return {

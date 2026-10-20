@@ -123,8 +123,13 @@
     "permissionOffTitle": "Notifications are off",
     "permissionOffSubtitle": "Turn on",
     "permissionHint": "Without permission, message and call notifications never arrive. Tap to turn them on.",
+    "bannerTitle": "Notifications are off",
+    "bannerBody": "While the app is closed, messages and calls won't reach your phone.",
+    "bannerAllow": "Allow",
+    "bannerOpenSettings": "Open settings",
+    "bannerDismiss": "Not now",
     "channelName": "Messages",
-    "channelDescription": "New messages and friend requests"
+    "channelDescription": "Messages, calls and friend requests"
   },
   "home": {
     "bannerSwipeHintA11y": "Swipe up to dismiss",
