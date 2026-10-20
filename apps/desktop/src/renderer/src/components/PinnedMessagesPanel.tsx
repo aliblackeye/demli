@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Loader2, Pin, PinOff } from "lucide-react";
+import { Pin, PinOff, RotateCw } from "lucide-react";
 import {
   Button,
+  Skeleton,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -44,7 +45,7 @@ export function PinnedMessagesButton({
 }): JSX.Element {
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
-  const { data: pins, isPending, error } = usePins(channelId, open);
+  const { data: pins, isPending, error, refetch, isFetching } = usePins(channelId, open);
   // Hoisted once for the whole board (§27) — never one roles/members
   // subscription per pinned row.
   const canManageMessages = useCanManageMessages(groupId ?? null);
@@ -59,7 +60,7 @@ export function PinnedMessagesButton({
               size="icon"
               aria-label={t("desktop:pins.open")}
               aria-pressed={open}
-              className={cn(open && "bg-white/[0.06] text-fg")}
+              className={cn(open && "bg-wash text-fg")}
             >
               <Pin className="size-[18px]" />
             </Button>
@@ -68,30 +69,57 @@ export function PinnedMessagesButton({
         <TooltipContent side="bottom">{t("desktop:pins.open")}</TooltipContent>
       </Tooltip>
 
-      <PopoverContent align="end" side="bottom" sideOffset={8} className="w-[380px] p-0">
-        <header className="flex items-center gap-2 border-b border-stroke px-3 py-2.5">
-          <Pin className="size-4 shrink-0 text-fg-faint" />
-          <h2 className="text-sm font-semibold text-fg">{t("desktop:pins.title")}</h2>
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={8}
+        className="w-[380px] p-0"
+        aria-label={t("desktop:pins.title")}
+      >
+        {/* No rule under the header: the board is one surface; the header is
+            set apart by type weight and the list's own padding (Koyu Masa). */}
+        <header className="flex items-center gap-2 px-4 pb-2 pt-3.5">
+          <Pin className="size-4 shrink-0 text-accent" aria-hidden />
+          <h2 className="font-display text-sm font-semibold text-fg-display">{t("desktop:pins.title")}</h2>
           {pins && pins.length > 0 && (
-            <span className="ml-auto text-xs tabular-nums text-fg-faint">
+            <span className="ml-auto flex h-5 items-center rounded-pill bg-wash px-2 text-2xs font-medium tabular-nums text-fg-muted">
               {t("desktop:pins.count", { count: pins.length })}
             </span>
           )}
         </header>
 
-        <div className="edge-fade-y max-h-[60vh] overflow-y-auto">
+        <div className="edge-fade-y max-h-[60vh] overflow-y-auto px-1.5 pb-1.5">
           {isPending && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="size-4 animate-spin text-fg-faint" />
+            <div role="status" aria-label={t("desktop:chat.loadingMessages")} className="space-y-1 p-1">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex gap-2.5 rounded-lg px-2.5 py-2.5">
+                  <Skeleton shape="circle" width={32} />
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <Skeleton shape="line" width={96} height={10} />
+                    <Skeleton shape="line" height={10} className={cn("mt-2", i === 1 ? "w-2/3" : "w-4/5")} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           {error && (
-            <p className="px-3 py-6 text-center text-sm text-danger">{localizeError(error, t)}</p>
+            <div role="alert" className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+              <p className="text-sm text-fg-muted">{t("desktop:pins.loadFailed")}</p>
+              <p className="-mt-2 text-xs text-fg-faint">{localizeError(error, t)}</p>
+              <Button variant="secondary" size="sm" loading={isFetching} onClick={() => void refetch()}>
+                <RotateCw className="size-3.5" aria-hidden />
+                {t("buttons.retry")}
+              </Button>
+            </div>
           )}
           {!isPending && !error && (pins?.length ?? 0) === 0 && (
-            <p className="px-3 py-8 text-center text-sm text-fg-muted">
-              {t("desktop:pins.empty")}
-            </p>
+            <div className="flex flex-col items-center px-6 py-8 text-center">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-raised">
+                <Pin className="size-5 text-fg-muted" aria-hidden />
+              </div>
+              <p className="mt-3 text-sm font-medium text-fg">{t("desktop:pins.empty")}</p>
+              <p className="mt-1 text-xs text-fg-faint">{t("desktop:pins.emptyHint")}</p>
+            </div>
           )}
           {pins?.map((pin) => (
             <PinnedRow
@@ -140,12 +168,14 @@ function PinnedRow({
     // content-visibility-auto: pinned rows are markdown-rendered and up to
     // PINS_MAX_PER_CHANNEL of them mount at once — only paint what is on screen.
     // Hover restores `visible` so the absolute unpin button is never clipped.
-    <div className="group/pin content-visibility-auto relative border-b border-stroke/60 px-3 py-2.5 last:border-b-0 hover:bg-white/[0.025]">
+    // Separated by spacing + a hover tone, never a rule. The wash (not a surface
+    // tone) is what shows on the popover's own surface tone.
+    <div className="group/pin content-visibility-auto relative rounded-lg transition-colors motion-hover hover:bg-wash">
       <button
         type="button"
         onClick={onJump}
         aria-label={t("desktop:pins.jumpTo")}
-        className="flex w-full gap-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-md"
+        className="flex w-full cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
       >
         <UserAvatar
           name={name}
@@ -155,13 +185,13 @@ function PinnedRow({
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="truncate text-[13px] font-semibold text-fg">{name}</span>
+            <span className="truncate text-label font-semibold text-fg-display">{name}</span>
             <span className="shrink-0 text-2xs text-fg-faint">
               {formatMessageTimestamp(pin.message.createdAt, t)}
             </span>
           </div>
           <div className="line-clamp-4">
-            <MessageMarkdown content={pin.message.content} groupId={groupId} className="text-fg/85" />
+            <MessageMarkdown content={pin.message.content} groupId={groupId} className="text-fg" />
           </div>
           <p className="mt-1 text-2xs text-fg-faint">
             {t("desktop:pins.pinnedBy", { name: pinnedByName })}
@@ -170,7 +200,7 @@ function PinnedRow({
       </button>
 
       {unpinError && (
-        <p role="alert" className="mt-1 text-xs text-danger">
+        <p role="alert" className="px-2.5 pb-2 text-xs text-danger">
           {unpinError}
         </p>
       )}
@@ -189,9 +219,11 @@ function PinnedRow({
               { onError: (err) => setUnpinError(pinErrorText(err, t)) },
             );
           }}
-          className="absolute right-2 top-2 hidden group-hover/pin:flex focus-visible:flex"
+          // Faded, never display-toggled: it is laid out at rest (no reflow on
+          // hover) and reachable by Tab, where focus reveals it.
+          className="absolute right-2 top-2 opacity-0 transition-opacity motion-hover group-hover/pin:opacity-100 focus-visible:opacity-100"
         >
-          <PinOff className="size-3.5" />
+          <PinOff className="size-3.5" aria-hidden />
         </Button>
       )}
     </div>

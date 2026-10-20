@@ -50,14 +50,14 @@ export function IgnoredRunRow({
         className={cn(
           // Safari 12: no flex `gap` → `space-x-2` reproduces the icon/text gutter.
           "group/ignored flex h-6 min-w-0 max-w-full cursor-pointer items-center space-x-2",
-          "rounded-md px-2 text-2xs text-fg-faint transition-colors motion-instant",
+          "rounded-md px-2 text-2xs text-fg-faint transition-colors motion-hover",
           "hover:bg-hover hover:text-fg-muted",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         )}
       >
         <EyeOff className="size-3 shrink-0" aria-hidden />
         <span className="min-w-0 truncate italic">{label}</span>
-        <span className="shrink-0 font-semibold not-italic text-fg-muted group-hover/ignored:text-fg">
+        <span className="shrink-0 font-semibold not-italic text-fg-muted transition-colors motion-hover group-hover/ignored:text-fg">
           {expanded ? t("desktop:chat.ignoredHide") : t("desktop:chat.ignoredShow")}
         </span>
       </button>

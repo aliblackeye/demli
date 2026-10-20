@@ -19,8 +19,8 @@
  * TanStack cache so remounting rows never re-fires requests.
  */
 import { memo, useMemo, useState } from "react";
-import { Check, Loader2, RefreshCw } from "lucide-react";
-import { Button, cn, seedColor } from "@demli/ui";
+import { Check, RefreshCw } from "lucide-react";
+import { Button, Skeleton, cn, seedColor } from "@demli/ui";
 import type { Group, GroupId, InvitePreview, InviteTargetChannel } from "@demli/types";
 import { useAppTranslation, type AppTFunction } from "../lib/i18n";
 import { api } from "../lib/api-client";
@@ -67,7 +67,10 @@ function CardShell({
   return (
     <div
       className={cn(
-        "mt-1 flex min-h-[88px] w-full max-w-[430px] flex-col justify-center rounded-xl border border-stroke bg-raised p-3",
+        // Koyu Masa card: radius 16, no frame. Wash fill (not a surface tone) so
+        // it stays a step above the row on hover too — see LinkEmbedCard.
+        "mt-1.5 flex min-h-[88px] w-full max-w-[430px] flex-col justify-center rounded-xl bg-wash p-3.5",
+        "transition-opacity motion-fast",
         faded && "opacity-60",
       )}
     >
@@ -93,14 +96,14 @@ function GroupIcon({
         src={iconUrl}
         alt=""
         onError={() => setBroken(true)}
-        className="size-10 shrink-0 rounded-xl object-cover"
+        className="size-11 shrink-0 rounded-xl object-cover"
       />
     );
   }
   return (
     <div
       aria-hidden
-      className="flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white/90"
+      className="flex size-11 shrink-0 items-center justify-center rounded-xl font-display text-base font-semibold text-fg-display"
       style={{ backgroundColor: seedColor(colorSeed) }}
     >
       {name.trim().charAt(0).toUpperCase() || "?"}
@@ -161,10 +164,19 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
   /* ── Loading ── */
   if (preview.isPending) {
     return (
+      // The loaded card's own shape, pulsing — so resolving swaps tones, never
+      // layout (the shell's min-height already pins the row for the list, §27).
       <CardShell>
-        <div role="status" className="flex items-center space-x-2 text-sm text-fg-muted">
-          <Loader2 className="size-4 shrink-0 animate-spin" />
-          <span>{t("desktop:inviteEmbed.loading")}</span>
+        <div role="status" aria-label={t("desktop:inviteEmbed.loading")}>
+          <Skeleton shape="line" width={150} height={10} />
+          <div className="mt-2.5 flex items-center">
+            <Skeleton shape="rect" width={44} height={44} className="rounded-xl" />
+            <div className="ml-3 min-w-0 flex-1">
+              <Skeleton shape="line" width="60%" height={12} />
+              <Skeleton shape="line" width="40%" height={10} className="mt-2" />
+            </div>
+            <Skeleton shape="rect" width={92} height={29} className="ml-3 rounded-md" />
+          </div>
         </div>
       </CardShell>
     );
@@ -176,17 +188,22 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
     if (problem.kind === "dead") {
       return (
         <CardShell faded>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+          <p className="text-xs font-medium text-fg-faint">{label}</p>
           <p className="mt-1.5 text-sm text-fg-muted">{deadReasonText(problem.reason, t)}</p>
         </CardShell>
       );
     }
     return (
       <CardShell>
-        <p className="text-sm text-fg-muted">{t("desktop:inviteEmbed.unavailable")}</p>
-        <div className="mt-2">
-          <Button variant="secondary" size="sm" onClick={() => void preview.refetch()}>
-            <RefreshCw className="size-4" />
+        <p role="alert" className="text-sm text-fg-muted">{t("desktop:inviteEmbed.unavailable")}</p>
+        <div className="mt-2.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={preview.isFetching}
+            onClick={() => void preview.refetch()}
+          >
+            <RefreshCw className="size-3.5" aria-hidden />
             {t("buttons.retry")}
           </Button>
         </div>
@@ -200,7 +217,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
   if (deadFromRedeem !== null) {
     return (
       <CardShell faded>
-        <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+        <p className="text-xs font-medium text-fg-faint">{label}</p>
         <p className="mt-1.5 text-sm text-fg-muted">{deadReasonText(deadFromRedeem, t)}</p>
       </CardShell>
     );
@@ -243,7 +260,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
 
   return (
     <CardShell>
-      <p className="text-2xs font-semibold uppercase tracking-wider text-fg-faint">{label}</p>
+      <p className="text-xs font-medium text-fg-faint">{label}</p>
       {/* Safari 12 (web surface): no flex gap → space-x-3. */}
       <div className="mt-2 flex items-center space-x-3">
         <GroupIcon
@@ -267,8 +284,7 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
         </div>
         <div className="flex shrink-0 flex-col items-end">
           {action === "join" ? (
-            <Button size="sm" disabled={redeem.isPending} onClick={onJoin}>
-              {redeem.isPending && <Loader2 className="size-4 animate-spin" />}
+            <Button variant="accent" size="sm" loading={redeem.isPending} onClick={onJoin}>
               {isServer
                 ? t("desktop:inviteEmbed.joinServer")
                 : t("desktop:inviteEmbed.joinGroup")}
@@ -300,7 +316,9 @@ const InviteEmbedCard = memo(function InviteEmbedCard({ code }: { code: string }
         </div>
       </div>
       {redeemFailed && (
-        <p className="mt-2 text-xs text-danger/90">{t("desktop:inviteEmbed.joinFailed")}</p>
+        <p role="alert" className="mt-2 text-xs text-danger">
+          {t("desktop:inviteEmbed.joinFailed")}
+        </p>
       )}
     </CardShell>
   );

@@ -85,12 +85,14 @@ export function ChatView({
           margin does not override the `auto` margin (Safari-12 space-x/ml-auto
           trap). */}
       <header className="flex h-16 shrink-0 items-center space-x-2 border-b border-stroke px-4">
-        <ChannelGlyph className="size-5 shrink-0 text-fg-faint" />
-        <h1 className="shrink-0 font-display text-sm font-semibold text-fg">{channel.name}</h1>
+        <ChannelGlyph className="size-5 shrink-0 text-fg-subtle" aria-hidden />
+        <h1 className="shrink-0 font-display text-[15px] font-semibold tracking-[-0.01em] text-fg-display">
+          {channel.name}
+        </h1>
         {topic && (
           <>
             <span aria-hidden className="h-4 w-px shrink-0 bg-stroke-strong" />
-            <p className="min-w-0 truncate text-[13px] text-fg-muted" title={topic}>
+            <p className="min-w-0 truncate text-label text-fg-muted" title={topic}>
               {topic}
             </p>
           </>
@@ -106,7 +108,7 @@ export function ChatView({
                 aria-label={t("desktop:search.title")}
                 aria-pressed={header.searchOpen}
                 onClick={header.toggleSearch}
-                className={cn(header.searchOpen && "bg-white/[0.06] text-fg")}
+                className={cn(header.searchOpen && "bg-wash text-fg")}
               >
                 <Search className="size-[18px]" />
               </Button>
@@ -138,7 +140,7 @@ export function ChatView({
                 }
                 aria-pressed={header.memberSidebarOpen}
                 onClick={header.toggleMemberSidebar}
-                className={cn(header.memberSidebarOpen && "bg-white/[0.06] text-fg")}
+                className={cn(header.memberSidebarOpen && "bg-wash text-fg")}
               >
                 <Users className="size-[18px]" />
               </Button>
@@ -161,8 +163,14 @@ export function ChatView({
               ChatDataProvider; key resets scroll/stick/divider state cleanly on
               channel switch (kept on the list, which owns those refs). */}
           <MessageList key={channel.id} />
-          {typingIndicator}
-          {composer}
+          {/* The typing line lives INSIDE the composer's bottom padding (its
+              pb-5 strip) instead of in the flow above it: someone starting or
+              stopping typing must never resize the thread — a virtualized list
+              pinned to the bottom would jump by a line each time. */}
+          <div className="relative shrink-0">
+            {composer}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0">{typingIndicator}</div>
+          </div>
         </div>
         {searchPanel}
       </div>

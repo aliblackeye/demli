@@ -11,6 +11,7 @@
  * replaces while the header + list layout live in the shared package.
  */
 import { useCallback, useMemo } from "react";
+import { Hash } from "lucide-react";
 import { ChatView as AppChatView, type ChatHeaderControls } from "@demli/app-ui";
 import { useGroupDetails, useRoles } from "../queries/chat-queries";
 import { useMe } from "../queries/social-queries";
@@ -82,8 +83,11 @@ export function ChatView(): JSX.Element {
 
   if (!channel) {
     return (
-      <div className="flex min-w-0 flex-1 items-center justify-center bg-app">
-        <p className="text-sm text-fg-muted">{t("desktop:chat.selectChannel")}</p>
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center bg-app px-6 text-center">
+        <div className="flex size-14 items-center justify-center rounded-xl bg-surface">
+          <Hash className="size-7 text-fg-muted" aria-hidden />
+        </div>
+        <p className="mt-4 max-w-xs text-sm text-fg-muted">{t("desktop:chat.selectChannel")}</p>
       </div>
     );
   }

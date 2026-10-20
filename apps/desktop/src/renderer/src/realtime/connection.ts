@@ -10,6 +10,7 @@
  * - Owns composer typing notifications (throttled start, idle stop).
  */
 
+import { rememberConfirmedSend } from "../lib/confirmed-sends";
 import type { InfiniteData } from "@tanstack/react-query";
 import {
   createVoiceAnnouncer,
@@ -873,6 +874,9 @@ function handleMessageCreated(payload: MessageDTO): void {
   // Our own echo confirms the queued item — it leaves the queue (and its
   // persisted blob) here, and the drain moves on to the next one.
   if (nonce && me && message.authorId === me.id) {
+    // Recorded BEFORE the outbox drops the entry: the thread keeps this send on
+    // its optimistic row instead of remounting it under the server id.
+    rememberConfirmedSend(message.id, nonce);
     outbox.confirm(message.channelId, nonce);
   }
 

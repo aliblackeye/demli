@@ -1,4 +1,6 @@
 import { memo, useState } from "react";
+import { cn } from "@demli/ui";
+import { useImageReveal } from "./useImageReveal";
 import type { MessageEmbed } from "@demli/types";
 import { openExternalUrl } from "@demli/app-ui";
 
@@ -46,6 +48,8 @@ const LinkEmbedCard = memo(function LinkEmbedCard({
   embed: MessageEmbed;
 }): JSX.Element {
   const [imageBroken, setImageBroken] = useState(false);
+  const reveal = useImageReveal();
+  const imageLoaded = reveal.loaded;
   const clickable = isHttpUrl(embed.url);
   const imageUrl =
     embed.imageUrl !== null && isHttpUrl(embed.imageUrl) && !imageBroken ? embed.imageUrl : null;
@@ -53,58 +57,75 @@ const LinkEmbedCard = memo(function LinkEmbedCard({
   // title to act as the link's accessible name.
   const linkLabel = embed.title ?? embed.siteName ?? displayHost(embed.url);
 
+  const imageClass = cn(
+    "w-full object-cover",
+    reveal.animate && "transition-opacity motion-standard",
+    IMAGE_HEIGHT_CLASS,
+    imageLoaded ? "opacity-100" : "opacity-0",
+  );
+
   return (
-    <div className="max-w-[620px] overflow-hidden rounded-md border border-stroke bg-[#171c25]">
-      <div className="border-l-2 border-accent px-3 py-2">
-        {embed.siteName && (
-          <div className="text-2xs font-medium text-fg-faint">{embed.siteName}</div>
-        )}
-        {embed.title &&
-          (clickable ? (
+    // Koyu Masa card: radius 16, no frame and no colour bar — the site name and
+    // the coral title carry the identity. The fill is the white WASH, not a
+    // surface tone: the card sits inside a message row that is the base tone at
+    // rest and the surface tone on hover, and a surface-toned card vanishes into
+    // the hovered row. The wash lifts it one step above either.
+    <div className="max-w-[520px] overflow-hidden rounded-xl bg-wash p-3">
+      {(embed.siteName ?? displayHost(embed.url)) && (
+        <div className="truncate text-2xs font-medium text-fg-faint">
+          {embed.siteName ?? displayHost(embed.url)}
+        </div>
+      )}
+      {embed.title &&
+        (clickable ? (
+          <button
+            type="button"
+            onClick={() => openExternal(embed.url)}
+            className="mt-1 line-clamp-2 cursor-pointer rounded-sm text-left text-sm font-semibold text-accent underline-offset-2 transition-colors motion-hover hover:text-accent-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {embed.title}
+          </button>
+        ) : (
+          <div className="mt-1 line-clamp-2 text-sm font-semibold text-fg">{embed.title}</div>
+        ))}
+      {embed.description && (
+        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-fg-muted">{embed.description}</p>
+      )}
+      {imageUrl && (
+        // The box is reserved (fixed height) before the bytes arrive, and the
+        // picture fades in over the pulsing placeholder once decoded.
+        <div className={cn("relative mt-2.5 overflow-hidden rounded-lg bg-wash", IMAGE_HEIGHT_CLASS)}>
+          {!imageLoaded && <span aria-hidden className="absolute inset-0 animate-pulse bg-wash" />}
+          {clickable ? (
             <button
               type="button"
               onClick={() => openExternal(embed.url)}
-              className="mt-0.5 line-clamp-2 rounded-sm text-left text-sm font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+              aria-label={linkLabel}
+              className="block w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             >
-              {embed.title}
-            </button>
-          ) : (
-            <div className="mt-0.5 line-clamp-2 text-sm font-semibold text-fg">{embed.title}</div>
-          ))}
-        {embed.description && (
-          <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-fg-muted">
-            {embed.description}
-          </p>
-        )}
-        {imageUrl && (
-          <div className="mt-2 overflow-hidden rounded">
-            {clickable ? (
-              <button
-                type="button"
-                onClick={() => openExternal(embed.url)}
-                aria-label={linkLabel}
-                className="block w-full cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
-              >
-                <img
-                  src={imageUrl}
-                  alt=""
-                  loading="lazy"
-                  onError={() => setImageBroken(true)}
-                  className={`w-full object-cover ${IMAGE_HEIGHT_CLASS}`}
-                />
-              </button>
-            ) : (
               <img
                 src={imageUrl}
                 alt=""
                 loading="lazy"
+                ref={reveal.ref}
+                onLoad={reveal.onLoad}
                 onError={() => setImageBroken(true)}
-                className={`w-full object-cover ${IMAGE_HEIGHT_CLASS}`}
+                className={imageClass}
               />
-            )}
-          </div>
-        )}
-      </div>
+            </button>
+          ) : (
+            <img
+              src={imageUrl}
+              alt=""
+              loading="lazy"
+              ref={reveal.ref}
+              onLoad={reveal.onLoad}
+              onError={() => setImageBroken(true)}
+              className={imageClass}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 });
@@ -120,7 +141,7 @@ export const MessageEmbeds = memo(function MessageEmbeds({
   embeds: MessageEmbed[];
 }): JSX.Element {
   return (
-    <div className="mt-1 flex flex-col gap-1.5">
+    <div className="mt-1.5 flex flex-col gap-1.5">
       {embeds.slice(0, MAX_EMBEDS).map((embed, i) => (
         <LinkEmbedCard key={`${embed.url}-${i}`} embed={embed} />
       ))}

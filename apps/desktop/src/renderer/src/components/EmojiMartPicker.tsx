@@ -16,11 +16,11 @@
  *  - skin-tone choice + "frequently used" persist across sessions (emoji-mart
  *    writes them to localStorage on its own).
  *
- * Theme: emoji-mart is skinned to "Demli Voice v2" purely through its documented
- * CSS custom properties (no forked CSS). The `--rgb-*` triplets and border tokens
- * below ARE the desktop `@theme` palette values (globals.css) — CSS custom
- * properties inherit through emoji-mart's shadow DOM, so setting them on the host
- * wrapper repaints the whole picker with the app's accent / surface / text / edge.
+ * Theme: emoji-mart is skinned to "Koyu Masa" purely through its documented
+ * CSS custom properties (no forked CSS). The `--rgb-*` triplets below ARE the
+ * desktop `@theme` palette values (globals.css) — CSS custom properties inherit
+ * through emoji-mart's shadow DOM, so setting them on the host wrapper repaints
+ * the whole picker with the app's accent / surface / text.
  */
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
@@ -53,21 +53,23 @@ interface EmojiMartSelection {
 }
 
 /**
- * Demli Voice v2 skin for emoji-mart. The `--rgb-*` variables are comma-separated
- * RGB triplets (emoji-mart consumes them as `rgb(var(--rgb-*))`); the border
- * variables take a full colour, so they reference the hairline tokens directly.
- * The triplet values mirror the SINGLE palette source in
+ * Koyu Masa skin for emoji-mart. The `--rgb-*` variables are comma-separated
+ * RGB triplets (emoji-mart consumes them as `rgb(var(--rgb-*))`), so they cannot
+ * be `var(--color-*)` references; the values mirror the SINGLE palette source in
  * apps/desktop/src/renderer/src/styles/globals.css `@theme` — change the palette
- * there and update these four in lockstep.
+ * there and update these four in lockstep. The panel itself is borderless (the
+ * surface tone over the base column separates it), and the internal dividers
+ * use the functional hairline token.
  */
 const DEMLI_THEME = {
-  "--rgb-accent": "255, 140, 26" /* --color-accent      #ff8c1a */,
-  "--rgb-background": "46, 19, 11" /* --color-raised      #2e130b (popover surface) */,
-  "--rgb-input": "26, 8, 6" /* --color-app         #1a0806 (inset search field) */,
-  "--rgb-color": "248, 238, 212" /* --color-fg          #f8eed4 (text) */,
-  "--color-border": "var(--color-stroke)" /* cream hairline */,
-  "--color-border-over": "var(--color-stroke-strong)",
-  "--border-radius": "10px" /* = --tc-radius (popover roundness) */,
+  "--rgb-accent": "255, 132, 100" /* --color-accent   coral (selection, focus) */,
+  "--rgb-background": "23, 23, 23" /* --color-surface  (popover surface)       */,
+  "--rgb-input": "38, 38, 38" /* --color-raised   (search field — the focused-field tone) */,
+  "--rgb-color": "229, 229, 229" /* --color-fg       (text)                  */,
+  "--color-border": "transparent" /* no frame (Koyu Masa) */,
+  "--color-border-over": "var(--color-stroke)",
+  "--border-radius": "16px" /* = rounded-xl, the popover radius */,
+  "--shadow": "none" /* depth by tone, no outer shadow */,
   "--font-family": "inherit",
 } as CSSProperties;
 

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import { WifiOff } from "lucide-react";
-import { bannerDrop } from "@demli/app-ui";
+import { bannerDrop, TypingDots } from "@demli/app-ui";
 import type { ChannelId } from "@demli/types";
 import { useAppTranslation } from "../lib/i18n";
 import { useChatStore } from "../stores/chat-store";
@@ -12,27 +12,6 @@ import { useChatStore } from "../stores/chat-store";
  * realtime connection banner. Both key off the message pipeline's channel id
  * (a server channel id, or a group's `streamId`).
  */
-
-/**
- * The landing's "yazıyor" dots: three 4px dots breathing one after another
- * (1.2s, 0.2s apart). Opacity only — a CSS pulse, so no per-frame JS while a
- * friend types — and `motion-reduce:animate-none` leaves them as a still
- * ellipsis for viewers who asked for less motion (an infinite animation clamped
- * to 0.01ms by the global guard would flicker instead of stopping).
- */
-function TypingDots(): JSX.Element {
-  return (
-    <span aria-hidden className="inline-flex items-center gap-[3px]">
-      {[0, 1, 2].map((index) => (
-        <span
-          key={index}
-          className="size-1 animate-pulse rounded-full bg-fg-muted motion-reduce:animate-none"
-          style={{ animationDuration: "1.2s", animationDelay: `${index * 0.2}s` }}
-        />
-      ))}
-    </span>
-  );
-}
 
 /** "mira is typing…" strip above the composer; renders nothing when quiet. */
 export function TypingIndicator({ channelId }: { channelId: ChannelId }): JSX.Element | null {
@@ -58,11 +37,11 @@ export function TypingIndicator({ channelId }: { channelId: ChannelId }): JSX.El
         : t("desktop:chat.typingMany");
 
   return (
-    <p
-      aria-live="polite"
-      className="flex animate-fade-in items-center gap-2 px-4 pb-1 text-xs text-fg-muted"
-    >
-      <TypingDots />
+    // Fixed h-5 line: the server-channel view lays it over the composer's
+    // bottom padding (so the thread never resizes), the DM / group views keep it
+    // in flow — the same 20px either way.
+    <p aria-live="polite" className="flex h-5 items-center px-4 text-2xs text-fg-muted animate-fade-in">
+      <TypingDots className="mr-2 shrink-0" />
       <span className="truncate font-medium">{label}</span>
     </p>
   );

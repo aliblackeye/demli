@@ -321,3 +321,105 @@ describe("firstUnreadMessageId", () => {
     expect(firstUnreadMessageId(["outbox-1"], "zzz")).toBeNull();
   });
 });
+
+describe("buildRows — date dividers (M16)", () => {
+  /** A message at a LOCAL wall-clock time, so the day boundary is the viewer's. */
+  function at(id: string, authorId: string, day: number, hour: number, minute = 0): ChatMessageView {
+    return msg(id, authorId, 0, {
+      createdAt: new Date(2026, 6, day, hour, minute).toISOString(),
+    });
+  }
+  const WITH_DATES = { ...OPTIONS, dateDividers: true };
+
+  it("is off unless asked for — existing callers get the rows they always got", () => {
+    const rows = buildRows([at("m1", "a", 27, 23, 58), at("m2", "a", 28, 0, 1)], OPTIONS);
+    expect(rows.map((r) => r.kind)).toEqual(["message", "message"]);
+  });
+
+  it("opens the window with the first day, then one divider per new local day", () => {
+    const rows = buildRows(
+      [at("m1", "a", 27, 10), at("m2", "b", 27, 11), at("m3", "a", 28, 9), at("m4", "a", 30, 9)],
+      WITH_DATES,
+    );
+    expect(rows.map((r) => r.kind)).toEqual([
+      "date-divider",
+      "message",
+      "message",
+      "date-divider",
+      "message",
+      "date-divider",
+      "message",
+    ]);
+    const days = rows.flatMap((r) => (r.kind === "date-divider" ? [r.dayStart] : []));
+    expect(days).toEqual([
+      new Date(2026, 6, 27).getTime(),
+      new Date(2026, 6, 28).getTime(),
+      new Date(2026, 6, 30).getTime(),
+    ]);
+  });
+
+  it("breaks author grouping across midnight even inside the 5-minute window", () => {
+    const rows = buildRows([at("m1", "a", 27, 23, 58), at("m2", "a", 28, 0, 1)], WITH_DATES);
+    const messages = rows.filter(
+      (r): r is Extract<ListRow, { kind: "message" }> => r.kind === "message",
+    );
+    expect(messages.map((r) => r.isContinuation)).toEqual([false, false]);
+  });
+
+  it("never emits a second divider (or a duplicate key) for an out-of-order earlier day", () => {
+    const rows = buildRows([at("m1", "a", 28, 9), at("outbox-x", "a", 27, 23)], WITH_DATES);
+    const keys = rows.map((r) => r.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(rows.filter((r) => r.kind === "date-divider")).toHaveLength(1);
+  });
+
+  it("puts the date divider ABOVE the unread divider when both land on one message", () => {
+    const rows = buildRows([at("m1", "a", 27, 10), at("m2", "b", 28, 9)], {
+      ...WITH_DATES,
+      dividerBeforeId: "m2",
+    });
+    expect(rows.map((r) => r.kind)).toEqual([
+      "date-divider",
+      "message",
+      "date-divider",
+      "unread-divider",
+      "message",
+    ]);
+  });
+
+  it("splits an ignored fold at midnight so the next day's divider still renders", () => {
+    const rows = buildRows(
+      [at("m1", "x", 27, 23, 50), at("m2", "x", 27, 23, 55), at("m3", "x", 28, 0, 5)],
+      { ...WITH_DATES, ignoredAuthorIds: new Set(["x"]) },
+    );
+    expect(rows.map((r) => r.kind)).toEqual([
+      "date-divider",
+      "ignored-run",
+      "date-divider",
+      "ignored-run",
+    ]);
+    expect(runs(rows).map((r) => r.count)).toEqual([2, 1]);
+  });
+
+  it("keeps the tail sentinel on the last message, never on a divider", () => {
+    const rows = buildRows([at("m1", "a", 27, 10), at("m2", "a", 28, 10)], WITH_DATES);
+    expect(tailSentinel(rows)).toBe("m2");
+  });
+});
+
+describe("row key of a confirmed own send", () => {
+  it("uses renderKey so the optimistic row is updated in place, not remounted", () => {
+    const optimistic = buildRows([msg("outbox-n1", "me", 0, { nonce: "n1", deliveryState: "sending" })], OPTIONS);
+    const confirmed = buildRows([msg("s1", "me", 0, { renderKey: "outbox-n1" })], OPTIONS);
+    const keyOf = (rows: ListRow[]) => rows.find((row) => row.kind === "message")?.key;
+    expect(keyOf(optimistic)).toBe("outbox-n1");
+    expect(keyOf(confirmed)).toBe("outbox-n1");
+    // Identity lookups (jump, divider, highlight) still use the server id.
+    expect(renderedMessageIds(confirmed)).toEqual(["s1"]);
+  });
+
+  it("keys every other message by its id", () => {
+    const rows = buildRows([msg("a", "u1")], OPTIONS);
+    expect(rows.find((row) => row.kind === "message")?.key).toBe("a");
+  });
+});

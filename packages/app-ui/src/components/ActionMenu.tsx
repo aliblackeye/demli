@@ -208,8 +208,8 @@ export function ActionMenuKebab({
       }}
       className={cn(
         "absolute right-1 top-1/2 z-10 grid size-6 -translate-y-1/2 place-items-center rounded-md",
-        "text-fg-faint transition-[opacity,color,background-color] motion-instant",
-        "hover:bg-white/[0.06] hover:text-fg",
+        "text-fg-faint transition-[opacity,color,background-color] motion-hover",
+        "hover:bg-wash hover:text-fg active:bg-wash-strong",
         // Hidden + inert on a POINTER THAT CAN HOVER; shown + interactive when
         // it cannot, and under keyboard focus.
         //
@@ -219,7 +219,7 @@ export function ActionMenuKebab({
         // 2026-07-28, on a 2560px display in a ~590px window). `pointer-coarse`
         // asks the question that actually matters.
         "opacity-0 pointer-events-none",
-        "focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+        "focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         "pointer-coarse:pointer-events-auto pointer-coarse:opacity-100",
         className,
       )}

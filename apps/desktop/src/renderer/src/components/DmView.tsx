@@ -6,7 +6,7 @@ import { useAppTranslation } from "../lib/i18n";
 import { useDms, useHideDm } from "../queries/social-queries";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
-import { MessageList } from "@demli/app-ui";
+import { MessageList, type ChatIntro } from "@demli/app-ui";
 import { ConnectionBanner, TypingIndicator } from "./ChatChrome";
 import { ChatDataProvider } from "./ChatDataProvider";
 import { ChannelSearchPanel } from "./ChannelSearchPanel";
@@ -73,6 +73,16 @@ export function DmView(): JSX.Element {
   }, [streamId, setActiveStream]);
 
   const streamChannel = useMemo(() => (dm ? streamChannelOf(dm) : null), [dm]);
+  // The empty thread opens on the person, not on a "#name" channel intro.
+  const peerName = dm?.participant.displayName;
+  const peerAvatar = dm?.participant.avatarUrl ?? null;
+  const intro = useMemo<ChatIntro | undefined>(
+    () =>
+      participantId && peerName
+        ? { kind: "dm", peer: { id: participantId, displayName: peerName, avatarUrl: peerAvatar } }
+        : undefined,
+    [participantId, peerName, peerAvatar],
+  );
 
   // Subscribe to only THIS participant's presence, not the whole presence map,
   // so an unrelated presence tick never rerenders the DM view (§27).
@@ -177,7 +187,7 @@ export function DmView(): JSX.Element {
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
           {/* key resets scroll/stick state cleanly when switching DMs */}
-          <ChatDataProvider channel={streamChannel}>
+          <ChatDataProvider channel={streamChannel} intro={intro}>
             <MessageList key={streamChannel.id} />
           </ChatDataProvider>
           <TypingIndicator channelId={streamChannel.id} />

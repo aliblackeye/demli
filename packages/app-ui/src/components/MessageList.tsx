@@ -1,12 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, Hash, Loader2 } from "lucide-react";
+import { AnimatePresence, m } from "framer-motion";
+import { ArrowDown, ArrowUp, CloudOff, Hash, RotateCw, Users, Volume2 } from "lucide-react";
 import { Trans, useTranslation } from "@demli/i18n";
-import { Button, cn } from "@demli/ui";
+import { Button, Skeleton, UserAvatar, cn } from "@demli/ui";
 import type { Channel } from "@demli/types";
-import { useChatData } from "../data/chat-data";
+import { useChatData, type ChatIntro } from "../data/chat-data";
+import { onEditLastRequest, requestMessageEdit } from "../data/edit-request";
+import { useOptionalMessageRowServices } from "../data/message-row-data";
+import { toastPop } from "../motion/presets";
 import { IgnoredRunRow } from "./IgnoredRunRow";
-import { buildRows, firstUnreadMessageId, tailSentinel, toggleIgnoredRun } from "./messageRows";
+import {
+  buildRows,
+  firstUnreadMessageId,
+  localDayStart,
+  tailSentinel,
+  toggleIgnoredRun,
+} from "./messageRows";
 
 /** Within this distance (px) of the bottom we auto-follow new messages. */
 const STICK_THRESHOLD_PX = 80;
@@ -14,6 +24,8 @@ const STICK_THRESHOLD_PX = 80;
 const LOAD_OLDER_THRESHOLD_PX = 120;
 /** Older pages a pin/deep-link jump may load while hunting for its target. */
 const JUMP_MAX_PAGE_LOADS = 5;
+/** Frames the ↑-to-edit hand-off waits for the target row to mount. */
+const EDIT_HANDOFF_MAX_FRAMES = 6;
 /**
  * A message younger than this plays the "arrival" motion (blur → sharp, lift →
  * settle). Derived from the message's own `createdAt` rather than from React
@@ -33,22 +45,73 @@ const ARRIVAL_FRESH_MS = 1200;
  */
 const IGNORED_RUN_ROW_PX = 32;
 
-function ChannelIntro({ channel }: { channel: Channel }): JSX.Element {
+/**
+ * Rendered height of the older-page loading row: a fixed `h-14` in every state,
+ * so the estimate is exact and the scroll compensation below is exact too.
+ */
+const OLDER_LOADING_ROW_PX = 56;
+
+/** Rendered height of a {@link DateDivider} (pt-5 + 20px pill + pb-1). */
+const DATE_DIVIDER_ROW_PX = 44;
+
+/** Stand-in viewer hook for a surface with no row services (↑-to-edit inert). */
+function useNoViewer(): string | undefined {
+  return undefined;
+}
+
+/**
+ * The start of the thread. A server channel opens on its glyph and "#name"; a DM
+ * opens on the other person (their avatar and name, no "#"); a flat group chat
+ * on the group. A DM and a group chat run on a hidden stream channel named after
+ * the peer / group, so the channel copy would read "#Can kanalına hoş geldin".
+ */
+function ThreadIntro({ channel, intro }: { channel: Channel; intro?: ChatIntro }): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  return (
-    <div className="px-4 pb-3 pt-8">
-      <div className="flex size-14 items-center justify-center rounded-full bg-raised">
-        <Hash className="size-7 text-fg-muted" />
+  const strong = { strong: <span className="font-medium text-fg" /> };
+
+  if (intro?.kind === "dm") {
+    const { peer } = intro;
+    return (
+      <div className="px-4 pb-4 pt-10">
+        <UserAvatar
+          name={peer.displayName}
+          colorSeed={peer.id}
+          src={peer.avatarUrl}
+          size="lg"
+          ring={false}
+        />
+        <h2 className="mt-4 font-display text-2xl font-semibold tracking-[-0.01em] text-fg-display">
+          {peer.displayName}
+        </h2>
+        <p className="mt-1.5 text-sm text-fg-muted">
+          <Trans
+            t={t}
+            i18nKey="desktop:chat.introDmBody"
+            values={{ name: peer.displayName }}
+            components={strong}
+          />
+        </p>
       </div>
-      <h2 className="mt-3 text-xl font-bold text-fg">
-        {t("desktop:chat.introTitle", { channel: channel.name })}
+    );
+  }
+
+  const isGroup = intro?.kind === "groupChat";
+  const name = isGroup ? intro.name : channel.name;
+  const Glyph = isGroup ? Users : channel.kind === "voice" ? Volume2 : Hash;
+  return (
+    <div className="px-4 pb-4 pt-10">
+      <div className="flex size-14 items-center justify-center rounded-xl bg-surface">
+        <Glyph className="size-7 text-fg-muted" aria-hidden />
+      </div>
+      <h2 className="mt-4 font-display text-2xl font-semibold tracking-[-0.01em] text-fg-display">
+        {isGroup ? name : t("desktop:chat.introTitle", { channel: name })}
       </h2>
-      <p className="mt-1 text-sm text-fg-muted">
+      <p className="mt-1.5 text-sm text-fg-muted">
         <Trans
           t={t}
-          i18nKey="desktop:chat.introBody"
-          values={{ channel: channel.name }}
-          components={{ strong: <span className="font-medium text-fg" /> }}
+          i18nKey={isGroup ? "desktop:chat.introGroupBody" : "desktop:chat.introBody"}
+          values={isGroup ? { name } : { channel: name }}
+          components={strong}
         />
       </p>
     </div>
@@ -56,50 +119,129 @@ function ChannelIntro({ channel }: { channel: Channel }): JSX.Element {
 }
 
 /**
- * The "New Messages" separator: a thin accent hairline across the
- * thread with a small label on the right. Non-interactive; positioned by
- * `buildRows` directly above the first message received since the last visit.
+ * Calendar-day separator: a hairline across the thread with the day as a calm
+ * pill in the middle — "Bugün", "Dün", or the full date. The day is resolved at
+ * render (the row model only carries local midnight), in the APP language, so a
+ * Turkish UI reads "12 Ekim Pazartesi" even on an English OS.
+ */
+function DateDivider({ dayStart }: { dayStart: number }): JSX.Element {
+  const { t, i18n } = useTranslation(["common", "desktop"]);
+  const label = useMemo(() => {
+    const today = localDayStart(new Date().toISOString());
+    // Round, not floor: a DST shift makes one calendar day 23h or 25h long.
+    const daysAgo = Math.round((today - dayStart) / 86_400_000);
+    if (daysAgo === 0) return t("desktop:chat.dateToday");
+    if (daysAgo === 1) return t("desktop:chat.dateYesterday");
+    const date = new Date(dayStart);
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return new Intl.DateTimeFormat(i18n.language, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: sameYear ? undefined : "numeric",
+    }).format(date);
+  }, [dayStart, i18n.language, t]);
+
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      className="pointer-events-none flex select-none items-center px-4 pb-1 pt-5"
+    >
+      <div className="h-px flex-1 bg-stroke" />
+      <span className="mx-3 flex h-5 items-center rounded-pill bg-surface px-2.5 text-2xs font-medium text-fg-muted">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-stroke" />
+    </div>
+  );
+}
+
+/**
+ * The "new messages start here" line: a coral hairline with a solid coral
+ * "Yeni" chip at its right end (sentence case:
+ * CSS `uppercase` maps Turkish i→I by the document language, so caps are never
+ * left to the engine — brand-system "case conversion in TS, not CSS"). Coral is the colour this thread reserves for
+ * "this is for you" — the same light as a mention of you and your own
+ * reactions — so the line reads as a place to resume, never as an error.
+ * Non-interactive; positioned by `buildRows` directly above the first message
+ * received since the last visit.
  */
 function UnreadDivider(): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
   return (
     <div
-      // Safari 12 has no flex `gap`; `space-x-2` reproduces the gutter while the
-      // flex row is kept so the two hairlines still `flex-1`-stretch to the edges.
-      className="pointer-events-none flex select-none items-center space-x-2 px-4 py-1"
+      className="pointer-events-none flex select-none items-center px-4 py-1"
       role="separator"
       aria-label={t("desktop:chat.newMessagesDivider")}
     >
-      {/* UI overhaul spec: unread divider is ACCENT, not danger — red reads as
-          error; blurple reads as "resume here" (mockup: Okunmamış mesajlar). */}
-      <div className="h-px flex-1 bg-accent/70" />
-      <span className="text-badge font-bold uppercase tracking-wide text-accent-hover">
-        {t("desktop:chat.newMessages")}
+      <div className="h-px flex-1 bg-accent/50" />
+      <span className="ml-2 flex h-4 items-center rounded-pill bg-accent px-1.5 text-badge font-semibold leading-none text-on-accent">
+        {t("desktop:chat.newChip")}
       </span>
-      <div className="h-px flex-1 bg-accent/70" />
+    </div>
+  );
+}
+
+/** One placeholder message: a header (avatar + name + body) or a continuation line. */
+function SkeletonMessage({
+  header,
+  body,
+  media = false,
+}: {
+  header: boolean;
+  body: string;
+  media?: boolean;
+}): JSX.Element {
+  return (
+    <div className={cn("flex px-4", header ? "mt-5" : "mt-1.5")}>
+      <div className="w-10 shrink-0">{header && <Skeleton shape="circle" width={40} />}</div>
+      <div className="ml-3 min-w-0 flex-1 pt-0.5">
+        {header && <Skeleton shape="line" width={112} height={12} />}
+        <Skeleton shape="line" height={12} className={cn(header && "mt-2", body)} />
+        {media && <Skeleton shape="rect" width={260} height={150} className="mt-2 rounded-xl" />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The row above the thread while an older page loads: one compact placeholder
+ * message at a FIXED height ({@link OLDER_LOADING_ROW_PX}). Fixed so that its
+ * insertion can be compensated exactly — the messages on screen must not move
+ * while history loads.
+ */
+function OlderPageLoading(): JSX.Element {
+  const { t } = useTranslation(["common", "desktop"]);
+  return (
+    <div
+      role="status"
+      aria-label={t("desktop:chat.loadingOlder")}
+      className="flex h-14 items-center px-4"
+    >
+      <Skeleton shape="circle" width={32} />
+      <div className="ml-3 flex min-w-0 flex-1 flex-col gap-2">
+        <Skeleton shape="line" width={112} height={10} />
+        <Skeleton shape="line" height={10} className="w-1/2" />
+      </div>
     </div>
   );
 }
 
 function MessageListSkeleton(): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
-  const widths = ["w-3/5", "w-2/5", "w-4/5", "w-1/2", "w-2/3", "w-1/3"];
   return (
     <div
       aria-label={t("desktop:chat.loadingMessages")}
       role="status"
-      className="flex-1 overflow-hidden px-4 pt-6"
+      className="flex-1 overflow-hidden pt-4"
     >
-      {widths.map((width, index) => (
-        // Safari 12: no flex `gap` → `space-x-3` reproduces the avatar/text gutter.
-        <div key={index} className="mt-5 flex animate-pulse space-x-3">
-          <div className="size-9 shrink-0 rounded-full bg-raised" />
-          <div className="flex-1 pt-0.5">
-            <div className="h-3.5 w-28 rounded bg-raised" />
-            <div className={cn("mt-2 h-3.5 rounded bg-raised/70", width)} />
-          </div>
-        </div>
-      ))}
+      <SkeletonMessage header body="w-3/5" />
+      <SkeletonMessage header={false} body="w-2/5" />
+      <SkeletonMessage header body="w-4/5" />
+      <SkeletonMessage header body="w-1/3" media />
+      <SkeletonMessage header body="w-2/3" />
+      <SkeletonMessage header={false} body="w-1/2" />
       <span className="sr-only">{t("desktop:chat.loadingMessages")}</span>
     </div>
   );
@@ -108,16 +250,18 @@ function MessageListSkeleton(): JSX.Element {
 /**
  * The virtualized message thread (CLAUDE.md §7, §27) — shared by every surface
  * (server channel, DM, flat group chat). It owns ONLY the list mechanics:
- * grouping, the unread divider, load-older-on-scroll-up with viewport anchoring,
- * stick-to-bottom / jump-to-present, the pin/deep-link jump, and the flash
- * highlight. Everything data-shaped (the assembled messages, paging, read
- * marker, error localization, the jump emitter) comes from {@link useChatData};
- * the mutation-coupled ROW is the surface's `renderMessage` slot.
+ * grouping, the unread + date dividers, load-older-on-scroll-up with viewport
+ * anchoring, stick-to-bottom / jump-to-present, the pin/deep-link jump, the
+ * ↑-to-edit hand-off and the flash highlight. Everything data-shaped (the
+ * assembled messages, paging, read marker, error localization, the jump
+ * emitter) comes from {@link useChatData}; the mutation-coupled ROW is the
+ * surface's `renderMessage` slot.
  */
 export function MessageList(): JSX.Element {
   const { t } = useTranslation(["common", "desktop"]);
   const {
     channel,
+    intro,
     messages,
     hasMore,
     isLoadingMore,
@@ -130,6 +274,12 @@ export function MessageList(): JSX.Element {
     renderMessage,
     ignoredAuthorIds,
   } = useChatData();
+  // Optional: only the ↑-to-edit hand-off needs the viewer's id.
+  // The hook is picked once per provider (a provider is mounted for the list's
+  // whole life), so the same hook runs on every render either way.
+  const rowServices = useOptionalMessageRowServices();
+  const useViewerId = rowServices?.useCurrentUserId ?? useNoViewer;
+  const currentUserId = useViewerId();
 
   /**
    * Runs the viewer chose to reveal, keyed by the run's first message id (ADR
@@ -154,7 +304,10 @@ export function MessageList(): JSX.Element {
     computed: false,
     id: null,
   });
-  if (!anchorRef.current.computed && messages.length > 0) {
+  // Wait for the FIRST PAGE, not merely for any message: the persistent outbox
+  // (M17) is in the list before the server page lands, and anchoring on a list
+  // of only queued sends froze the divider at "none" for that whole visit.
+  if (!anchorRef.current.computed && !isPending && messages.length > 0) {
     anchorRef.current = {
       computed: true,
       id: firstUnreadMessageId(
@@ -173,6 +326,7 @@ export function MessageList(): JSX.Element {
         dividerBeforeId,
         ignoredAuthorIds,
         expandedIgnoredRuns,
+        dateDividers: true,
       }),
     [messages, hasMore, isLoadingMore, dividerBeforeId, ignoredAuthorIds, expandedIgnoredRuns],
   );
@@ -189,9 +343,10 @@ export function MessageList(): JSX.Element {
     getScrollElement: () => parentRef.current,
     estimateSize: (index) => {
       const row = rows[index];
-      if (!row || row.kind === "intro") return 140;
-      if (row.kind === "older-loading") return 36;
-      if (row.kind === "unread-divider") return 28;
+      if (!row || row.kind === "intro") return 150;
+      if (row.kind === "older-loading") return OLDER_LOADING_ROW_PX;
+      if (row.kind === "unread-divider") return 24;
+      if (row.kind === "date-divider") return DATE_DIVIDER_ROW_PX;
       // Exact, not an estimate — the fold is a fixed-height bar in every state,
       // so toggling it never re-measures this row (only inserts/removes rows
       // after it).
@@ -200,8 +355,8 @@ export function MessageList(): JSX.Element {
       let base = row.isContinuation ? 26 : 54;
       // Reserve rough space for the enrichment rows so the initial estimate stays
       // close (measureElement corrects it; reserving prevents a scroll jump, §27).
-      if (row.message.replyTo) base += 20; // quote line above the content
-      if (row.message.reactions && row.message.reactions.length > 0) base += 28; // pill row
+      if (row.message.replyTo) base += 22; // quote line above the content
+      if (row.message.reactions && row.message.reactions.length > 0) base += 34; // pill row
       // Reserve rough space for attachment tiles so the initial estimate is
       // close (measureElement corrects it; the reserved boxes prevent reflow).
       const attachments = row.message.attachments?.length ?? 0;
@@ -267,6 +422,50 @@ export function MessageList(): JSX.Element {
     };
   }, [jumpToMessage, subscribeJump]);
 
+  /**
+   * ↑ in an empty composer → edit the viewer's newest message (Discord parity).
+   * The composer cannot see rows, and the row it wants may be outside the
+   * virtual window, so the list finds it, scrolls it in, then hands the open
+   * command to the row once it has mounted (a few frames at most).
+   */
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+  useEffect(
+    () =>
+      onEditLastRequest((channelId) => {
+        if (channelId !== channel.id) return false;
+        const me = currentUserIdRef.current;
+        if (!me) return false;
+        const list = rowsRef.current;
+        let index = -1;
+        for (let i = list.length - 1; i >= 0; i--) {
+          const row = list[i];
+          if (
+            row?.kind === "message" &&
+            row.message.authorId === me &&
+            row.message.kind !== "system" &&
+            row.message.deliveryState === "sent" &&
+            row.message.content.length > 0
+          ) {
+            index = i;
+            break;
+          }
+        }
+        const target = list[index];
+        if (!target || target.kind !== "message") return false;
+        const messageId = target.message.id;
+        virtualizer.scrollToIndex(index, { align: "auto" });
+        let frames = 0;
+        const handOff = (): void => {
+          if (requestMessageEdit(messageId) || ++frames > EDIT_HANDOFF_MAX_FRAMES) return;
+          requestAnimationFrame(handOff);
+        };
+        requestAnimationFrame(handOff);
+        return true;
+      }),
+    [channel.id, virtualizer],
+  );
+
   // Optional affordance: scroll up to the "New Messages" divider (where the user
   // left off). Safe in the virtualized list — scrollToIndex is the same primitive
   // the reply-jump uses. Reads rows via the ref so its identity stays stable.
@@ -310,21 +509,95 @@ export function MessageList(): JSX.Element {
     }
   }, [loaded, lastRowKey, scrollToBottom]);
 
+  /**
+   * The older-page row is inserted at the TOP of the virtual flow, which would
+   * push every message on screen down by its height for the whole fetch (and
+   * snap back when the page lands). Shift the scroll position by that exact,
+   * fixed height in the same commit, before paint, so the thread stays put. The
+   * removal needs nothing extra: `loadOlder` re-anchors from the heights it
+   * captured before this row existed.
+   */
+  const olderRowShown = rows[0]?.kind === "older-loading";
+  const olderRowShownRef = useRef(olderRowShown);
+  useLayoutEffect(() => {
+    const was = olderRowShownRef.current;
+    olderRowShownRef.current = olderRowShown;
+    const el = parentRef.current;
+    if (!el || was === olderRowShown || !olderRowShown) return;
+    el.scrollTop += OLDER_LOADING_ROW_PX;
+  }, [olderRowShown]);
+
+  /**
+   * Keep the viewport on the same messages when an older page is prepended.
+   *
+   * Anchored on a ROW, not on scroll heights: the row at the top of the
+   * viewport is remembered with its offset, and once the page has landed the
+   * scroll position is set so that row sits at the same offset again. Applied in
+   * LAYOUT effects — the commit that swaps the loading row for the page, and the
+   * commit right after it in which the virtualizer has measured the new rows —
+   * so the browser never paints the intermediate position. (It used to run in a
+   * rAF after the fetch settled, comparing scrollHeight before/after: the
+   * prepended page was painted at the old position for a few frames first.)
+   * Armed only once the fetch is seen in flight, so an unrelated row change
+   * before that (a new message arriving) cannot consume the anchor early.
+   */
+  const pendingAnchorRef = useRef<{
+    /** The virtual item key of the anchor row (row keys are strings). */
+    key: unknown;
+    offset: number;
+    armed: boolean;
+    settling: boolean;
+  } | null>(null);
+  const totalSize = virtualizer.getTotalSize();
+  useLayoutEffect(() => {
+    const anchor = pendingAnchorRef.current;
+    const el = parentRef.current;
+    if (!anchor || !el) return;
+    if (isLoadingMore) {
+      anchor.armed = true;
+      return;
+    }
+    if (!anchor.armed) return;
+    const index = rows.findIndex((row) => row.key === anchor.key);
+    // getVirtualItems() refreshes the measurement cache with the sizes measured
+    // in this commit (the public read of it is `measurementsCache`).
+    virtualizer.getVirtualItems();
+    const item = index >= 0 ? virtualizer.measurementsCache[index] : undefined;
+    if (!item) {
+      pendingAnchorRef.current = null;
+      return;
+    }
+    el.scrollTop = item.start - anchor.offset;
+    if (!anchor.settling) {
+      // Hold the anchor through the measurement re-render, then let go.
+      anchor.settling = true;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (pendingAnchorRef.current === anchor) pendingAnchorRef.current = null;
+        }),
+      );
+    }
+  }, [rows, isLoadingMore, totalSize, virtualizer]);
+
   const loadOlder = useCallback(() => {
     const el = parentRef.current;
     if (!el || loadingOlderRef.current) return;
     loadingOlderRef.current = true;
-    const previousHeight = el.scrollHeight;
-    const previousTop = el.scrollTop;
+    const top = el.scrollTop;
+    // A MESSAGE row: a date divider's key ("date:<day>") survives the prepend
+    // but moves to the top of the new page when that page starts the same day.
+    const first = virtualizer
+      .getVirtualItems()
+      .find((item) => item.end > top && rowsRef.current[item.index]?.kind === "message");
+    pendingAnchorRef.current = first
+      ? { key: first.key, offset: first.start - top, armed: false, settling: false }
+      : null;
     void loadMore().finally(() => {
-      // Keep the viewport anchored on the same messages after the prepend.
       requestAnimationFrame(() => {
-        const node = parentRef.current;
-        if (node) node.scrollTop = previousTop + (node.scrollHeight - previousHeight);
         loadingOlderRef.current = false;
       });
     });
-  }, [loadMore]);
+  }, [loadMore, virtualizer]);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -342,9 +615,19 @@ export function MessageList(): JSX.Element {
 
   if (errorMessage !== null) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center space-y-3 px-4">
-        <p className="text-sm text-fg-muted">{errorMessage}</p>
-        <Button variant="secondary" size="sm" onClick={() => retry()}>
+      <div
+        role="alert"
+        className="flex flex-1 flex-col items-center justify-center px-6 text-center animate-fade-in"
+      >
+        <div className="flex size-12 items-center justify-center rounded-xl bg-surface">
+          <CloudOff className="size-6 text-fg-muted" aria-hidden />
+        </div>
+        <p className="mt-4 font-display text-base font-semibold text-fg">
+          {t("desktop:chat.loadFailedTitle")}
+        </p>
+        <p className="mt-1 max-w-sm text-sm text-fg-muted">{errorMessage}</p>
+        <Button variant="secondary" size="sm" className="mt-4" onClick={() => retry()}>
+          <RotateCw className="size-3.5" aria-hidden />
           {t("buttons.retry")}
         </Button>
       </div>
@@ -362,6 +645,11 @@ export function MessageList(): JSX.Element {
     dividerRowIndex >= 0 &&
     virtualizer.getVirtualItems().some((item) => item.index === dividerRowIndex);
   const showUnreadJump = dividerRowIndex >= 0 && !dividerRendered && atBottom;
+  // Scrolled away from the newest message is enough on its own — a new message
+  // arriving is a reason to OFFER the jump, not the only one. `atBottom` already
+  // tracks this on every scroll with the same STICK_THRESHOLD_PX the auto-follow
+  // uses, so the button appears exactly when auto-follow has let go.
+  const showPresentJump = jumpVisible || !atBottom;
 
   return (
     <div className="relative min-h-0 flex-1">
@@ -374,10 +662,26 @@ export function MessageList(): JSX.Element {
        * no scroll (P0 regression). Absolute positioning keeps the viewport out of
        * flow so it neither depends on percentage resolution nor leaks the sizer
        * height up the flex chain.
+       *
+       * Focusable (tabIndex 0) so a keyboard user can scroll the thread with the
+       * arrow / Page keys — a scroll region with no focus stop is a WCAG 2.1.1
+       * gap. The ring is inset and keyboard-only.
        */}
-      <div ref={parentRef} onScroll={handleScroll} className="absolute inset-0 overflow-y-auto">
+      <div
+        ref={parentRef}
+        onScroll={handleScroll}
+        tabIndex={0}
+        aria-label={t("desktop:chat.listLabel", { channel: channel.name })}
+        className="absolute inset-0 overflow-y-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
+      >
+        {/* A thread shorter than the viewport sits on the composer, not under
+            the header (a conversation grows upward). `justify-end` only acts
+            while the content is shorter than the viewport — once it overflows,
+            `min-h-full` equals the content and the virtualizer's offsets are
+            untouched. */}
+        <div className="flex min-h-full flex-col justify-end">
         <div
-          className="relative w-full"
+          className="relative w-full shrink-0"
           style={{ height: virtualizer.getTotalSize() }}
         >
           {virtualizer.getVirtualItems().map((item) => {
@@ -392,18 +696,13 @@ export function MessageList(): JSX.Element {
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 {row.kind === "intro" ? (
-                  <ChannelIntro channel={channel} />
+                  <ThreadIntro channel={channel} intro={intro} />
                 ) : row.kind === "older-loading" ? (
-                  <div
-                    role="status"
-                    // Safari 12: no flex `gap` → `space-x-2` keeps the spinner/text gutter.
-                    className="flex items-center justify-center space-x-2 py-2 text-xs text-fg-faint"
-                  >
-                    <Loader2 className="size-3.5 animate-spin" />
-                    {t("desktop:chat.loadingOlder")}
-                  </div>
+                  <OlderPageLoading />
                 ) : row.kind === "unread-divider" ? (
                   <UnreadDivider />
+                ) : row.kind === "date-divider" ? (
+                  <DateDivider dayStart={row.dayStart} />
                 ) : row.kind === "ignored-run" ? (
                   <IgnoredRunRow
                     count={row.count}
@@ -424,46 +723,52 @@ export function MessageList(): JSX.Element {
             );
           })}
         </div>
+        </div>
       </div>
 
-      {showUnreadJump && (
-        <button
-          type="button"
-          onClick={jumpToUnread}
-          className={cn(
-            // Safari 12: no flex `gap` → `space-x-1.5` for the icon/label gutter.
-            "absolute left-1/2 top-3 z-10 flex -translate-x-1/2 cursor-pointer items-center space-x-1.5",
-            "rounded-full border border-danger/40 bg-danger/15 px-3 py-1.5",
-            "text-xs font-medium text-danger shadow-lg transition-colors hover:bg-danger/25",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/70",
-          )}
-        >
-          <ArrowUp className="size-3.5" />
-          {t("desktop:chat.jumpToNew")}
-        </button>
-      )}
+      <AnimatePresence>
+        {showUnreadJump && (
+          <m.button
+            key="jump-unread"
+            type="button"
+            onClick={jumpToUnread}
+            variants={toastPop}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className={cn(
+              "absolute left-1/2 top-3 z-10 flex h-8 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-pill px-3.5",
+              "bg-accent text-xs font-semibold text-on-accent hover:bg-accent-hover active:bg-accent-pressed",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg focus-visible:ring-offset-2 focus-visible:ring-offset-app",
+            )}
+          >
+            <ArrowUp className="size-3.5" aria-hidden />
+            {t("desktop:chat.jumpToNew")}
+          </m.button>
+        )}
+      </AnimatePresence>
 
-      {/* Scrolled away from the newest message is enough on its own — a new
-          message arriving is a reason to OFFER the jump, not the only one.
-          `atBottom` already tracks this on every scroll with the same
-          STICK_THRESHOLD_PX the auto-follow uses, so the button appears exactly
-          when auto-follow has let go. */}
-      {(jumpVisible || !atBottom) && (
-        <button
-          type="button"
-          onClick={scrollToBottom}
-          className={cn(
-            // Safari 12: no flex `gap` → `space-x-1.5` for the icon/label gutter.
-            "absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer items-center space-x-1.5",
-            "rounded-full border border-stroke-strong bg-overlay px-3 py-1.5",
-            "text-xs font-medium text-fg shadow-lg transition-colors hover:bg-raised",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-          )}
-        >
-          <ArrowDown className="size-3.5" />
-          {t("desktop:chat.jumpToPresent")}
-        </button>
-      )}
+      <AnimatePresence>
+        {showPresentJump && (
+          <m.button
+            key="jump-present"
+            type="button"
+            onClick={scrollToBottom}
+            variants={toastPop}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className={cn(
+              "absolute bottom-3 left-1/2 z-10 flex h-8 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-pill px-3.5",
+              "surface-glass-strong text-xs font-medium text-fg hover:bg-raised active:bg-raised-pressed",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+            )}
+          >
+            <ArrowDown className="size-3.5" aria-hidden />
+            {t("desktop:chat.jumpToPresent")}
+          </m.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

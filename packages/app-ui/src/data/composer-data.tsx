@@ -71,6 +71,25 @@ export interface ComposerReplyPayload {
   replyTo: MessageReplyPreview;
 }
 
+/**
+ * Why this conversation cannot take a message right now, known BEFORE a send
+ * (M16). Today: the viewer blocked the DM peer — the server would refuse the
+ * send with `BLOCKED`, so the composer says so up front and offers the one
+ * thing that changes it. Never "they blocked you": that is not knowable by
+ * design, and a composer must not reveal it.
+ */
+export interface ComposerSendBlock {
+  kind: "blocked";
+  /** The blocked person's display name, for the notice. */
+  name: string;
+  /**
+   * Start lifting the block. The surface routes this through its ONE unblock
+   * confirmation (the same dialog the profile card and the settings list
+   * open), so the composer never becomes a second, unconfirmed unblock path.
+   */
+  unblock: () => void;
+}
+
 /** The ambient services the shared {@link "../components/MessageComposer".MessageComposer} reads. */
 export interface ComposerServices {
   /* ── Reactive (hooks — called during the composer's render) ───────────────── */
@@ -90,6 +109,11 @@ export interface ComposerServices {
   useAttachmentDrafts: (channelId: string) => ComposerAttachmentDrafts;
   /** Subscribe to a channel's active slow-mode cooldown deadline (ms epoch, 0 = none). */
   useSlowmodeCooldownUntil: (channelId: string) => number;
+  /**
+   * OPTIONAL: subscribe to a reason this conversation cannot take a message
+   * (the viewer blocked the DM peer). Null / absent = the composer is open.
+   */
+  useSendBlock?: (channelId: string) => ComposerSendBlock | null;
 
   /* ── Imperative reads / writes ────────────────────────────────────────────── */
   /** Read a channel's reply target at send time (never a subscription). */

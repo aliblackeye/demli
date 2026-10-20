@@ -7,6 +7,7 @@ import {
   type MarkdownInline,
 } from "@demli/client-core";
 import type { GroupId } from "@demli/types";
+import { useTranslation } from "@demli/i18n";
 import { cn } from "@demli/ui";
 import { openExternalUrl } from "../platform/external-link";
 
@@ -79,12 +80,13 @@ function openExternal(e: React.MouseEvent, href: string): void {
 
 /** A ||spoiler|| — a covered block that reveals its content on click. */
 function Spoiler({ children }: { children: React.ReactNode }): JSX.Element {
+  const { t } = useTranslation(["common", "desktop"]);
   const [revealed, setRevealed] = useState(false);
   return (
     <span
       role="button"
       tabIndex={0}
-      aria-label={revealed ? undefined : "Spoiler — reveal"}
+      aria-label={revealed ? undefined : t("desktop:chat.spoilerReveal")}
       onClick={(e) => {
         if (!revealed) {
           e.stopPropagation();
@@ -98,10 +100,13 @@ function Spoiler({ children }: { children: React.ReactNode }): JSX.Element {
         }
       }}
       className={cn(
-        "rounded-[3px] transition-colors",
+        // Covered = an opaque raised block (the text is transparent, so nothing
+        // shows through); revealed = the faint wash it keeps as a reminder.
+        "rounded-[4px] px-0.5 transition-colors motion-hover",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         revealed
-          ? "bg-fg/[0.06]"
-          : "cursor-pointer select-none bg-fg-muted/30 text-transparent hover:bg-fg-muted/40",
+          ? "bg-wash"
+          : "cursor-pointer select-none bg-raised text-transparent hover:bg-raised-hover",
       )}
     >
       {children}
@@ -157,7 +162,9 @@ function renderInline(node: MarkdownInline, key: number): React.ReactNode {
       return (
         <code
           key={key}
-          className="rounded bg-raised px-1 py-[1px] font-mono text-[0.85em] text-fg"
+          // A white wash, not a surface tone: it must stay visible on the row at
+          // rest (base) AND hovered (surface), which share no single safe tone.
+          className="rounded-[5px] bg-wash-strong px-1 py-[1px] font-mono text-[0.85em] text-fg"
         >
           {node.value}
         </code>
@@ -168,7 +175,7 @@ function renderInline(node: MarkdownInline, key: number): React.ReactNode {
           key={key}
           href={node.href}
           onClick={(e) => openExternal(e, node.href)}
-          className="text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm"
+          className="rounded-sm text-accent underline-offset-2 transition-colors motion-hover hover:text-accent-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           {node.value}
         </a>
@@ -196,7 +203,9 @@ function renderBlock(block: MarkdownBlock, key: number, append?: React.ReactNode
       return (
         <blockquote
           key={key}
-          className="my-0.5 border-l-2 border-stroke-strong pl-2.5 text-fg/80 whitespace-pre-wrap break-words"
+          // The bar is the quote's only marker, so it is a functional line
+          // (Koyu Masa keeps lines only where they carry meaning).
+          className="my-0.5 border-l-[3px] border-fg-subtle/60 pl-3 text-fg-muted whitespace-pre-wrap break-words"
         >
           {renderInlineList(block.children)}
         </blockquote>
@@ -205,7 +214,7 @@ function renderBlock(block: MarkdownBlock, key: number, append?: React.ReactNode
       return (
         <pre
           key={key}
-          className="my-1 max-w-full overflow-x-auto rounded-md border border-stroke bg-raised/70 p-2.5 font-mono text-[0.82em] leading-[1.45] text-fg"
+          className="my-1 max-w-full overflow-x-auto rounded-lg bg-wash px-3 py-2.5 font-mono text-[0.82em] leading-[1.5] text-fg"
         >
           <code>{block.value}</code>
         </pre>

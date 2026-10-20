@@ -49,6 +49,12 @@ export interface ChatMessageView extends Message {
    * signed URL. Absent on confirmed messages (they use the signed-URL layer).
    */
   localAttachmentUrls?: Record<AttachmentId, string>;
+  /**
+   * List identity when it differs from `id`: a confirmed message that replaced
+   * one of the viewer's optimistic sends keeps that row's key, so the row is
+   * updated in place instead of remounting (and replaying its arrival motion).
+   */
+  renderKey?: string;
 }
 
 /**
@@ -90,10 +96,26 @@ export interface ChatMessageRowContext {
   onJumpToMessage: (messageId: string) => void;
 }
 
+/**
+ * What the empty thread's opening reads as. A DM and a flat group chat run on a
+ * hidden stream channel named after the peer / group, so the channel intro
+ * ("#Can kanalına hoş geldin") would be wrong there — they say who it is with.
+ */
+export type ChatIntro =
+  | { kind: "channel" }
+  | {
+      kind: "dm";
+      /** The other person: their avatar and name open the conversation. */
+      peer: { id: string; displayName: string; avatarUrl: string | null };
+    }
+  | { kind: "groupChat"; groupId: string; name: string };
+
 /** The full ambient data the shared message center reads. */
 export interface ChatData {
   /** The open channel (its name seeds the empty-channel intro). */
   channel: Channel;
+  /** How the start of the thread introduces itself. Omitted → the channel intro. */
+  intro?: ChatIntro;
   /** Messages oldest→newest, deduped, with optimistic sends appended (pre-derived). */
   messages: ChatMessageView[];
   /** An older page is available to fetch (drives load-on-scroll-up + jump paging). */

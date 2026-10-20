@@ -18,9 +18,11 @@ import type { ReactNode } from "react";
 import {
   MessageComposer as AppMessageComposer,
   ComposerServicesProvider,
+  type ComposerSendBlock,
   type ComposerServices,
 } from "@demli/app-ui";
-import type { Channel } from "@demli/types";
+import type { Channel, ChannelId } from "@demli/types";
+import { useBlocks, useCachedDms } from "../queries/social-queries";
 import {
   notifyComposerIdle,
   notifyComposerTyping,
@@ -64,6 +66,37 @@ function EmojiPickerSlot({
   );
 }
 
+/**
+ * "You blocked this person" — known before a send, so the composer can say it
+ * instead of letting every message bounce off the server's `BLOCKED` refusal.
+ *
+ * Only a DM can be blocked, and a DM stream is recognised from the DM list the
+ * shell already keeps in the cache — read WITHOUT fetching (a disabled observer
+ * carrying the real query fn, never `skipToken`: that would strip the shared
+ * query's fn and break every later DM-list invalidation), so a server-channel
+ * composer adds no request. The block list itself is fetched
+ * only once a DM is open, and the realtime block event invalidates it, so the
+ * composer opens/closes live. Only the viewer's OWN blocks are knowable, which
+ * is the point: nothing here can reveal that the other person blocked you.
+ *
+ * "Unblock" opens the ONE unblock confirmation (the shared block dialog), never
+ * the mutation directly — same single-flow rule as the profile card.
+ */
+function useSendBlock(channelId: ChannelId): ComposerSendBlock | null {
+  const { data: dms } = useCachedDms();
+  const peer = dms?.find((dm) => dm.streamId === channelId)?.participant ?? null;
+  const { data: blocks } = useBlocks(peer !== null);
+  if (!peer || !(blocks ?? []).some((entry) => entry.user.id === peer.id)) return null;
+  return {
+    kind: "blocked",
+    name: peer.displayName,
+    unblock: () =>
+      useUiStore
+        .getState()
+        .setBlockDialog({ userId: peer.id, displayName: peer.displayName, blocked: true }),
+  };
+}
+
 /** The desktop's binding of the shared composer's data/action/slot contract. */
 const composerServices: ComposerServices = {
   useMeId: () => useAuthStore((s) => s.user?.id),
@@ -80,6 +113,7 @@ const composerServices: ComposerServices = {
   useAttachmentDrafts: (channelId) => useAttachmentDrafts(channelId),
   useSlowmodeCooldownUntil: (channelId) =>
     useChatStore((s) => s.slowmodeCooldownUntil[channelId] ?? 0),
+  useSendBlock,
 
   getReplyTarget: (channelId) => useChatStore.getState().replyTargets[channelId],
   clearReplyTarget: (channelId) => useChatStore.getState().clearReplyTarget(channelId),

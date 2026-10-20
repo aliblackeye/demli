@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Dm, GroupId, User, UserId } from "@demli/types";
 import {
   api,
@@ -64,15 +64,32 @@ export function useFriendRequests(direction: FriendRequestDirection) {
   });
 }
 
+/**
+ * The ONE definition of the DM-list query. Every observer of `queryKeys.dms`
+ * must pass this same `queryFn`: an observer's options overwrite the shared
+ * Query's on every render, so an observer registered with `skipToken` (or no
+ * fn) would leave the next `invalidateQueries(dms)` with nothing to run.
+ */
+export const dmsQueryOptions = queryOptions({
+  queryKey: queryKeys.dms,
+  queryFn: async (): Promise<Dm[]> => {
+    const { dms } = await api.listDms();
+    useChatStore.getState().upsertUsers(dms.map((d) => d.participant));
+    return dms;
+  },
+});
+
 export function useDms() {
-  return useQuery({
-    queryKey: queryKeys.dms,
-    queryFn: async () => {
-      const { dms } = await api.listDms();
-      useChatStore.getState().upsertUsers(dms.map((d) => d.participant));
-      return dms;
-    },
-  });
+  return useQuery(dmsQueryOptions);
+}
+
+/**
+ * Read the DM list from the cache WITHOUT ever fetching it from this observer
+ * (the shell already keeps it fetched). Disabled rather than `skipToken`, so the
+ * shared Query keeps its real `queryFn` and invalidations still refetch it.
+ */
+export function useCachedDms() {
+  return useQuery({ ...dmsQueryOptions, enabled: false });
 }
 
 /**
@@ -282,9 +299,12 @@ export function useRegenerateFriendCode() {
  * Everyone the signed-in user has blocked, for the settings list. Deliberately
  * NOT "who blocked me" — that is never queryable, so no UI can ever reveal it.
  */
-export function useBlocks() {
+export function useBlocks(enabled = true) {
   return useQuery({
     queryKey: queryKeys.blocks,
+    // Optional gate (M16): the DM composer only needs the list while a DM is
+    // open, so a server-channel composer never issues the request.
+    enabled,
     queryFn: async () => {
       const { blocks } = await api.listBlocks();
       useChatStore.getState().upsertUsers(blocks.map((b) => b.user));
