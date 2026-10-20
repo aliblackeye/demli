@@ -12,6 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { createI18n, createMemoryStorage, type i18n as I18n } from "@demli/i18n";
 import { TooltipProvider } from "@demli/ui";
 import type * as SourcePickerModule from "./SourcePicker";
+import type * as ScreenShareModule from "../lib/screen-share";
 import type { ShareAudioCapability } from "../lib/screen-share";
 
 vi.mock("lucide-react", async (importOriginal) => {
@@ -41,7 +42,7 @@ vi.mock("@demli/ui", async (importOriginal) => {
 let capability: ShareAudioCapability = { supported: false, notice: "unsupported_platform" };
 
 vi.mock("../lib/screen-share", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/screen-share")>();
+  const actual = await importOriginal<typeof ScreenShareModule>();
   return {
     ...actual,
     isScreenCaptureAvailable: () => true,

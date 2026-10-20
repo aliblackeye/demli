@@ -14,6 +14,8 @@
  */
 
 import { EventEmitter } from "node:events";
+import type * as NodeFs from "node:fs";
+import type * as NodeOs from "node:os";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Handler = (event: { sender: FakeWebContents }, payload?: unknown) => unknown;
@@ -85,12 +87,12 @@ vi.mock("node:child_process", () => ({
   },
 }));
 vi.mock("node:fs", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:fs")>()),
+  ...(await importOriginal<typeof NodeFs>()),
   existsSync: () => true,
   appendFile: () => undefined,
 }));
 vi.mock("node:os", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:os")>()),
+  ...(await importOriginal<typeof NodeOs>()),
   release: () => "10.0.22631",
 }));
 

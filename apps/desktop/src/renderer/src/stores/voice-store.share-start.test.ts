@@ -13,11 +13,12 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as MediaModule from "@demli/media";
 
 const engineStart = vi.fn<(acquire: unknown, options: unknown) => Promise<void>>();
 
 vi.mock("@demli/media", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@demli/media")>();
+  const actual = await importOriginal<typeof MediaModule>();
   let state = { ...actual.initialVoiceState, status: "connected" as const };
   const listeners = new Set<(s: typeof state) => void>();
   const known: Record<string, unknown> = {
