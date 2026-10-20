@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { Linking } from "react-native";
-import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
 import { Bell, BellOff } from "lucide-react-native";
 import { SettingsRow, SettingsSection } from "./settings/SettingsSection";
 import { useAppTranslation } from "@/lib/i18n";
+import { useNotificationPermission } from "@/push/permission-store";
 
 /**
  * Notification permission, made visible and recoverable.
@@ -20,51 +19,25 @@ import { useAppTranslation } from "@/lib/i18n";
  * So this row states the current answer plainly and gives the one action that can
  * change it. It is deliberately NOT a nag: when permission is granted it is a
  * quiet confirmation, not a banner demanding attention.
+ *
+ * State lives in the shared permission store (also behind the Home banner), so a
+ * grant here re-registers the push token at once and the foreground listener
+ * re-reads the answer when the user comes back from system settings.
  */
 export function NotificationPermissionRow(): JSX.Element | null {
   const { t } = useAppTranslation();
-  const [granted, setGranted] = useState<boolean | null>(null);
-  const [canAskAgain, setCanAskAgain] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const perms = await Notifications.getPermissionsAsync();
-      setGranted(perms.granted);
-      setCanAskAgain(perms.canAskAgain);
-    } catch {
-      // A permissions read that throws (older OS, odd OEM) must not blank the
-      // settings screen — leave the row hidden rather than showing a lie.
-      setGranted(null);
-    }
-  }, []);
+  const status = useNotificationPermission((s) => s.status);
+  const refresh = useNotificationPermission((s) => s.refresh);
+  const resolve = useNotificationPermission((s) => s.resolve);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const onPress = useCallback(() => {
-    void (async () => {
-      // Ask in-app while that is still possible; Android turns the prompt into a
-      // no-op after a denial, and that is exactly when the OS settings page is
-      // the only route.
-      if (canAskAgain) {
-        try {
-          const res = await Notifications.requestPermissionsAsync();
-          if (res.granted) {
-            await refresh();
-            return;
-          }
-        } catch {
-          // fall through to settings
-        }
-      }
-      await Linking.openSettings();
-      // The user leaves the app to flip it; re-read when they come back.
-      void refresh();
-    })();
-  }, [canAskAgain, refresh]);
-
-  if (granted === null) return null;
+  // A read that failed (older OS, odd OEM) must not blank the settings screen
+  // or claim the wrong answer — leave the row hidden.
+  if (status === "unknown") return null;
+  const granted = status === "granted";
 
   return (
     <SettingsSection
@@ -76,7 +49,7 @@ export function NotificationPermissionRow(): JSX.Element | null {
         destructive={!granted}
         title={granted ? t("mobile:notifications.permissionOnTitle") : t("mobile:notifications.permissionOffTitle")}
         subtitle={granted ? t("mobile:notifications.permissionOnSubtitle") : t("mobile:notifications.permissionOffSubtitle")}
-        onPress={granted ? undefined : onPress}
+        onPress={granted ? undefined : () => void resolve()}
         chevron={!granted}
       />
     </SettingsSection>

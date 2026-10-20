@@ -2,6 +2,7 @@ import { View } from "react-native";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { AgeVerifyBanner } from "@/components/AgeVerifyBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
+import { NotificationPermissionBanner } from "@/components/NotificationPermissionBanner";
 import { motion } from "@/theme/theme";
 import { DmListPanel } from "./DmListPanel";
 import { ServerPanel } from "./ServerPanel";
@@ -18,14 +19,16 @@ import { ServerPanel } from "./ServerPanel";
  * from the query cache, so there is no loading flash under the fade. Reduced
  * motion: an instant swap.
  *
- * The two strips above the content are both self-erasing: the connection banner
- * only while the socket is down, the age reminder only for an account with no
- * date of birth that has not waved it off. Neither ever blocks the panel.
+ * The strips above the content are all self-erasing: the connection banner
+ * only while the socket is down, the notification strip only while the OS
+ * permission is off, the age reminder only for an account with no date of birth
+ * that has not waved it off. None ever blocks the panel.
  */
 export function HomePanel({ selectedServerId }: { selectedServerId: string | null }) {
   return (
     <View style={{ flex: 1 }}>
       <ConnectionBanner />
+      <NotificationPermissionBanner />
       <AgeVerifyBanner />
       <Animated.View
         key={selectedServerId ?? "home"}

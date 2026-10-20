@@ -123,8 +123,13 @@
     "permissionOffTitle": "Bildirimler kapalı",
     "permissionOffSubtitle": "Aç",
     "permissionHint": "İzin verilmediği için mesaj ve arama bildirimleri gelmiyor. Dokunup açabilirsin.",
+    "bannerTitle": "Bildirimler kapalı",
+    "bannerBody": "Uygulama kapalıyken mesajlar ve aramalar telefonuna düşmez.",
+    "bannerAllow": "İzin ver",
+    "bannerOpenSettings": "Ayarları aç",
+    "bannerDismiss": "Şimdilik kapat",
     "channelName": "Mesajlar",
-    "channelDescription": "Yeni mesajlar ve arkadaşlık istekleri"
+    "channelDescription": "Mesajlar, aramalar ve arkadaşlık istekleri"
   },
   "home": {
     "bannerSwipeHintA11y": "Kapatmak için yukarı kaydır",
