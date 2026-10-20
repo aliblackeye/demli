@@ -92,7 +92,12 @@
     "versionTitle": "Version",
     "versionValue": "{{version}} (runtime {{runtime}})",
     "versionUnknown": "Unknown",
-    "updateIdTitle": "Update ID"
+    "updateIdTitle": "Update ID",
+    "editShort": "Edit",
+    "accountCount": "{{count}} accounts",
+    "signOutTitle": "Sign out of {{name}}?",
+    "signOutSwitches": "You'll switch to your other account on this device. Signing back in here needs your password.",
+    "signOutLast": "There's no other account on this device, so you'll go back to sign-in."
   },
   "sound": {
     "section": "Sounds",
@@ -223,8 +228,23 @@
       "revokeOthersConfirmCta": "Sign out others",
       "unknownDevice": "Unknown device",
       "unknownMobile": "Mobile device",
-      "errorTitle": "Couldn't update sessions"
-    }
+      "errorTitle": "Couldn't update sessions",
+      "loadErrorTitle": "Couldn't load your sessions",
+      "countLabel_one": "{{count}} session",
+      "countLabel_other": "{{count}} sessions",
+      "signOutThisTitle": "Sign out on this device?",
+      "signOutThisBody": "This device's session ends. If you have another account here you'll switch to it; otherwise you'll go back to sign-in.",
+      "revokeTitle": "Sign out {{name}}?",
+      "revokeBody": "That device is signed out right away and needs the password to get back in."
+    },
+    "onDevice_one": "{{count}} account on this device",
+    "onDevice_other": "{{count}} accounts on this device",
+    "switchA11yHint": "Switches to this account",
+    "activeBadge": "Active",
+    "moreA11y": "Options for {{name}}",
+    "modeLabel": "Sign in or create an account",
+    "reauthTitle": "Sign in again",
+    "addErrorTitle": "Couldn't add the account"
   },
   "friends": {
     "onlineSection": "Online · {{count}}",
@@ -302,7 +322,7 @@
     "messageA11y": "Send a message",
     "callNotFriend": "You can call friends only.",
     "viewAvatar": "Open {{name}}'s avatar",
-    "avatarZoomHint": "Double-tap to zoom, drag to pan",
+    "avatarZoomHint": "Double-tap or pinch to zoom · swipe down to close",
     "addFriendA11y": "Add {{name}} as a friend",
     "removeFriendA11y": "Remove {{name}} as a friend",
     "cancelRequestA11y": "Cancel the request sent to {{name}}",
@@ -406,6 +426,7 @@
     "voiceTitle": "Voice channel",
     "title": "Channel settings",
     "notFound": "This channel no longer exists.",
+    "loadErrorTitle": "Couldn't load channel settings",
     "nameLabel": "Channel name",
     "namePlaceholder": "general",
     "descriptionLabel": "Description",
@@ -429,7 +450,9 @@
     "deleteError": "Couldn't delete",
     "validationName": "Channel name must be 1–{{max}} characters.",
     "validationMaxParticipants": "Max participants must be a whole number of 1 or more.",
-    "slowmodeVoiceHint": "Applies to the voice channel's text chat too. Owners are exempt."
+    "slowmodeVoiceHint": "Applies to the voice channel's text chat too. Owners are exempt.",
+    "saveErrorTitle": "Couldn't save the channel",
+    "dangerDescription": "Deleting the channel removes its messages for everyone. It can't be undone."
   },
   "serverSettings": {
     "title": "Server settings",
@@ -452,7 +475,12 @@
     "membersSection": "Members",
     "membersHint": "Tap a member to assign roles.",
     "manageRoles": "Manage roles",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "loadErrorTitle": "Couldn't load server settings",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "saveErrorTitle": "Couldn't save the changes",
+    "dangerDescription": "Deleting the server removes its channels, messages, roles and invites for everyone. It can't be undone."
   },
   "roleEditor": {
     "title": "Edit role",
@@ -469,14 +497,25 @@
     "deleteConfirmFallbackName": "this role",
     "deleteError": "Couldn't delete",
     "notFound": "This role no longer exists.",
-    "validationName": "Role name must be 1–{{max}} characters."
+    "loadErrorTitle": "Couldn't load this role",
+    "validationName": "Role name must be 1–{{max}} characters.",
+    "previewHeading": "How it looks in the member list",
+    "readOnlyTitle": "View only",
+    "readOnlyBody": "Editing roles needs the Manage roles permission.",
+    "saveErrorTitle": "Couldn't save the role",
+    "dangerDescription": "Deleting the role removes it from everyone who has it, right away. It can't be undone."
   },
   "memberRoles": {
     "title": "Assign roles",
     "hint": "Roles are additive — a member gets every permission from every role they hold.",
     "noRoles": "No roles yet — create one in Server settings.",
     "guestNote": "Guests can't hold roles.",
-    "notFound": "This member is no longer in the server."
+    "notFound": "This member is no longer in the server.",
+    "loadErrorTitle": "Couldn't load this member",
+    "rolesLoadErrorTitle": "Couldn't load roles",
+    "saveErrorTitle": "The role didn't change",
+    "saving": "Saving…",
+    "saved": "Saved"
   },
   "permissions": {
     "manageChannels": "Manage channels",
@@ -499,7 +538,8 @@
     "selectedRolesDesc": "Only the owner and members with a checked role.",
     "noRoles": "No roles yet — create one in Server settings.",
     "save": "Save visibility",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "saveErrorTitle": "Couldn't save visibility"
   },
   "slowmode": {
     "off": "Off"
@@ -518,7 +558,12 @@
     "expiresInHours": "Expires in {{hours}}h",
     "neverExpires": "Never expires",
     "usesLeft": "{{left}} of {{max}} uses left",
-    "unlimitedUses": "Unlimited uses"
+    "unlimitedUses": "Unlimited uses",
+    "createErrorTitle": "Couldn't create an invite",
+    "copyLink": "Copy link",
+    "copyCode": "Copy code",
+    "linkCopied": "Link copied",
+    "codeCopied": "Code copied"
   },
   "join": {
     "errorTitle": "Couldn't join the server",
@@ -527,7 +572,8 @@
     "invalidBody": "This link is missing an invite code.",
     "goToServers": "Go to servers",
     "goHome": "Go home",
-    "joining": "Joining server…"
+    "joining": "Joining server…",
+    "failedTitle": "Couldn't join with this invite"
   },
   "addFriend": {
     "title": "Add friend",
@@ -555,7 +601,11 @@
     "visibilityLabel": "Who can see this channel",
     "visibilityNote": "Restricted channels are hidden from members without a listed role.",
     "visibilityEveryone": "Everyone",
-    "visibilityRoles": "Selected roles"
+    "visibilityRoles": "Selected roles",
+    "errorTitle": "Couldn't create the channel",
+    "kindLabel": "Channel type",
+    "kindTextDesc": "Messages, images, links",
+    "kindVoiceDesc": "Voice, camera, screen sharing"
   },
   "newServer": {
     "createTitle": "Create a server",
@@ -566,7 +616,12 @@
     "codeLabel": "Invite code or link",
     "codePlaceholder": "Invite link or code",
     "join": "Join server",
-    "validationCode": "Enter the invite code you received."
+    "validationCode": "Enter the invite code you received.",
+    "modeLabel": "Create or join a server",
+    "createBody": "Set up your own table. Channels, roles and invite links are yours to run.",
+    "joinBody": "Paste the invite link or code a friend sent you.",
+    "createErrorTitle": "Couldn't create the server",
+    "joinErrorTitle": "Couldn't join the server"
   },
   "newGroupChat": {
     "title": "New group chat",
@@ -579,7 +634,11 @@
     "createdTitle": "{{name}} is ready",
     "createdIntro": "Add a few friends by username, then open the chat. You can always add more later.",
     "memberAdded": "Added to the group.",
-    "openChat": "Open chat"
+    "openChat": "Open chat",
+    "step": "Step {{step}} of {{total}}",
+    "stepA11y": "Step {{step}} of {{total}}",
+    "createErrorTitle": "Couldn't create the group",
+    "memberAddedNamed": "@{{username}} added"
   },
   "groupChatDetails": {
     "fallbackTitle": "Group",
@@ -604,7 +663,10 @@
     "tabMembers": "Members",
     "tabMedia": "Media",
     "mediaEmptyTitle": "No media yet",
-    "mediaEmptySubtitle": "Photos and videos shared in this group show up here."
+    "mediaEmptySubtitle": "Photos and videos shared in this group show up here.",
+    "loadErrorTitle": "Couldn't load the group",
+    "tabsLabel": "Group sections",
+    "inviteRowSubtitle": "For anyone joining by link"
   },
   "groupChatInvite": {
     "menuItem": "Invite link",
@@ -621,7 +683,8 @@
     "ownerOnlyRevoke": "Only the group owner can revoke links.",
     "linkLabel": "Invite link",
     "shareMessage": "Join {{group}} on Demli: {{link}}",
-    "shareGroupFallback": "my group"
+    "shareGroupFallback": "my group",
+    "errorTitle": "Couldn't update the invite links"
   },
   "boot": {
     "phase": {
@@ -641,17 +704,13 @@
     "title": "Profile",
     "displayNameLabel": "Display name",
     "displayNamePlaceholder": "Your name",
-    "avatarLabel": "Avatar URL",
-    "avatarPlaceholder": "https://…/avatar.png",
     "bioLabel": "About you",
     "bioPlaceholder": "A short line about yourself",
     "bioHint": "{{count}}/{{max}} · shown on your profile.",
     "save": "Save profile",
     "discard": "Discard",
-    "imagePending": "Not saved yet",
-    "savePartial": "Some changes couldn't be saved. See the errors above and try again.",
     "unsavedTitle": "Unsaved changes",
-    "unsavedBody": "Your profile changes haven't been saved yet. Discard them?",
+    "unsavedBody": "Your profile changes aren't saved yet. They'll be lost if you leave.",
     "unsavedDiscard": "Discard changes",
     "unsavedKeepEditing": "Keep editing",
     "validationDisplayName": "Display name must be 1–{{max}} characters.",
@@ -675,7 +734,41 @@
     "deleteAction": "Delete account",
     "deleteConfirmTitle": "Delete account?",
     "deleteConfirmBody": "Your account will be frozen for 14 days. Sign in again within 14 days to restore it — after that it's permanently deleted.",
-    "deleteConfirmAction": "Delete"
+    "deleteConfirmAction": "Delete",
+    "opening": "Opening image…",
+    "avatarSheetTitle": "Profile photo",
+    "bannerSheetTitle": "Profile banner",
+    "chooseImage": "Choose a new image",
+    "avatarHelp": "PNG, JPEG, WebP or GIF. Cropped and uploaded at 512×512.",
+    "bannerHelp": "PNG, JPEG, WebP or GIF. An animated GIF can stay as it is (up to 5 MB).",
+    "undoDraft": "Undo this change",
+    "avatarRemove": "Remove photo",
+    "bannerRemove": "Remove banner",
+    "removeHint": "Removed when you save — you can undo it until then.",
+    "removePending": "Removed when you save",
+    "draftBadge": "Not saved",
+    "previewNote": "This is how your profile card will look once you save.",
+    "bioCount": "{{count}}/{{max}}",
+    "avatarErrorTitle": "Couldn't use this photo",
+    "bannerErrorTitle": "Couldn't use this banner",
+    "profileErrorTitle": "Couldn't save your profile",
+    "unsavedBar": "You have unsaved changes.",
+    "savingAvatar": "Uploading photo",
+    "savingBanner": "Uploading banner",
+    "savingProfile": "Saving profile",
+    "saveStep": "{{current}} of {{total}}",
+    "saveFailed": "Some changes didn't save.",
+    "saveFailedHint": "Try again sends only what didn't save.",
+    "saveFailedTotal": "Your changes didn't save.",
+    "saveFailedTotalHint": "They're all still on this screen. Try again sends them all again.",
+    "saveItemSaved": "{{item}} saved",
+    "saveItemFailed": "{{item}} didn't save",
+    "saveItemAvatar": "Photo",
+    "saveItemBanner": "Banner",
+    "saveItemProfile": "Profile details",
+    "unsavedSaveAndLeave": "Save and leave",
+    "birthdateLockedNote": "Your date of birth is set once and can't be changed later.",
+    "deleteErrorTitle": "Couldn't delete your account"
   },
   "composer": {
     "placeholder": "Message",
@@ -1243,7 +1336,9 @@
     "nameTaken": "That emoji name is already used on this server.",
     "limit": "This server already has the maximum of {{max}} emoji.",
     "disabled": "Custom emoji are not available on this server.",
-    "error": "That emoji could not be added."
+    "error": "That emoji could not be added.",
+    "added": ":{{name}}: added",
+    "loadErrorTitle": "Couldn't load the emoji"
   },
   "channelNsfw": {
     "toggleLabel": "NSFW channel",
@@ -1365,7 +1460,8 @@
     "settingsEmpty": "You haven't blocked anyone.",
     "settingsCount_one": "{{count}} blocked user",
     "settingsCount_other": "{{count}} blocked users",
-    "blockedSince": "Blocked {{date}}"
+    "blockedSince": "Blocked {{date}}",
+    "loadErrorTitle": "Couldn't load blocked users"
   },
   "customStatus": {
     "set": "Set a custom status",
@@ -1381,7 +1477,12 @@
     "minutes30": "30 minutes",
     "hour1": "1 hour",
     "today": "Today",
-    "save": "Save"
+    "save": "Save",
+    "previewHeading": "How it will look",
+    "count": "{{count}}/{{max}}",
+    "saveErrorTitle": "Couldn't save your status",
+    "clearConfirmTitle": "Clear your custom status?",
+    "clearConfirmBody": "The line under your name goes away for everyone. You can write a new one any time."
   },
   "moderationLog": {
     "rowTitle": "Audit log",
@@ -1408,9 +1509,44 @@
       "voice_disconnect": "Voice disconnect",
       "timeout": "Timeout",
       "timeout_remove": "Timeout removed"
-    }
+    },
+    "loadErrorTitle": "Couldn't load the audit log"
   },
   "ui": {
     "loading": "Loading"
+  },
+  "imageEditor": {
+    "avatarTitle": "Edit your avatar",
+    "bannerTitle": "Edit your banner",
+    "avatarHint": "Drag to move, pinch to zoom. What's inside the circle is what everyone sees.",
+    "bannerHint": "Drag to move, pinch to zoom. The frame has the same shape as the banner on your profile card.",
+    "stageLabel": "Crop area",
+    "stageHint": "Swipe up or down to zoom. Use the actions menu to move it.",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "zoom": "Zoom",
+    "zoomValue": "{{percent}}%",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset",
+    "apply": "Apply",
+    "applying": "Preparing…",
+    "chooseAnother": "Choose another image",
+    "previewHeading": "Preview",
+    "previewCard": "On your profile card",
+    "previewMessage": "In messages",
+    "previewSample": "How does the new photo look?",
+    "previewTime": "now",
+    "gifAvatarNotice": "Avatars are still images, so the GIF's first frame is used. A moving image can be your banner instead.",
+    "animatedTitle": "This image is animated",
+    "animatedBody": "Cropping keeps a single frame. To keep it moving, use it as it is — the card shows its centre.",
+    "keepAnimation": "Keep it moving",
+    "keepAnimationHint": "Uploaded as it is, up to 5 MB.",
+    "cropStill": "Crop it as a still",
+    "cropStillHint": "You choose the frame; the first frame is used.",
+    "errorTitle": "Couldn't prepare the image",
+    "errorEncode": "The crop couldn't be brought down to an uploadable size. Zoom in a little and try again, or choose another image."
   }
 }

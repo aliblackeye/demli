@@ -56,6 +56,18 @@ const JUSTIFIED_NULL: Record<string, { count: number; reason: string }> = {
       "the dev-only primitive kit (redirects home in release builds) demonstrating the " +
       "initials fallback at three sizes — the fallback itself is what is under review there",
   },
+  "apps/mobile/app/(app)/new-group.tsx": {
+    count: 1,
+    reason:
+      "the create-a-server preview tile while the server is being named — the server does not " +
+      "exist yet, so there is no icon to show; the initials of the typed name are the preview",
+  },
+  "apps/mobile/app/(app)/new-group-chat.tsx": {
+    count: 1,
+    reason:
+      "the create-a-group preview tile on step 1 — the group does not exist yet, so there is no " +
+      "icon; the initials of the typed name are exactly what the new group will show",
+  },
   "apps/mobile/src/components/member/AvatarLightbox.tsx": {
     count: 1,
     reason:

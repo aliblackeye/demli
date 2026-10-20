@@ -1,31 +1,53 @@
-import { Alert, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { useRef, useState } from "react";
+import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, UserPlus } from "lucide-react-native";
+import { EllipsisVertical, LogOut, UserPlus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { Row } from "@/components/Row";
 import { Screen } from "@/components/Screen";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { RowIcon, SectionEyebrow } from "@/components/settings/SettingsSection";
+import { ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { IconButton } from "@/components/ui/IconButton";
+import { Text } from "@/components/ui/Text";
+import { Touchable } from "@/components/ui/Touchable";
 import { useAccountsStore } from "@/stores/accounts-store";
 import { removeAccount, switchAccount } from "@/lib/account-manager";
 import type { StoredAccount } from "@demli/client-core";
-import { colors, space } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /**
- * Multi-account switcher (M15 / ADR 0013). Lists every stored account (active one
- * checkmarked), switches on tap via the ordered `runAccountSwitch`, removes on
- * long-press (confirm), and links to "Add account". The mobile mirror of the
- * desktop profile-menu AccountSwitcher.
+ * Multi-account switcher (M15 / ADR 0013). Lists every stored account (the
+ * active one on the coral wash with an "active" badge), switches on tap via the
+ * ordered `runAccountSwitch`, and removes through each row's ⋯ menu (or a long
+ * press) after a confirm that says what removal does. Links to "Add account".
+ * The mobile mirror of the desktop profile-menu AccountSwitcher.
  */
 export default function SwitchAccountScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const accounts = useAccountsStore((s) => s.accounts);
   const activeAccountId = useAccountsStore((s) => s.activeAccountId);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [menuFor, setMenuFor] = useState<StoredAccount | null>(null);
+  const [removing, setRemoving] = useState<StoredAccount | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  /**
+   * The account whose removal was picked from the ⋯ menu. The confirm opens from
+   * the menu's `onClosed`, never in the same commit that hides the menu: on
+   * Android a Modal presented while another is being dismissed in that frame is
+   * attached but never shown (the same race MemberActionSheet documents).
+   */
+  const removeAfterMenu = useRef<StoredAccount | null>(null);
 
   const onSelect = async (account: StoredAccount): Promise<void> => {
-    if (account.accountId === activeAccountId) return;
+    if (account.accountId === activeAccountId || switchingId) return;
+    setOffline(false);
+    setSwitchingId(account.accountId);
     // On success, land on Home via the `onSwitched` hook — it runs WHILE the switch
     // overlay is up and app/(app)/_layout has the whole Stack unmounted, so the app
     // remounts fresh at Home. Doing `router.back()` here instead (the old code)
@@ -36,6 +58,7 @@ export default function SwitchAccountScreen() {
     const outcome = await switchAccount(account.accountId, {
       onSwitched: () => router.replace("/groups"),
     });
+    setSwitchingId(null);
     if (outcome.status === "reauth") {
       // The stored session is dead — the current one stays live. Re-authenticate
       // this account: open add-account prefilled + a "signed out" notice (#100).
@@ -46,75 +69,158 @@ export default function SwitchAccountScreen() {
       return;
     }
     if (outcome.status === "offline") {
-      Alert.alert(
-        t("mobile:accounts.switchOfflineTitle"),
-        t("mobile:accounts.switchOfflineBody"),
-      );
+      setOffline(true);
       return;
     }
     // status "switched": onSwitched already navigated. "noop": stay put.
   };
 
-  const onRemove = (account: StoredAccount): void => {
-    Alert.alert(
-      t("mobile:accounts.removeTitle", { name: account.displayName }),
-      account.accountId === activeAccountId
-        ? t("mobile:accounts.removeActiveBody")
-        : t("mobile:accounts.removeBody"),
-      [
-        { text: t("mobile:accounts.cancel"), style: "cancel" },
-        {
-          text: t("mobile:accounts.remove"),
-          style: "destructive",
-          onPress: () => void removeAccount(account.accountId),
-        },
-      ],
-    );
+  const confirmRemove = () => {
+    if (!removing) return;
+    setRemoveBusy(true);
+    void removeAccount(removing.accountId).finally(() => {
+      setRemoveBusy(false);
+      setRemoving(null);
+    });
   };
 
   return (
     <Screen>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{
-          padding: space.md,
-          paddingBottom: space.md + insets.bottom,
-          gap: space.sm,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom, gap: space.sm }}
       >
-        <Text style={{ color: colors.fgMuted, fontSize: 13, paddingHorizontal: space.sm, paddingBottom: space.xs }}>
+        <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20, paddingBottom: space.sm }}>
           {t("mobile:accounts.switchHint")}
         </Text>
 
+        {offline ? (
+          <Banner
+            variant="danger"
+            title={t("mobile:accounts.switchOfflineTitle")}
+            description={t("mobile:accounts.switchOfflineBody")}
+            onDismiss={() => setOffline(false)}
+          />
+        ) : null}
+
+        <SectionEyebrow>{t("mobile:accounts.onDevice", { count: accounts.length })}</SectionEyebrow>
         {accounts.map((account) => {
           const isActive = account.accountId === activeAccountId;
+          const name = account.displayName || account.username;
           return (
-            <Row
+            <Touchable
               key={account.accountId}
-              title={account.displayName}
-              subtitle={`@${account.username}`}
-              leading={<Avatar name={account.displayName || "?"} size={40} uri={account.avatarUrl} />}
-              trailing={isActive ? <Check size={20} color={colors.accent} /> : undefined}
-              showChevron={false}
               onPress={() => void onSelect(account)}
-              onLongPress={() => onRemove(account)}
-            />
+              onLongPress={() => setMenuFor(account)}
+              disabled={switchingId !== null}
+              dimmed={switchingId !== null && switchingId !== account.accountId}
+              accessibilityRole="button"
+              accessibilityLabel={`${name}, @${account.username}`}
+              accessibilityHint={isActive ? undefined : t("mobile:accounts.switchA11yHint")}
+              accessibilityState={{ selected: isActive, busy: switchingId === account.accountId }}
+              tone={isActive ? colors.selected : colors.surface}
+              pressedTone={isActive ? colors.accentSurfaceStrong : colors.surfaceRaised}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.md,
+                minHeight: 64,
+                paddingLeft: space.lg,
+                paddingRight: space.xs,
+                paddingVertical: space.md,
+                borderRadius: radius.xl,
+                borderCurve: "continuous",
+              }}
+            >
+              <Avatar name={name || "?"} size={40} uri={account.avatarUrl} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+                  <Text
+                    type="body"
+                    numberOfLines={1}
+                    style={{ flexShrink: 1, fontWeight: "600", color: isActive ? colors.accent : colors.fg }}
+                  >
+                    {name}
+                  </Text>
+                  {isActive ? <Badge variant="accent" label={t("mobile:accounts.activeBadge")} /> : null}
+                </View>
+                <Text type="meta" tone="faint" numberOfLines={1} style={{ fontWeight: "400" }}>
+                  {switchingId === account.accountId ? t("mobile:accounts.switching") : `@${account.username}`}
+                </Text>
+              </View>
+              <IconButton
+                icon={EllipsisVertical}
+                label={t("mobile:accounts.moreA11y", { name })}
+                onPress={() => setMenuFor(account)}
+                disabled={switchingId !== null}
+              />
+            </Touchable>
           );
         })}
 
-        <View style={{ height: space.xs }} />
-        <Row
-          title={t("mobile:accounts.add")}
-          leading={<UserPlus size={20} color={colors.accent} />}
-          accent
-          showChevron
+        <Touchable
           onPress={() => router.push("/add-account")}
-        />
+          accessibilityRole="button"
+          accessibilityLabel={t("mobile:accounts.add")}
+          tone={colors.surface}
+          pressedTone={colors.surfaceRaised}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.md,
+            minHeight: 56,
+            marginTop: space.sm,
+            paddingHorizontal: space.lg,
+            borderRadius: radius.xl,
+            borderCurve: "continuous",
+          }}
+        >
+          <RowIcon icon={UserPlus} tone="accent" />
+          <Text type="body" tone="accent" style={{ fontWeight: "600" }}>
+            {t("mobile:accounts.add")}
+          </Text>
+        </Touchable>
 
-        <Text style={{ color: colors.fgFaint, fontSize: 12, paddingHorizontal: space.sm, paddingTop: space.sm }}>
+        <Text type="meta" tone="faint" style={{ paddingHorizontal: space.xs, paddingTop: space.sm, fontWeight: "400" }}>
           {t("mobile:accounts.removeHint")}
         </Text>
       </ScrollView>
+
+      <ActionSheet
+        visible={menuFor !== null}
+        title={menuFor?.displayName || menuFor?.username}
+        onClose={() => setMenuFor(null)}
+        onClosed={() => {
+          const account = removeAfterMenu.current;
+          removeAfterMenu.current = null;
+          if (account) setRemoving(account);
+        }}
+      >
+        <ActionRow
+          icon={<LogOut size={20} color={colors.danger} />}
+          label={t("mobile:accounts.remove")}
+          hint={t("mobile:accounts.removeHint")}
+          labelColor={colors.danger}
+          onPress={() => {
+            removeAfterMenu.current = menuFor;
+            setMenuFor(null);
+          }}
+        />
+      </ActionSheet>
+
+      <ConfirmSheet
+        visible={removing !== null}
+        title={t("mobile:accounts.removeTitle", { name: removing?.displayName ?? "" })}
+        body={
+          removing?.accountId === activeAccountId ? t("mobile:accounts.removeActiveBody") : t("mobile:accounts.removeBody")
+        }
+        confirmLabel={t("mobile:accounts.remove")}
+        confirmIcon={LogOut}
+        onConfirm={confirmRemove}
+        cancelLabel={t("mobile:accounts.cancel")}
+        onCancel={() => setRemoving(null)}
+        busy={removeBusy}
+      />
     </Screen>
   );
 }

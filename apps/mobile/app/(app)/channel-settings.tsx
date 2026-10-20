@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { useEffect, useState, type ReactNode } from "react";
+import { ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { Hash, Save, Trash2 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AUDIO_BITRATE_PRESETS_KBPS,
@@ -11,16 +11,25 @@ import {
 import { PERMISSIONS } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import type { UpdateChannelInput } from "@demli/client-core";
-import { Button } from "@/components/Button";
 import { ChannelVisibilitySection } from "@/components/ChannelVisibilitySection";
 import { ChipSelect } from "@/components/ChipSelect";
+import { EmptyState } from "@/components/EmptyState";
 import { NsfwToggle } from "@/components/NsfwToggle";
+import { Skeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { LoadErrorState } from "@/components/settings/LoadErrorState";
+import { DangerZone, SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { resolveEntityLoadState } from "@/lib/load-state";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { SLOWMODE_PRESETS, snapToPreset } from "@/lib/slowmode";
 import { useGroupDetails, useServerPermissions } from "@/queries/chat-queries";
 import { useDeleteChannel, useUpdateChannel } from "@/queries/management-queries";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /**
  * The bit-rate chips: "" = the media default, then the SHARED presets from
@@ -48,19 +57,18 @@ const BITRATE_LABEL_KEY = {
   128: "mobile:channelSettings.bitrateHigh",
 } as const satisfies Record<(typeof AUDIO_BITRATE_PRESETS_KBPS)[number], string>;
 
-function SectionLabel({ children }: { children: string }) {
+/** A labelled chip group with its consequence underneath. */
+function ChipField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
-    >
+    <View style={{ gap: space.sm }}>
+      <SectionEyebrow style={{ paddingBottom: 0 }}>{label}</SectionEyebrow>
       {children}
-    </Text>
+      {hint ? (
+        <Text type="meta" tone="faint" style={{ paddingHorizontal: space.xs, fontWeight: "400" }}>
+          {hint}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -68,6 +76,11 @@ function SectionLabel({ children }: { children: string }) {
  * Owner-only channel management: edit name + description, plus a voice-only max
  * participants cap, or delete the channel. Current values are read from the
  * server's details cache. Presented as a modal from the server screen.
+ *
+ * Koyu Masa: fields on the page, chip groups with their consequence under each,
+ * visibility as its own card, deletion in the danger zone behind a sheet that
+ * names the channel. Loading draws the form's shape; a failed load says so with a
+ * retry, and only a load that SUCCEEDED without the channel says it is gone.
  */
 export default function ChannelSettings() {
   const { t } = useAppTranslation();
@@ -75,6 +88,9 @@ export default function ChannelSettings() {
   const channelId = params.channelId ?? null;
   const groupId = params.groupId ?? null;
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Slow-mode presets: only the "0 = off" label is language-dependent; the rest
   // are unit-based (5s, 1m, …) and stay verbatim.
@@ -83,11 +99,13 @@ export default function ChannelSettings() {
     label: p.value === 0 ? t("mobile:slowmode.off") : p.label,
   }));
 
-  const { data, isLoading } = useGroupDetails(groupId);
+  const detailsQuery = useGroupDetails(groupId);
+  const { data } = detailsQuery;
   const { isOwner, can } = useServerPermissions(groupId);
   const canManageChannels = isOwner || can(PERMISSIONS.MANAGE_CHANNELS);
   const channel = data?.channels.find((c) => c.id === channelId) ?? null;
   const isVoice = channel?.kind === "voice";
+  const loadState = resolveEntityLoadState(detailsQuery, channel !== null);
 
   const updateChannel = useUpdateChannel(groupId);
   const deleteChannel = useDeleteChannel(groupId);
@@ -203,73 +221,66 @@ export default function ChannelSettings() {
 
   const onDelete = () => {
     if (!channelId) return;
-    Alert.alert(
-      t("mobile:channelSettings.deleteConfirmTitle"),
-      t("mobile:channelSettings.deleteConfirmBody", {
-        name: channel?.name ?? t("mobile:channelSettings.deleteConfirmFallbackName"),
-      }),
-      [
-        { text: t("buttons.cancel"), style: "cancel" },
-        {
-          text: t("buttons.delete"),
-          style: "destructive",
-          onPress: () =>
-            deleteChannel.mutate(channelId, {
-              onSuccess: () => router.back(),
-              onError: (err) =>
-                Alert.alert(t("mobile:channelSettings.deleteError"), localizeError(err, t)),
-            }),
-        },
-      ],
-    );
+    setDeleteError(null);
+    deleteChannel.mutate(channelId, {
+      onSuccess: () => {
+        setConfirmDelete(false);
+        router.back();
+      },
+      onError: (err) => setDeleteError(localizeError(err, t)),
+    });
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.app }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
         contentContainerStyle={{
           padding: space.lg,
-          paddingBottom: space.xl + insets.bottom,
+          paddingBottom: space.xl + insets.bottom + keyboard,
           gap: space.xl,
         }}
         keyboardShouldPersistTaps="handled"
       >
         <Stack.Screen
           options={{
-            title: isVoice
-              ? t("mobile:channelSettings.voiceTitle")
-              : t("mobile:channelSettings.title"),
+            title: isVoice ? t("mobile:channelSettings.voiceTitle") : t("mobile:channelSettings.title"),
           }}
         />
 
-        {isLoading && !channel ? (
-          <View style={{ paddingTop: space.xl, alignItems: "center" }}>
-            <ActivityIndicator color={colors.fgFaint} />
+        {loadState === "loading" ? (
+          <View style={{ gap: space.lg }}>
+            <Skeleton width="100%" height={44} radius={radius.lg} />
+            <Skeleton width="100%" height={88} radius={radius.lg} />
+            <Skeleton width="60%" height={40} radius={radius.pill} />
           </View>
         ) : null}
 
-        {!isLoading && !channel ? (
-          <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center", paddingTop: space.xl }}>
-            {t("mobile:channelSettings.notFound")}
-          </Text>
+        {loadState === "error" ? (
+          <LoadErrorState
+            title={t("mobile:channelSettings.loadErrorTitle")}
+            error={detailsQuery.error}
+            onRetry={() => void detailsQuery.refetch()}
+            retrying={detailsQuery.isFetching}
+          />
+        ) : null}
+
+        {loadState === "missing" ? (
+          <EmptyState
+            icon={<Hash size={22} color={colors.fgMuted} />}
+            title={t("mobile:channelSettings.notFound")}
+            action={<Button label={t("common:buttons.back")} variant="secondary" size="sm" onPress={() => router.back()} />}
+          />
         ) : null}
 
         {channel ? (
           <>
             {error ? (
-              <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-                <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-                  {error}
-                </Text>
-              </View>
+              <Banner variant="danger" title={t("mobile:channelSettings.saveErrorTitle")} description={error} />
             ) : null}
 
-            <View style={{ gap: space.md }}>
+            <View style={{ gap: space.lg }}>
               <TextField
                 label={t("mobile:channelSettings.nameLabel")}
                 value={name}
@@ -296,19 +307,14 @@ export default function ChannelSettings() {
                     placeholder={t("mobile:channelSettings.maxParticipantsPlaceholder")}
                     hint={t("mobile:channelSettings.maxParticipantsHint")}
                   />
-                  <View style={{ gap: space.sm }}>
-                    <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                      {t("mobile:channelSettings.bitrateLabel")}
-                    </Text>
+                  <ChipField label={t("mobile:channelSettings.bitrateLabel")} hint={t("mobile:channelSettings.bitrateHint")}>
                     <ChipSelect
+                      accessibilityLabel={t("mobile:channelSettings.bitrateLabel")}
                       options={bitrateChipOptions}
                       selectedKey={audioBitrate}
                       onSelect={setAudioBitrate}
                     />
-                    <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                      {t("mobile:channelSettings.bitrateHint")}
-                    </Text>
-                  </View>
+                  </ChipField>
                 </>
               ) : null}
               {/* Slow mode is offered on BOTH kinds (M20) — it throttles the
@@ -316,44 +322,63 @@ export default function ChannelSettings() {
                   was the last client-side reason a voice channel's conversation
                   was a second-class one. Outside the kind branch above on
                   purpose: one field, not a copy per arm. */}
-              <View style={{ gap: space.sm }}>
-                <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                  {t("mobile:channelSettings.slowmode")}
-                </Text>
+              <ChipField
+                label={t("mobile:channelSettings.slowmode")}
+                hint={isVoice ? t("mobile:channelSettings.slowmodeVoiceHint") : t("mobile:channelSettings.slowmodeHint")}
+              >
                 <ChipSelect
+                  accessibilityLabel={t("mobile:channelSettings.slowmode")}
                   options={slowmodeChipOptions}
                   selectedKey={String(slowmodeSeconds)}
                   onSelect={(key) => setSlowmodeSeconds(Number(key))}
                 />
-                <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                  {isVoice
-                    ? t("mobile:channelSettings.slowmodeVoiceHint")
-                    : t("mobile:channelSettings.slowmodeHint")}
-                </Text>
-              </View>
+              </ChipField>
               {!isVoice ? <NsfwToggle value={nsfw} onChange={setNsfw} /> : null}
-              <Button label={t("mobile:common.saveChanges")} onPress={onSave} loading={updateChannel.isPending} />
+              <Button
+                label={t("mobile:common.saveChanges")}
+                icon={Save}
+                variant="accent"
+                size="lg"
+                block
+                onPress={onSave}
+                loading={updateChannel.isPending}
+              />
             </View>
 
             {canManageChannels && channelId && groupId ? (
               <ChannelVisibilitySection groupId={groupId} channelId={channelId} />
             ) : null}
 
-            <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
-            <View style={{ gap: space.md }}>
-              <SectionLabel>{t("mobile:common.dangerZone")}</SectionLabel>
+            <DangerZone title={t("mobile:common.dangerZone")} description={t("mobile:channelSettings.dangerDescription")}>
               <Button
                 label={t("mobile:channelSettings.delete")}
+                icon={Trash2}
                 variant="danger"
-                onPress={onDelete}
-                loading={deleteChannel.isPending}
-                style={{ borderRadius: radius.md }}
+                onPress={() => {
+                  setDeleteError(null);
+                  setConfirmDelete(true);
+                }}
               />
-            </View>
+            </DangerZone>
           </>
         ) : null}
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title={t("mobile:channelSettings.deleteConfirmTitle")}
+        body={t("mobile:channelSettings.deleteConfirmBody", {
+          name: channel?.name ?? t("mobile:channelSettings.deleteConfirmFallbackName"),
+        })}
+        confirmLabel={t("buttons.delete")}
+        confirmIcon={Trash2}
+        onConfirm={onDelete}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setConfirmDelete(false)}
+        busy={deleteChannel.isPending}
+        error={deleteError}
+        errorTitle={t("mobile:channelSettings.deleteError")}
+      />
+    </View>
   );
 }

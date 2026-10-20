@@ -34,6 +34,7 @@ export function ActionSheet({
   title,
   onClose,
   onClosed,
+  dismissible = true,
   children,
 }: {
   visible: boolean;
@@ -47,6 +48,11 @@ export function ActionSheet({
   onClose: () => void;
   /** After the exit motion finished. */
   onClosed?: () => void;
+  /**
+   * `false` while a request the sheet started is running: drag, scrim and back
+   * are refused so the outcome cannot be orphaned. Defaults to true.
+   */
+  dismissible?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -54,6 +60,7 @@ export function ActionSheet({
       visible={visible}
       onClose={onClose}
       onClosed={onClosed}
+      dismissible={dismissible}
       accessibilityLabel={title}
       contentPadding={space.sm}
     >

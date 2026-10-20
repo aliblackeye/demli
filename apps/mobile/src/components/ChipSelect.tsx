@@ -1,5 +1,7 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { haptics } from "@/lib/haptics";
 import { Text } from "./ui/Text";
+import { Touchable } from "./ui/Touchable";
 import { colors, radius, space } from "../theme/theme";
 
 export interface ChipOption {
@@ -12,48 +14,64 @@ export interface ChipOption {
  * Single-select control rendered as wrapping pills. Segmented ({@link Segmented})
  * fits 2–3 options; this handles longer sets (slow-mode presets, the system-
  * channel list) while keeping ≥40pt tap targets. One choice is always selected.
+ *
+ * Koyu Masa: borderless pills on the raised tone (so they read on the page AND
+ * inside a surface-toned settings card); the chosen one takes the coral wash
+ * with coral ink — the "selected row" recipe, never a solid fill, so a row of
+ * chips stays calm with one chosen. Press = tone change on the kit's 120/200ms
+ * steps. Announced as a radio group; each chip a radio with its checked state.
  */
 export function ChipSelect({
   options,
   selectedKey,
   onSelect,
+  accessibilityLabel,
 }: {
   options: ChipOption[];
   selectedKey: string;
   onSelect: (key: string) => void;
+  /** Names the group for screen readers ("Giriş modu"). */
+  accessibilityLabel?: string;
 }) {
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+      style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}
+    >
       {options.map((opt) => {
         const active = opt.key === selectedKey;
         return (
-          <Pressable
+          <Touchable
             key={opt.key}
-            onPress={() => onSelect(opt.key)}
+            onPress={() => {
+              if (active) return;
+              haptics.selection();
+              onSelect(opt.key);
+            }}
             accessibilityRole="radio"
-            accessibilityState={{ selected: active }}
-            style={({ pressed }) => ({
+            accessibilityLabel={opt.label}
+            accessibilityState={{ checked: active, selected: active }}
+            tone={active ? colors.accentSurface : colors.surfaceRaised}
+            pressedTone={active ? colors.accentSurfaceStrong : colors.raisedHover}
+            style={{
               minHeight: 40,
               justifyContent: "center",
-              paddingHorizontal: space.md,
-              borderRadius: radius.sm,
+              paddingHorizontal: space.md + 2,
+              borderRadius: radius.pill,
               borderCurve: "continuous",
-              borderWidth: 1,
-              borderColor: active ? colors.accent : colors.stroke,
-              backgroundColor: active ? colors.accent : colors.surface,
-              opacity: pressed ? 0.8 : 1,
-            })}
+            }}
           >
             <Text
               style={{
-                color: active ? colors.onAccent : colors.fgMuted,
+                color: active ? colors.accent : colors.fgMuted,
                 fontSize: 14,
-                fontWeight: active ? "700" : "600",
+                fontWeight: active ? "600" : "500",
               }}
             >
               {opt.label}
             </Text>
-          </Pressable>
+          </Touchable>
         );
       })}
     </View>

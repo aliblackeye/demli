@@ -1,12 +1,18 @@
-import { Check } from "lucide-react-native";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { haptics } from "@/lib/haptics";
+import { CheckboxBox } from "./ui/Checkbox";
 import { Text } from "./ui/Text";
+import { Touchable } from "./ui/Touchable";
 import { colors, radius, space } from "../theme/theme";
 
 /**
  * A checkbox-style multi-select row used by the role permission list, the member
  * role-assignment screen, and the channel-visibility picker (ADR 0007). Optional
  * colored dot (roles) and description (permissions). ≥44pt tap target.
+ *
+ * Koyu Masa: the kit checkbox (raised box → coral with dark check, popping in on
+ * the press spring), the press a wash tone change only — the row never lifts.
+ * Disabled = 40% and announced as disabled.
  */
 export function ToggleRow({
   label,
@@ -25,58 +31,48 @@ export function ToggleRow({
   onToggle: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onToggle}
+    <Touchable
+      onPress={() => {
+        haptics.selection();
+        onToggle();
+      }}
       disabled={disabled}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked, disabled }}
+      accessibilityState={{ checked, disabled: !!disabled }}
       accessibilityLabel={label}
-      style={({ pressed }) => ({
+      accessibilityHint={description}
+      pressedTone={colors.wash}
+      style={{
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: description ? "flex-start" : "center",
         gap: space.md,
-        minHeight: 44,
-        paddingVertical: space.sm,
+        minHeight: 48,
+        paddingVertical: space.sm + 2,
         paddingHorizontal: space.md,
-        borderRadius: radius.sm,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
-        backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-        opacity: disabled ? 0.5 : 1,
-      })}
+      }}
     >
-      <View
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: 6,
-          borderCurve: "continuous",
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 1.5,
-          borderColor: checked ? colors.accent : colors.strokeStrong,
-          backgroundColor: checked ? colors.accent : "transparent",
-        }}
-      >
-        {checked ? <Check size={13} color={colors.onAccent} strokeWidth={3} /> : null}
+      <View style={description ? { paddingTop: 1 } : null}>
+        <CheckboxBox checked={checked} />
       </View>
       {dotColor !== undefined ? (
         <View
           style={{
             width: 10,
             height: 10,
+            marginTop: description ? 5 : 0,
             borderRadius: 5,
             backgroundColor: dotColor ?? colors.fgMuted,
           }}
         />
       ) : null}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>{label}</Text>
+        <Text style={{ color: colors.fg, fontSize: 15, lineHeight: 20, fontWeight: "500" }}>{label}</Text>
         {description ? (
-          <Text style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16 }}>
-            {description}
-          </Text>
+          <Text style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 16 }}>{description}</Text>
         ) : null}
       </View>
-    </Pressable>
+    </Touchable>
   );
 }

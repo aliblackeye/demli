@@ -1,11 +1,8 @@
-import { View } from "react-native";
-import { Text } from "./ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
-import { ToggleRow } from "@/components/ToggleRow";
+import { SettingsBlock, SettingsSection, SettingsSwitch } from "@/components/settings/SettingsSection";
 import { playSound } from "@/sounds/sound-manager";
 import { useSoundSettings } from "@/sounds/sound-settings";
-import { colors, space, typography } from "@/theme/theme";
 
 /**
  * "Sounds" settings section — the mobile counterpart of the desktop renderer's
@@ -13,11 +10,9 @@ import { colors, space, typography } from "@/theme/theme";
  * message-notification switch) over the same persisted `useSoundSettings` store,
  * so the two clients read the same way.
  *
- * Volume is a 3-step ChipSelect (Low/Medium/High) rather than desktop's
- * continuous slider: React Native core ships no slider and a community slider is
- * a NEW native module, which would break OTA delivery (runtimeVersion is
- * pinned). Enabling a switch — or nudging the volume — plays a sample cue so the
- * user hears the result immediately, exactly like desktop.
+ * Volume stays the 3-step chip set (Low/Medium/High) it has always been, now
+ * in a Koyu Masa settings card. Enabling a switch — or nudging the volume —
+ * plays a sample cue so the user hears the result immediately, like desktop.
  */
 
 const VOLUME_STEPS = { low: 0.33, medium: 0.66, high: 1 } as const;
@@ -27,25 +22,6 @@ function volumeKey(volume: number): VolumeKey {
   if (volume <= 0.45) return "low";
   if (volume <= 0.8) return "medium";
   return "high";
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        paddingHorizontal: space.lg,
-        paddingTop: space.lg,
-        paddingBottom: space.xs,
-      }}
-    >
-      {children}
-    </Text>
-  );
 }
 
 export function SoundSettings() {
@@ -58,69 +34,45 @@ export function SoundSettings() {
   const setMessageEnabled = useSoundSettings((s) => s.setMessageEnabled);
 
   return (
-    <View>
-      <SectionLabel>{t("mobile:sound.section")}</SectionLabel>
-      <View style={{ paddingHorizontal: space.md, gap: space.xs }}>
-        <ToggleRow
-          label={t("mobile:sound.effects")}
-          description={t("mobile:sound.effectsDesc")}
-          checked={enabled}
-          onToggle={() => {
-            const next = !enabled;
-            setEnabled(next);
-            if (next) playSound("voice-join");
-          }}
-        />
-
-        <View
-          style={{
-            paddingHorizontal: space.md,
-            paddingTop: space.sm,
-            gap: space.sm,
-            opacity: enabled ? 1 : 0.5,
-          }}
-          pointerEvents={enabled ? "auto" : "none"}
-        >
-          <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-            {t("mobile:sound.volume")}
-          </Text>
-          <ChipSelect
-            options={[
-              { key: "low", label: t("mobile:sound.volumeLow") },
-              { key: "medium", label: t("mobile:sound.volumeMedium") },
-              { key: "high", label: t("mobile:sound.volumeHigh") },
-            ]}
-            selectedKey={volumeKey(volume)}
-            onSelect={(key) => {
-              setVolume(VOLUME_STEPS[key as VolumeKey]);
-              playSound("voice-join");
-            }}
-          />
-        </View>
-
-        <ToggleRow
-          label={t("mobile:sound.messageNotif")}
-          description={t("mobile:sound.messageNotifDesc")}
-          checked={messageEnabled}
-          disabled={!enabled}
-          onToggle={() => {
-            const next = !messageEnabled;
-            setMessageEnabled(next);
-            if (next) playSound("message");
-          }}
-        />
-      </View>
-
-      <Text
-        style={{
-          color: colors.fgFaint,
-          fontSize: 12,
-          paddingHorizontal: space.lg,
-          paddingTop: space.sm,
+    <SettingsSection title={t("mobile:sound.section")} footer={t("mobile:sound.note")}>
+      <SettingsSwitch
+        title={t("mobile:sound.effects")}
+        description={t("mobile:sound.effectsDesc")}
+        value={enabled}
+        onValueChange={() => {
+          const next = !enabled;
+          setEnabled(next);
+          if (next) playSound("voice-join");
         }}
-      >
-        {t("mobile:sound.note")}
-      </Text>
-    </View>
+      />
+
+      <SettingsBlock label={t("mobile:sound.volume")} disabled={!enabled}>
+        <ChipSelect
+          accessibilityLabel={t("mobile:sound.volume")}
+          options={[
+            { key: "low", label: t("mobile:sound.volumeLow") },
+            { key: "medium", label: t("mobile:sound.volumeMedium") },
+            { key: "high", label: t("mobile:sound.volumeHigh") },
+          ]}
+          selectedKey={volumeKey(volume)}
+          onSelect={(key) => {
+            setVolume(VOLUME_STEPS[key as VolumeKey]);
+            playSound("voice-join");
+          }}
+        />
+      </SettingsBlock>
+
+      <SettingsSwitch
+        title={t("mobile:sound.messageNotif")}
+        description={t("mobile:sound.messageNotifDesc")}
+        value={messageEnabled}
+        disabled={!enabled}
+        onValueChange={() => {
+          const next = !messageEnabled;
+          setMessageEnabled(next);
+          if (next) playSound("message");
+        }}
+      />
+    </SettingsSection>
   );
 }

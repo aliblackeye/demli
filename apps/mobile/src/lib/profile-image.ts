@@ -1,25 +1,30 @@
 /**
- * Pick + prepare a profile image (avatar or banner) for the inline base64 upload
- * endpoints (`POST /users/me/avatar` · `POST /users/me/banner`), the mobile
- * counterpart of the desktop's `fileToUpload()` (M15).
+ * Pick, crop and prepare a profile image (avatar or banner) for the inline
+ * base64 upload endpoints (`POST /users/me/avatar` · `POST /users/me/banner`) —
+ * the mobile half of the desktop's image-file pipeline (M16).
  *
- * - Avatar: PNG/JPEG/WebP, ≤2 MB. Always re-encoded (EXIF strip — privacy first,
- *   §28) and downscaled until it fits the cap, then emitted as base64.
- * - Banner: adds animated GIF and a 5 MB cap. GIFs pass through byte-for-byte (a
- *   re-encode would freeze the animation) and are read straight to base64; still
- *   images take the same re-encode path as avatars.
+ * Three steps, so the crop editor sits between picking and uploading:
  *
- * Re-encoding rides expo-image-manipulator (already used by the attachment
- * pipeline); GIF base64 reads use the legacy expo-file-system string reader. No
- * new native module, so this stays OTA-deliverable. Failures throw a
- * {@link ProfileImageError} carrying a catalog KEY the caller localizes at render
- * (ADR 0009) — never a frozen English string.
+ *  1. {@link pickProfileSource} opens the OS picker and returns a SOURCE: a
+ *     decoded, orientation-normalised working copy (longest edge ≤2048) with its
+ *     true pixel size, or — for a GIF banner — the untouched original, which can
+ *     stay animated.
+ *  2. The editor (components/profile/ImageCropEditor) frames it.
+ *  3. {@link exportProfileCrop} crops the working copy to the chosen rectangle,
+ *     resizes to the server size (avatar 512², banner 1200×450 — the desktop's
+ *     sizes), re-encodes (EXIF stripped, §28) and returns the draft; or
+ *     {@link keepAnimatedBanner} reads a GIF banner through byte-for-byte.
+ *
+ * Nothing here uploads: the result is a DRAFT the profile screen holds until
+ * Save (founder rule, M15). expo-image-manipulator + the legacy expo-file-system
+ * reader only — no new native module, so this stays OTA-deliverable. Failures
+ * throw a {@link ProfileImageError} carrying a catalog KEY (ADR 0009).
  */
 import * as ImagePicker from "expo-image-picker";
 import { readAsStringAsync } from "expo-file-system/legacy";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { localFileSize } from "./attachments/image-processing";
-import { MAX_IMAGE_EDGE_PX, MIN_IMAGE_EDGE_PX, scaleToFitEdge } from "./attachments/validate";
+import { editingResize, outputSize, pixelCropRect, type CropRect, type Size } from "./image-crop";
 
 export type ProfileImageKind = "avatar" | "banner";
 
@@ -28,7 +33,8 @@ export type ProfileImageErrorKey =
   | "mobile:profile.imageUnreadable"
   | "mobile:profile.imageTooLargeAvatar"
   | "mobile:profile.imageTooLargeBanner"
-  | "mobile:profile.imageInvalidType";
+  | "mobile:profile.imageInvalidType"
+  | "mobile:imageEditor.errorEncode";
 
 export class ProfileImageError extends Error {
   readonly key: ProfileImageErrorKey;
@@ -50,29 +56,44 @@ export interface PreparedProfileImage {
 }
 
 /**
- * A picked image, ready to be held as a draft (M15 "nothing saves until you
- * press Save"). The two halves are deliberately separate:
- *
- * - `upload` is the exact request body and nothing more (see above);
- * - `previewUri` is a LOCAL file uri for rendering the draft. Previewing from
- *   the file instead of a `data:` URI matters on a phone: a 5 MB GIF banner is
- *   ~6.7 MB of base64, and pushing that string across the bridge to be decoded
- *   on every render is exactly the kind of thing §27 forbids. The file is a
- *   cache entry that lives as long as the draft does.
+ * A prepared image held as a draft (M15 "nothing saves until you press Save").
+ * `upload` is the exact request body; `previewUri` is a LOCAL file rendering the
+ * same pixels, so a preview never pushes megabytes of base64 across the bridge
+ * on every render (§27).
  */
 export interface PickedProfileImage {
   upload: PreparedProfileImage;
   previewUri: string;
 }
 
+/**
+ * What the editor frames. `uri` is the working copy (or, for `animated`, the
+ * original GIF); `size` its true pixel size — the crop maths and the native
+ * cropper must agree on the same bitmap, which is why the working copy is
+ * re-rendered once on pick instead of trusting the picker's reported size
+ * (EXIF-rotated photos report pre-rotation dimensions on some providers).
+ */
+export interface ProfileImageSource {
+  kind: ProfileImageKind;
+  uri: string;
+  size: Size;
+  /** The format the export keeps: PNG stays PNG (transparency), the rest JPEG. */
+  format: "png" | "jpeg";
+  /** A GIF: the working copy is its first frame; `originalUri` can stay animated. */
+  gif: boolean;
+  originalUri: string;
+}
+
 /** Server byte caps mirrored from the API validators. */
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const BANNER_MAX_BYTES = 5 * 1024 * 1024;
 
-/** JPEG re-encode quality — visually transparent, meaningfully smaller. */
-const REENCODE_QUALITY = 0.88;
+/** JPEG quality for the export — visually transparent, meaningfully smaller. */
+const EXPORT_QUALITY = 0.9;
+/** The working copy is an intermediate: keep it near-lossless. */
+const WORKING_QUALITY = 0.95;
 
-function capFor(kind: ProfileImageKind): number {
+export function capFor(kind: ProfileImageKind): number {
   return kind === "avatar" ? AVATAR_MAX_BYTES : BANNER_MAX_BYTES;
 }
 
@@ -81,79 +102,22 @@ function tooLargeKeyFor(kind: ProfileImageKind): ProfileImageErrorKey {
 }
 
 /** Approximate decoded byte size of a base64 payload (ignoring padding). */
-function base64Bytes(base64: string): number {
+export function base64Bytes(base64: string): number {
   return Math.floor((base64.length * 3) / 4);
 }
 
-/** png stays png; jpeg/webp re-encode to jpeg (WebP write is unreliable on iOS). */
-function saveTargetFor(mime: string): { format: SaveFormat; mime: string } {
-  if (mime === "image/png") return { format: SaveFormat.PNG, mime: "image/png" };
-  return { format: SaveFormat.JPEG, mime: "image/jpeg" };
-}
-
-/** Re-encode a still image to base64, downscaling until it fits `cap`. */
-async function reencodeToBase64(
-  uri: string,
-  sourceMime: string,
-  cap: number,
-): Promise<PickedProfileImage> {
-  const target = saveTargetFor(sourceMime);
-
-  const render = async (width: number | null) => {
-    const ctx = ImageManipulator.manipulate(uri);
-    if (width !== null) ctx.resize({ width });
-    const image = await ctx.renderAsync();
-    return image.saveAsync({ compress: REENCODE_QUALITY, format: target.format, base64: true });
-  };
-
-  let result;
-  try {
-    result = await render(null);
-  } catch {
-    throw new ProfileImageError("mobile:profile.imageUnreadable");
-  }
-
-  for (;;) {
-    const longest = Math.max(result.width, result.height);
-    if (longest > MAX_IMAGE_EDGE_PX) {
-      const fitted = scaleToFitEdge(result.width, result.height, MAX_IMAGE_EDGE_PX);
-      result = await render(fitted.width);
-      continue;
-    }
-    const base64 = result.base64 ?? "";
-    if (base64.length === 0) throw new ProfileImageError("mobile:profile.imageUnreadable");
-    if (base64Bytes(base64) <= cap) {
-      // `result.uri` is the re-encoded cache file — the same pixels the upload
-      // carries, so the draft preview shows exactly what Save would apply.
-      return { upload: { mime: target.mime, dataBase64: base64 }, previewUri: result.uri };
-    }
-    const next = scaleToFitEdge(result.width, result.height, Math.floor(longest * 0.7));
-    if (Math.max(next.width, next.height) < MIN_IMAGE_EDGE_PX) {
-      throw new ProfileImageError(
-        cap === AVATAR_MAX_BYTES ? "mobile:profile.imageTooLargeAvatar" : "mobile:profile.imageTooLargeBanner",
-      );
-    }
-    result = await render(next.width);
-  }
-}
-
 /**
- * Launch the OS photo picker for a profile image, prepare the bytes, and return
- * the upload payload plus a local preview uri — or `null` when the user cancels.
- * Throws a {@link ProfileImageError} for an unusable pick (unreadable file,
- * unsupported type, or a GIF banner that can't be brought under the cap).
- *
- * NOTHING is uploaded here: the caller holds the result as a DRAFT and ships it
- * from its single Save (founder rule, M15).
+ * Open the OS photo picker and decode the pick into an editable source, or
+ * `null` when the user cancels. Accepts PNG / JPEG / WebP / GIF (a GIF avatar
+ * becomes its first frame — avatars are still images everywhere in the app).
  */
-export async function pickProfileImage(
-  kind: ProfileImageKind,
-): Promise<PickedProfileImage | null> {
-  const allowGif = kind === "banner";
+export async function pickProfileSource(kind: ProfileImageKind): Promise<ProfileImageSource | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     allowsMultipleSelection: false,
-    quality: 1, // re-encode/downscale is ours
+    // Cropping is ours (the system cropper has no circle and no 8:3 frame).
+    allowsEditing: false,
+    quality: 1,
     exif: false,
   });
   if (result.canceled) return null;
@@ -161,31 +125,115 @@ export async function pickProfileImage(
   if (!asset) return null;
 
   const mime = (asset.mimeType ?? "").toLowerCase();
+  // Some Android providers report no MIME: treat it as a still and let the
+  // decode below fail loudly if it is not an image at all.
+  const supported = mime === "" || ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime);
+  if (!supported) throw new ProfileImageError("mobile:profile.imageInvalidType");
+  const gif = mime === "image/gif";
+
+  try {
+    const ctx = ImageManipulator.manipulate(asset.uri);
+    let ref = await ctx.renderAsync();
+    const fit = editingResize({ width: ref.width, height: ref.height });
+    if (fit) ref = await ctx.resize({ width: fit.width, height: fit.height }).renderAsync();
+    const format = mime === "image/png" ? "png" : "jpeg";
+    const saved = await ref.saveAsync({
+      format: format === "png" ? SaveFormat.PNG : SaveFormat.JPEG,
+      compress: WORKING_QUALITY,
+    });
+    if (!saved.width || !saved.height) throw new Error("empty decode");
+    return {
+      kind,
+      uri: saved.uri,
+      size: { width: saved.width, height: saved.height },
+      format,
+      gif,
+      originalUri: asset.uri,
+    };
+  } catch (err) {
+    if (err instanceof ProfileImageError) throw err;
+    throw new ProfileImageError("mobile:profile.imageUnreadable");
+  }
+}
+
+/**
+ * Crop the source's working copy to `rect` (source pixels), resize to the
+ * server size and encode it into a draft. If a pathological PNG lands over the
+ * cap, it steps down to JPEG, then to a smaller edge, before giving up with a
+ * message that tells the user what to do (zoom in / pick another image).
+ */
+export async function exportProfileCrop(
+  source: ProfileImageSource,
+  rect: CropRect,
+): Promise<PickedProfileImage> {
+  const kind = source.kind;
+  const crop = pixelCropRect(rect, source.size);
+  const target = outputSize(crop, kind);
   const cap = capFor(kind);
 
-  // Animated GIF (banner only): never re-encode — read the raw bytes to base64
-  // and reject if it's over the cap (no downscale path for animation).
-  if (mime === "image/gif") {
-    if (!allowGif) throw new ProfileImageError("mobile:profile.imageInvalidType");
-    const size = localFileSize(asset.uri);
-    if (size > cap) throw new ProfileImageError(tooLargeKeyFor(kind));
-    let base64: string;
+  const attempts: { format: "png" | "jpeg"; scale: number }[] =
+    source.format === "png"
+      ? [
+          { format: "png", scale: 1 },
+          { format: "jpeg", scale: 1 },
+          { format: "jpeg", scale: 0.75 },
+        ]
+      : [
+          { format: "jpeg", scale: 1 },
+          { format: "jpeg", scale: 0.75 },
+        ];
+
+  for (const attempt of attempts) {
+    let saved;
     try {
-      base64 = await readAsStringAsync(asset.uri, { encoding: "base64" });
+      const ref = await ImageManipulator.manipulate(source.uri)
+        .crop({ originX: crop.x, originY: crop.y, width: crop.width, height: crop.height })
+        .resize({
+          width: Math.round(target.width * attempt.scale),
+          height: Math.round(target.height * attempt.scale),
+        })
+        .renderAsync();
+      saved = await ref.saveAsync({
+        format: attempt.format === "png" ? SaveFormat.PNG : SaveFormat.JPEG,
+        compress: EXPORT_QUALITY,
+        base64: true,
+      });
     } catch {
       throw new ProfileImageError("mobile:profile.imageUnreadable");
     }
+    const base64 = saved.base64 ?? "";
     if (base64.length === 0) throw new ProfileImageError("mobile:profile.imageUnreadable");
-    if (base64Bytes(base64) > cap) throw new ProfileImageError(tooLargeKeyFor(kind));
-    // Animated GIFs pass through byte-for-byte, so the picked file IS the preview.
-    return { upload: { mime: "image/gif", dataBase64: base64 }, previewUri: asset.uri };
+    if (base64Bytes(base64) <= cap) {
+      return {
+        upload: { mime: attempt.format === "png" ? "image/png" : "image/jpeg", dataBase64: base64 },
+        previewUri: saved.uri,
+      };
+    }
   }
+  throw new ProfileImageError("mobile:imageEditor.errorEncode");
+}
 
-  // Still image: png/jpeg/webp are re-encodable; anything else is unsupported.
-  // The picker may not report a mime on some Android providers — treat a blank
-  // mime as a re-encodable still (the re-encode both normalizes it and would
-  // fail loudly on a truly unreadable file).
-  const reencodable = mime === "" || mime === "image/png" || mime === "image/jpeg" || mime === "image/webp";
-  if (!reencodable) throw new ProfileImageError("mobile:profile.imageInvalidType");
-  return reencodeToBase64(asset.uri, mime || "image/jpeg", cap);
+/**
+ * Keep a GIF banner moving: its bytes pass through untouched (a re-encode would
+ * freeze it), so it must already fit the 5 MB cap. The card shows its centre.
+ */
+export async function keepAnimatedBanner(source: ProfileImageSource): Promise<PickedProfileImage> {
+  const cap = capFor("banner");
+  const size = localFileSize(source.originalUri);
+  if (size > cap) throw new ProfileImageError(tooLargeKeyFor("banner"));
+  let base64: string;
+  try {
+    base64 = await readAsStringAsync(source.originalUri, { encoding: "base64" });
+  } catch {
+    throw new ProfileImageError("mobile:profile.imageUnreadable");
+  }
+  if (base64.length === 0) throw new ProfileImageError("mobile:profile.imageUnreadable");
+  if (base64Bytes(base64) > cap) throw new ProfileImageError(tooLargeKeyFor("banner"));
+  return { upload: { mime: "image/gif", dataBase64: base64 }, previewUri: source.originalUri };
+}
+
+/** A GIF small enough to stay animated as a banner (the editor offers the choice only then). */
+export function gifFitsBannerCap(source: ProfileImageSource): boolean {
+  const size = localFileSize(source.originalUri);
+  return size > 0 && size <= capFor("banner");
 }

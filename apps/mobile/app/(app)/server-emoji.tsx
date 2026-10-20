@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, View } from "react-native";
+import { Image } from "expo-image";
 import { Stack, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Trash2 } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CloudOff, ImagePlus, Smile, Trash2, Upload } from "lucide-react-native";
 import {
   CUSTOM_EMOJI_MAX_BYTES,
   CUSTOM_EMOJI_MAX_PER_GROUP,
@@ -14,9 +15,21 @@ import {
 import { ApiClientError } from "@demli/client-core";
 import type { CustomEmoji, GroupId } from "@demli/types";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { Skeleton, SkeletonList } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { Text } from "@/components/ui/Text";
+import { Touchable } from "@/components/ui/Touchable";
+import { toast } from "@/components/ui/toast-store";
+import { localizeError } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import {
   useCreateCustomEmoji,
   useCustomEmojiMap,
@@ -26,7 +39,7 @@ import {
 } from "@/queries/chat-queries";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /** Human-readable byte cap for the copy ("256 KB"). */
 const MAX_KB = Math.round(CUSTOM_EMOJI_MAX_BYTES / 1024);
@@ -66,20 +79,31 @@ function emojiErrorText(err: unknown, t: AppTFunction): string {
  * re-typed, so the copy can never drift from what the API enforces (§23). The
  * client pre-validates name / MIME / size purely for a fast, friendly reject —
  * the server re-validates the real bytes (magic-byte sniff) and is authoritative.
+ *
+ * Koyu Masa: an upload card (picked preview, `:name:` field validated inline,
+ * pick + upload), a quiet usage meter, the list as cards, removal confirmed in a
+ * sheet. A full server shows the limit as a banner and dims the form — never an
+ * inert control without a reason (§35).
  */
 export default function ServerEmojiScreen() {
   const { t } = useAppTranslation();
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
   const params = useLocalSearchParams<{ groupId?: string }>();
   const groupId = (params.groupId ?? null) as GroupId | null;
 
-  const { data, isPending } = useCustomEmojis(groupId);
+  const { data, isPending, isError, error: loadError, refetch, isFetching } = useCustomEmojis(groupId);
   const urls = useCustomEmojiMap(groupId);
   const create = useCreateCustomEmoji(groupId);
+  const remove = useDeleteCustomEmoji(groupId);
   const { isOwner } = useServerPermissions(groupId);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<{ base64: string; mime: string; uri: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<CustomEmoji | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const emojis = data?.emojis ?? [];
   const maxPerGroup = data?.maxPerGroup ?? CUSTOM_EMOJI_MAX_PER_GROUP;
@@ -87,6 +111,7 @@ export default function ServerEmojiScreen() {
   const normalizedName = name.trim().toLowerCase();
   const nameValid = isCustomEmojiName(normalizedName);
   const canSubmit = !full && picked !== null && nameValid && !create.isPending;
+  const used = Math.min(1, maxPerGroup > 0 ? emojis.length / maxPerGroup : 0);
 
   const pickImage = async (): Promise<void> => {
     setError(null);
@@ -133,6 +158,8 @@ export default function ServerEmojiScreen() {
       { name: normalizedName, mime: picked.mime, dataBase64: picked.base64 },
       {
         onSuccess: () => {
+          haptics.success();
+          toast({ key: "emoji-added", variant: "success", title: t("mobile:emoji.added", { name: normalizedName }) });
           setName("");
           setPicked(null);
         },
@@ -141,196 +168,202 @@ export default function ServerEmojiScreen() {
     );
   };
 
+  const confirmRemove = (): void => {
+    if (!removing) return;
+    setRemoveError(null);
+    remove.mutate(removing.id, {
+      onSuccess: () => setRemoving(null),
+      onError: (err) => setRemoveError(emojiErrorText(err, t)),
+    });
+  };
+
   return (
     <Screen>
       <Stack.Screen options={{ title: t("mobile:emoji.title") }} />
-      <ScrollView contentContainerStyle={{ padding: space.md, gap: space.lg }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-          <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 13 }}>
-            {t("mobile:emoji.hint")}
-          </Text>
-          <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom + keyboard, gap: space.lg }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20 }}>
+          {t("mobile:emoji.hint")}
+        </Text>
+
+        {/* Usage meter — how much room is left, at a glance. */}
+        <View style={{ gap: space.xs }}>
+          <View
+            accessibilityRole="progressbar"
+            accessibilityLabel={t("mobile:emoji.count", { used: emojis.length, max: maxPerGroup })}
+            accessibilityValue={{ min: 0, max: maxPerGroup, now: emojis.length }}
+            style={{ height: 4, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, overflow: "hidden" }}
+          >
+            <View style={{ width: `${used * 100}%`, height: 4, borderRadius: radius.pill, backgroundColor: full ? colors.warning : colors.accent }} />
+          </View>
+          <Text type="caption" tone="faint">
             {t("mobile:emoji.count", { used: emojis.length, max: maxPerGroup })}
           </Text>
         </View>
 
-        {/* Upload form. Disabled — not hidden — when the group is full, with the
-            reason spelled out, so the affordance is never silently inert (§35). */}
-        <View
-          style={{
-            gap: space.sm,
-            padding: space.md,
-            borderRadius: radius.md,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: colors.stroke,
-            backgroundColor: colors.surface,
-          }}
-        >
-          <TextField
-            label={t("mobile:emoji.name")}
-            value={name}
-            onChangeText={setName}
-            editable={!full}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={CUSTOM_EMOJI_NAME_MAX_LENGTH}
-            placeholder={t("mobile:emoji.namePlaceholder")}
-          />
-          <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
-            {t("mobile:emoji.nameHint")}
-          </Text>
+        {full ? <Banner variant="warning" title={t("mobile:emoji.limit", { max: maxPerGroup })} /> : null}
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-            {picked ? (
-              <Image
-                source={{ uri: picked.uri }}
-                accessibilityIgnoresInvertColors
-                style={{ width: 36, height: 36, borderRadius: radius.sm }}
-                resizeMode="contain"
+        {/* Upload form. Dimmed — not hidden — when the server is full, with the
+            reason in the banner above, so the affordance is never silently inert. */}
+        <View
+          pointerEvents={full ? "none" : "auto"}
+          style={{ gap: space.md, padding: space.lg, borderRadius: radius.xl, borderCurve: "continuous", backgroundColor: colors.surface, opacity: full ? 0.4 : 1 }}
+        >
+          <SectionEyebrow style={{ paddingHorizontal: 0, paddingBottom: 0 }}>{t("mobile:emoji.add")}</SectionEyebrow>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            <Touchable
+              onPress={() => void pickImage()}
+              disabled={full}
+              accessibilityRole="button"
+              accessibilityLabel={t("mobile:emoji.pickFile")}
+              tone={colors.surfaceRaised}
+              pressedTone={colors.raisedHover}
+              style={{ width: 64, height: 64, borderRadius: radius.lg, borderCurve: "continuous", alignItems: "center", justifyContent: "center" }}
+            >
+              {picked ? (
+                <Image source={{ uri: picked.uri }} accessibilityIgnoresInvertColors style={{ width: 44, height: 44 }} contentFit="contain" />
+              ) : (
+                <ImagePlus size={22} color={colors.fgMuted} strokeWidth={2} />
+              )}
+            </Touchable>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label={t("mobile:emoji.name")}
+                value={name}
+                onChangeText={setName}
+                editable={!full && !create.isPending}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={CUSTOM_EMOJI_NAME_MAX_LENGTH}
+                placeholder={t("mobile:emoji.namePlaceholder")}
+                error={normalizedName.length > 0 && !nameValid ? t("mobile:emoji.nameHint") : null}
+                hint={t("mobile:emoji.nameHint")}
               />
-            ) : null}
+            </View>
+          </View>
+          <Text type="caption" tone="faint">
+            {t("mobile:emoji.tooLarge", { max: MAX_KB })} · PNG / WebP
+          </Text>
+          {error ? <Banner variant="danger" title={t("mobile:emoji.error")} description={error} /> : null}
+          <View style={{ flexDirection: "row", gap: space.sm }}>
             <Button
               label={t("mobile:emoji.pickFile")}
-              variant="ghost"
-              disabled={full}
+              icon={ImagePlus}
+              variant="secondary"
+              disabled={full || create.isPending}
               onPress={() => void pickImage()}
               style={{ flex: 1 }}
             />
             <Button
               label={t("mobile:emoji.upload")}
+              icon={Upload}
+              variant="accent"
               disabled={!canSubmit}
+              loading={create.isPending}
               onPress={submit}
               style={{ flex: 1 }}
             />
           </View>
-
-          <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
-            {t("mobile:emoji.tooLarge", { max: MAX_KB })} · PNG / WebP
-          </Text>
-          {full ? (
-            <Text style={{ color: colors.idle, fontSize: 12 }}>
-              {t("mobile:emoji.limit", { max: maxPerGroup })}
-            </Text>
-          ) : null}
-          {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
         </View>
 
         {isPending ? (
-          <ActivityIndicator color={colors.fgFaint} />
+          <SkeletonList count={4} lines={2} leadingSize={32} leadingRadius={radius.md} />
+        ) : isError ? (
+          <EmptyState
+            tone="error"
+            compact
+            icon={<CloudOff size={22} color={colors.danger} />}
+            title={t("mobile:emoji.loadErrorTitle")}
+            subtitle={localizeError(loadError, t)}
+            action={<Button label={t("common:buttons.retry")} variant="secondary" size="sm" onPress={() => void refetch()} loading={isFetching} />}
+          />
         ) : emojis.length === 0 ? (
-          <Text style={{ color: colors.fgMuted, fontSize: 13, textAlign: "center" }}>
-            {t("mobile:emoji.empty")}
-          </Text>
+          <EmptyState compact icon={<Smile size={22} color={colors.fgMuted} />} title={t("mobile:emoji.empty")} subtitle={t("mobile:emoji.hint")} />
         ) : (
-          <View style={{ gap: space.xs }}>
+          <View style={{ gap: space.sm }}>
             {emojis.map((emoji) => (
               <EmojiRow
                 key={emoji.id}
-                groupId={groupId}
                 emoji={emoji}
                 url={urls.get(emoji.name)}
-                isOwner={isOwner}
+                // Server rule: the uploader may remove their own; anyone else
+                // needs owner. §35 — someone who cannot delete never sees it.
+                canDelete={isOwner || (currentUserId !== undefined && emoji.createdBy === currentUserId)}
+                onRemove={() => {
+                  setRemoveError(null);
+                  setRemoving(emoji);
+                }}
               />
             ))}
           </View>
         )}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={removing !== null}
+        title={t("mobile:emoji.deleteConfirmTitle")}
+        body={t("mobile:emoji.deleteConfirmBody", { name: removing?.name ?? "" })}
+        confirmLabel={t("mobile:emoji.delete")}
+        confirmIcon={Trash2}
+        onConfirm={confirmRemove}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setRemoving(null)}
+        busy={remove.isPending}
+        error={removeError}
+        errorTitle={t("mobile:emoji.error")}
+      />
     </Screen>
   );
 }
 
-/** One emoji row: preview, shortcode, uploader, and a gated remove. */
+/** One emoji row: preview, shortcode, uploader + size, and a gated remove. */
 function EmojiRow({
-  groupId,
   emoji,
   url,
-  isOwner,
+  canDelete,
+  onRemove,
 }: {
-  groupId: GroupId | null;
   emoji: CustomEmoji;
   url: string | undefined;
-  isOwner: boolean;
+  canDelete: boolean;
+  onRemove: () => void;
 }): JSX.Element {
   const { t } = useAppTranslation();
-  const currentUserId = useAuthStore((s) => s.user?.id);
   const uploader = useChatStore((s) => s.users[emoji.createdBy]);
-  const remove = useDeleteCustomEmoji(groupId);
-
-  // Server rule: the uploader may remove their own; anyone else needs owner.
-  // §35 — someone who cannot delete never sees the button.
-  const canDelete = isOwner || (currentUserId !== undefined && emoji.createdBy === currentUserId);
-
-  const confirmDelete = (): void => {
-    Alert.alert(
-      t("mobile:emoji.deleteConfirmTitle"),
-      t("mobile:emoji.deleteConfirmBody", { name: emoji.name }),
-      [
-        { text: t("buttons.cancel"), style: "cancel" },
-        {
-          text: t("buttons.delete"),
-          style: "destructive",
-          onPress: () =>
-            remove.mutate(emoji.id, {
-              onError: (err) => Alert.alert(t("mobile:emoji.error"), emojiErrorText(err, t)),
-            }),
-        },
-      ],
-    );
-  };
-
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: space.sm,
+        gap: space.md,
         paddingVertical: space.sm,
-        paddingHorizontal: space.md,
-        borderRadius: radius.md,
+        paddingLeft: space.md,
+        paddingRight: space.xs,
+        minHeight: 56,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
         backgroundColor: colors.surface,
       }}
     >
-      <View
-        style={{
-          width: 32,
-          height: 32,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: radius.sm,
-          backgroundColor: colors.surfaceRaised,
-        }}
-      >
+      <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.surfaceRaised }}>
         {url ? (
-          <Image
-            source={{ uri: url }}
-            accessibilityIgnoresInvertColors
-            style={{ width: 24, height: 24 }}
-            resizeMode="contain"
-          />
+          <Image source={{ uri: url }} accessibilityIgnoresInvertColors style={{ width: 28, height: 28 }} contentFit="contain" />
         ) : (
-          <ActivityIndicator size="small" color={colors.fgFaint} />
+          <Skeleton width={24} height={24} radius={radius.sm} />
         )}
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>:{emoji.name}:</Text>
-        <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
-          {uploader?.displayName ?? uploader?.username ?? t("mobile:chat.unknownAuthor")} ·{" "}
-          {Math.max(1, Math.round(emoji.sizeBytes / 1024))} KB
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text type="ui" tone="default" numberOfLines={1} style={{ fontWeight: "600" }}>
+          :{emoji.name}:
+        </Text>
+        <Text type="caption" tone="faint" numberOfLines={1}>
+          {uploader?.displayName ?? uploader?.username ?? t("mobile:chat.unknownAuthor")} · {Math.max(1, Math.round(emoji.sizeBytes / 1024))} KB
         </Text>
       </View>
       {canDelete ? (
-        <Pressable
-          onPress={confirmDelete}
-          disabled={remove.isPending}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t("mobile:emoji.delete")}
-          style={{ padding: space.xs, opacity: remove.isPending ? 0.5 : 1 }}
-        >
-          <Trash2 size={18} color={colors.danger} />
-        </Pressable>
+        <IconButton icon={Trash2} variant="ghost" label={`${t("mobile:emoji.delete")}: :${emoji.name}:`} onPress={onRemove} />
       ) : null}
     </View>
   );

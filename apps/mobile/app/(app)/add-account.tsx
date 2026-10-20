@@ -1,17 +1,21 @@
 import { useMemo, useState } from "react";
-import { KeyboardAvoidingView, Pressable, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LogIn, UserPlus } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { Segmented } from "@/components/Segmented";
 import { TextField } from "@/components/TextField";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { BirthdateField } from "@/components/auth/BirthdateField";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { localizeError } from "@/lib/errors";
 import { frozenAccountInfo } from "@/lib/frozen-account";
 import { loginAndAddAccount, registerAndAddAccount } from "@/lib/account-manager";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, space } from "@/theme/theme";
 
 type Mode = "login" | "register";
 type ValidationCode = "username" | "passwordShort" | "passwordRequired" | "birthdate";
@@ -37,10 +41,15 @@ function validate(
  * switch onto it; we then dismiss back to the app. Mirrors sign-in.tsx (birthdate
  * on register, Google placeholder, frozen-account reactivation) but calls the
  * account-manager add helpers.
+ *
+ * Koyu Masa: a sign-in / create segmented switch at the top, borderless fields
+ * on the surface tone, the re-auth and frozen-account notices as banners, and
+ * validation/server errors as one danger banner above the form.
  */
 export default function AddAccountScreen() {
   const { t, i18n } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
 
   // Re-auth entry (#100): the switcher sends us here when a stored account's
   // session is dead — prefill its handle and show a "signed out" notice.
@@ -112,81 +121,57 @@ export default function AddAccountScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.app }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: "center",
           padding: space.xl,
-          paddingBottom: insets.bottom + space.xl,
+          paddingBottom: insets.bottom + space.xl + keyboard,
           gap: space.xl,
         }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ alignItems: "center", gap: space.xs }}>
-          <Text variant="display" style={{ color: colors.fg, fontSize: 20, fontWeight: "700" }}>
+          <Text type="title" tone="display" accessibilityRole="header" style={{ textAlign: "center" }}>
             {t("mobile:accounts.addHeading")}
           </Text>
-          <Text style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
+          <Text type="ui" tone="muted" style={{ textAlign: "center", fontWeight: "400" }}>
             {t("mobile:accounts.addSubtitle")}
           </Text>
         </View>
 
-        <View
-          style={{
-            backgroundColor: colors.surface,
-            borderColor: colors.stroke,
-            borderWidth: 1,
-            borderRadius: radius.lg,
-            borderCurve: "continuous",
-            padding: space.lg,
-            gap: space.lg,
-          }}
-        >
+        <View style={{ gap: space.lg }}>
+          {isReauth ? null : (
+            <Segmented
+              accessibilityLabel={t("mobile:accounts.modeLabel")}
+              options={[
+                { value: "login", label: t("buttons.signIn") },
+                { value: "register", label: t("mobile:auth.createAccountButton") },
+              ]}
+              value={mode}
+              onChange={switchMode}
+            />
+          )}
+
           {isReauth && !isFrozen ? (
-            <View style={{ backgroundColor: colors.accentSurface, borderRadius: radius.sm, padding: space.sm }}>
-              <Text style={{ color: colors.fg, fontSize: 13 }}>
-                {t("mobile:accounts.reauthNotice", { username: params.username ?? "" })}
-              </Text>
-            </View>
+            <Banner
+              variant="info"
+              title={t("mobile:accounts.reauthTitle")}
+              description={t("mobile:accounts.reauthNotice", { username: params.username ?? "" })}
+            />
           ) : null}
 
           {isFrozen ? (
-            <View
-              style={{
-                backgroundColor: colors.accentSurface,
-                borderRadius: radius.sm,
-                padding: space.md,
-                gap: space.sm,
-              }}
-            >
-              <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "700" }}>
-                {t("mobile:auth.frozenTitle")}
-              </Text>
-              <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
-                {purgeDate
-                  ? t("mobile:auth.frozenBodyDated", { date: purgeDate })
-                  : t("mobile:auth.frozenBody")}
-              </Text>
-              <Button
-                label={t("mobile:auth.frozenReactivate")}
-                onPress={() => runAuth(true)}
-                loading={submitting}
-                style={{ borderRadius: radius.md }}
-              />
-            </View>
+            <Banner
+              variant="warning"
+              title={t("mobile:auth.frozenTitle")}
+              description={purgeDate ? t("mobile:auth.frozenBodyDated", { date: purgeDate }) : t("mobile:auth.frozenBody")}
+              action={{ label: t("mobile:auth.frozenReactivate"), onPress: () => runAuth(true) }}
+            />
           ) : null}
 
-          {error ? (
-            <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-              <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-                {error}
-              </Text>
-            </View>
-          ) : null}
+          {error ? <Banner variant="danger" title={t("mobile:accounts.addErrorTitle")} description={error} /> : null}
 
           <TextField
             label={t("mobile:auth.usernameLabel")}
@@ -197,6 +182,7 @@ export default function AddAccountScreen() {
             autoComplete="username"
             spellCheck={false}
             placeholder={t("mobile:auth.usernamePlaceholder")}
+            editable={!submitting}
           />
           {mode === "register" ? (
             <TextField
@@ -206,6 +192,7 @@ export default function AddAccountScreen() {
               autoComplete="name"
               maxLength={64}
               placeholder={t("mobile:auth.displayNamePlaceholder")}
+              editable={!submitting}
             />
           ) : null}
           <TextField
@@ -221,6 +208,9 @@ export default function AddAccountScreen() {
                 ? t("mobile:auth.passwordPlaceholderRegister")
                 : t("mobile:auth.passwordPlaceholderLogin")
             }
+            editable={!submitting}
+            returnKeyType="go"
+            onSubmitEditing={() => runAuth(false)}
           />
           {mode === "register" ? (
             <BirthdateField
@@ -232,28 +222,17 @@ export default function AddAccountScreen() {
 
           <Button
             label={mode === "login" ? t("buttons.signIn") : t("mobile:auth.createAccountButton")}
+            icon={mode === "login" ? LogIn : UserPlus}
+            variant="accent"
+            size="lg"
+            block
             onPress={() => runAuth(false)}
             loading={submitting}
           />
 
           <GoogleButton />
-
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: space.xs }}>
-            <Text style={{ color: colors.fgMuted, fontSize: 13 }}>
-              {mode === "login"
-                ? t("mobile:auth.newToDemli")
-                : t("mobile:auth.alreadyHaveAccount")}
-            </Text>
-            <Pressable onPress={() => switchMode(mode === "login" ? "register" : "login")}>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
-                {mode === "login"
-                  ? t("mobile:auth.createAnAccount")
-                  : t("mobile:auth.signInInstead")}
-              </Text>
-            </Pressable>
-          </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

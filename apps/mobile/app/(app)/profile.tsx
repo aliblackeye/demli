@@ -1,107 +1,106 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Pressable,
-  ScrollView,
-  View,
-} from "react-native";
-import { Text } from "@/components/ui/Text";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { router, Stack, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Camera, ImagePlus, Trash2, TriangleAlert } from "lucide-react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  FadeOutDown,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
+import { Camera, ImagePlus, LogOut, RotateCcw, Save, ShieldCheck, Trash2, Undo2 } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/Button";
 import { BirthdateVerification } from "@/components/BirthdateVerification";
 import { ProfileBannerImage } from "@/components/ProfileBannerImage";
 import { TextField } from "@/components/TextField";
+import { ImageCropEditor } from "@/components/profile/ImageCropEditor";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { DangerZone, SectionEyebrow, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
+import { ActionDivider, ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Glass } from "@/components/ui/Glass";
+import { Text } from "@/components/ui/Text";
+import { Touchable } from "@/components/ui/Touchable";
 import { ApiClientError } from "@/lib/clients";
 import { localizeError } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { logoutActiveAccount } from "@/lib/account-manager";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { summarizeProfileSave, type ProfileSaveOutcome, type ProfileSaveStep, type ProfileSaveStepResult } from "@/lib/profile-save";
 import {
-  pickProfileImage,
+  pickProfileSource,
   ProfileImageError,
   type PickedProfileImage,
   type ProfileImageKind,
+  type ProfileImageSource,
 } from "@/lib/profile-image";
-import {
-  useDeleteAccount,
-  useUpdateMe,
-  useUploadAvatar,
-  useUploadBanner,
-} from "@/queries/management-queries";
+import { useDeleteAccount, useUpdateMe, useUploadAvatar, useUploadBanner } from "@/queries/management-queries";
 import { useMe } from "@/queries/social-queries";
 import { useAuthStore } from "@/stores/auth-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { motionTo, useReducedMotion } from "@/theme/motion";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 const DISPLAY_NAME_MAX = 64;
 const BIO_MAX = 280;
-const BANNER_HEIGHT = 140;
 const AVATAR_SIZE = 88;
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+/** One request of the Save sequence — what the bar names while it runs. */
+type SaveStep = ProfileSaveStep;
 
-function ErrorNote({ children }: { children: string }) {
-  return (
-    <View
-      style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}
-    >
-      <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+/** The bar's per-step label key — the same nouns the running steps use. */
+const SAVE_ITEM_KEY = {
+  avatar: "mobile:profile.saveItemAvatar",
+  banner: "mobile:profile.saveItemBanner",
+  profile: "mobile:profile.saveItemProfile",
+} as const satisfies Record<SaveStep, string>;
 
-/** Local preview source for a picked-but-unsaved image — no request, no upload. */
-function draftPreviewUri(draft: PickedProfileImage | null): string | null {
-  return draft?.previewUri ?? null;
-}
+/** What a field shows: a fresh draft, a pending removal, or the saved value. */
+type ImageEdit = { kind: "draft"; image: PickedProfileImage } | { kind: "remove" } | null;
 
 /**
- * Edit the signed-in user's profile (M15): tap-to-change banner + avatar, display
- * name, bio, a SET-ONCE date of birth (drives the 18+ gate), and a danger zone to
- * delete the account. The me-only fields (birthdate / isAdult / bannerUrl) are
- * read from {@link useMe} (the `/users/me` record), falling back to the auth-store
- * user.
+ * Edit the signed-in user's profile: banner + avatar (each through the crop
+ * editor), display name, bio, the SET-ONCE date of birth, and account deletion.
  *
- * ── Nothing is saved until you press Save ───────────────────────────────────
- * Founder rule, mirrored from the desktop panel: picking a photo or a banner
- * produces a local DRAFT (previewed from its own base64, zero bytes sent). One
- * "Save profile" then applies everything in order — images first (their URLs must
- * exist before the row that points at them settles), then name/bio, then the
- * set-once birthdate as its OWN request so a 409 BIRTHDATE_LOCKED cannot take the
- * name/bio save down with it.
+ * ── The screen IS the card ───────────────────────────────────────────────────
+ * The hero at the top is the profile card exactly as friends will see it once
+ * saved — the 8:3 banner, the overlapping avatar, the name — and it redraws as
+ * you type and crop. Tapping the banner or the avatar opens a small menu: a new
+ * image (picker → crop editor), undo this change, or remove the current one.
  *
- * Each step is independent and reports on its own field, so a partial success is
- * visible rather than swallowed (§26): a step that succeeded clears its draft, a
- * step that failed KEEPS it, and pressing Save again retries exactly the parts
- * that did not land. Leaving the screen with unsaved edits — back button, back
- * gesture or the header arrow — raises a confirm first (`beforeRemove`).
+ * ── Nothing is saved until you press Save (founder rule, M15) ────────────────
+ * A picked-and-cropped image is a local DRAFT (previewed from its own file, zero
+ * bytes sent); a removal is a pending flag. The bar at the bottom appears with
+ * the first change and runs ONE Save in order — avatar upload, banner upload,
+ * then one PATCH for name/bio/removals — naming each step as it runs
+ * ("Fotoğraf yükleniyor · 1/3") over a bar that fills step by step. Each step
+ * reports on its own field: a step that landed clears its draft, a step that
+ * failed keeps it, and "Tekrar dene" sends only what did not land (§26). A
+ * failure is reported as what it was: nothing landed ("Değişikliklerin
+ * kaydedilemedi") or a named split ("Fotoğraf kaydedildi · Profil bilgileri
+ * kaydedilemedi") — never "some were kept" when none were.
+ *
+ * Leaving with unsaved edits — header arrow, Android back, back gesture — opens
+ * a sheet: save and leave, discard, or keep editing (`beforeRemove`). The date
+ * of birth saves through its own confirming control (it can never be corrected)
+ * and account deletion bypasses the guard on purpose.
  */
 export default function Profile() {
   const { t } = useAppTranslation();
   const navigation = useNavigation();
+  /** The navigation a guarded exit carried (what `beforeRemove` hands over). */
+  type NavigationAction = Parameters<typeof navigation.dispatch>[0];
+  const reduced = useReducedMotion();
   const meQuery = useMe();
   const storeUser = useAuthStore((s) => s.user);
   const user = meQuery.data ?? storeUser ?? null;
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
 
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
@@ -113,62 +112,72 @@ export default function Profile() {
 
   // Picked-but-unsaved images. The base64 is held in memory only until Save — a
   // deliberate, hard-capped exception to §27's "no large media blobs in state"
-  // (2 MB avatar / 5 MB banner, already the exact payload the upload call wants).
-  // The PREVIEW renders from the accompanying local file uri, never from the
-  // base64, so no huge string crosses the bridge on render.
-  const [avatarDraft, setAvatarDraft] = useState<PickedProfileImage | null>(null);
-  const [bannerDraft, setBannerDraft] = useState<PickedProfileImage | null>(null);
-  const [avatarPicking, setAvatarPicking] = useState(false);
-  const [bannerPicking, setBannerPicking] = useState(false);
+  // (512² avatar / ≤5 MB banner, already the exact payload the upload wants).
+  // The PREVIEW renders from the accompanying local file uri, never the base64.
+  const [avatarEdit, setAvatarEdit] = useState<ImageEdit>(null);
+  const [bannerEdit, setBannerEdit] = useState<ImageEdit>(null);
+  const [opening, setOpening] = useState<ProfileImageKind | null>(null);
+  const [editorSource, setEditorSource] = useState<ProfileImageSource | null>(null);
+  const [menu, setMenu] = useState<ProfileImageKind | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [bannerError, setBannerError] = useState<string | null>(null);
-  /** True when the last Save applied some changes but not all (§26 honesty). */
-  const [partialFailure, setPartialFailure] = useState(false);
+  /** How the last Save failed: nothing landed, or a named split (§26 honesty). */
+  const [saveFailure, setSaveFailure] = useState<Exclude<ProfileSaveOutcome, { kind: "ok" }> | null>(null);
+  const failureShown = saveFailure !== null;
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [step, setStep] = useState<{ id: SaveStep; index: number; total: number } | null>(null);
+  const [nameTouched, setNameTouched] = useState(false);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  /** The navigation a dirty screen held back — replayed after save/discard. */
+  const [pendingLeave, setPendingLeave] = useState<NavigationAction | null>(null);
+
+  const usernameLabel = user?.username ? `@${user.username}` : null;
   const previewName = displayName.trim() || user?.username || t("mobile:common.you");
   const birthdateSet = !!user?.birthdate;
 
-  // Drafts win over the persisted values so the screen previews exactly what Save
-  // would apply — a local render, with no byte sent to the server.
-  const avatarPreview = draftPreviewUri(avatarDraft) ?? user?.avatarUrl ?? null;
-  const bannerPreview = draftPreviewUri(bannerDraft) ?? user?.bannerUrl ?? null;
+  // What the hero shows = what Save would apply (a local render, no byte sent).
+  const avatarPreview =
+    avatarEdit?.kind === "draft" ? avatarEdit.image.previewUri : avatarEdit?.kind === "remove" ? null : (user?.avatarUrl ?? null);
+  const bannerPreview =
+    bannerEdit?.kind === "draft" ? bannerEdit.image.previewUri : bannerEdit?.kind === "remove" ? null : (user?.bannerUrl ?? null);
 
   const trimmedName = displayName.trim();
   const trimmedBio = bio.trim();
   const nameDirty = trimmedName !== (user?.displayName ?? "");
   const bioDirty = trimmedBio !== (user?.bio ?? "");
-  const dirty = nameDirty || bioDirty || avatarDraft !== null || bannerDraft !== null;
-
-  const avatarBusy = avatarPicking || (saving && avatarDraft !== null);
-  const bannerBusy = bannerPicking || (saving && bannerDraft !== null);
+  const dirty = nameDirty || bioDirty || avatarEdit !== null || bannerEdit !== null;
+  const nameInvalid = trimmedName.length === 0 || trimmedName.length > DISPLAY_NAME_MAX;
+  const nameError =
+    nameInvalid && (nameTouched || nameDirty) ? t("mobile:profile.validationDisplayName", { max: DISPLAY_NAME_MAX }) : null;
+  const bioError = trimmedBio.length > BIO_MAX ? t("mobile:profile.validationBio", { max: BIO_MAX }) : null;
 
   // Re-seed the text fields from the server user — but NEVER over unsaved edits.
-  // `user.updated` now lands here whenever this account changes anywhere (another
-  // device, our own save), and clobbering a half-typed bio with it would be the
-  // same class of data loss this whole screen is meant to prevent.
+  // `user.updated` lands here whenever this account changes anywhere (another
+  // device, our own save); clobbering a half-typed bio would be data loss.
   useEffect(() => {
     if (nameDirty || bioDirty) return;
     setDisplayName(user?.displayName ?? "");
     setBio(user?.bio ?? "");
-    // Re-seeding is driven by the SERVER values only; the dirty flags are read as
-    // a guard and deliberately excluded from the deps (including them would make
-    // the first keystroke re-run the effect and fight the user's own typing).
+    // Driven by the SERVER values only; the dirty flags are a guard and stay out
+    // of the deps (the first keystroke would otherwise re-run and fight typing).
   }, [user?.displayName, user?.bio]);
 
   /** Throw away every unsaved edit and return to the persisted profile. */
   const discardDraft = useCallback(() => {
-    setAvatarDraft(null);
-    setBannerDraft(null);
+    setAvatarEdit(null);
+    setBannerEdit(null);
     setDisplayName(user?.displayName ?? "");
     setBio(user?.bio ?? "");
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
+    setNameTouched(false);
   }, [user?.displayName, user?.bio]);
 
   // ── Unsaved-changes guard ────────────────────────────────────────────────
@@ -176,10 +185,8 @@ export default function Profile() {
   // state: re-subscribing on every keystroke would drop an in-flight event.
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
-  /** Set before an intentional exit (successful save, account deletion). */
+  /** Set before an intentional exit (successful save, discard, account deletion). */
   const bypassGuardRef = useRef(false);
-  const discardRef = useRef(discardDraft);
-  discardRef.current = discardDraft;
 
   useEffect(() => {
     // Covers the header arrow, the Android hardware back button and the back
@@ -187,260 +194,370 @@ export default function Profile() {
     const unsubscribe = navigation.addListener("beforeRemove", (event) => {
       if (!dirtyRef.current || bypassGuardRef.current) return;
       event.preventDefault();
-      Alert.alert(t("mobile:profile.unsavedTitle"), t("mobile:profile.unsavedBody"), [
-        { text: t("mobile:profile.unsavedKeepEditing"), style: "cancel" },
-        {
-          text: t("mobile:profile.unsavedDiscard"),
-          style: "destructive",
-          onPress: () => {
-            discardRef.current();
-            bypassGuardRef.current = true;
-            navigation.dispatch(event.data.action);
-          },
-        },
-      ]);
+      haptics.light();
+      setPendingLeave(event.data.action);
     });
     return unsubscribe;
-  }, [navigation, t]);
+  }, [navigation]);
+
+  const leave = (action: NavigationAction | null) => {
+    bypassGuardRef.current = true;
+    if (action) navigation.dispatch(action);
+    else router.back();
+  };
 
   /** Localize an image pick/upload failure (own keys + avatar/banner API codes). */
   const imageErrorText = (err: unknown): string => {
     if (err instanceof ProfileImageError) return t(err.key);
     if (err instanceof ApiClientError) {
       const code = err.code as string;
-      if (code === "INVALID_AVATAR" || code === "INVALID_BANNER")
-        return t("mobile:profile.imageInvalidType");
+      if (code === "INVALID_AVATAR" || code === "INVALID_BANNER") return t("mobile:profile.imageInvalidType");
       if (code === "AVATAR_TOO_LARGE") return t("mobile:profile.imageTooLargeAvatar");
       if (code === "BANNER_TOO_LARGE") return t("mobile:profile.imageTooLargeBanner");
       if (code === "AVATAR_UPLOADS_DISABLED" || code === "BANNER_UPLOADS_DISABLED")
         return t("mobile:profile.imageUploadsDisabled");
-      if (code === "AVATAR_REJECTED" || code === "BANNER_REJECTED")
-        return t("mobile:profile.imageRejected");
+      if (code === "AVATAR_REJECTED" || code === "BANNER_REJECTED") return t("mobile:profile.imageRejected");
     }
     return localizeError(err, t);
   };
 
-  /**
-   * Pick + prepare an image and hold it as a DRAFT. No request is made here —
-   * the bytes ship from {@link onSave} and nowhere else.
-   */
-  const onPickImage = async (kind: ProfileImageKind) => {
-    if (saving) return;
-    const setPicking = kind === "avatar" ? setAvatarPicking : setBannerPicking;
-    const setKindError = kind === "avatar" ? setAvatarError : setBannerError;
-    const setDraft = kind === "avatar" ? setAvatarDraft : setBannerDraft;
-    setKindError(null);
-    setPicking(true);
+  // ── Images: pick → crop → draft ──────────────────────────────────────────
+  const setKindError = (kind: ProfileImageKind, message: string | null) =>
+    kind === "avatar" ? setAvatarError(message) : setBannerError(message);
+
+  /** Open the picker, decode the pick, and hand it to the crop editor. Nothing is uploaded. */
+  const pickInto = async (kind: ProfileImageKind) => {
+    if (saving || opening) return;
+    setKindError(kind, null);
+    setOpening(kind);
     try {
-      const prepared = await pickProfileImage(kind);
-      if (prepared) setDraft(prepared);
+      const source = await pickProfileSource(kind);
+      if (source) setEditorSource(source);
     } catch (err) {
-      setKindError(imageErrorText(err));
+      setKindError(kind, imageErrorText(err));
+      // A failed pick from INSIDE the editor ("choose another") closes it: the
+      // error belongs next to the field, where the next attempt starts.
+      setEditorSource(null);
     } finally {
-      setPicking(false);
+      setOpening(null);
     }
   };
 
-  const onSave = async () => {
+  const onImagePress = (kind: ProfileImageKind) => {
     if (saving) return;
-    if (trimmedName.length === 0 || trimmedName.length > DISPLAY_NAME_MAX) {
-      setError(t("mobile:profile.validationDisplayName", { max: DISPLAY_NAME_MAX }));
+    const edit = kind === "avatar" ? avatarEdit : bannerEdit;
+    const current = kind === "avatar" ? avatarPreview : bannerPreview;
+    // Nothing to undo and nothing to remove: go straight to the picker.
+    if (edit === null && !current) {
+      void pickInto(kind);
       return;
     }
-    if (trimmedBio.length > BIO_MAX) {
-      setError(t("mobile:profile.validationBio", { max: BIO_MAX }));
+    setMenu(kind);
+  };
+
+  const onCropApplied = (image: PickedProfileImage, kind: ProfileImageKind) => {
+    if (kind === "avatar") setAvatarEdit({ kind: "draft", image });
+    else setBannerEdit({ kind: "draft", image });
+    setKindError(kind, null);
+    setSaveFailure(null);
+    setEditorSource(null);
+  };
+
+  // ── Save ─────────────────────────────────────────────────────────────────
+  const progress = useSharedValue(0);
+  const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
+  const onSave = async (after: NavigationAction | null = null) => {
+    if (saving) return;
+    setNameTouched(true);
+    if (nameInvalid || bioError) {
+      setPendingLeave(null);
+      haptics.error();
       return;
     }
 
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
     setSaving(true);
 
-    let failed = false;
+    const profilePatch = {
+      ...(nameDirty ? { displayName: trimmedName } : {}),
+      ...(bioDirty ? { bio: trimmedBio.length > 0 ? trimmedBio : null } : {}),
+      ...(avatarEdit?.kind === "remove" ? { avatarUrl: null } : {}),
+      ...(bannerEdit?.kind === "remove" ? { bannerUrl: null } : {}),
+    };
+    const steps: SaveStep[] = [
+      ...(avatarEdit?.kind === "draft" ? (["avatar"] as const) : []),
+      ...(bannerEdit?.kind === "draft" ? (["banner"] as const) : []),
+      ...(Object.keys(profilePatch).length > 0 ? (["profile"] as const) : []),
+    ];
+    progress.value = 0;
 
-    if (avatarDraft) {
+    const results: ProfileSaveStepResult[] = [];
+    for (const [index, id] of steps.entries()) {
+      setStep({ id, index, total: steps.length });
+      // The bar moves to the middle of the running step, then to its end: real
+      // per-request progress, not a timer pretending to be one.
+      progress.value = motionTo((index + 0.5) / steps.length, "position", { reduced });
       try {
-        await uploadAvatar.mutateAsync(avatarDraft.upload);
-        setAvatarDraft(null);
+        if (id === "avatar" && avatarEdit?.kind === "draft") {
+          await uploadAvatar.mutateAsync(avatarEdit.image.upload);
+          setAvatarEdit(null);
+        } else if (id === "banner" && bannerEdit?.kind === "draft") {
+          await uploadBanner.mutateAsync(bannerEdit.image.upload);
+          setBannerEdit(null);
+        } else if (id === "profile") {
+          await updateMe.mutateAsync(profilePatch);
+          if (avatarEdit?.kind === "remove") setAvatarEdit(null);
+          if (bannerEdit?.kind === "remove") setBannerEdit(null);
+        }
+        results.push({ id, ok: true });
       } catch (err) {
-        setAvatarError(imageErrorText(err));
-        failed = true;
+        results.push({ id, ok: false });
+        if (id === "avatar") setAvatarError(imageErrorText(err));
+        else if (id === "banner") setBannerError(imageErrorText(err));
+        else setError(localizeError(err, t));
       }
-    }
-
-    if (bannerDraft) {
-      try {
-        await uploadBanner.mutateAsync(bannerDraft.upload);
-        setBannerDraft(null);
-      } catch (err) {
-        setBannerError(imageErrorText(err));
-        failed = true;
-      }
-    }
-
-    if (nameDirty || bioDirty) {
-      try {
-        await updateMe.mutateAsync({
-          displayName: trimmedName,
-          bio: trimmedBio.length > 0 ? trimmedBio : null,
-        });
-      } catch (err) {
-        setError(localizeError(err, t));
-        failed = true;
-      }
+      progress.value = motionTo((index + 1) / steps.length, "position", { reduced });
     }
 
     setSaving(false);
-    setPartialFailure(failed);
-    if (failed) return;
-
-    // Everything landed and there is nothing left to lose — leave without asking.
-    // Closing the screen IS the confirmation: the surface behind it (You tab /
-    // Settings row) already repaints with the new photo and name, which reads
-    // stronger than a "Saved" chip that would flash for one frame before the
-    // navigation transition (§35 — no dead UI).
-    bypassGuardRef.current = true;
-    router.back();
+    setStep(null);
+    setPendingLeave(null);
+    const outcome = summarizeProfileSave(results);
+    setSaveFailure(outcome.kind === "ok" ? null : outcome);
+    if (outcome.kind !== "ok") {
+      haptics.error();
+      return;
+    }
+    haptics.success();
+    // Everything landed — leave without asking. Closing the screen IS the
+    // confirmation: the surface behind it already repaints with the new photo
+    // and name, which reads stronger than a chip flashing for one frame (§35).
+    leave(after);
   };
 
   const onDelete = () => {
-    Alert.alert(t("mobile:profile.deleteConfirmTitle"), t("mobile:profile.deleteConfirmBody"), [
-      { text: t("buttons.cancel"), style: "cancel" },
-      {
-        text: t("mobile:profile.deleteConfirmAction"),
-        style: "destructive",
-        onPress: () => {
-          setDeleting(true);
-          deleteAccount.mutate(undefined, {
-            onSuccess: () => {
-              // The account is gone — never prompt about unsaved edits to a
-              // profile that no longer exists.
-              bypassGuardRef.current = true;
-              void logoutActiveAccount();
-            },
-            onError: (err) => {
-              setDeleting(false);
-              Alert.alert(t("mobile:profile.deleteHeading"), localizeError(err, t));
-            },
-          });
-        },
+    setDeleting(true);
+    setDeleteError(null);
+    deleteAccount.mutate(undefined, {
+      onSuccess: () => {
+        // The account is gone — never prompt about edits to a profile that no
+        // longer exists.
+        bypassGuardRef.current = true;
+        void logoutActiveAccount();
       },
-    ]);
+      onError: (err) => {
+        setDeleting(false);
+        setDeleteError(localizeError(err, t));
+      },
+    });
   };
 
+  const stepLabel = useMemo(() => {
+    if (!step) return null;
+    const key =
+      step.id === "avatar"
+        ? "mobile:profile.savingAvatar"
+        : step.id === "banner"
+          ? "mobile:profile.savingBanner"
+          : "mobile:profile.savingProfile";
+    return `${t(key)} · ${t("mobile:profile.saveStep", { current: step.index + 1, total: step.total })}`;
+  }, [step, t]);
+
+  const failureTitle =
+    saveFailure?.kind === "total" ? t("mobile:profile.saveFailedTotal") : t("mobile:profile.saveFailed");
+  /** "Fotoğraf kaydedildi · Profil bilgileri kaydedilemedi" — only for a split. */
+  const failureDetail =
+    saveFailure?.kind === "partial"
+      ? [
+          ...saveFailure.saved.map((id) => t("mobile:profile.saveItemSaved", { item: t(SAVE_ITEM_KEY[id]) })),
+          ...saveFailure.failed.map((id) => t("mobile:profile.saveItemFailed", { item: t(SAVE_ITEM_KEY[id]) })),
+        ].join(" · ")
+      : null;
+  const failureHint =
+    saveFailure?.kind === "total" ? t("mobile:profile.saveFailedTotalHint") : t("mobile:profile.saveFailedHint");
+
+  const barVisible = dirty || saving || failureShown;
+  const barHeight = 120;
+  const menuEdit = menu === "avatar" ? avatarEdit : bannerEdit;
+  const menuHasImage = menu === "avatar" ? !!avatarPreview : !!bannerPreview;
+
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.app }}>
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
+      <Stack.Screen options={{ title: t("mobile:profile.title") }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
-        contentContainerStyle={{ paddingBottom: space.xl + insets.bottom, gap: space.xl }}
+        contentContainerStyle={{
+          paddingBottom: (barVisible ? barHeight : space.xl) + insets.bottom + keyboard,
+          gap: space.xl,
+        }}
         keyboardShouldPersistTaps="handled"
       >
-        <Stack.Screen options={{ title: t("mobile:profile.title") }} />
-
-        {/* Banner (tap to change) with the avatar overhanging it (tap to change).
-            Both are DRAFTS until Save — the preview below is rendered from the
-            picked bytes, not from anything the server has seen. */}
+        {/* ── Hero: the card as it will look ─────────────────────────────── */}
         <View>
-          <Pressable
-            onPress={() => void onPickImage("banner")}
-            disabled={bannerBusy || saving}
+          <Touchable
+            onPress={() => onImagePress("banner")}
+            disabled={saving}
+            dimmed={false}
             accessibilityRole="button"
-            accessibilityLabel={t("mobile:profile.bannerChange")}
+            accessibilityLabel={bannerPreview ? t("mobile:profile.bannerChange") : t("mobile:profile.bannerAdd")}
+            accessibilityHint={t("mobile:profile.bannerHelp")}
           >
-            <ProfileBannerImage
-              bannerUrl={bannerPreview}
-              seedId={user?.id ?? "self"}
-              height={BANNER_HEIGHT}
-            />
-            <View
+            <ProfileBannerImage bannerUrl={bannerPreview} seedId={user?.id ?? "self"} />
+            <View style={{ position: "absolute", right: space.md, top: space.md, flexDirection: "row", gap: space.xs }}>
+              {bannerEdit ? (
+                <Badge
+                  variant="accent"
+                  label={bannerEdit.kind === "remove" ? t("mobile:profile.removePending") : t("mobile:profile.draftBadge")}
+                />
+              ) : null}
+            </View>
+            <Glass
+              strong
               style={{
                 position: "absolute",
                 right: space.md,
-                top: space.md,
+                bottom: space.md,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: space.xs,
-                paddingHorizontal: space.sm,
-                paddingVertical: space.xs,
+                paddingHorizontal: space.md,
+                paddingVertical: space.xs + 2,
                 borderRadius: radius.pill,
-                backgroundColor: "rgba(0,0,0,0.45)",
               }}
             >
-              {bannerBusy ? (
-                <ActivityIndicator size="small" color="#fff" />
+              {opening === "banner" ? (
+                <ActivityIndicator size="small" color={colors.fg} />
               ) : (
-                <ImagePlus size={14} color="#fff" />
+                <ImagePlus size={15} color={colors.fg} strokeWidth={2} />
               )}
-              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
-                {bannerPreview ? t("mobile:profile.bannerChange") : t("mobile:profile.bannerAdd")}
+              <Text type="meta" tone="default" style={{ fontWeight: "600" }}>
+                {opening === "banner"
+                  ? t("mobile:profile.opening")
+                  : bannerPreview
+                    ? t("mobile:profile.bannerChange")
+                    : t("mobile:profile.bannerAdd")}
               </Text>
-            </View>
-          </Pressable>
+            </Glass>
+          </Touchable>
 
-          <View style={{ paddingHorizontal: space.lg, marginTop: -(AVATAR_SIZE / 2) }}>
-            <Pressable
-              onPress={() => void onPickImage("avatar")}
-              disabled={avatarBusy || saving}
-              accessibilityRole="button"
-              accessibilityLabel={t("mobile:profile.avatarChange")}
-              style={{
-                alignSelf: "flex-start",
-                borderRadius: radius.pill,
-                backgroundColor: colors.app,
-                padding: 4,
-              }}
-            >
-              <Avatar name={previewName} size={AVATAR_SIZE} uri={avatarPreview} />
-              <View
-                style={{
-                  position: "absolute",
-                  right: 2,
-                  bottom: 2,
-                  width: 28,
-                  height: 28,
-                  borderRadius: radius.pill,
-                  backgroundColor: colors.accent,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 2,
-                  borderColor: colors.app,
-                }}
+          <View style={{ paddingHorizontal: space.lg, marginTop: -(AVATAR_SIZE / 2) - 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
+              <Touchable
+                onPress={() => onImagePress("avatar")}
+                disabled={saving}
+                dimmed={false}
+                pressScale={0.96}
+            // The ring IS the fill: keep the page tone through the press (the
+            // press answers with scale) instead of the default clear → wash.
+            tone={colors.app}
+            pressedTone={colors.app}
+                accessibilityRole="button"
+                accessibilityLabel={t("mobile:profile.avatarChange")}
+                accessibilityHint={t("mobile:profile.avatarHelp")}
+                style={{ borderRadius: radius.pill, backgroundColor: colors.app, padding: 4 }}
               >
-                {avatarBusy ? (
-                  <ActivityIndicator size="small" color={colors.onAccent} />
-                ) : (
-                  <Camera size={15} color={colors.onAccent} />
-                )}
-              </View>
-            </Pressable>
-            {user?.username ? (
-              <Text style={{ color: colors.fgMuted, fontSize: 13, marginTop: space.xs }}>
-                @{user.username}
+                <Avatar name={previewName} size={AVATAR_SIZE} uri={avatarPreview} />
+                <View
+                  style={{
+                    position: "absolute",
+                    right: 2,
+                    bottom: 2,
+                    width: 30,
+                    height: 30,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.accent,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 3,
+                    borderColor: colors.app,
+                  }}
+                >
+                  {opening === "avatar" ? (
+                    <ActivityIndicator size="small" color={colors.onAccent} />
+                  ) : (
+                    <Camera size={14} color={colors.onAccent} strokeWidth={2.25} />
+                  )}
+                </View>
+              </Touchable>
+              {avatarEdit ? (
+                <Animated.View
+                  entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+                  exiting={FadeOut.duration(motion.duration.instant).reduceMotion(ReduceMotion.System)}
+                  style={{ paddingBottom: space.sm }}
+                >
+                  <Badge
+                    variant="accent"
+                    label={avatarEdit.kind === "remove" ? t("mobile:profile.removePending") : t("mobile:profile.draftBadge")}
+                  />
+                </Animated.View>
+              ) : null}
+            </View>
+            <View style={{ marginTop: space.sm, gap: 2 }}>
+              <Text type="title" tone="display" numberOfLines={1}>
+                {previewName}
               </Text>
-            ) : null}
-            {/* "Not saved yet" — the whole point of the draft model, said out loud. */}
-            {avatarDraft || bannerDraft ? (
-              <Text style={{ color: colors.fgFaint, fontSize: 12, marginTop: space.xs }}>
-                {t("mobile:profile.imagePending")}
-              </Text>
+              {usernameLabel ? (
+                <Text type="ui" tone="muted" style={{ fontWeight: "400" }}>
+                  {usernameLabel}
+                </Text>
+              ) : null}
+              {trimmedBio ? (
+                <Text type="ui" tone="default" numberOfLines={3} style={{ fontWeight: "400", marginTop: space.xs }}>
+                  {trimmedBio}
+                </Text>
+              ) : null}
+            </View>
+            {dirty ? (
+              <Animated.View entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}>
+                <Text type="meta" tone="faint" style={{ marginTop: space.sm, fontWeight: "400" }}>
+                  {t("mobile:profile.previewNote")}
+                </Text>
+              </Animated.View>
             ) : null}
           </View>
         </View>
 
-        <View style={{ paddingHorizontal: space.lg, gap: space.md }}>
-          {avatarError ? <ErrorNote>{avatarError}</ErrorNote> : null}
-          {bannerError ? <ErrorNote>{bannerError}</ErrorNote> : null}
-          {error ? <ErrorNote>{error}</ErrorNote> : null}
+        {avatarError || bannerError ? (
+          <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
+            {avatarError ? (
+              <Banner
+                variant="danger"
+                title={t("mobile:profile.avatarErrorTitle")}
+                description={avatarError}
+                action={{ label: t("mobile:imageEditor.chooseAnother"), onPress: () => void pickInto("avatar") }}
+                onDismiss={() => setAvatarError(null)}
+              />
+            ) : null}
+            {bannerError ? (
+              <Banner
+                variant="danger"
+                title={t("mobile:profile.bannerErrorTitle")}
+                description={bannerError}
+                action={{ label: t("mobile:imageEditor.chooseAnother"), onPress: () => void pickInto("banner") }}
+                onDismiss={() => setBannerError(null)}
+              />
+            ) : null}
+          </View>
+        ) : null}
 
+        {/* ── Fields ──────────────────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: space.lg, gap: space.lg }}>
+          {error ? <Banner variant="danger" title={t("mobile:profile.profileErrorTitle")} description={error} /> : null}
           <TextField
             label={t("mobile:profile.displayNameLabel")}
             value={displayName}
             onChangeText={setDisplayName}
+            onBlur={() => setNameTouched(true)}
             maxLength={DISPLAY_NAME_MAX}
             placeholder={t("mobile:profile.displayNamePlaceholder")}
+            error={nameError}
+            hint={t("mobile:profile.bioCount", { count: trimmedName.length, max: DISPLAY_NAME_MAX })}
+            editable={!saving}
           />
           <TextField
             label={t("mobile:profile.bioLabel")}
@@ -449,98 +566,211 @@ export default function Profile() {
             maxLength={BIO_MAX}
             multiline
             placeholder={t("mobile:profile.bioPlaceholder")}
-            hint={t("mobile:profile.bioHint", { count: bio.trim().length, max: BIO_MAX })}
-            style={{ minHeight: 88, textAlignVertical: "top" }}
-          />
-
-          {partialFailure ? <ErrorNote>{t("mobile:profile.savePartial")}</ErrorNote> : null}
-
-          {/* One Save for the WHOLE profile — images, name, bio and the set-once
-              birthdate all ship from here, and only from here. */}
-          <Button
-            label={t("mobile:profile.save")}
-            onPress={() => void onSave()}
-            loading={saving}
-            disabled={!dirty}
-          />
-          {/* A real Discard, so "leave without saving" is never the only way out. */}
-          <Button
-            label={t("mobile:profile.discard")}
-            variant="ghost"
-            onPress={discardDraft}
-            disabled={saving || !dirty}
+            hint={t("mobile:profile.bioHint", { count: trimmedBio.length, max: BIO_MAX })}
+            error={bioError}
+            editable={!saving}
+            style={{ minHeight: 96, textAlignVertical: "top" }}
           />
         </View>
 
-        {/* Date of birth — SET-ONCE, and therefore NOT part of the profile Save:
-            it saves itself through the same confirming <BirthdateVerification>
-            the NSFW gate uses, because this value can never be corrected
-            afterwards. Read-only + 18+ status once set. */}
-        <View style={{ paddingHorizontal: space.lg, gap: space.md }}>
-          <SectionLabel>{t("mobile:profile.birthdateSection")}</SectionLabel>
+        {/* ── Date of birth — SET-ONCE, saved by its own confirming control,
+            NOT by the profile Save: it can never be corrected afterwards. ── */}
+        <View style={{ paddingHorizontal: space.lg }}>
           {birthdateSet ? (
-            <View
-              style={{
-                gap: space.xs,
-                padding: space.lg,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.stroke,
-              }}
-            >
-              <Text variant="display" style={{ color: colors.fg, fontSize: 16, fontWeight: "700" }}>
-                {user?.birthdate}
-              </Text>
-              <Text style={{ color: colors.fgMuted, fontSize: 13 }}>
-                {(user?.isAdult
-                  ? t("mobile:profile.birthdateAdult")
-                  : t("mobile:profile.birthdateMinor")) +
-                  " · " +
-                  t("mobile:profile.birthdateLocked")}
-              </Text>
-            </View>
+            <SettingsSection title={t("mobile:profile.birthdateSection")} footer={t("mobile:profile.birthdateLockedNote")}>
+              <SettingsRow
+                icon={ShieldCheck}
+                title={user?.birthdate ?? ""}
+                subtitle={user?.isAdult ? t("mobile:profile.birthdateAdult") : t("mobile:profile.birthdateMinor")}
+                value={t("mobile:profile.birthdateLocked")}
+              />
+            </SettingsSection>
           ) : (
-            <>
-              <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
+            <View>
+              <SectionEyebrow>{t("mobile:profile.birthdateSection")}</SectionEyebrow>
+              <Text type="meta" tone="faint" style={{ paddingHorizontal: space.xs, paddingBottom: space.sm, fontWeight: "400" }}>
                 {t("mobile:profile.birthdateHint")}
               </Text>
               <BirthdateVerification />
-            </>
+            </View>
           )}
         </View>
 
-        {/* Danger zone — delete account (14-day freeze). */}
-        <View style={{ paddingHorizontal: space.lg, gap: space.md }}>
-          <SectionLabel>{t("mobile:common.dangerZone")}</SectionLabel>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: space.sm,
-              padding: space.md,
-              borderRadius: radius.md,
-              borderCurve: "continuous",
-              backgroundColor: colors.dangerSurface,
-            }}
-          >
-            <TriangleAlert size={18} color={colors.danger} style={{ marginTop: 1 }} />
-            <Text style={{ flex: 1, color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
-              {t("mobile:profile.deleteDescription")}
-            </Text>
-          </View>
-          <Button
-            label={t("mobile:profile.deleteAction")}
-            variant="danger"
-            onPress={onDelete}
-            loading={deleting}
-            style={{ borderRadius: radius.md }}
-          >
-            <Trash2 size={16} color={colors.danger} />
-          </Button>
+        {/* ── Danger zone — delete account (14-day freeze). ───────────────── */}
+        <View style={{ paddingHorizontal: space.lg }}>
+          <DangerZone title={t("mobile:common.dangerZone")} description={t("mobile:profile.deleteDescription")}>
+            <Button
+              label={t("mobile:profile.deleteAction")}
+              icon={Trash2}
+              variant="danger"
+              onPress={() => {
+                setDeleteError(null);
+                setConfirmDelete(true);
+              }}
+              disabled={saving}
+            />
+          </DangerZone>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      {/* ── Save bar — appears with the first change; names each request. ── */}
+      {barVisible ? (
+        <Animated.View
+          entering={FadeInDown.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOutDown.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+          style={{
+            position: "absolute",
+            left: space.md,
+            right: space.md,
+            bottom: space.md + (keyboard > 0 ? keyboard : insets.bottom),
+          }}
+        >
+          <Glass strong style={{ borderRadius: radius.card, padding: space.md, gap: space.md }}>
+            <View accessibilityLiveRegion="polite" style={{ gap: 2 }}>
+              <Text type="ui" tone={failureShown && !saving ? "danger" : "default"} style={{ fontWeight: "600" }}>
+                {saving
+                  ? (stepLabel ?? t("mobile:profile.savingProfile"))
+                  : failureShown
+                    ? failureTitle
+                    : t("mobile:profile.unsavedBar")}
+              </Text>
+              {failureShown && !saving && failureDetail ? (
+                <Text type="meta" tone="default" style={{ fontWeight: "500" }}>
+                  {failureDetail}
+                </Text>
+              ) : null}
+              {failureShown && !saving ? (
+                <Text type="meta" tone="muted" style={{ fontWeight: "400" }}>
+                  {failureHint}
+                </Text>
+              ) : null}
+            </View>
+            {saving ? (
+              <View
+                accessibilityRole="progressbar"
+                accessibilityValue={step ? { min: 0, max: step.total, now: step.index } : undefined}
+                style={{ height: 4, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, overflow: "hidden" }}
+              >
+                <Animated.View style={[{ height: 4, backgroundColor: colors.accent, borderRadius: radius.pill }, progressStyle]} />
+              </View>
+            ) : null}
+            <View style={{ flexDirection: "row", gap: space.sm }}>
+              <Button
+                label={t("mobile:profile.discard")}
+                icon={Undo2}
+                variant="ghost"
+                onPress={discardDraft}
+                disabled={saving || !dirty}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label={failureShown && !saving ? t("common:buttons.retry") : t("mobile:profile.save")}
+                icon={failureShown && !saving ? RotateCcw : Save}
+                variant="accent"
+                onPress={() => void onSave()}
+                loading={saving}
+                disabled={!dirty || nameInvalid || !!bioError}
+                style={{ flex: 1.4 }}
+              />
+            </View>
+          </Glass>
+        </Animated.View>
+      ) : null}
+
+      {/* Avatar / banner menu: new image · undo · remove. */}
+      <ActionSheet
+        visible={menu !== null}
+        title={menu === "banner" ? t("mobile:profile.bannerSheetTitle") : t("mobile:profile.avatarSheetTitle")}
+        onClose={() => setMenu(null)}
+      >
+        <ActionRow
+          icon={<ImagePlus size={20} color={colors.fgMuted} />}
+          label={t("mobile:profile.chooseImage")}
+          hint={menu === "banner" ? t("mobile:profile.bannerHelp") : t("mobile:profile.avatarHelp")}
+          onPress={() => {
+            const kind = menu;
+            setMenu(null);
+            if (kind) void pickInto(kind);
+          }}
+        />
+        {menuEdit !== null ? (
+          <ActionRow
+            icon={<Undo2 size={20} color={colors.fgMuted} />}
+            label={t("mobile:profile.undoDraft")}
+            onPress={() => {
+              if (menu === "avatar") setAvatarEdit(null);
+              else setBannerEdit(null);
+              setMenu(null);
+            }}
+          />
+        ) : null}
+        {menuHasImage && menuEdit?.kind !== "remove" && (menu === "avatar" ? !!user?.avatarUrl : !!user?.bannerUrl) ? (
+          <>
+            <ActionDivider />
+            <ActionRow
+              icon={<Trash2 size={20} color={colors.danger} />}
+              label={menu === "banner" ? t("mobile:profile.bannerRemove") : t("mobile:profile.avatarRemove")}
+              hint={t("mobile:profile.removeHint")}
+              labelColor={colors.danger}
+              onPress={() => {
+                if (menu === "avatar") setAvatarEdit({ kind: "remove" });
+                else setBannerEdit({ kind: "remove" });
+                setMenu(null);
+              }}
+            />
+          </>
+        ) : null}
+      </ActionSheet>
+
+      <ImageCropEditor
+        source={editorSource}
+        onCancel={() => setEditorSource(null)}
+        onApply={onCropApplied}
+        onChooseAnother={() => {
+          if (editorSource) void pickInto(editorSource.kind);
+        }}
+        displayName={previewName}
+        seedId={user?.id ?? "self"}
+        avatarUri={avatarPreview}
+        bannerUri={bannerPreview}
+      />
+
+      <ConfirmSheet
+        visible={pendingLeave !== null}
+        title={t("mobile:profile.unsavedTitle")}
+        body={t("mobile:profile.unsavedBody")}
+        alternative={{
+          label: t("mobile:profile.unsavedSaveAndLeave"),
+          icon: Save,
+          loading: true,
+          onPress: () => void onSave(pendingLeave),
+        }}
+        confirmLabel={t("mobile:profile.unsavedDiscard")}
+        confirmIcon={LogOut}
+        onConfirm={() => {
+          const action = pendingLeave;
+          discardDraft();
+          setPendingLeave(null);
+          leave(action);
+        }}
+        cancelLabel={t("mobile:profile.unsavedKeepEditing")}
+        onCancel={() => setPendingLeave(null)}
+        busy={saving}
+      />
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title={t("mobile:profile.deleteConfirmTitle")}
+        body={t("mobile:profile.deleteConfirmBody")}
+        confirmLabel={t("mobile:profile.deleteConfirmAction")}
+        confirmIcon={Trash2}
+        onConfirm={onDelete}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setConfirmDelete(false)}
+        busy={deleting}
+        error={deleteError}
+        errorTitle={t("mobile:profile.deleteErrorTitle")}
+      />
+    </View>
   );
 }

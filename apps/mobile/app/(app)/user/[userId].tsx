@@ -1,20 +1,16 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  View,
-} from "react-native";
-import { Text, TextInput } from "@/components/ui/Text";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import {
+  CalendarDays,
   Check,
+  CloudOff,
   EllipsisVertical,
   MessageSquare,
+  Pencil,
   Phone,
   SendHorizontal,
   ShieldBan,
@@ -25,20 +21,30 @@ import {
   UserRoundX,
   Video,
   X,
+  type LucideIcon,
 } from "lucide-react-native";
 import { isCallLive, noteBadgeText, visibleCustomStatus } from "@demli/client-core";
 import { MESSAGE_MAX_LENGTH } from "@demli/config";
 import type { DmId, GroupId, ProfileFriendshipStatus, Role, UserId } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/Button";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { EmptyState } from "@/components/EmptyState";
 import { AvatarLightbox } from "@/components/member/AvatarLightbox";
 import { MemberActionSheet, type MemberSheetTarget } from "@/components/member/MemberActionSheet";
 import { ProfileBannerImage } from "@/components/ProfileBannerImage";
 import { Screen } from "@/components/Screen";
+import { Skeleton } from "@/components/Skeleton";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { Text, TextInput } from "@/components/ui/Text";
+import { Touchable } from "@/components/ui/Touchable";
 import { localizeError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
+import { useSelfPresenceAsSeen } from "@/lib/use-self-presence";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import {
   useAcceptFriendRequest,
@@ -53,167 +59,123 @@ import { useBlockUser, useUnblockUser, useUserNote } from "@/queries/member-quer
 import { getCallController, useCallState } from "@/stores/call-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
-const BANNER_HEIGHT = 140;
-const AVATAR_SIZE = 92;
+const AVATAR_SIZE = 88;
 
-/** A section eyebrow label (uppercase, faint) shared by the info sections. */
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
-/** A single server-role pill, tinted by the role's color (ADR 0007). */
+/** A server-role pill, tinted by the role's colour dot (ADR 0007). */
 function RoleChip({ role }: { role: Role }) {
-  const tint = role.color ?? colors.fgMuted;
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: space.xs,
+        gap: space.xs + 2,
         paddingHorizontal: space.md,
-        paddingVertical: space.xs,
+        paddingVertical: space.xs + 1,
         borderRadius: radius.pill,
         backgroundColor: colors.surfaceRaised,
-        borderWidth: 1,
-        borderColor: colors.stroke,
       }}
     >
-      <View style={{ width: 8, height: 8, borderRadius: radius.pill, backgroundColor: tint }} />
-      <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>{role.name}</Text>
+      <View style={{ width: 8, height: 8, borderRadius: radius.pill, backgroundColor: role.color ?? colors.fgMuted }} />
+      <Text type="meta" tone="default" style={{ fontWeight: "500" }}>
+        {role.name}
+      </Text>
     </View>
   );
 }
 
 /**
- * One icon control pinned to the banner's top-right (founder's reference).
- *
- * Icon-only, but never bare: each carries an `accessibilityLabel` naming the
- * person AND sits on its own translucent dark backdrop, because a banner can be
- * a light photo and a bare white glyph on it is unreadable. The backdrop is the
- * whole reason this is a component rather than a plain Pressable.
+ * One tile of the comms strip (Message / Voice / Video): icon over a label on
+ * the surface tone. A tile that is not available stays visible at 40% and the
+ * strip says why underneath (calls are friends-only, ADR 0012) — never a dead
+ * control without a reason.
  */
-function BannerAction({
-  label,
-  tone = "default",
-  busy = false,
-  disabled = false,
-  onPress,
-  children,
-}: {
-  label: string;
-  tone?: "default" | "danger";
-  busy?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || busy}
-      hitSlop={6}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: disabled || busy }}
-      style={({ pressed }) => ({
-        width: 34,
-        height: 34,
-        borderRadius: radius.pill,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: tone === "danger" ? "rgba(120,20,14,0.72)" : "rgba(0,0,0,0.5)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.14)",
-        opacity: disabled || busy ? 0.5 : pressed ? 0.75 : 1,
-      })}
-    >
-      {busy ? <ActivityIndicator size="small" color="#ffffff" /> : children}
-    </Pressable>
-  );
-}
-
-/**
- * The profile card banner (ref #5 / M15). Renders the user's uploaded banner
- * (GIF-capable) when present, otherwise the per-user deterministic gradient — the
- * SAME hue that colors their cameraless voice tile, so a person's color is
- * consistent across the app. Full-bleed at the top of the card.
- */
-function ProfileBanner({ userId, bannerUrl }: { userId: string; bannerUrl?: string | null }) {
-  const { t } = useAppTranslation();
-  return (
-    <View accessibilityLabel={t("mobile:userProfile.bannerA11y")}>
-      <ProfileBannerImage bannerUrl={bannerUrl} seedId={userId} height={BANNER_HEIGHT} />
-    </View>
-  );
-}
-
-/**
- * One action in the top comms bar (Message / Voice / Video). Icon over a compact
- * label; dims to a clearly-disabled state when the target is not a friend
- * (matching the DM header's call-gate, ADR 0012 §3) so no button is a dead end.
- */
-function ProfileAction({
-  icon,
+function CommsTile({
+  icon: Icon,
   label,
   onPress,
   disabled,
 }: {
-  icon: ReactNode;
+  icon: LucideIcon;
   label: string;
   onPress: () => void;
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <Touchable
       onPress={onPress}
       disabled={disabled}
+      haptic="light"
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => ({
+      tone={colors.surface}
+      pressedTone={colors.surfaceRaised}
+      style={{
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        gap: space.xs,
+        gap: space.xs + 2,
+        minHeight: 68,
         paddingVertical: space.md,
-        borderRadius: radius.md,
+        borderRadius: radius.xl,
         borderCurve: "continuous",
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.stroke,
-        opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
-      })}
+      }}
     >
-      {icon}
-      <Text numberOfLines={1} style={{ color: colors.fg, fontSize: 12, fontWeight: "600" }}>
+      <Icon size={20} color={disabled ? colors.fgMuted : colors.accent} strokeWidth={2} />
+      <Text type="meta" tone="default" numberOfLines={1} style={{ fontWeight: "600" }}>
         {label}
       </Text>
-    </Pressable>
+    </Touchable>
   );
 }
 
+/** A labelled card section (About, Member since, Roles). */
+function InfoCard({ title, icon: Icon, children }: { title: string; icon?: LucideIcon; children: ReactNode }) {
+  return (
+    <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl, borderCurve: "continuous", padding: space.lg, gap: space.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs + 2 }}>
+        {Icon ? <Icon size={14} color={colors.fgFaint} strokeWidth={2} /> : null}
+        <SectionEyebrow style={{ paddingHorizontal: 0, paddingBottom: 0 }}>{title}</SectionEyebrow>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+/** The identity block while the profile is still loading: shape, not a spinner. */
+function IdentitySkeleton() {
+  return (
+    <View style={{ gap: space.sm, paddingTop: space.sm }}>
+      <Skeleton width="56%" height={24} radius={radius.sm} />
+      <Skeleton width="34%" height={14} radius={radius.sm} />
+      <View style={{ flexDirection: "row", gap: space.sm, paddingTop: space.lg }}>
+        <Skeleton width="31%" height={68} radius={radius.xl} />
+        <Skeleton width="31%" height={68} radius={radius.xl} />
+        <Skeleton width="31%" height={68} radius={radius.xl} />
+      </View>
+      <Skeleton width="100%" height={52} radius={radius.cta} style={{ marginTop: space.sm }} />
+    </View>
+  );
+}
+
+type Pending = "unfriend" | "block" | "unblock" | null;
+
 /**
- * Context-aware profile screen (ADR 0010 §3), presented as a modal when a person
- * is tapped (friend row / message avatar / DM header / server member). Rich
- * layout (ref #5): a per-user gradient banner, a large overlapping avatar, a
- * Message / Voice Call / Video Call action bar (calls gated to mutual friends,
- * ADR 0012), a "Member since" card, bio, and — only when `groupId` names a server
- * both users share — that server's roles. Actions adapt to the viewer→target
- * friendship; the self card links to profile editing.
+ * Context-aware profile card (ADR 0010 §3), presented as a modal when a person
+ * is tapped (friend row / message avatar / DM header / server member).
+ *
+ * Koyu Masa: the 8:3 banner (theirs, or their colour under the coral glow), a
+ * large avatar overlapping it on a 4px ring of the page, glass controls on the
+ * banner (one friendship slot, block, ⋯), the name in Onest with the viewer's
+ * private note beside it, a Message / Voice / Video strip (calls gated to
+ * mutual friends, ADR 0012), then About · Member since · Roles cards — roles
+ * only when `groupId` names a server both users share. The self card links to
+ * profile editing. Loading draws the shape (skeleton), a failed load says what
+ * happened with a retry, a block replaces the comms with what changed.
+ *
+ * Destructive steps (unfriend, block, unblock) confirm in a sheet that states
+ * the consequence and keeps the request's busy state and error in place.
  */
 export default function UserProfileScreen() {
   const { t, i18n } = useAppTranslation();
@@ -230,6 +192,8 @@ export default function UserProfileScreen() {
   const isSelf = !!me && me.id === userId;
   const profile = useProfile(userId ?? null, groupId, !!userId && !isSelf);
   const presence = useChatStore((s) => (userId ? s.presence[userId] ?? "offline" : "offline"));
+  // Your own card shows the status you CHOSE, as others see it (invisible = offline).
+  const selfPresence = useSelfPresenceAsSeen();
   // The viewer's private note about THIS person, for the short badge beside the
   // name. Gated on `!isSelf` — you cannot note yourself and the read must not
   // even be issued for your own card (ADR 0019 §1, desktop ProfileCard parity).
@@ -254,6 +218,9 @@ export default function UserProfileScreen() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sent, setSent] = useState(false);
+  const [pending, setPending] = useState<Pending>(null);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Self card falls back to the auth-store record (useProfile is disabled for self).
   const user = isSelf ? me : profile.data?.user;
@@ -275,6 +242,7 @@ export default function UserProfileScreen() {
   const roles = profile.data?.roles ?? [];
   const status: ProfileFriendshipStatus = profile.data?.friendship ?? "none";
   const loadFailed = !isSelf && profile.isError;
+  const loading = !isSelf && profile.isPending;
   // A block refuses messaging and calling server-side, so the whole comms strip
   // and the message box go away rather than sitting there as dead controls
   // (§35). Unblocking stays reachable on the banner and in the menu.
@@ -288,11 +256,7 @@ export default function UserProfileScreen() {
     const date = new Date(createdAt);
     if (Number.isNaN(date.getTime())) return null;
     try {
-      return new Intl.DateTimeFormat(i18n.language, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }).format(date);
+      return new Intl.DateTimeFormat(i18n.language, { year: "numeric", month: "long", day: "numeric" }).format(date);
     } catch {
       return date.toLocaleDateString();
     }
@@ -302,18 +266,18 @@ export default function UserProfileScreen() {
   // another call is live. The server re-checks; this just disables the buttons.
   const canCall = status === "friends" && !isCallLive(callState);
 
-  const onError = (err: unknown) =>
-    Alert.alert(t("mobile:userProfile.actionErrorTitle"), localizeError(err, t));
+  /** A failed action says so in place, above the actions it came from. */
+  const onError = (err: unknown) => {
+    haptics.error();
+    setActionError(localizeError(err, t));
+  };
 
   const busy =
-    sendRequest.isPending ||
-    accept.isPending ||
-    removeRequest.isPending ||
-    unfriend.isPending ||
-    openDm.isPending;
+    sendRequest.isPending || accept.isPending || removeRequest.isPending || unfriend.isPending || openDm.isPending;
 
   const onMessage = () => {
     if (!userId) return;
+    setActionError(null);
     openDm.mutate(userId, {
       onSuccess: ({ dm }) =>
         router.push({
@@ -334,6 +298,7 @@ export default function UserProfileScreen() {
   // exactly what the DM header does, minus the pre-existing dmId.
   const startCall = (media: "audio" | "video") => {
     if (!userId || !canCall) return;
+    setActionError(null);
     openDm.mutate(userId, {
       onSuccess: ({ dm }) => {
         void getCallController()
@@ -350,61 +315,19 @@ export default function UserProfileScreen() {
     });
   };
 
-  const onUnfriend = () => {
-    if (!user) return;
+  const ask = (what: Pending) => {
     haptics.medium();
-    Alert.alert(
-      t("mobile:userProfile.removeConfirmTitle"),
-      t("mobile:userProfile.removeConfirmBody", { name: user.displayName }),
-      [
-        { text: t("buttons.cancel"), style: "cancel" },
-        {
-          text: t("mobile:userProfile.removeFriend"),
-          style: "destructive",
-          onPress: () => unfriend.mutate(user.id, { onError }),
-        },
-      ],
-    );
+    setPendingError(null);
+    setPending(what);
   };
 
-  /**
-   * Block / unblock from the banner icon. Confirmed rather than fired on tap:
-   * this is a 34px target and a block severs the friendship and every pending
-   * request — recoverable only by asking again. Same copy the user menu shows,
-   * so the two entry points can never describe the action differently.
-   */
-  const onToggleBlock = () => {
+  /** Run the confirmed destructive step; the sheet keeps its busy/error state. */
+  const confirmPending = () => {
     if (!userId) return;
-    haptics.medium();
-    const name = displayName;
-    if (blocked) {
-      Alert.alert(
-        t("mobile:block.unblockConfirmTitle", { name }),
-        t("mobile:block.unblockConfirmBody"),
-        [
-          { text: t("common:buttons.cancel"), style: "cancel" },
-          {
-            text: t("mobile:block.unblockConfirmAction"),
-            onPress: () => unblockUser.mutate(userId as UserId, { onError }),
-          },
-        ],
-      );
-      return;
-    }
-    Alert.alert(
-      t("mobile:block.confirmTitle", { name }),
-      `${t("mobile:block.confirmBody")}
-
-${t("mobile:block.confirmNote")}`,
-      [
-        { text: t("common:buttons.cancel"), style: "cancel" },
-        {
-          text: t("mobile:block.confirmAction"),
-          style: "destructive",
-          onPress: () => blockUser.mutate(userId as UserId, { onError }),
-        },
-      ],
-    );
+    const done = { onSuccess: () => setPending(null), onError: (err: unknown) => setPendingError(localizeError(err, t)) };
+    if (pending === "unfriend") unfriend.mutate(userId, done);
+    else if (pending === "block") blockUser.mutate(userId as UserId, done);
+    else if (pending === "unblock") unblockUser.mutate(userId as UserId, done);
   };
 
   /**
@@ -421,6 +344,7 @@ ${t("mobile:block.confirmNote")}`,
       {
         onSuccess: () => {
           setDraft("");
+          haptics.light();
           // Confirm in place: the message is in the DM, not on this screen, so
           // without a receipt the box would just silently empty.
           setSent(true);
@@ -450,70 +374,73 @@ ${t("mobile:block.confirmNote")}`,
 
   /**
    * The single friendship control on the banner — one slot, four states. It
-   * shares its handlers with the big button lower down (which stays the primary,
-   * thumb-sized target on a phone), so the compact icon and the CTA can never
-   * behave differently. `null` while the friendship is still loading: offering
-   * "Add friend" to someone who is already a friend is worse than offering
-   * nothing for a beat.
+   * shares its handlers with the big button lower down (the thumb-sized target
+   * on a phone), so the compact icon and the CTA can never behave differently.
+   * `null` while the friendship is still loading: offering "Add friend" to
+   * someone who is already a friend is worse than offering nothing for a beat.
    */
   const relationshipAction: ReactNode = ((): ReactNode => {
     if (!userId || profile.isPending) return null;
     switch (status) {
       case "friends":
         return (
-          <BannerAction
+          <IconButton
+            icon={UserMinus}
+            variant="veil"
+            size="md"
             label={t("mobile:userProfile.removeFriendA11y", { name: displayName })}
-            tone="danger"
-            busy={unfriend.isPending}
             disabled={busy}
-            onPress={onUnfriend}
-          >
-            <UserMinus size={17} color="#ffffff" />
-          </BannerAction>
+            onPress={() => ask("unfriend")}
+          />
         );
       case "none":
         return (
-          <BannerAction
+          <IconButton
+            icon={UserPlus}
+            variant="veil"
+            size="md"
             label={t("mobile:userProfile.addFriendA11y", { name: displayName })}
-            busy={sendRequest.isPending}
             disabled={busy}
             onPress={() => sendRequest.mutate({ userId }, { onError })}
-          >
-            <UserPlus size={17} color="#ffffff" />
-          </BannerAction>
+          />
         );
       case "outgoing":
         return (
-          <BannerAction
+          <IconButton
+            icon={UserRoundX}
+            variant="veil"
+            size="md"
             label={t("mobile:userProfile.cancelRequestA11y", { name: displayName })}
-            busy={removeRequest.isPending}
             disabled={busy}
             onPress={() => removeRequest.mutate(userId, { onError })}
-          >
-            <UserRoundX size={17} color="#ffffff" />
-          </BannerAction>
+          />
         );
       case "incoming":
         return (
-          <BannerAction
+          <IconButton
+            icon={Check}
+            variant="veil"
+            size="md"
+            active
             label={t("mobile:userProfile.acceptRequestA11y", { name: displayName })}
-            busy={accept.isPending}
             disabled={busy}
             onPress={() => accept.mutate(userId, { onError })}
-          >
-            <Check size={17} color="#ffffff" />
-          </BannerAction>
+          />
         );
       default:
         return null;
     }
   })();
 
+  const pendingBusy = unfriend.isPending || blockUser.isPending || unblockUser.isPending;
+  const draftEmpty = draft.trim().length === 0;
+
   return (
     <Screen>
       <Stack.Screen options={{ title: displayName }} />
       <ScrollView
         contentContainerStyle={{ paddingBottom: space.xl + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           isSelf ? undefined : (
             <RefreshControl
@@ -521,304 +448,292 @@ ${t("mobile:block.confirmNote")}`,
               onRefresh={() => void profile.refetch()}
               tintColor={colors.fgMuted}
               colors={[colors.accent]}
+              progressBackgroundColor={colors.surfaceRaised}
             />
           )
         }
       >
         {userId ? (
           <View>
-            <ProfileBanner userId={userId} bannerUrl={user?.bannerUrl} />
-            {/* Relationship controls, pinned to the banner's top-right. Exactly
-                ONE friendship control at a time — "add friend" and "remove
-                friend" are the same slot in two states, never both — plus the
-                block toggle and the ⋯ menu. None render on your own card: you
-                cannot friend or block yourself and the API rejects both (§35). */}
+            <View accessibilityLabel={t("mobile:userProfile.bannerA11y")}>
+              <ProfileBannerImage bannerUrl={user?.bannerUrl} seedId={userId} />
+            </View>
+            {/* Controls pinned to the banner's top-right, on the veil so they
+                read over a light photo. Exactly ONE friendship control at a
+                time, plus block and ⋯. None on your own card: you cannot friend
+                or block yourself and the API rejects both (§35). */}
             <View
-              style={{
-                position: "absolute",
-                top: space.sm,
-                right: space.md,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space.xs,
-              }}
+              style={{ position: "absolute", top: space.sm, right: space.sm, flexDirection: "row", alignItems: "center", gap: space.xs }}
             >
               {!isSelf && !blocked ? relationshipAction : null}
               {!isSelf ? (
-                <BannerAction
+                <IconButton
+                  icon={blocked ? ShieldOff : ShieldBan}
+                  variant="veil"
+                  size="md"
                   label={
                     blocked
                       ? t("mobile:block.unblockA11y", { name: displayName })
                       : t("mobile:block.blockA11y", { name: displayName })
                   }
-                  tone={blocked ? "default" : "danger"}
-                  busy={blockUser.isPending || unblockUser.isPending}
-                  onPress={onToggleBlock}
-                >
-                  {blocked ? (
-                    <ShieldOff size={17} color="#ffffff" />
-                  ) : (
-                    <ShieldBan size={17} color="#ffffff" />
-                  )}
-                </BannerAction>
+                  disabled={pendingBusy}
+                  onPress={() => ask(blocked ? "unblock" : "block")}
+                />
               ) : null}
-              <BannerAction
+              <IconButton
+                icon={EllipsisVertical}
+                variant="veil"
+                size="md"
                 label={t("mobile:userProfile.moreActionsA11y", { name: displayName })}
                 onPress={() => setMenuOpen(true)}
-              >
-                <EllipsisVertical size={17} color="#ffffff" />
-              </BannerAction>
+              />
             </View>
           </View>
         ) : null}
 
-        {/* Identity — large avatar overlapping the banner, name + @username. */}
-        <View style={{ paddingHorizontal: space.lg, marginTop: -(AVATAR_SIZE / 2) }}>
-          <Pressable
+        {/* Identity — the avatar overlapping the banner, on a ring of the page. */}
+        <View style={{ paddingHorizontal: space.lg, marginTop: -(AVATAR_SIZE / 2) - 4 }}>
+          <Touchable
             // Founder: pressing the avatar opens it big and you can move around
             // inside it. Always pressable, even without a photo, so the gesture
             // is the same for everyone in the roster.
             onPress={() => setAvatarOpen(true)}
+            pressScale={0.96}
+            // The ring IS the fill: keep the page tone through the press (the
+            // press answers with scale) instead of the default clear → wash.
+            tone={colors.app}
+            pressedTone={colors.app}
             accessibilityRole="button"
             accessibilityLabel={t("mobile:userProfile.viewAvatar", { name: displayName })}
-            style={({ pressed }) => ({
-              alignSelf: "flex-start",
-              borderRadius: radius.pill,
-              backgroundColor: colors.app,
-              padding: 4,
-              opacity: pressed ? 0.85 : 1,
-            })}
+            style={{ alignSelf: "flex-start", borderRadius: radius.pill, backgroundColor: colors.app, padding: 4 }}
           >
             <Avatar
               name={displayName}
               size={AVATAR_SIZE}
               uri={user?.avatarUrl}
-              presence={isSelf ? "online" : presence}
+              presence={isSelf ? selfPresence : presence}
+              ringColor={colors.app}
             />
-          </Pressable>
-          <View style={{ marginTop: space.sm, gap: 2 }}>
-            {/* Name + the viewer's private note in parentheses. The note is a
-                quieter, smaller aside so the NAME still reads as the heading;
-                it is clipped to one line and capped so a long note can never
-                push the identity block around. */}
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-              <Text
-                variant="display"
-                numberOfLines={1}
-                style={{ flexShrink: 1, color: colors.fg, fontSize: 22, fontWeight: "800" }}
-              >
-                {displayName}
-              </Text>
-              {noteBadge ? (
-                <Text
-                  numberOfLines={1}
-                  accessibilityLabel={`(${noteBadge}) ${t("mobile:userMenu.onlyVisibleToYou")}`}
-                  style={{
-                    flexShrink: 0,
-                    maxWidth: "45%",
-                    color: colors.fgFaint,
-                    fontSize: 14,
-                    fontWeight: "600",
-                  }}
-                >
-                  ({noteBadge})
+          </Touchable>
+
+          {loading && !user ? (
+            <IdentitySkeleton />
+          ) : (
+            <Animated.View
+              entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+              style={{ marginTop: space.sm, gap: 2 }}
+            >
+              {/* Name + the viewer's private note in parentheses — a quieter aside
+                  so the NAME stays the heading; one line, capped. */}
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+                <Text type="title" tone="display" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {displayName}
+                </Text>
+                {noteBadge ? (
+                  <Text
+                    numberOfLines={1}
+                    accessibilityLabel={`(${noteBadge}) ${t("mobile:userMenu.onlyVisibleToYou")}`}
+                    style={{ flexShrink: 0, maxWidth: "45%", color: colors.fgFaint, fontSize: 14, fontWeight: "500" }}
+                  >
+                    ({noteBadge})
+                  </Text>
+                ) : null}
+              </View>
+              {user?.username ? (
+                <Text type="ui" tone="muted" style={{ fontWeight: "400" }}>
+                  @{user.username}
                 </Text>
               ) : null}
-            </View>
-            {user?.username ? (
-              <Text style={{ color: colors.fgMuted, fontSize: 14 }}>@{user.username}</Text>
-            ) : null}
-            {/* Custom status (M18). PLAIN TEXT as a JSX child — RN escapes it —
-                and deliberately NOT run through the markdown renderer: a status
-                line must not be able to inject formatting or links (§28). */}
-            {customStatus ? (
-              <Text style={{ color: colors.fg, fontSize: 13, lineHeight: 18, opacity: 0.8, marginTop: 2 }}>
-                {customStatus}
-              </Text>
-            ) : null}
-          </View>
+              {/* Custom status (M18). PLAIN TEXT as a JSX child — RN escapes it —
+                  and deliberately NOT run through the markdown renderer: a status
+                  line must not be able to inject formatting or links (§28). */}
+              {customStatus ? (
+                <View
+                  style={{
+                    alignSelf: "flex-start",
+                    marginTop: space.sm,
+                    paddingHorizontal: space.md,
+                    paddingVertical: space.xs + 2,
+                    borderRadius: radius.lg,
+                    borderTopLeftRadius: radius.sm / 2,
+                    backgroundColor: colors.surface,
+                    maxWidth: "100%",
+                  }}
+                >
+                  <Text type="ui" tone="default" style={{ fontWeight: "400" }}>
+                    {customStatus}
+                  </Text>
+                </View>
+              ) : null}
+            </Animated.View>
+          )}
         </View>
 
-        <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.lg }}>
+        <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
           {/* Action area — adapts to the viewer→target relationship. */}
           {isSelf ? (
-            <Button label={t("mobile:userProfile.editProfile")} onPress={() => router.push("/profile")} />
+            <Button
+              label={t("mobile:userProfile.editProfile")}
+              icon={Pencil}
+              variant="secondary"
+              size="lg"
+              block
+              onPress={() => router.push("/profile")}
+            />
           ) : loadFailed ? (
-            <View
-              style={{
-                gap: space.sm,
-                padding: space.lg,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.stroke,
-              }}
-            >
-              <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "700" }}>
-                {t("mobile:userProfile.loadErrorTitle")}
-              </Text>
-              <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
-                {t("mobile:userProfile.loadErrorBody")}
-              </Text>
-              <Button
-                label={t("buttons.retry")}
-                variant="ghost"
-                onPress={() => void profile.refetch()}
-                loading={profile.isFetching}
+            <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl }}>
+              <EmptyState
+                tone="error"
+                compact
+                icon={<CloudOff size={22} color={colors.danger} />}
+                title={t("mobile:userProfile.loadErrorTitle")}
+                subtitle={t("mobile:userProfile.loadErrorBody")}
+                action={
+                  <Button
+                    label={t("common:buttons.retry")}
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => void profile.refetch()}
+                    loading={profile.isFetching}
+                  />
+                }
               />
             </View>
-          ) : (
+          ) : loading ? null : (
             <>
-              {profile.isPending ? <ActivityIndicator color={colors.fgFaint} /> : null}
+              {actionError ? (
+                <Banner
+                  variant="danger"
+                  title={t("mobile:userProfile.actionErrorTitle")}
+                  description={actionError}
+                  onDismiss={() => setActionError(null)}
+                />
+              ) : null}
 
-              {/* Comms bar (ref #5). Message needs friendship; calls also need no
-                  live call. Disabled buttons are visibly dimmed, never dead.
-                  A block hides the strip entirely: every one of these is refused
-                  server-side while it holds, so dimming them would just be three
-                  dead controls (§35). */}
+              {/* Comms strip (ref #5). Message needs friendship; calls also need
+                  no live call. A block hides the strip entirely: every one of
+                  these is refused server-side while it holds (§35). */}
               {blocked ? null : (
-              <View style={{ flexDirection: "row", gap: space.sm }}>
-                <ProfileAction
-                  icon={
-                    <MessageSquare
-                      size={20}
-                      color={status === "friends" ? colors.accent : colors.fgMuted}
+                <View style={{ gap: space.sm }}>
+                  <View style={{ flexDirection: "row", gap: space.sm }}>
+                    <CommsTile
+                      icon={MessageSquare}
+                      label={t("mobile:friends.message")}
+                      onPress={onMessage}
+                      disabled={status !== "friends" || busy}
                     />
-                  }
-                  label={t("mobile:friends.message")}
-                  onPress={onMessage}
-                  disabled={status !== "friends" || busy}
-                />
-                <ProfileAction
-                  icon={<Phone size={20} color={canCall ? colors.accent : colors.fgMuted} />}
-                  label={t("mobile:call.voiceCall")}
-                  onPress={() => startCall("audio")}
-                  disabled={!canCall || busy}
-                />
-                <ProfileAction
-                  icon={<Video size={20} color={canCall ? colors.accent : colors.fgMuted} />}
-                  label={t("mobile:call.videoCall")}
-                  onPress={() => startCall("video")}
-                  disabled={!canCall || busy}
-                />
-              </View>
+                    <CommsTile
+                      icon={Phone}
+                      label={t("mobile:call.voiceCall")}
+                      onPress={() => startCall("audio")}
+                      disabled={!canCall || busy}
+                    />
+                    <CommsTile
+                      icon={Video}
+                      label={t("mobile:call.videoCall")}
+                      onPress={() => startCall("video")}
+                      disabled={!canCall || busy}
+                    />
+                  </View>
+                  {status !== "friends" ? (
+                    <Text type="meta" tone="faint" style={{ textAlign: "center", fontWeight: "400" }}>
+                      {t("mobile:userProfile.callNotFriend")}
+                    </Text>
+                  ) : null}
+                </View>
               )}
 
               {/* Blocked: say what changed, in the neutral wording the API's own
                   one-sided model requires — never who blocked whom (§28). */}
-              {blocked ? (
-                <View
-                  style={{
-                    gap: space.xs,
-                    padding: space.lg,
-                    borderRadius: radius.md,
-                    borderCurve: "continuous",
-                    backgroundColor: colors.dangerSurface,
-                  }}
-                >
-                  <Text style={{ color: colors.danger, fontSize: 14, fontWeight: "700" }}>
-                    {t("mobile:block.blocked")}
-                  </Text>
-                  <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 18 }}>
-                    {t("mobile:block.blockedNote")}
-                  </Text>
-                </View>
-              ) : null}
+              {blocked ? <Banner variant="danger" title={t("mobile:block.blocked")} description={t("mobile:block.blockedNote")} /> : null}
 
-              {/* Relationship action — the primary CTA for this friendship state.
-                  Hidden while a block holds: friending is refused server-side, and
-                  unblocking (banner icon / menu) is the way forward. */}
+              {/* Relationship CTA for this friendship state. Hidden while a block
+                  holds: friending is refused server-side; unblocking is on the
+                  banner and in the menu. */}
               {blocked ? null : status === "friends" ? (
                 <Button
                   label={t("mobile:userProfile.removeFriend")}
+                  icon={UserMinus}
                   variant="danger"
-                  onPress={onUnfriend}
+                  size="lg"
+                  block
+                  onPress={() => ask("unfriend")}
                   disabled={busy}
-                >
-                  <UserMinus size={17} color={colors.danger} />
-                </Button>
+                />
               ) : status === "incoming" ? (
                 <View style={{ flexDirection: "row", gap: space.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <Button
-                      label={t("mobile:friends.accept")}
-                      onPress={() => userId && accept.mutate(userId, { onError })}
-                      loading={accept.isPending}
-                      disabled={busy}
-                    >
-                      <Check size={17} color={colors.onAccent} />
-                    </Button>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button
-                      label={t("mobile:friends.decline")}
-                      variant="danger"
-                      onPress={() => userId && removeRequest.mutate(userId, { onError })}
-                      disabled={busy}
-                    >
-                      <X size={17} color={colors.danger} />
-                    </Button>
-                  </View>
+                  <Button
+                    label={t("mobile:friends.accept")}
+                    icon={Check}
+                    variant="accent"
+                    size="lg"
+                    onPress={() => userId && accept.mutate(userId, { onError })}
+                    loading={accept.isPending}
+                    disabled={busy}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label={t("mobile:friends.decline")}
+                    icon={X}
+                    variant="danger"
+                    size="lg"
+                    onPress={() => userId && removeRequest.mutate(userId, { onError })}
+                    loading={removeRequest.isPending}
+                    disabled={busy}
+                    style={{ flex: 1 }}
+                  />
                 </View>
               ) : status === "outgoing" ? (
                 <Button
                   label={t("mobile:friends.cancelRequest")}
-                  variant="ghost"
+                  icon={X}
+                  variant="secondary"
+                  size="lg"
+                  block
                   onPress={() => userId && removeRequest.mutate(userId, { onError })}
+                  loading={removeRequest.isPending}
                   disabled={busy}
-                >
-                  <X size={17} color={colors.fg} />
-                </Button>
+                />
               ) : (
                 <Button
                   label={t("mobile:friends.addFriend")}
+                  icon={UserPlus}
+                  variant="accent"
+                  size="lg"
+                  block
                   onPress={() => userId && sendRequest.mutate({ userId }, { onError })}
                   loading={sendRequest.isPending}
                   disabled={busy}
-                >
-                  <UserPlus size={17} color={colors.onAccent} />
-                </Button>
+                />
               )}
             </>
           )}
 
-          {/* Member since (ref #5) — shown whenever we have the durable record. */}
-          {memberSince ? (
-            <View
-              style={{
-                gap: space.xs,
-                padding: space.lg,
-                borderRadius: radius.md,
-                borderCurve: "continuous",
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.stroke,
-              }}
-            >
-              <SectionLabel>{t("mobile:userProfile.memberSince")}</SectionLabel>
-              <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>{memberSince}</Text>
-            </View>
-          ) : null}
-
           {bio ? (
-            <View style={{ gap: space.xs }}>
-              <SectionLabel>{t("mobile:userProfile.aboutLabel")}</SectionLabel>
-              <Text selectable style={{ color: colors.fg, fontSize: 15, lineHeight: 21 }}>
+            <InfoCard title={t("mobile:userProfile.aboutLabel")}>
+              <Text selectable type="body" tone="default">
                 {bio}
               </Text>
-            </View>
+            </InfoCard>
+          ) : null}
+
+          {/* Member since (ref #5) — whenever we have the durable record. */}
+          {memberSince ? (
+            <InfoCard title={t("mobile:userProfile.memberSince")} icon={CalendarDays}>
+              <Text type="body" tone="default" style={{ fontWeight: "500" }}>
+                {memberSince}
+              </Text>
+            </InfoCard>
           ) : null}
 
           {roles.length > 0 ? (
-            <View style={{ gap: space.sm }}>
-              <SectionLabel>{t("mobile:userProfile.rolesLabel")}</SectionLabel>
+            <InfoCard title={t("mobile:userProfile.rolesLabel")}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
                 {roles.map((role) => (
                   <RoleChip key={role.id} role={role} />
                 ))}
               </View>
-            </View>
+            </InfoCard>
           ) : null}
         </View>
       </ScrollView>
@@ -830,123 +745,128 @@ ${t("mobile:block.confirmNote")}`,
       {!isSelf && !loadFailed ? (
         <View
           style={{
-            borderTopWidth: 1,
-            borderTopColor: colors.stroke,
-            backgroundColor: colors.surface,
-            paddingHorizontal: space.lg,
-            paddingTop: space.md,
+            backgroundColor: colors.sidebar,
+            paddingHorizontal: space.md,
+            paddingTop: space.sm,
             // With the keyboard up the bar rides on the IME, so adding the
             // bottom inset too would leave a nav-bar-sized gap under it.
-            paddingBottom: keyboardHeight > 0 ? space.md + keyboardHeight : space.md + insets.bottom,
+            paddingBottom: keyboardHeight > 0 ? space.sm + keyboardHeight : space.sm + insets.bottom,
             gap: space.xs,
           }}
         >
-            {blocked ? (
-              <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 18 }}>
-                {t("mobile:userProfile.blockedNoMessage")}
-              </Text>
-            ) : (
-              <>
-                <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
-                  <View
-                    style={{
-                      flex: 1,
-                      flexDirection: "row",
-                      alignItems: "flex-end",
-                      gap: space.xs,
-                      backgroundColor: colors.surfaceRaised,
-                      borderColor: colors.stroke,
-                      borderWidth: 1,
-                      borderRadius: radius.md,
-                      borderCurve: "continuous",
-                      paddingHorizontal: space.md,
-                    }}
-                  >
-                    <TextInput
-                      value={draft}
-                      onChangeText={setDraft}
-                      placeholder={t("mobile:userProfile.messagePlaceholder", {
-                        name: user?.username ?? displayName,
-                      })}
-                      placeholderTextColor={colors.fgFaint}
-                      maxLength={MESSAGE_MAX_LENGTH}
-                      multiline
-                      style={{
-                        flex: 1,
-                        color: colors.fg,
-                        fontSize: 15,
-                        paddingVertical: space.md,
-                        maxHeight: 120,
-                      }}
-                    />
-                    {/* The same EmojiPicker the composer opens (DRY) — it stays
-                        open for consecutive picks and appends at the end. */}
-                    <Pressable
-                      onPress={() => setEmojiOpen(true)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("mobile:userProfile.emojiA11y")}
-                      style={({ pressed }) => ({
-                        paddingBottom: space.md,
-                        opacity: pressed ? 0.6 : 1,
-                      })}
-                    >
-                      <Smile size={20} color={colors.fgMuted} />
-                    </Pressable>
-                  </View>
-                  <Pressable
-                    onPress={onSendDraft}
-                    disabled={draft.trim().length === 0 || sendDmMessage.isPending}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("mobile:userProfile.sendMessage")}
-                    accessibilityState={{
-                      disabled: draft.trim().length === 0 || sendDmMessage.isPending,
-                    }}
-                    style={({ pressed }) => ({
-                      width: 46,
-                      height: 46,
-                      borderRadius: radius.md,
-                      borderCurve: "continuous",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.accent,
-                      opacity:
-                        draft.trim().length === 0 || sendDmMessage.isPending
-                          ? 0.4
-                          : pressed
-                            ? 0.85
-                            : 1,
-                    })}
-                  >
-                    {sendDmMessage.isPending ? (
-                      <ActivityIndicator size="small" color={colors.onAccent} />
-                    ) : (
-                      <SendHorizontal size={20} color={colors.onAccent} />
-                    )}
-                  </Pressable>
+          {blocked ? (
+            <Text type="meta" tone="muted" style={{ paddingVertical: space.sm, paddingHorizontal: space.xs, fontWeight: "400" }}>
+              {t("mobile:userProfile.blockedNoMessage")}
+            </Text>
+          ) : (
+            <>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "flex-end",
+                    backgroundColor: colors.surface,
+                    borderRadius: radius.cta,
+                    borderCurve: "continuous",
+                    paddingLeft: space.md + 2,
+                    paddingRight: space.xs,
+                    minHeight: 44,
+                  }}
+                >
+                  <TextInput
+                    value={draft}
+                    onChangeText={setDraft}
+                    placeholder={t("mobile:userProfile.messagePlaceholder", { name: user?.username ?? displayName })}
+                    placeholderTextColor={colors.fgFaint}
+                    maxLength={MESSAGE_MAX_LENGTH}
+                    multiline
+                    accessibilityLabel={t("mobile:userProfile.messagePlaceholder", { name: user?.username ?? displayName })}
+                    style={{ flex: 1, color: colors.fg, fontSize: 15, lineHeight: 20, paddingVertical: space.md - 1, maxHeight: 120 }}
+                  />
+                  {/* The same EmojiPicker the composer opens (DRY) — it stays
+                      open for consecutive picks and appends at the end. */}
+                  <IconButton
+                    icon={Smile}
+                    size="sm"
+                    label={t("mobile:userProfile.emojiA11y")}
+                    onPress={() => setEmojiOpen(true)}
+                    style={{ marginBottom: 6 }}
+                  />
                 </View>
-                {sent ? (
-                  <Text style={{ color: colors.fgFaint, fontSize: typography.size["2xs"] }}>
+                <IconButton
+                  icon={SendHorizontal}
+                  variant="accent"
+                  size="md"
+                  label={t("mobile:userProfile.sendMessage")}
+                  onPress={onSendDraft}
+                  disabled={draftEmpty || sendDmMessage.isPending}
+                  style={{ marginBottom: 2 }}
+                />
+              </View>
+              {sent ? (
+                <Animated.View
+                  entering={FadeIn.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+                  exiting={FadeOut.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+                >
+                  <Text type="caption" tone="faint" accessibilityLiveRegion="polite" style={{ paddingHorizontal: space.sm }}>
                     {t("mobile:userProfile.messageSent")}
                   </Text>
-                ) : null}
-              </>
-            )}
+                </Animated.View>
+              ) : null}
+            </>
+          )}
         </View>
       ) : null}
 
-      <AvatarLightbox
-        visible={avatarOpen}
-        url={user?.avatarUrl}
-        name={displayName}
-        onClose={() => setAvatarOpen(false)}
-      />
+      <AvatarLightbox visible={avatarOpen} url={user?.avatarUrl} name={displayName} onClose={() => setAvatarOpen(false)} />
 
       <EmojiPicker
         visible={emojiOpen}
         onSelect={(emoji) => setDraft((prev) => prev + emoji)}
         onClose={() => setEmojiOpen(false)}
       />
+
+      {/* Unfriend / block / unblock — the consequence stated before it happens,
+          the same copy the user menu shows so the two can never disagree. */}
+      <ConfirmSheet
+        visible={pending !== null}
+        title={
+          pending === "unfriend"
+            ? t("mobile:userProfile.removeConfirmTitle")
+            : pending === "unblock"
+              ? t("mobile:block.unblockConfirmTitle", { name: displayName })
+              : t("mobile:block.confirmTitle", { name: displayName })
+        }
+        body={
+          pending === "unfriend"
+            ? t("mobile:userProfile.removeConfirmBody", { name: displayName })
+            : pending === "unblock"
+              ? t("mobile:block.unblockConfirmBody")
+              : t("mobile:block.confirmBody")
+        }
+        confirmLabel={
+          pending === "unfriend"
+            ? t("mobile:userProfile.removeFriend")
+            : pending === "unblock"
+              ? t("mobile:block.unblockConfirmAction")
+              : t("mobile:block.confirmAction")
+        }
+        confirmIcon={pending === "unfriend" ? UserMinus : pending === "unblock" ? ShieldOff : ShieldBan}
+        confirmVariant={pending === "unblock" ? "primary" : "danger"}
+        onConfirm={confirmPending}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setPending(null)}
+        busy={pendingBusy}
+        error={pendingError}
+        errorTitle={t("mobile:userProfile.actionErrorTitle")}
+      >
+        {pending === "block" ? (
+          <Text type="meta" tone="faint" style={{ fontWeight: "400", marginTop: space.sm }}>
+            {t("mobile:block.confirmNote")}
+          </Text>
+        ) : null}
+      </ConfirmSheet>
 
       {/* The ⋯ menu IS the shared user menu — one component, one set of rules, so
           this button can never drift from what a long press elsewhere offers.

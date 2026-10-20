@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform } from "react-native";
 import { Text } from "./ui/Text";
 import { useAppTranslation } from "@/lib/i18n";
 import { ChipSelect } from "@/components/ChipSelect";
+import { SettingsBlock, SettingsSection } from "@/components/settings/SettingsSection";
 import { HeadphonesConfirm } from "@/components/HeadphonesConfirm";
 import { useMediaSettings } from "@/stores/media-settings";
 import { useVoiceStore } from "@/stores/voice-store";
-import { colors, space, typography } from "@/theme/theme";
+import { colors } from "@/theme/theme";
 
 /**
  * "Ses profili" (task #121) — which Android audio stream the room's REMOTE audio
@@ -32,25 +33,6 @@ import { colors, space, typography } from "@/theme/theme";
  * button changes the profile.
  */
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        paddingHorizontal: space.lg,
-        paddingTop: space.lg,
-        paddingBottom: space.xs,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
 export function AudioProfileSettings() {
   const { t } = useAppTranslation();
   const audioProfile = useMediaSettings((s) => s.audioProfile);
@@ -65,14 +47,13 @@ export function AudioProfileSettings() {
   if (Platform.OS !== "android") return null;
 
   return (
-    <View>
-      <SectionLabel>{t("mobile:audioProfile.section")}</SectionLabel>
-
-      <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
-        <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }}>
-          {t("mobile:audioProfile.label")}
-        </Text>
+    <SettingsSection title={t("mobile:audioProfile.section")}>
+      <SettingsBlock
+        label={t("mobile:audioProfile.label")}
+        hint={inRoom ? t("mobile:audioProfile.activeHint") : t("mobile:audioProfile.applyNote")}
+      >
         <ChipSelect
+          accessibilityLabel={t("mobile:audioProfile.label")}
           options={[
             { key: "communication", label: t("mobile:audioProfile.optionCall") },
             { key: "media", label: t("mobile:audioProfile.optionMedia") },
@@ -87,36 +68,24 @@ export function AudioProfileSettings() {
             }
           }}
         />
-      </View>
+        {/* What the CURRENT choice costs — the downside, not a sales line. */}
+        <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
+          {audioProfile === "media" ? t("mobile:audioProfile.mediaDesc") : t("mobile:audioProfile.callDesc")}
+        </Text>
+      </SettingsBlock>
 
       {confirmingMedia && audioProfile !== "media" ? (
-        <View style={{ paddingHorizontal: space.sm, paddingTop: space.sm }}>
-          <HeadphonesConfirm
-            message={t("mobile:audioProfile.mediaWarning")}
-            confirmLabel={t("mobile:audioProfile.mediaConfirm")}
-            cancelLabel={t("mobile:audioProfile.mediaCancel")}
-            onCancel={() => setConfirmingMedia(false)}
-            onConfirm={() => {
-              setAudioProfile("media_headphones");
-              setConfirmingMedia(false);
-            }}
-          />
-        </View>
+        <HeadphonesConfirm
+          message={t("mobile:audioProfile.mediaWarning")}
+          confirmLabel={t("mobile:audioProfile.mediaConfirm")}
+          cancelLabel={t("mobile:audioProfile.mediaCancel")}
+          onCancel={() => setConfirmingMedia(false)}
+          onConfirm={() => {
+            setAudioProfile("media_headphones");
+            setConfirmingMedia(false);
+          }}
+        />
       ) : null}
-
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm }}>
-        <Text style={{ color: colors.fgMuted, fontSize: 12, lineHeight: 17 }}>
-          {audioProfile === "media"
-            ? t("mobile:audioProfile.mediaDesc")
-            : t("mobile:audioProfile.callDesc")}
-        </Text>
-
-        <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-          {inRoom
-            ? t("mobile:audioProfile.activeHint")
-            : t("mobile:audioProfile.applyNote")}
-        </Text>
-      </View>
-    </View>
+    </SettingsSection>
   );
 }

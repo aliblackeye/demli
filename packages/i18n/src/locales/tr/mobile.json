@@ -92,7 +92,12 @@
     "versionTitle": "Sürüm",
     "versionValue": "{{version}} (runtime {{runtime}})",
     "versionUnknown": "Bilinmiyor",
-    "updateIdTitle": "Güncelleme kimliği"
+    "updateIdTitle": "Güncelleme kimliği",
+    "editShort": "Düzenle",
+    "accountCount": "{{count}} hesap",
+    "signOutTitle": "{{name}} hesabından çıkılsın mı?",
+    "signOutSwitches": "Bu cihazdaki diğer hesabına geçersin. Bu hesaba yeniden girmek için şifren gerekir.",
+    "signOutLast": "Bu cihazda başka hesap yok; giriş ekranına dönersin."
   },
   "sound": {
     "section": "Sesler",
@@ -223,8 +228,23 @@
       "revokeOthersConfirmCta": "Diğerlerini kapat",
       "unknownDevice": "Bilinmeyen cihaz",
       "unknownMobile": "Mobil cihaz",
-      "errorTitle": "Oturumlar güncellenemedi"
-    }
+      "errorTitle": "Oturumlar güncellenemedi",
+      "loadErrorTitle": "Oturumlar yüklenemedi",
+      "countLabel_one": "{{count}} oturum",
+      "countLabel_other": "{{count}} oturum",
+      "signOutThisTitle": "Bu cihazda çıkış yapılsın mı?",
+      "signOutThisBody": "Bu cihazdaki oturumun kapanır. Başka hesabın varsa ona geçersin, yoksa giriş ekranına dönersin.",
+      "revokeTitle": "{{name}} oturumu kapatılsın mı?",
+      "revokeBody": "O cihaz hemen çıkış yapar ve yeniden girmek için şifre ister."
+    },
+    "onDevice_one": "Bu cihazda {{count}} hesap",
+    "onDevice_other": "Bu cihazda {{count}} hesap",
+    "switchA11yHint": "Bu hesaba geçer",
+    "activeBadge": "Etkin",
+    "moreA11y": "{{name}} hesabı için seçenekler",
+    "modeLabel": "Giriş ya da yeni hesap",
+    "reauthTitle": "Yeniden giriş gerekiyor",
+    "addErrorTitle": "Hesap eklenemedi"
   },
   "friends": {
     "onlineSection": "Çevrimiçi · {{count}}",
@@ -302,7 +322,7 @@
     "messageA11y": "Mesaj gönder",
     "callNotFriend": "Yalnızca arkadaşlarını arayabilirsin.",
     "viewAvatar": "{{name}} kullanıcısının avatarını büyüt",
-    "avatarZoomHint": "Yakınlaştırmak için çift dokun, gezinmek için sürükle",
+    "avatarZoomHint": "Çift dokun ya da iki parmakla yakınlaştır · kapatmak için aşağı kaydır",
     "addFriendA11y": "{{name}} kullanıcısını arkadaş ekle",
     "removeFriendA11y": "{{name}} kullanıcısını arkadaşlıktan çıkar",
     "cancelRequestA11y": "{{name}} kullanıcısına gönderilen isteği geri çek",
@@ -406,6 +426,7 @@
     "voiceTitle": "Ses kanalı",
     "title": "Kanal ayarları",
     "notFound": "Bu kanal artık mevcut değil.",
+    "loadErrorTitle": "Kanal ayarları yüklenemedi",
     "nameLabel": "Kanal adı",
     "namePlaceholder": "genel",
     "descriptionLabel": "Açıklama",
@@ -429,7 +450,9 @@
     "deleteError": "Silinemedi",
     "validationName": "Kanal adı 1–{{max}} karakter olmalı.",
     "validationMaxParticipants": "En fazla katılımcı 1 veya daha büyük bir tam sayı olmalı.",
-    "slowmodeVoiceHint": "Sesli kanalın metin sohbeti için de geçerlidir. Sahipler muaftır."
+    "slowmodeVoiceHint": "Sesli kanalın metin sohbeti için de geçerlidir. Sahipler muaftır.",
+    "saveErrorTitle": "Kanal kaydedilemedi",
+    "dangerDescription": "Kanalı silmek mesajlarını herkes için kaldırır. Geri alınamaz."
   },
   "serverSettings": {
     "title": "Sunucu ayarları",
@@ -452,7 +475,12 @@
     "membersSection": "Üyeler",
     "membersHint": "Rol atamak için bir üyeye dokun.",
     "manageRoles": "Rolleri yönet",
-    "loading": "Yükleniyor…"
+    "loading": "Yükleniyor…",
+    "loadErrorTitle": "Sunucu ayarları yüklenemedi",
+    "memberCount_one": "{{count}} üye",
+    "memberCount_other": "{{count}} üye",
+    "saveErrorTitle": "Değişiklikler kaydedilemedi",
+    "dangerDescription": "Sunucuyu silmek kanallarını, mesajlarını, rollerini ve davetlerini herkes için kaldırır. Geri alınamaz."
   },
   "roleEditor": {
     "title": "Rolü düzenle",
@@ -469,14 +497,25 @@
     "deleteConfirmFallbackName": "bu rol",
     "deleteError": "Silinemedi",
     "notFound": "Bu rol artık mevcut değil.",
-    "validationName": "Rol adı 1–{{max}} karakter olmalı."
+    "loadErrorTitle": "Rol yüklenemedi",
+    "validationName": "Rol adı 1–{{max}} karakter olmalı.",
+    "previewHeading": "Üye listesinde böyle görünür",
+    "readOnlyTitle": "Yalnızca görüntüleme",
+    "readOnlyBody": "Rolleri düzenlemek için Rolleri yönet izni gerekir.",
+    "saveErrorTitle": "Rol kaydedilemedi",
+    "dangerDescription": "Rolü silmek onu taşıyan herkesten hemen kaldırır. Geri alınamaz."
   },
   "memberRoles": {
     "title": "Rol ata",
     "hint": "Roller eklemelidir — üye, sahip olduğu her rolün tüm izinlerini alır.",
     "noRoles": "Henüz rol yok — Sunucu ayarlarından bir tane oluştur.",
     "guestNote": "Konuklar rol tutamaz.",
-    "notFound": "Bu üye artık sunucuda değil."
+    "notFound": "Bu üye artık sunucuda değil.",
+    "loadErrorTitle": "Üye bilgileri yüklenemedi",
+    "rolesLoadErrorTitle": "Roller yüklenemedi",
+    "saveErrorTitle": "Rol değişmedi",
+    "saving": "Kaydediliyor…",
+    "saved": "Kaydedildi"
   },
   "permissions": {
     "manageChannels": "Kanalları yönet",
@@ -499,7 +538,8 @@
     "selectedRolesDesc": "Yalnızca sahibi ve işaretli bir role sahip üyeler.",
     "noRoles": "Henüz rol yok — Sunucu ayarlarından bir tane oluştur.",
     "save": "Görünürlüğü kaydet",
-    "saved": "Kaydedildi."
+    "saved": "Kaydedildi.",
+    "saveErrorTitle": "Görünürlük kaydedilemedi"
   },
   "slowmode": {
     "off": "Kapalı"
@@ -518,7 +558,12 @@
     "expiresInHours": "{{hours}} sa içinde sona erer",
     "neverExpires": "Süresiz",
     "usesLeft": "{{max}} kullanımdan {{left}} tanesi kaldı",
-    "unlimitedUses": "Sınırsız kullanım"
+    "unlimitedUses": "Sınırsız kullanım",
+    "createErrorTitle": "Davet oluşturulamadı",
+    "copyLink": "Bağlantıyı kopyala",
+    "copyCode": "Kodu kopyala",
+    "linkCopied": "Bağlantı kopyalandı",
+    "codeCopied": "Kod kopyalandı"
   },
   "join": {
     "errorTitle": "Sunucuya katılınamadı",
@@ -527,7 +572,8 @@
     "invalidBody": "Bu bağlantıda davet kodu eksik.",
     "goToServers": "Sunuculara git",
     "goHome": "Ana sayfa",
-    "joining": "Sunucuya katılınıyor…"
+    "joining": "Sunucuya katılınıyor…",
+    "failedTitle": "Bu davetle katılınamadı"
   },
   "addFriend": {
     "title": "Arkadaş ekle",
@@ -555,7 +601,11 @@
     "visibilityLabel": "Bu kanalı kimler görebilir",
     "visibilityNote": "Kısıtlı kanallar, listelenen rollere sahip olmayan üyelerden gizlenir.",
     "visibilityEveryone": "Herkes",
-    "visibilityRoles": "Seçili roller"
+    "visibilityRoles": "Seçili roller",
+    "errorTitle": "Kanal oluşturulamadı",
+    "kindLabel": "Kanal türü",
+    "kindTextDesc": "Mesajlar, görseller, bağlantılar",
+    "kindVoiceDesc": "Sesli konuşma, kamera, ekran paylaşımı"
   },
   "newServer": {
     "createTitle": "Sunucu oluştur",
@@ -566,7 +616,12 @@
     "codeLabel": "Davet kodu veya bağlantısı",
     "codePlaceholder": "Davet bağlantısı ya da kodu",
     "join": "Sunucuya katıl",
-    "validationCode": "Aldığın davet kodunu gir."
+    "validationCode": "Aldığın davet kodunu gir.",
+    "modeLabel": "Sunucu oluştur ya da katıl",
+    "createBody": "Kendi masanı kur. Kanallar, roller ve davet bağlantıları senin elinde.",
+    "joinBody": "Bir arkadaşının gönderdiği davet bağlantısını ya da kodunu yapıştır.",
+    "createErrorTitle": "Sunucu oluşturulamadı",
+    "joinErrorTitle": "Sunucuya katılınamadı"
   },
   "newGroupChat": {
     "title": "Yeni grup sohbeti",
@@ -579,7 +634,11 @@
     "createdTitle": "{{name}} hazır",
     "createdIntro": "Kullanıcı adıyla birkaç arkadaş ekle, sonra sohbeti aç. Daha sonra da ekleyebilirsin.",
     "memberAdded": "Gruba eklendi.",
-    "openChat": "Sohbeti aç"
+    "openChat": "Sohbeti aç",
+    "step": "Adım {{step}}/{{total}}",
+    "stepA11y": "Adım {{step}}/{{total}}",
+    "createErrorTitle": "Grup oluşturulamadı",
+    "memberAddedNamed": "@{{username}} eklendi"
   },
   "groupChatDetails": {
     "fallbackTitle": "Grup",
@@ -604,7 +663,10 @@
     "tabMembers": "Üyeler",
     "tabMedia": "Medya",
     "mediaEmptyTitle": "Henüz medya yok",
-    "mediaEmptySubtitle": "Bu grupta paylaşılan fotoğraf ve videolar burada görünür."
+    "mediaEmptySubtitle": "Bu grupta paylaşılan fotoğraf ve videolar burada görünür.",
+    "loadErrorTitle": "Grup bilgileri yüklenemedi",
+    "tabsLabel": "Grup bölümleri",
+    "inviteRowSubtitle": "Bağlantıyla katılmak isteyenler için"
   },
   "groupChatInvite": {
     "menuItem": "Davet linki",
@@ -621,7 +683,8 @@
     "ownerOnlyRevoke": "Linkleri yalnızca grup sahibi iptal edebilir.",
     "linkLabel": "Davet linki",
     "shareMessage": "{{group}} grubuna Demli'de katıl: {{link}}",
-    "shareGroupFallback": "grubuma"
+    "shareGroupFallback": "grubuma",
+    "errorTitle": "Davet bağlantıları güncellenemedi"
   },
   "boot": {
     "phase": {
@@ -641,17 +704,13 @@
     "title": "Profil",
     "displayNameLabel": "Görünen ad",
     "displayNamePlaceholder": "Adın",
-    "avatarLabel": "Avatar URL'si",
-    "avatarPlaceholder": "https://…/avatar.png",
     "bioLabel": "Hakkında",
     "bioPlaceholder": "Kendinle ilgili kısa bir satır",
     "bioHint": "{{count}}/{{max}} · profilinde görünür.",
     "save": "Profili kaydet",
     "discard": "Vazgeç",
-    "imagePending": "Henüz kaydedilmedi",
-    "savePartial": "Bazı değişiklikler kaydedilemedi. Yukarıdaki hatalara bakıp tekrar dene.",
     "unsavedTitle": "Kaydedilmemiş değişiklikler",
-    "unsavedBody": "Profil değişikliklerin henüz kaydedilmedi. Vazgeçilsin mi?",
+    "unsavedBody": "Profil değişikliklerin henüz kaydedilmedi. Çıkarsan kaybolurlar.",
     "unsavedDiscard": "Değişiklikleri at",
     "unsavedKeepEditing": "Düzenlemeye devam",
     "validationDisplayName": "Görünen ad 1–{{max}} karakter olmalı.",
@@ -675,7 +734,41 @@
     "deleteAction": "Hesabı sil",
     "deleteConfirmTitle": "Hesap silinsin mi?",
     "deleteConfirmBody": "Hesabın 14 gün donacak. 14 gün içinde tekrar giriş yaparsan geri gelir; sonra kalıcı olarak silinir.",
-    "deleteConfirmAction": "Sil"
+    "deleteConfirmAction": "Sil",
+    "opening": "Görsel açılıyor…",
+    "avatarSheetTitle": "Profil fotoğrafı",
+    "bannerSheetTitle": "Profil afişi",
+    "chooseImage": "Yeni görsel seç",
+    "avatarHelp": "PNG, JPEG, WebP ya da GIF. 512×512 olarak kırpılıp yüklenir.",
+    "bannerHelp": "PNG, JPEG, WebP ya da GIF. Hareketli GIF olduğu gibi kalabilir (en fazla 5 MB).",
+    "undoDraft": "Bu değişikliği geri al",
+    "avatarRemove": "Fotoğrafı kaldır",
+    "bannerRemove": "Afişi kaldır",
+    "removeHint": "Kaydedince kaldırılır, o zamana kadar geri alabilirsin.",
+    "removePending": "Kaydedince kaldırılacak",
+    "draftBadge": "Kaydedilmedi",
+    "previewNote": "Kaydettiğinde profil kartın böyle görünecek.",
+    "bioCount": "{{count}}/{{max}}",
+    "avatarErrorTitle": "Fotoğraf kullanılamadı",
+    "bannerErrorTitle": "Afiş kullanılamadı",
+    "profileErrorTitle": "Profil kaydedilemedi",
+    "unsavedBar": "Kaydedilmemiş değişikliklerin var.",
+    "savingAvatar": "Fotoğraf yükleniyor",
+    "savingBanner": "Afiş yükleniyor",
+    "savingProfile": "Profil kaydediliyor",
+    "saveStep": "{{current}}/{{total}}",
+    "saveFailed": "Bazı değişiklikler kaydedilmedi.",
+    "saveFailedHint": "Tekrar dene yalnız kaydedilemeyenleri gönderir.",
+    "saveFailedTotal": "Değişikliklerin kaydedilemedi.",
+    "saveFailedTotalHint": "Hepsi bu ekranda duruyor. Tekrar dene hepsini yeniden gönderir.",
+    "saveItemSaved": "{{item}} kaydedildi",
+    "saveItemFailed": "{{item}} kaydedilemedi",
+    "saveItemAvatar": "Fotoğraf",
+    "saveItemBanner": "Afiş",
+    "saveItemProfile": "Profil bilgileri",
+    "unsavedSaveAndLeave": "Kaydet ve çık",
+    "birthdateLockedNote": "Doğum tarihi bir kez ayarlanır ve sonradan değiştirilemez.",
+    "deleteErrorTitle": "Hesap silinemedi"
   },
   "composer": {
     "placeholder": "Mesaj",
@@ -1243,7 +1336,9 @@
     "nameTaken": "Bu emoji adı bu sunucuda zaten kullanılıyor.",
     "limit": "Bu sunucuda en fazla {{max}} emoji olabilir.",
     "disabled": "Özel emoji bu sunucuda kullanılamıyor.",
-    "error": "Bu emoji eklenemedi."
+    "error": "Bu emoji eklenemedi.",
+    "added": ":{{name}}: eklendi",
+    "loadErrorTitle": "Emojiler yüklenemedi"
   },
   "channelNsfw": {
     "toggleLabel": "NSFW kanal",
@@ -1365,7 +1460,8 @@
     "settingsEmpty": "Kimseyi engellemedin.",
     "settingsCount_one": "{{count}} engellenen kullanıcı",
     "settingsCount_other": "{{count}} engellenen kullanıcı",
-    "blockedSince": "{{date}} tarihinde engellendi"
+    "blockedSince": "{{date}} tarihinde engellendi",
+    "loadErrorTitle": "Engellenenler yüklenemedi"
   },
   "customStatus": {
     "set": "Özel durum belirle",
@@ -1381,7 +1477,12 @@
     "minutes30": "30 dakika",
     "hour1": "1 saat",
     "today": "Bugün",
-    "save": "Kaydet"
+    "save": "Kaydet",
+    "previewHeading": "Böyle görünecek",
+    "count": "{{count}}/{{max}}",
+    "saveErrorTitle": "Durum kaydedilemedi",
+    "clearConfirmTitle": "Özel durum temizlensin mi?",
+    "clearConfirmBody": "Adının altındaki satır herkesten kalkar. İstediğin zaman yenisini yazabilirsin."
   },
   "moderationLog": {
     "rowTitle": "Denetim kaydı",
@@ -1408,9 +1509,44 @@
       "voice_disconnect": "Sesten düşürme",
       "timeout": "Zaman aşımı",
       "timeout_remove": "Zaman aşımı kaldırma"
-    }
+    },
+    "loadErrorTitle": "Denetim kaydı yüklenemedi"
   },
   "ui": {
     "loading": "Yükleniyor"
+  },
+  "imageEditor": {
+    "avatarTitle": "Avatarını düzenle",
+    "bannerTitle": "Afişini düzenle",
+    "avatarHint": "Sürükleyerek kaydır, iki parmakla yakınlaştır. Dairenin içi herkesin göreceği kısım.",
+    "bannerHint": "Sürükleyerek kaydır, iki parmakla yakınlaştır. Çerçeve, profil kartındaki afişle aynı biçimde.",
+    "stageLabel": "Kırpma alanı",
+    "stageHint": "Yakınlaştırmak için yukarı ya da aşağı kaydır. Kaydırmak için işlemler menüsünü kullan.",
+    "moveLeft": "Sola kaydır",
+    "moveRight": "Sağa kaydır",
+    "moveUp": "Yukarı kaydır",
+    "moveDown": "Aşağı kaydır",
+    "zoom": "Yakınlaştırma",
+    "zoomValue": "%{{percent}}",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "reset": "Sıfırla",
+    "apply": "Uygula",
+    "applying": "Hazırlanıyor…",
+    "chooseAnother": "Başka görsel seç",
+    "previewHeading": "Önizleme",
+    "previewCard": "Profil kartında",
+    "previewMessage": "Mesajlarda",
+    "previewSample": "Yeni fotoğraf nasıl duruyor?",
+    "previewTime": "şimdi",
+    "gifAvatarNotice": "Avatarlar sabit görseldir, GIF'in ilk karesi kullanılır. Hareketli görseli afiş yapabilirsin.",
+    "animatedTitle": "Bu görsel hareketli",
+    "animatedBody": "Kırparsan tek bir kare kalır. Hareketli kalsın istersen olduğu gibi kullan; kart ortasını gösterir.",
+    "keepAnimation": "Hareketli kalsın",
+    "keepAnimationHint": "Olduğu gibi yüklenir, en fazla 5 MB.",
+    "cropStill": "Kırpıp sabit yap",
+    "cropStillHint": "Çerçeveyi sen seçersin, ilk kare kullanılır.",
+    "errorTitle": "Görsel hazırlanamadı",
+    "errorEncode": "Kırpılan görsel yüklenebilir boyuta indirilemedi. Biraz yakınlaştırıp tekrar dene ya da başka bir görsel seç."
   }
 }

@@ -19,7 +19,7 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -64,6 +64,9 @@ import { localizeError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { requestMentionInsert } from "@/lib/mention-insert";
 import { ActionDivider, ActionRow, ActionSheet } from "@/components/ui/ActionSheet";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { toast } from "@/components/ui/toast-store";
 import { Text } from "@/components/ui/Text";
 import { useGroupDetails, useServerPermissions } from "@/queries/chat-queries";
 import {
@@ -121,7 +124,25 @@ export interface MemberSheetTarget {
 }
 
 /** Which sub-editor is on top of the menu. `"menu"` is the sheet itself. */
-type Mode = "menu" | "note" | "friendNickname" | "serverNickname" | "timeout";
+type Mode = "menu" | "note" | "friendNickname" | "serverNickname" | "timeout" | "confirm";
+
+/**
+ * How a confirmed action reports back. The confirm stays on screen while the
+ * request runs, so the action MUST call one of these — the sheet closes only on
+ * success and shows the failure in place otherwise.
+ */
+interface ConfirmCallbacks {
+  onSuccess: () => void;
+  onError: (err: unknown) => void;
+}
+
+/** A destructive row waiting for its confirm, shown in place of the menu. */
+interface PendingConfirm {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  action: (callbacks: ConfirmCallbacks) => void;
+}
 
 export function MemberActionSheet({
   target,
@@ -191,6 +212,11 @@ function MemberMenuBody({
 }) {
   const { t } = useAppTranslation();
   const [mode, setMode] = useState<Mode>("menu");
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  /** The confirmed request is running: spinner on the button, sheet locked. */
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  /** The confirmed request failed — said inside the sheet; pressing again retries. */
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const meId = useAuthStore((s) => s.user?.id);
   const isSelf = meId === target.userId;
@@ -293,8 +319,15 @@ function MemberMenuBody({
   const variantOf = (item: Parameters<typeof memberMenuEntryVariant>[0]): "add" | "edit" =>
     memberMenuEntryVariant(item, editable);
 
+  /**
+   * A failed NON-confirmed action. Plain rows dismiss before they act, so the
+   * reason surfaces as a danger toast on the screen below — said once, without
+   * a blocking dialog. Confirmed (destructive) actions never come here: their
+   * confirm stays open and shows the failure inside the sheet.
+   */
   const fail = (err: unknown): void => {
-    Alert.alert(t("mobile:userMenu.actionFailed"), localizeError(err, t));
+    haptics.error();
+    toast({ variant: "danger", title: t("mobile:userMenu.actionFailed"), description: localizeError(err, t) });
   };
 
   /** Run an action and dismiss the sheet — the common case for a menu row. */
@@ -304,29 +337,52 @@ function MemberMenuBody({
   };
 
   /**
-   * A destructive action, gated behind the OS confirm dialog. The name is always
-   * in the title, because on a phone the row you long-pressed is hidden behind
-   * the sheet by the time the dialog appears — "Kick?" alone would be a coin
-   * flip about who.
+   * A destructive action, gated behind a confirm that REPLACES the menu inside
+   * the same sheet (the "one sheet, content swaps" rule below — a second Modal
+   * would race the first on Android). The name is always in the title, because
+   * on a phone the row you long-pressed is hidden behind the sheet — "Kick?"
+   * alone would be a coin flip about who.
    */
   const confirmDestructive = (
     title: string,
     body: string,
     confirmLabel: string,
-    action: () => void,
+    action: (callbacks: ConfirmCallbacks) => void,
   ): void => {
     haptics.medium();
-    Alert.alert(title, body, [
-      { text: t("common:buttons.cancel"), style: "cancel" },
-      {
-        text: confirmLabel,
-        style: "destructive",
-        onPress: () => {
-          onClose();
-          action();
-        },
+    setConfirmError(null);
+    setPendingConfirm({ title, body, confirmLabel, action });
+    setMode("confirm");
+  };
+
+  const leaveConfirm = (): void => {
+    setPendingConfirm(null);
+    setConfirmError(null);
+    setMode("menu");
+  };
+
+  /**
+   * Run the confirmed action IN PLACE: the danger button spins and the sheet
+   * refuses dismissal while the request runs; success closes the sheet, failure
+   * keeps the confirm up with the reason under it, and pressing again retries.
+   */
+  const runConfirmed = (): void => {
+    if (!pendingConfirm || confirmBusy) return;
+    setConfirmBusy(true);
+    setConfirmError(null);
+    pendingConfirm.action({
+      onSuccess: () => {
+        setConfirmBusy(false);
+        haptics.success();
+        leaveConfirm();
+        onClose();
       },
-    ]);
+      onError: (err) => {
+        setConfirmBusy(false);
+        haptics.error();
+        setConfirmError(localizeError(err, t));
+      },
+    });
   };
 
   const openDmThen = (after: (dmId: DmId, participantName: string) => void): void => {
@@ -527,7 +583,7 @@ function MemberMenuBody({
                 t("mobile:userMenu.unfriendTitle", { name }),
                 t("mobile:userMenu.unfriendDescription"),
                 t("mobile:userMenu.unfriendConfirm"),
-                () => unfriend.mutate(target.userId, { onError: fail }),
+                (cb) => unfriend.mutate(target.userId, cb),
               )
             }
           />
@@ -571,13 +627,13 @@ function MemberMenuBody({
                     t("mobile:block.unblockConfirmTitle", { name }),
                     t("mobile:block.unblockConfirmBody"),
                     t("mobile:block.unblockConfirmAction"),
-                    () => unblockUser.mutate(target.userId, { onError: fail }),
+                    (cb) => unblockUser.mutate(target.userId, cb),
                   )
                 : confirmDestructive(
                     t("mobile:block.confirmTitle", { name }),
                     `${t("mobile:block.confirmBody")}\n\n${t("mobile:block.confirmNote")}`,
                     t("mobile:block.confirmAction"),
-                    () => blockUser.mutate(target.userId, { onError: fail }),
+                    (cb) => blockUser.mutate(target.userId, cb),
                   )
             }
           />
@@ -614,7 +670,7 @@ function MemberMenuBody({
                 t("mobile:userMenu.voiceDisconnectTitle", { name }),
                 t("mobile:userMenu.voiceDisconnectDescription"),
                 t("mobile:userMenu.voiceDisconnectConfirm"),
-                () => disconnectFromVoice.mutate(target.userId, { onError: fail }),
+                (cb) => disconnectFromVoice.mutate(target.userId, cb),
               )
             }
           />
@@ -652,7 +708,7 @@ function MemberMenuBody({
                 t("mobile:userMenu.kickTitle", { name }),
                 t("mobile:userMenu.kickDescription"),
                 t("mobile:userMenu.kickConfirm"),
-                () => kickMember.mutate(target.userId, { onError: fail }),
+                (cb) => kickMember.mutate(target.userId, cb),
               )
             }
           />
@@ -670,7 +726,7 @@ function MemberMenuBody({
                 t("mobile:userMenu.banTitle", { name }),
                 t("mobile:userMenu.banDescription"),
                 t("mobile:userMenu.banConfirm"),
-                () => banMember.mutate({ userId: target.userId }, { onError: fail }),
+                (cb) => banMember.mutate({ userId: target.userId }, cb),
               )
             }
           />
@@ -728,6 +784,42 @@ function MemberMenuBody({
    */
   const body = (() => {
     switch (mode) {
+      case "confirm":
+        return pendingConfirm ? (
+          <View style={{ gap: space.md, paddingHorizontal: space.sm, paddingBottom: space.sm }}>
+            <View style={{ gap: space.xs }}>
+              <Text type="heading" tone="display" accessibilityRole="header" numberOfLines={3}>
+                {pendingConfirm.title}
+              </Text>
+              <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 21 }}>
+                {pendingConfirm.body}
+              </Text>
+            </View>
+            {confirmError ? (
+              <Banner variant="danger" title={t("mobile:userMenu.actionFailed")} description={confirmError} />
+            ) : null}
+            <View style={{ gap: space.sm }}>
+              <Button
+                label={pendingConfirm.confirmLabel}
+                variant="danger"
+                size="lg"
+                block
+                haptic="medium"
+                loading={confirmBusy}
+                onPress={runConfirmed}
+              />
+              <Button
+                label={t("common:buttons.cancel")}
+                variant="ghost"
+                size="lg"
+                block
+                disabled={confirmBusy}
+                onPress={leaveConfirm}
+              />
+            </View>
+          </View>
+        ) : null;
+
       case "timeout":
         // A preset ladder, not a form: a moderator wants "mute them for ten
         // minutes", not a number field.
@@ -873,7 +965,18 @@ function MemberMenuBody({
       title={mode === "menu" ? name : mode === "timeout" ? t("mobile:userMenu.timeout", { name }) : undefined}
       // Tapping the scrim inside an editor steps BACK to the menu rather than
       // discarding everything — a stray tap must not throw away typed text.
-      onClose={mode === "menu" ? onClose : () => setMode("menu")}
+      // A running confirmed request locks the sheet: a stray swipe must not
+      // orphan a kick/ban whose outcome the user is waiting to see.
+      onClose={
+        mode === "menu"
+          ? onClose
+          : mode === "confirm"
+            ? () => {
+                if (!confirmBusy) leaveConfirm();
+              }
+            : () => setMode("menu")
+      }
+      dismissible={!confirmBusy}
     >
       {body}
     </ActionSheet>

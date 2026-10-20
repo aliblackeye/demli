@@ -1,14 +1,22 @@
 import { Check, X } from "lucide-react-native";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ROLE_COLORS } from "@/lib/roles";
-import { colors, space } from "../theme/theme";
+import { haptics } from "@/lib/haptics";
+import { Touchable } from "./ui/Touchable";
+import { PRESS } from "@/theme/motion-presets";
+import { colors, radius, space } from "../theme/theme";
 
-const SWATCH = 34;
+const SWATCH = 36;
 
 /**
  * Role color picker rendered as a wrapping grid of swatches plus a "no color"
  * option (ADR 0007). OTA-safe — no native picker; the palette mirrors the
  * desktop RolesTab so both platforms offer the same choices.
+ *
+ * Koyu Masa: borderless discs; the chosen one wears a 2px page-coloured gap and
+ * a 2px white ring outside it (so it reads on every hue, light or dark) plus a
+ * dark check. Each swatch is a radio with its state, ≥44pt with the slop, and a
+ * press gives the icon-step press scale.
  */
 export function RoleColorPicker({
   value,
@@ -23,52 +31,53 @@ export function RoleColorPicker({
   /** Accessibility label for the "no color" swatch. */
   noColorLabel: string;
 }) {
+  const pick = (next: string | null) => {
+    if (next === value) return;
+    haptics.selection();
+    onChange(next);
+  };
+  const ring = (active: boolean) =>
+    active
+      ? { borderWidth: 2, borderColor: colors.fgDisplay, padding: 2 }
+      : { borderWidth: 2, borderColor: "transparent", padding: 2 };
+
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-      <Pressable
-        onPress={() => onChange(null)}
-        disabled={disabled}
-        accessibilityRole="radio"
-        accessibilityState={{ selected: value === null, disabled }}
-        accessibilityLabel={noColorLabel}
-        style={{
-          width: SWATCH,
-          height: SWATCH,
-          borderRadius: SWATCH / 2,
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: value === null ? 2 : 1,
-          borderColor: value === null ? colors.accent : colors.strokeStrong,
-          backgroundColor: colors.surface,
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        <X size={16} color={colors.fgFaint} />
-      </Pressable>
+    <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+      <View style={[{ borderRadius: radius.pill }, ring(value === null)]}>
+        <Touchable
+          onPress={() => pick(null)}
+          disabled={disabled}
+          pressScale={PRESS.scale.icon}
+          hitSlop={4}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: value === null, disabled: !!disabled }}
+          accessibilityLabel={noColorLabel}
+          tone={colors.surfaceRaised}
+          pressedTone={colors.raisedHover}
+          style={{ width: SWATCH, height: SWATCH, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" }}
+        >
+          <X size={16} color={colors.fgMuted} strokeWidth={2} />
+        </Touchable>
+      </View>
       {ROLE_COLORS.map((swatch) => {
         const active = value === swatch;
         return (
-          <Pressable
-            key={swatch}
-            onPress={() => onChange(swatch)}
-            disabled={disabled}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: active, disabled }}
-            accessibilityLabel={swatch}
-            style={{
-              width: SWATCH,
-              height: SWATCH,
-              borderRadius: SWATCH / 2,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: swatch,
-              borderWidth: active ? 2 : 0,
-              borderColor: colors.fg,
-              opacity: disabled ? 0.5 : 1,
-            }}
-          >
-            {active ? <Check size={16} color={colors.onAccent} strokeWidth={3} /> : null}
-          </Pressable>
+          <View key={swatch} style={[{ borderRadius: radius.pill }, ring(active)]}>
+            <Touchable
+              onPress={() => pick(swatch)}
+              disabled={disabled}
+              pressScale={PRESS.scale.icon}
+              hitSlop={4}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active, disabled: !!disabled }}
+              accessibilityLabel={swatch}
+              tone={swatch}
+              pressedTone={swatch}
+              style={{ width: SWATCH, height: SWATCH, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" }}
+            >
+              {active ? <Check size={16} color={colors.onAccent} strokeWidth={3} /> : null}
+            </Touchable>
+          </View>
         );
       })}
     </View>

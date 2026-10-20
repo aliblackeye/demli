@@ -1,21 +1,25 @@
-import { useCallback } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, View } from "react-native";
+import { useCallback, useState } from "react";
+import { FlatList, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ShieldOff } from "lucide-react-native";
+import { CloudOff, ShieldOff } from "lucide-react-native";
 import type { UserId } from "@demli/types";
-import { Text } from "@/components/ui/Text";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { Screen } from "@/components/Screen";
+import { SkeletonList } from "@/components/Skeleton";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import { SectionEyebrow } from "@/components/settings/SettingsSection";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
 import { useAppTranslation } from "@/lib/i18n";
 import { useBlocks, useUnblockUser } from "@/queries/member-queries";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /**
  * "Blocked users" (M18 / ADR 0017) — the mobile mirror of the desktop's
  * BlockedUsersSettings section: everyone the signed-in user has blocked, with a
- * confirmed one-tap unblock.
+ * confirmed unblock.
  *
  * Deliberately one-directional: the API exposes only "who I blocked", never "who
  * blocked me", and this screen must not imply the latter exists. Nothing here
@@ -25,12 +29,17 @@ import { colors, radius, space, typography } from "@/theme/theme";
  * invalidates `queryKeys.blocks` (see lib/block-sync.ts) — no local splice, so
  * an unblock performed on the desktop lands here identically through
  * `user.blocks_updated`.
+ *
+ * States: skeleton rows while loading, an error block with retry, an empty
+ * state that explains what blocking does, then the list.
  */
 export default function BlockedUsersScreen() {
   const { t, i18n } = useAppTranslation();
   const insets = useSafeAreaInsets();
-  const { data: blocks, isPending, isError, error, refetch } = useBlocks();
+  const { data: blocks, isPending, isError, error, refetch, isRefetching } = useBlocks();
   const unblock = useUnblockUser();
+  const [target, setTarget] = useState<{ userId: UserId; name: string } | null>(null);
+  const [unblockError, setUnblockError] = useState<string | null>(null);
 
   const formatDate = useCallback(
     (iso: string): string => {
@@ -48,53 +57,40 @@ export default function BlockedUsersScreen() {
 
   // Same confirmation copy as the member sheet's unblock — one wording for the
   // one action, so removing a block never reads differently by entry point.
-  const confirmUnblock = useCallback(
-    (userId: UserId, name: string) => {
-      Alert.alert(
-        t("mobile:block.unblockConfirmTitle", { name }),
-        t("mobile:block.unblockConfirmBody"),
-        [
-          { text: t("buttons.cancel"), style: "cancel" },
-          {
-            text: t("mobile:block.unblockConfirmAction"),
-            onPress: () =>
-              unblock.mutate(userId, {
-                onError: (err) =>
-                  Alert.alert(t("mobile:block.settingsTitle"), localizeError(err, t)),
-              }),
-          },
-        ],
-      );
-    },
-    [t, unblock],
-  );
+  const confirmUnblock = () => {
+    if (!target) return;
+    setUnblockError(null);
+    unblock.mutate(target.userId, {
+      onSuccess: () => setTarget(null),
+      onError: (err) => setUnblockError(localizeError(err, t)),
+    });
+  };
 
   let body: JSX.Element;
   if (isPending) {
     body = (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.fgFaint} />
+      <View style={{ padding: space.lg }}>
+        <SkeletonList count={5} lines={2} leadingSize={40} />
       </View>
     );
   } else if (isError) {
     body = (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: space.xl,
-          gap: space.md,
-        }}
-      >
-        <Text selectable style={{ color: colors.fgMuted, fontSize: 14, textAlign: "center" }}>
-          {localizeError(error, t)}
-        </Text>
-        <Pressable onPress={() => void refetch()} hitSlop={8}>
-          <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "600" }}>
-            {t("buttons.retry")}
-          </Text>
-        </Pressable>
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <EmptyState
+          tone="error"
+          icon={<CloudOff size={22} color={colors.danger} />}
+          title={t("mobile:block.loadErrorTitle")}
+          subtitle={localizeError(error, t)}
+          action={
+            <Button
+              label={t("common:buttons.retry")}
+              variant="secondary"
+              size="sm"
+              onPress={() => void refetch()}
+              loading={isRefetching}
+            />
+          }
+        />
       </View>
     );
   } else if (!blocks || blocks.length === 0) {
@@ -112,28 +108,15 @@ export default function BlockedUsersScreen() {
       <FlatList
         data={blocks}
         keyExtractor={(entry) => entry.user.id}
-        contentContainerStyle={{
-          padding: space.md,
-          paddingBottom: space.md + insets.bottom,
-          gap: space.sm,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + insets.bottom, gap: space.sm }}
         ListHeaderComponent={
-          <View style={{ paddingHorizontal: space.sm, paddingBottom: space.sm, gap: space.xs }}>
-            <Text style={{ color: colors.fgMuted, fontSize: 13, lineHeight: 19 }}>
+          <View style={{ gap: space.md, paddingBottom: space.sm }}>
+            <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20 }}>
               {t("mobile:block.settingsDescription")}
             </Text>
-            <Text
-              style={{
-                color: colors.fgFaint,
-                fontSize: typography.size["2xs"],
-                fontWeight: "700",
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
-                paddingTop: space.xs,
-              }}
-            >
+            <SectionEyebrow style={{ paddingBottom: 0 }}>
               {t("mobile:block.settingsCount", { count: blocks.length })}
-            </Text>
+            </SectionEyebrow>
           </View>
         }
         renderItem={({ item }) => {
@@ -146,49 +129,31 @@ export default function BlockedUsersScreen() {
                 gap: space.md,
                 paddingHorizontal: space.lg,
                 paddingVertical: space.md,
-                borderRadius: radius.md,
+                borderRadius: radius.xl,
                 borderCurve: "continuous",
                 backgroundColor: colors.surface,
               }}
             >
-              <Avatar name={name} size={40} uri={item.user.avatarUrl} />
+              <Avatar name={name} size={40} uri={item.user.avatarUrl} ringColor={colors.surface} />
               <View style={{ flex: 1, gap: 2 }}>
-                <Text
-                  numberOfLines={1}
-                  style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}
-                >
+                <Text type="body" tone="default" numberOfLines={1} style={{ fontWeight: "600" }}>
                   {name}
                 </Text>
-                <Text numberOfLines={1} style={{ color: colors.fgFaint, fontSize: 12 }}>
-                  @{item.user.username} ·{" "}
-                  {t("mobile:block.blockedSince", { date: formatDate(item.createdAt) })}
+                <Text type="meta" tone="faint" numberOfLines={1} style={{ fontWeight: "400" }}>
+                  @{item.user.username} · {t("mobile:block.blockedSince", { date: formatDate(item.createdAt) })}
                 </Text>
               </View>
-              {/* 44pt tap target — the row's only action, so it must not be a
-                  thumb-sized gamble. */}
-              <Pressable
-                onPress={() => confirmUnblock(item.user.id, name)}
-                disabled={unblock.isPending}
-                accessibilityRole="button"
+              <Button
+                label={t("mobile:block.unblock")}
+                variant="secondary"
+                size="sm"
                 accessibilityLabel={t("mobile:block.unblockA11y", { name })}
-                style={({ pressed }) => ({
-                  minHeight: 44,
-                  minWidth: 44,
-                  paddingHorizontal: space.md,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: radius.sm,
-                  borderCurve: "continuous",
-                  borderWidth: 1,
-                  borderColor: colors.stroke,
-                  backgroundColor: pressed ? colors.surfaceRaised : "transparent",
-                  opacity: unblock.isPending ? 0.5 : 1,
-                })}
-              >
-                <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>
-                  {t("mobile:block.unblock")}
-                </Text>
-              </Pressable>
+                onPress={() => {
+                  setUnblockError(null);
+                  setTarget({ userId: item.user.id, name });
+                }}
+                disabled={unblock.isPending}
+              />
             </View>
           );
         }}
@@ -196,5 +161,23 @@ export default function BlockedUsersScreen() {
     );
   }
 
-  return <Screen>{body}</Screen>;
+  return (
+    <Screen>
+      {body}
+      <ConfirmSheet
+        visible={target !== null}
+        title={t("mobile:block.unblockConfirmTitle", { name: target?.name ?? "" })}
+        body={t("mobile:block.unblockConfirmBody")}
+        confirmLabel={t("mobile:block.unblockConfirmAction")}
+        confirmIcon={ShieldOff}
+        confirmVariant="primary"
+        onConfirm={confirmUnblock}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setTarget(null)}
+        busy={unblock.isPending}
+        error={unblockError}
+        errorTitle={t("mobile:block.settingsTitle")}
+      />
+    </Screen>
+  );
 }

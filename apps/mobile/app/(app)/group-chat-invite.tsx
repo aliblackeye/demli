@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Share, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, Share, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeOut, LinearTransition, ReduceMotion } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy, Link2, Share2, Trash2 } from "lucide-react-native";
 import {
@@ -12,8 +12,14 @@ import {
 } from "@demli/client-core";
 import type { GroupId, Invite } from "@demli/types";
 import { useAppTranslation, type AppTFunction } from "@/lib/i18n";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
+import { Skeleton } from "@/components/Skeleton";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { buildInviteLink } from "@/lib/deep-links";
 import {
   useCreateGroupChatInvite,
@@ -22,7 +28,7 @@ import {
   useRevokeGroupChatInvite,
 } from "@/queries/group-chat-queries";
 import { useAuthStore } from "@/stores/auth-store";
-import { colors, radius, space } from "@/theme/theme";
+import { colors, motion, radius, space } from "@/theme/theme";
 
 /** How long a freshly minted link lives, and how many people it admits. */
 const INVITE_EXPIRES_HOURS = 24 * 7;
@@ -55,31 +61,6 @@ function inviteLimits(invite: Invite, t: AppTFunction): string {
   }
 
   return parts.join(" · ");
-}
-
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <Text style={{ color: colors.fgMuted, fontSize: 12, fontWeight: "600" }}>{children}</Text>
-  );
-}
-
-/** A read-only, long-press-selectable link on a raised surface. */
-function ValueBox({ value }: { value: string }) {
-  return (
-    <View
-      style={{
-        backgroundColor: colors.surfaceRaised,
-        borderRadius: radius.sm,
-        borderCurve: "continuous",
-        paddingHorizontal: space.md,
-        paddingVertical: space.md,
-      }}
-    >
-      <Text selectable style={{ color: colors.fg, fontSize: 14 }}>
-        {value}
-      </Text>
-    </View>
-  );
 }
 
 /**
@@ -133,6 +114,7 @@ export default function GroupChatInviteScreen() {
 
   const onCopy = (invite: Invite) => {
     void Clipboard.setStringAsync(buildInviteLink(invite.code)).then(() => {
+      haptics.light();
       setCopiedId(invite.id);
       setTimeout(() => setCopiedId(null), COPY_RESET_MS);
     });
@@ -154,185 +136,115 @@ export default function GroupChatInviteScreen() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.app }}
-      contentContainerStyle={{
-        padding: space.lg,
-        paddingBottom: space.xl + insets.bottom,
-        gap: space.xl,
-      }}
+      contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom, gap: space.lg }}
     >
-      <Stack.Screen
-        options={{ title: t("mobile:groupChatInvite.title", { group: groupName }) }}
-      />
+      <Stack.Screen options={{ title: t("mobile:groupChatInvite.title", { group: groupName }) }} />
 
-      <Text style={{ color: colors.fgMuted, fontSize: 14, lineHeight: 20 }}>
+      <Text type="ui" tone="muted" style={{ fontWeight: "400", lineHeight: 20 }}>
         {t("mobile:groupChatInvite.description")}
       </Text>
 
-      {error ? (
-        <View
-          style={{
-            backgroundColor: colors.dangerSurface,
-            borderRadius: radius.sm,
-            padding: space.md,
-          }}
-        >
-          <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-            {localizeError(error, t)}
-          </Text>
-        </View>
-      ) : null}
+      {error ? <Banner variant="danger" title={t("mobile:groupChatInvite.errorTitle")} description={localizeError(error, t)} /> : null}
 
       {invitesQuery.isPending ? (
-        <View style={{ alignItems: "center", gap: space.md, paddingVertical: space.lg }}>
-          <ActivityIndicator color={colors.fgFaint} />
-          <Text style={{ color: colors.fgMuted, fontSize: 14 }}>
-            {t("mobile:groupChatInvite.loading")}
-          </Text>
+        <View accessible accessibilityLabel={t("mobile:groupChatInvite.loading")} accessibilityState={{ busy: true }} style={{ gap: space.sm }}>
+          <Skeleton width="100%" height={112} radius={radius.xl} />
         </View>
       ) : null}
 
       {!invitesQuery.isPending && invites.length === 0 ? (
-        <Text style={{ color: colors.fgMuted, fontSize: 14 }}>
-          {t("mobile:groupChatInvite.empty")}
-        </Text>
+        <EmptyState compact icon={<Link2 size={22} color={colors.fgMuted} />} title={t("mobile:groupChatInvite.empty")} />
       ) : null}
 
       {invites.map((invite) => (
-        <View key={invite.id} style={{ gap: space.sm }}>
-          <FieldLabel>{t("mobile:groupChatInvite.linkLabel")}</FieldLabel>
-          <ValueBox value={buildInviteLink(invite.code)} />
-
-          <View style={{ flexDirection: "row", gap: space.sm }}>
-            <Button variant="ghost" onPress={() => onCopy(invite)} style={{ flex: 1 }}>
-              {copiedId === invite.id ? (
-                <Check size={18} color={colors.online} />
-              ) : (
-                <Copy size={18} color={colors.fg} />
-              )}
-              <Text
-                style={{
-                  color: copiedId === invite.id ? colors.online : colors.fg,
-                  fontSize: 15,
-                  fontWeight: "600",
-                }}
-              >
-                {copiedId === invite.id ? t("buttons.copied") : t("buttons.copy")}
-              </Text>
-            </Button>
-            <Button onPress={() => onShare(invite)} style={{ flex: 1 }}>
-              <Share2 size={18} color={colors.onAccent} />
-              <Text style={{ color: colors.onAccent, fontSize: 15, fontWeight: "600" }}>
-                {t("mobile:invite.share")}
-              </Text>
-            </Button>
+        <Animated.View
+          key={invite.id}
+          entering={FadeIn.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOut.duration(motion.duration.fast).reduceMotion(ReduceMotion.System)}
+          layout={LinearTransition.duration(motion.duration.standard).reduceMotion(ReduceMotion.System)}
+          style={{ gap: space.md, padding: space.lg, borderRadius: radius.xl, borderCurve: "continuous", backgroundColor: colors.surface }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+            <Link2 size={18} color={colors.accent} strokeWidth={2} />
+            <Text selectable type="ui" tone="default" numberOfLines={2} style={{ flex: 1, fontWeight: "500" }}>
+              {buildInviteLink(invite.code)}
+            </Text>
+            <IconButton
+              icon={copiedId === invite.id ? Check : Copy}
+              active={copiedId === invite.id}
+              label={copiedId === invite.id ? t("buttons.copied") : t("mobile:invite.copyLink")}
+              onPress={() => onCopy(invite)}
+            />
           </View>
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-            <Text style={{ flex: 1, color: colors.fgFaint, fontSize: 12 }}>
-              {inviteLimits(invite, t)}
+          <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
+            {inviteLimits(invite, t)}
+          </Text>
+
+          {confirmingRevoke === invite.id ? (
+            <Text type="meta" tone="muted" style={{ fontWeight: "400", lineHeight: 17 }}>
+              {t("mobile:groupChatInvite.revokeBody")}
             </Text>
+          ) : null}
+
+          <View style={{ flexDirection: "row", gap: space.sm, flexWrap: "wrap" }}>
+            <Button label={t("mobile:invite.share")} icon={Share2} variant="accent" size="sm" onPress={() => onShare(invite)} />
 
             {/* Owner only. A member never sees this at all — a revoke the API
                 would answer 403 to is not a disabled button, it is no button. */}
             {canRevoke ? (
               confirmingRevoke === invite.id ? (
-                <View style={{ flexDirection: "row", gap: space.xs }}>
-                  <Pressable
+                <>
+                  <Button
+                    label={t("mobile:groupChatInvite.revokeConfirm")}
+                    icon={Trash2}
+                    variant="danger"
+                    size="sm"
+                    haptic="medium"
+                    loading={revokeInvite.isPending}
+                    disabled={busy && !revokeInvite.isPending}
                     onPress={() =>
                       revokeInvite.mutate(invite.id, {
                         onSuccess: () => setConfirmingRevoke(null),
                       })
                     }
-                    disabled={busy}
-                    accessibilityRole="button"
-                    style={({ pressed }) => ({
-                      minHeight: 44,
-                      justifyContent: "center",
-                      paddingHorizontal: space.md,
-                      borderRadius: radius.sm,
-                      borderCurve: "continuous",
-                      backgroundColor: colors.dangerSurface,
-                      opacity: busy ? 0.5 : pressed ? 0.8 : 1,
-                    })}
-                  >
-                    <Text style={{ color: colors.danger, fontSize: 13, fontWeight: "700" }}>
-                      {t("mobile:groupChatInvite.revokeConfirm")}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setConfirmingRevoke(null)}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    style={({ pressed }) => ({
-                      minHeight: 44,
-                      justifyContent: "center",
-                      paddingHorizontal: space.md,
-                      opacity: pressed ? 0.6 : 1,
-                    })}
-                  >
-                    <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                      {t("buttons.cancel")}
-                    </Text>
-                  </Pressable>
-                </View>
+                  />
+                  <Button label={t("buttons.cancel")} variant="ghost" size="sm" disabled={busy} onPress={() => setConfirmingRevoke(null)} />
+                </>
               ) : (
-                <Pressable
-                  onPress={() => setConfirmingRevoke(invite.id)}
+                <Button
+                  label={t("mobile:groupChatInvite.revoke")}
+                  icon={Trash2}
+                  variant="ghost"
+                  size="sm"
                   disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("mobile:groupChatInvite.revoke")}
-                  style={({ pressed }) => ({
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: space.xs,
-                    minHeight: 44,
-                    paddingHorizontal: space.md,
-                    opacity: busy ? 0.5 : pressed ? 0.6 : 1,
-                  })}
-                >
-                  <Trash2 size={16} color={colors.fgMuted} />
-                  <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                    {t("mobile:groupChatInvite.revoke")}
-                  </Text>
-                </Pressable>
+                  onPress={() => setConfirmingRevoke(invite.id)}
+                />
               )
             ) : null}
           </View>
-
-          {confirmingRevoke === invite.id ? (
-            <Text style={{ color: colors.fgFaint, fontSize: 12, lineHeight: 17 }}>
-              {t("mobile:groupChatInvite.revokeBody")}
-            </Text>
-          ) : null}
-        </View>
+        </Animated.View>
       ))}
 
       {/* Creating is open to EVERY member — a group chat has no roles, and the
           owner already controls who stays. Never gated on `canRevoke`. */}
       <Button
         variant={invites.length > 0 ? "ghost" : "primary"}
+        size="lg"
+        block
+        icon={Link2}
+        label={createInvite.isPending ? t("mobile:groupChatInvite.creating") : t("mobile:groupChatInvite.create")}
         onPress={onCreate}
         disabled={busy}
         loading={createInvite.isPending}
       >
-        {createInvite.isPending ? null : (
-          <Link2 size={18} color={invites.length > 0 ? colors.fg : colors.onAccent} />
-        )}
-        <Text
-          style={{
-            color: invites.length > 0 ? colors.fg : colors.onAccent,
-            fontSize: 15,
-            fontWeight: "600",
-          }}
-        >
-          {createInvite.isPending
-            ? t("mobile:groupChatInvite.creating")
-            : t("mobile:groupChatInvite.create")}
-        </Text>
+        {/* Label + icon come from props. The explicit closing tag is load-bearing
+            for group-chat-invite-wiring.test.ts, which reads this element up to
+            its </Button> to prove the create action is never owner-gated. */}
       </Button>
 
       {!canRevoke && invites.length > 0 ? (
-        <Text style={{ color: colors.fgFaint, fontSize: 12, textAlign: "center" }}>
+        <Text type="meta" tone="faint" style={{ textAlign: "center", fontWeight: "400" }}>
           {t("mobile:groupChatInvite.ownerOnlyRevoke")}
         </Text>
       ) : null}

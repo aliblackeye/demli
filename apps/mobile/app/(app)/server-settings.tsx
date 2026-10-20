@@ -1,55 +1,59 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, View } from "react-native";
-import { Text } from "@/components/ui/Text";
+import { ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Plus, ScrollText } from "lucide-react-native";
+import { CloudOff, Plus, Save, ScrollText, Smile, Trash2 } from "lucide-react-native";
 import { GROUP_NAME_MAX_LENGTH } from "@demli/config";
 import { PERMISSIONS } from "@demli/types";
 import { useAppTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/Button";
 import { ChipSelect } from "@/components/ChipSelect";
-import { Row } from "@/components/Row";
+import { EmptyState } from "@/components/EmptyState";
+import { Skeleton } from "@/components/Skeleton";
 import { TextField } from "@/components/TextField";
+import { ConfirmSheet } from "@/components/settings/ConfirmSheet";
+import {
+  DangerZone,
+  ROW_ICON_INSET,
+  SectionEyebrow,
+  SettingsRow,
+  SettingsSection,
+} from "@/components/settings/SettingsSection";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { Text } from "@/components/ui/Text";
 import { localizeError } from "@/lib/errors";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { canSeeModerationLog } from "@/lib/moderation-log";
 import { buildMemberColorMap } from "@/lib/permissions";
 import { ROLE_DOT_FALLBACK } from "@/lib/roles";
-import {
-  useCreateRole,
-  useGroupDetails,
-  useRoles,
-  useServerPermissions,
-} from "@/queries/chat-queries";
+import { useCreateRole, useGroupDetails, useRoles, useServerPermissions } from "@/queries/chat-queries";
 import { useDeleteGroup, useUpdateGroup } from "@/queries/management-queries";
-import { colors, radius, space, typography } from "@/theme/theme";
+import { colors, radius, space } from "@/theme/theme";
 
 /** Sentinel key for "no system channel" in the picker. */
 const SYSTEM_CHANNEL_OFF = "__off__";
 
-function SectionLabel({ children }: { children: string }) {
+/** Role colour dot in a 32px slot, so role rows line up with icon rows. */
+function RoleDot({ color }: { color: string | null }) {
   return (
-    <Text
-      style={{
-        color: colors.fgFaint,
-        fontSize: typography.size["2xs"],
-        fontWeight: "700",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </Text>
+    <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color ?? ROLE_DOT_FALLBACK }} />
+    </View>
   );
 }
 
-/** Small colored dot for a role row's leading slot. */
-function RoleDot({ color }: { color: string | null }) {
+function ServerSettingsSkeleton() {
   return (
-    <View
-      style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color ?? ROLE_DOT_FALLBACK }}
-    />
+    <View style={{ gap: space.xl }}>
+      <View style={{ alignItems: "center", gap: space.md }}>
+        <Skeleton width={72} height={72} radius={radius.pill} />
+        <Skeleton width="40%" height={18} />
+      </View>
+      <Skeleton width="100%" height={44} radius={radius.lg} />
+      <Skeleton width="100%" height={44} radius={radius.lg} />
+      <Skeleton width="100%" height={160} radius={radius.xl} />
+    </View>
   );
 }
 
@@ -57,14 +61,21 @@ function RoleDot({ color }: { color: string | null }) {
  * Server settings. General (rename, icon, system channel, delete) is owner-only.
  * Roles + Members sections are shown to owner ∨ MANAGE_ROLES (ADR 0007) — the
  * gating is cosmetic; the API re-checks every mutation. Presented as a modal.
+ *
+ * Koyu Masa: the server's identity on top (icon + name, previewing the edit),
+ * the general form on the page, every list a settings card (roles with their
+ * colour, members with avatars, emoji, audit log), deletion in the danger zone
+ * behind a sheet that names the server and what goes with it. Loading draws the
+ * shape; a failed load says so with a retry; errors appear where they happened.
  */
 export default function ServerSettings() {
   const { t } = useAppTranslation();
   const params = useLocalSearchParams<{ groupId: string; name?: string }>();
   const groupId = params.groupId ?? null;
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
 
-  const { data, isLoading } = useGroupDetails(groupId);
+  const { data, isLoading, isError, error: loadError, refetch, isFetching } = useGroupDetails(groupId);
   const { data: roles } = useRoles(groupId);
   const { isOwner, can } = useServerPermissions(groupId);
   const canManageRoles = isOwner || can(PERMISSIONS.MANAGE_ROLES);
@@ -81,7 +92,10 @@ export default function ServerSettings() {
   const [iconUrl, setIconUrl] = useState("");
   const [systemChannelId, setSystemChannelId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rolesError, setRolesError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Seed the form from the fetched server once.
   useEffect(() => {
@@ -98,15 +112,22 @@ export default function ServerSettings() {
     ...textChannels.map((c) => ({ key: c.id, label: `# ${c.name}` })),
   ];
 
+  const trimmedName = name.trim();
+  const nameInvalid = trimmedName.length === 0 || trimmedName.length > GROUP_NAME_MAX_LENGTH;
+  const dirty =
+    !!group &&
+    (trimmedName !== group.name ||
+      (iconUrl.trim() || null) !== (group.iconUrl ?? null) ||
+      systemChannelId !== (group.systemChannelId ?? null));
+
   const onSave = () => {
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > GROUP_NAME_MAX_LENGTH) {
+    if (nameInvalid) {
       setError(t("mobile:serverSettings.validationName", { max: GROUP_NAME_MAX_LENGTH }));
       return;
     }
     setError(null);
     updateGroup.mutate(
-      { name: trimmed, iconUrl: iconUrl.trim() || null, systemChannelId },
+      { name: trimmedName, iconUrl: iconUrl.trim() || null, systemChannelId },
       {
         onSuccess: () => router.back(),
         onError: (err) => setError(localizeError(err, t)),
@@ -115,36 +136,24 @@ export default function ServerSettings() {
   };
 
   const onDelete = () => {
-    Alert.alert(
-      t("mobile:serverSettings.deleteConfirmTitle"),
-      t("mobile:serverSettings.deleteConfirmBody", {
-        name: group?.name ?? t("mobile:serverSettings.deleteConfirmFallbackName"),
-      }),
-      [
-        { text: t("buttons.cancel"), style: "cancel" },
-        {
-          text: t("buttons.delete"),
-          style: "destructive",
-          onPress: () =>
-            deleteGroup.mutate(undefined, {
-              onSuccess: () => router.navigate("/groups"),
-              onError: (err) =>
-                Alert.alert(t("mobile:serverSettings.deleteError"), localizeError(err, t)),
-            }),
-        },
-      ],
-    );
+    setDeleteError(null);
+    deleteGroup.mutate(undefined, {
+      onSuccess: () => {
+        setConfirmDelete(false);
+        router.navigate("/groups");
+      },
+      onError: (err) => setDeleteError(localizeError(err, t)),
+    });
   };
 
   const onCreateRole = () => {
     if (!groupId || createRole.isPending) return;
+    setRolesError(null);
     createRole.mutate(
       { name: t("mobile:roleEditor.newRoleName") },
       {
-        onSuccess: ({ role }) =>
-          router.push({ pathname: "/role-settings", params: { groupId, roleId: role.id } }),
-        onError: (err) =>
-          Alert.alert(t("mobile:serverSettings.rolesSection"), localizeError(err, t)),
+        onSuccess: ({ role }) => router.push({ pathname: "/role-settings", params: { groupId, roleId: role.id } }),
+        onError: (err) => setRolesError(localizeError(err, t)),
       },
     );
   };
@@ -155,172 +164,151 @@ export default function ServerSettings() {
   const openMemberRoles = (userId: string) =>
     router.push({ pathname: "/member-roles", params: { groupId: groupId ?? "", userId } });
 
+  const roleLabel = (role: "owner" | "member" | "guest") =>
+    role === "owner" ? t("mobile:role.owner") : role === "guest" ? t("mobile:role.guest") : t("mobile:role.member");
+
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.app }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.app }}>
+      <Stack.Screen options={{ title: t("mobile:serverSettings.title") }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.app }}
-        contentContainerStyle={{
-          padding: space.lg,
-          paddingBottom: space.xl + insets.bottom,
-          gap: space.xl,
-        }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl + insets.bottom + keyboard, gap: space.xl }}
         keyboardShouldPersistTaps="handled"
       >
-        <Stack.Screen options={{ title: t("mobile:serverSettings.title") }} />
+        {isLoading && !group ? <ServerSettingsSkeleton /> : null}
 
-        {isLoading && !group ? (
-          <View style={{ paddingTop: space.xl, alignItems: "center" }}>
-            <ActivityIndicator color={colors.fgFaint} />
-          </View>
+        {isError && !group ? (
+          <EmptyState
+            tone="error"
+            icon={<CloudOff size={22} color={colors.danger} />}
+            title={t("mobile:serverSettings.loadErrorTitle")}
+            subtitle={localizeError(loadError, t)}
+            action={
+              <Button label={t("common:buttons.retry")} variant="secondary" size="sm" onPress={() => void refetch()} loading={isFetching} />
+            }
+          />
         ) : null}
 
         {group ? (
           <>
-            {error ? (
-              <View style={{ backgroundColor: colors.dangerSurface, borderRadius: radius.sm, padding: space.sm }}>
-                <Text selectable style={{ color: colors.danger, fontSize: 13 }}>
-                  {error}
-                </Text>
-              </View>
-            ) : null}
+            {/* Identity — previews the name/icon being edited. */}
+            <View style={{ alignItems: "center", gap: space.sm }}>
+              <Avatar name={name || group.name} size={72} uri={iconUrl.trim() || null} />
+              <Text type="heading" tone="display" numberOfLines={2} style={{ textAlign: "center" }}>
+                {trimmedName || group.name}
+              </Text>
+              <Text type="meta" tone="faint" style={{ fontWeight: "400" }}>
+                {t("mobile:serverSettings.memberCount", { count: members.length })}
+              </Text>
+            </View>
 
             {isOwner ? (
-              <>
-                <View style={{ alignItems: "center", gap: space.sm }}>
-                  <Avatar name={name || group.name} size={72} uri={iconUrl} />
-                </View>
-
-                <View style={{ gap: space.md }}>
-                  <TextField
-                    label={t("mobile:serverSettings.nameLabel")}
-                    value={name}
-                    onChangeText={setName}
-                    maxLength={GROUP_NAME_MAX_LENGTH}
-                    placeholder={t("mobile:serverSettings.namePlaceholder")}
+              <View style={{ gap: space.lg }}>
+                {error ? <Banner variant="danger" title={t("mobile:serverSettings.saveErrorTitle")} description={error} /> : null}
+                <TextField
+                  label={t("mobile:serverSettings.nameLabel")}
+                  value={name}
+                  onChangeText={setName}
+                  maxLength={GROUP_NAME_MAX_LENGTH}
+                  placeholder={t("mobile:serverSettings.namePlaceholder")}
+                  error={nameInvalid && hydrated ? t("mobile:serverSettings.validationName", { max: GROUP_NAME_MAX_LENGTH }) : null}
+                />
+                <TextField
+                  label={t("mobile:serverSettings.iconLabel")}
+                  value={iconUrl}
+                  onChangeText={setIconUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  placeholder={t("mobile:serverSettings.iconPlaceholder")}
+                  hint={t("mobile:common.imageLinkHint")}
+                />
+                <View style={{ gap: space.sm }}>
+                  <SectionEyebrow style={{ paddingBottom: 0 }}>{t("mobile:serverSettings.systemChannel")}</SectionEyebrow>
+                  <ChipSelect
+                    accessibilityLabel={t("mobile:serverSettings.systemChannel")}
+                    options={systemChannelOptions}
+                    selectedKey={systemChannelId ?? SYSTEM_CHANNEL_OFF}
+                    onSelect={(key) => setSystemChannelId(key === SYSTEM_CHANNEL_OFF ? null : key)}
                   />
-                  <TextField
-                    label={t("mobile:serverSettings.iconLabel")}
-                    value={iconUrl}
-                    onChangeText={setIconUrl}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    placeholder={t("mobile:serverSettings.iconPlaceholder")}
-                    hint={t("mobile:common.imageLinkHint")}
-                  />
-
-                  <View style={{ gap: space.sm }}>
-                    <Text style={{ color: colors.fgMuted, fontSize: 13, fontWeight: "600" }}>
-                      {t("mobile:serverSettings.systemChannel")}
-                    </Text>
-                    <ChipSelect
-                      options={systemChannelOptions}
-                      selectedKey={systemChannelId ?? SYSTEM_CHANNEL_OFF}
-                      onSelect={(key) =>
-                        setSystemChannelId(key === SYSTEM_CHANNEL_OFF ? null : key)
-                      }
-                    />
-                    <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                      {t("mobile:serverSettings.systemChannelHint")}
-                    </Text>
-                  </View>
-
-                  <Button label={t("mobile:common.saveChanges")} onPress={onSave} loading={updateGroup.isPending} />
+                  <Text type="meta" tone="faint" style={{ paddingHorizontal: space.xs, fontWeight: "400" }}>
+                    {t("mobile:serverSettings.systemChannelHint")}
+                  </Text>
                 </View>
-              </>
+                <Button
+                  label={t("mobile:common.saveChanges")}
+                  icon={Save}
+                  variant="accent"
+                  size="lg"
+                  block
+                  onPress={onSave}
+                  loading={updateGroup.isPending}
+                  disabled={!dirty || nameInvalid}
+                />
+              </View>
             ) : null}
 
             {canManageRoles ? (
               <>
-                <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
                 <View style={{ gap: space.sm }}>
-                  <SectionLabel>{t("mobile:serverSettings.rolesSection")}</SectionLabel>
-                  <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    {t("mobile:serverSettings.rolesHint")}
-                  </Text>
-                  <View style={{ gap: space.xs }}>
+                  {rolesError ? <Banner variant="danger" title={t("mobile:serverSettings.rolesSection")} description={rolesError} /> : null}
+                  <SettingsSection
+                    title={t("mobile:serverSettings.rolesSection")}
+                    footer={t("mobile:serverSettings.rolesHint")}
+                    separatorInset={ROW_ICON_INSET}
+                  >
                     {(roles ?? []).length === 0 ? (
-                      <Text style={{ color: colors.fgMuted, fontSize: 13, paddingVertical: space.xs }}>
-                        {t("mobile:serverSettings.noRoles")}
-                      </Text>
-                    ) : (
-                      (roles ?? []).map((role) => (
-                        <Row
-                          key={role.id}
-                          title={role.name}
-                          leading={<RoleDot color={role.color} />}
-                          onPress={() => openRole(role.id)}
-                        />
-                      ))
-                    )}
-                    <Row
-                      title={t("mobile:serverSettings.newRole")}
+                      <SettingsRow key="none" title={t("mobile:serverSettings.noRoles")} chevron={false} />
+                    ) : null}
+                    {(roles ?? []).map((role) => (
+                      <SettingsRow key={role.id} leading={<RoleDot color={role.color} />} title={role.name} onPress={() => openRole(role.id)} />
+                    ))}
+                    <SettingsRow
+                      key="new"
+                      icon={Plus}
                       accent
-                      leading={<Plus size={20} color={colors.accent} />}
-                      showChevron={false}
+                      title={t("mobile:serverSettings.newRole")}
                       onPress={onCreateRole}
+                      busy={createRole.isPending}
+                      chevron={false}
                     />
-                  </View>
+                  </SettingsSection>
                 </View>
 
                 {/* Custom emoji (M17). Open to every member — the API lets any
                     member upload, and deletion is gated per-row (uploader ∨
                     owner) on the screen itself. */}
-                <View style={{ gap: space.sm }}>
-                  <SectionLabel>{t("mobile:emoji.title")}</SectionLabel>
-                  <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    {t("mobile:emoji.hint")}
-                  </Text>
-                  <Row
+                <SettingsSection title={t("mobile:emoji.title")} footer={t("mobile:emoji.hint")}>
+                  <SettingsRow
+                    icon={Smile}
                     title={t("mobile:emoji.tab")}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/server-emoji",
-                        params: { groupId: groupId ?? "" },
-                      })
-                    }
+                    onPress={() => router.push({ pathname: "/server-emoji", params: { groupId: groupId ?? "" } })}
                   />
-                </View>
+                </SettingsSection>
 
-                <View style={{ gap: space.sm }}>
-                  <SectionLabel>{t("mobile:serverSettings.membersSection")}</SectionLabel>
-                  <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    {t("mobile:serverSettings.membersHint")}
-                  </Text>
-                  <View style={{ gap: space.xs }}>
-                    {members.map((member) => (
-                      <Row
+                <SettingsSection
+                  title={t("mobile:serverSettings.membersSection")}
+                  footer={t("mobile:serverSettings.membersHint")}
+                  separatorInset={ROW_ICON_INSET + 4}
+                >
+                  {members.map((member) => {
+                    const memberName = member.user.displayName || member.user.username;
+                    const color = memberColors.get(member.userId) ?? null;
+                    return (
+                      <SettingsRow
                         key={member.userId}
-                        title={member.user.displayName || member.user.username}
-                        subtitle={
-                          member.role === "owner"
-                            ? t("mobile:role.owner")
-                            : member.role === "guest"
-                              ? t("mobile:role.guest")
-                              : t("mobile:role.member")
-                        }
-                        leading={
-                          <Avatar
-                            name={member.user.displayName || member.user.username}
-                            size={36}
-                            uri={member.user.avatarUrl}
-                          />
-                        }
+                        leading={<Avatar name={memberName} size={36} uri={member.user.avatarUrl} ringColor={colors.surface} />}
+                        title={memberName}
+                        subtitle={roleLabel(member.role)}
                         trailing={
-                          memberColors.get(member.userId) ? (
-                            <RoleDot color={memberColors.get(member.userId) ?? null} />
-                          ) : undefined
+                          color ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} /> : undefined
                         }
                         onPress={() => openMemberRoles(member.userId)}
                       />
-                    ))}
-                  </View>
-                </View>
+                    );
+                  })}
+                </SettingsSection>
               </>
             ) : null}
 
@@ -331,48 +319,51 @@ export default function ServerSettings() {
                 MANAGE_ROLES block above: a moderator who may kick but not manage
                 roles still gets the log. */}
             {canSeeModerationLog(isOwner, can) ? (
-              <>
-                <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
-                <View style={{ gap: space.sm }}>
-                  <SectionLabel>{t("mobile:moderationLog.title")}</SectionLabel>
-                  <Text style={{ color: colors.fgFaint, fontSize: 12 }}>
-                    {t("mobile:moderationLog.description")}
-                  </Text>
-                  <Row
-                    title={t("mobile:moderationLog.rowTitle")}
-                    subtitle={t("mobile:moderationLog.rowSubtitle")}
-                    leading={<ScrollText size={20} color={colors.fgMuted} />}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/moderation-log",
-                        params: { groupId: groupId ?? "" },
-                      })
-                    }
-                  />
-                </View>
-              </>
+              <SettingsSection title={t("mobile:moderationLog.title")} footer={t("mobile:moderationLog.description")}>
+                <SettingsRow
+                  icon={ScrollText}
+                  title={t("mobile:moderationLog.rowTitle")}
+                  subtitle={t("mobile:moderationLog.rowSubtitle")}
+                  onPress={() => router.push({ pathname: "/moderation-log", params: { groupId: groupId ?? "" } })}
+                />
+              </SettingsSection>
             ) : null}
 
             {isOwner ? (
-              <>
-                <View style={{ height: 1, backgroundColor: colors.stroke }} />
-
-                <View style={{ gap: space.md }}>
-                  <SectionLabel>{t("mobile:common.dangerZone")}</SectionLabel>
-                  <Button
-                    label={t("mobile:serverSettings.delete")}
-                    variant="danger"
-                    onPress={onDelete}
-                    loading={deleteGroup.isPending}
-                    style={{ borderRadius: radius.md }}
-                  />
-                </View>
-              </>
+              <DangerZone
+                title={t("mobile:common.dangerZone")}
+                description={t("mobile:serverSettings.dangerDescription")}
+              >
+                <Button
+                  label={t("mobile:serverSettings.delete")}
+                  icon={Trash2}
+                  variant="danger"
+                  onPress={() => {
+                    setDeleteError(null);
+                    setConfirmDelete(true);
+                  }}
+                />
+              </DangerZone>
             ) : null}
           </>
         ) : null}
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title={t("mobile:serverSettings.deleteConfirmTitle")}
+        body={t("mobile:serverSettings.deleteConfirmBody", {
+          name: group?.name ?? t("mobile:serverSettings.deleteConfirmFallbackName"),
+        })}
+        confirmLabel={t("buttons.delete")}
+        confirmIcon={Trash2}
+        onConfirm={onDelete}
+        cancelLabel={t("common:buttons.cancel")}
+        onCancel={() => setConfirmDelete(false)}
+        busy={deleteGroup.isPending}
+        error={deleteError}
+        errorTitle={t("mobile:serverSettings.deleteError")}
+      />
+    </View>
   );
 }
