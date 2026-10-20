@@ -1450,6 +1450,14 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     onVideoEnded: () => void;
   } | null = null;
 
+  /**
+   * True while a startScreenShare is acquiring/publishing. `screenShareEnabled`
+   * only flips once the share is live, so without this a second start during a
+   * slow acquisition (the picker, process-audio warm-up) would publish a second
+   * screen video next to the first.
+   */
+  let screenShareStartInFlight = false;
+
   /** Live remote screen-share video tracks, keyed by participant identity. */
   const remoteScreenShares = new Map<string, RemoteScreenShare>();
   /** Cached snapshot — rebuilt only when the map changes (stable for useSyncExternalStore). */
@@ -2858,6 +2866,19 @@ export function createVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   ): Promise<void> {
     guard("START_SCREEN_SHARE"); // connected only
     if (state.screenShareEnabled) return; // already sharing — idempotent
+    if (screenShareStartInFlight) return; // a start is already coming up — idempotent
+    screenShareStartInFlight = true;
+    try {
+      await startScreenShareOnce(acquire, shareOptions);
+    } finally {
+      screenShareStartInFlight = false;
+    }
+  }
+
+  async function startScreenShareOnce(
+    acquire: AcquireScreenShare,
+    shareOptions?: ScreenSharePublishOptions,
+  ): Promise<void> {
     const epoch = commandEpoch;
     const quality = shareOptions?.quality ?? DEFAULT_SCREEN_SHARE_QUALITY;
     // Track the live tier so a later Ayarlar → görüntü change can republish the

@@ -612,6 +612,36 @@ describe("screen share lifecycle", () => {
     expect(engine.getState().participants[0]?.screenSharing).toBe(true);
   });
 
+  it("ignores a second start while the first share is still being acquired (no double publish)", async () => {
+    const { engine, room } = setup();
+    await engine.join("channel-1");
+    let release: (assets: ReturnType<typeof makeAssets>) => void = () => {};
+    const first = engine.startScreenShare(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    const secondAssets = makeAssets(false);
+    const secondAcquire = vi.fn(acquireFixed(secondAssets));
+    await engine.startScreenShare(secondAcquire);
+    release(makeAssets(false));
+    await first;
+
+    expect(secondAcquire).not.toHaveBeenCalled();
+    expect(
+      room.localParticipant.published.filter((o) => o.source === TRACK_SOURCE.ScreenShare),
+    ).toHaveLength(1);
+    expect(engine.getState().screenShareEnabled).toBe(true);
+  });
+
+  it("allows a new start once a failed acquisition has settled", async () => {
+    const { engine } = setup();
+    await engine.join("channel-1");
+    await expect(
+      engine.startScreenShare(() => Promise.reject(new Error("picker failed"))),
+    ).rejects.toBeInstanceOf(VoiceOperationError);
+    await engine.startScreenShare(acquireFixed(makeAssets(false)));
+    expect(engine.getState().screenShareEnabled).toBe(true);
+  });
+
   it("publishes the film audio on the SAME participant as the video, video first (A/V sync)", async () => {
     const assets = makeAssets(true);
     const audio = assets.audio as unknown as FakeMediaStreamTrack;
