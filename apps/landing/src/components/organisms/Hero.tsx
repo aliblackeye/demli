@@ -151,7 +151,7 @@ export function Hero() {
               >
                 <Image
                   src="/images/hero-phone.webp"
-                  alt="Appzen app"
+                  alt={t("hero.phoneAlt")}
                   width={644}
                   height={1102}
                   priority
