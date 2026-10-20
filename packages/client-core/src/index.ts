@@ -140,6 +140,8 @@ export * from "./watch-party.js";
 export * from "./watch-player-protocol.js";
 export * from "./outbox/index.js";
 export * from "./dm-calls/index.js";
+export { createCueGate, CUE_SUPPRESSION_RULES, CUE_THROTTLE_MS } from "./cue-gate.js";
+export type { CueGate, CueSuppressionRule } from "./cue-gate.js";
 export * from "./voice-announcer.js";
 export * from "./account-vault/index.js";
 export * from "./forms/index.js";

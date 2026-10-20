@@ -98,6 +98,11 @@ Recorded for honesty, not because anything is owed:
   being replaced by Demli's own warm palette. No Catppuccin code was copied.
 - Layout and motion values were informed by the Buzz/Arc design language
   (Apache-2.0). Again, no code — numeric values and patterns are not copyrightable.
+- The UI sounds and call rings (`*.ogg` / `ring-*.wav` in both clients) are not
+  third-party at all: they are synthesized from scratch by `scripts/gen-sounds.mjs`
+  — no samples, no AI-generated audio. The loudness meter uses the published
+  ITU-R BS.1770 K-weighting coefficients (a standard, not code). See
+  [`docs/product/sound-credits.md`](docs/product/sound-credits.md).
 
 ## The Demli name and logo are NOT covered by the AGPL
 

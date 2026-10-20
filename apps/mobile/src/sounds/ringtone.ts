@@ -1,17 +1,16 @@
 /**
  * Call ringtone (ADR 0012 Wave 6, mobile) — incoming ring + outgoing ringback.
  *
- * The mobile mirror of the desktop renderer's sounds/ringtone.ts. Desktop
- * SYNTHESIZES a looping cadence with the Web Audio API, which React Native does
- * not have (no `AudioContext`). So here the same cadence is baked into two short
- * looping assets and driven by `expo-audio` — the SAME player stack the one-shot
+ * The mobile mirror of the desktop renderer's sounds/ringtone.ts. Both clients
+ * loop the SAME generated ring audio (scripts/gen-sounds.mjs — desktop gets it as
+ * Ogg, mobile as WAV), driven here by `expo-audio` — the SAME player stack the one-shot
  * UI cues already ship on (sound-manager.ts), so this adds NO native module and
  * rides OTA to the installed APK (runtimeVersion is pinned — CLAUDE.md §33).
  *
  * The assets are FULL cadence periods (beep(s) at the start, silence padding the
- * rest), so `player.loop = true` reproduces the desktop cadence seamlessly:
- *   - incoming: bright two-tone chirp C5+E5, 2.6s period (desktop CADENCE 2600ms)
- *   - outgoing: soft single ringback A4, 3.4s period (desktop CADENCE 3400ms)
+ * rest), so `player.loop = true` reproduces the cadence seamlessly:
+ *   - incoming: C5+G5 double pair, 2.6 s period
+ *   - outgoing: A4 ringback (two taps), 3.4 s period
  *
  * It honors the shared sound settings (master switch + volume), so muting the app
  * silences the ring too — exactly like desktop and the one-shot cues.

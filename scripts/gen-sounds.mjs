@@ -46,30 +46,39 @@
  *   level    normalized by LOUDNESS (max 50 ms sliding RMS), not by peak, so the
  *            intended hierarchy survives: message << voice-join << ring
  *
- * Three complete FAMILIES ship in this file so the timbre is a founder choice,
+ * Several complete FAMILIES ship in this file so the timbre is a founder choice,
  * not an agent's guess. The MOTIFS (which notes, which direction) are shared —
  * only the timbre changes, so semantics stay identical whichever is picked:
  *
- *   marimba  "Sicak Marimba"  rosewood bar, soft mallet, warm low-mid, organic
- *   glass    "Yumusak Cam"    struck glass/bell, bright tink, airy shimmer
- *   felt     "Kece Tahta"     muted tongue-drum + breath layer, dark, calm
- *   legacy   the previous sine design, kept so the CURRENTLY COMMITTED assets
- *            stay reproducible from this script until a new family is chosen
+ *   porcelain  "Porselen Fincan"   thin teacup tapped with a fingertip/spoon (Koyu Masa)
+ *   teaglass   "Ince Belli Bardak" Turkish tea glass + spoon, clear but softened top
+ *   stoneware  "Sirli Toprak"      glazed earthenware cup, darkest of the ceramics
+ *   felt       "Kece Tahta"        muted tongue-drum + breath layer (shipped 2026-07-29)
+ *   marimba    "Sicak Marimba"     rosewood bar, soft mallet, warm low-mid, organic
+ *   glass      "Yumusak Cam"       struck glass/bell, bright tink, airy shimmer
+ *
+ * Two LEVEL modes. `proxy` (felt/marimba/glass) is the original max-50ms-RMS
+ * normalization, kept so those families render exactly as they shipped. `lufs`
+ * (the Koyu Masa ceramics) normalizes to a BS.1770 K-weighted max-momentary
+ * loudness target, trims the inaudible tail and fades it, so every cue in the
+ * family lands on a measured, ffmpeg-verifiable LUFS hierarchy.
  *
  * ---------------------------------------------------------------------------
  * USAGE
  * ---------------------------------------------------------------------------
  *   node scripts/gen-sounds.mjs                 write ACTIVE_FAMILY to both clients
- *   node scripts/gen-sounds.mjs --family=glass  write that family instead
+ *   node scripts/gen-sounds.mjs --family=felt   write that family instead (needs
+ *                                               ACTIVE_FAMILY to match, or --force)
  *   node scripts/gen-sounds.mjs --preview       write ALL families + an HTML
  *                                               player to build/sound-previews/
  *                                               (gitignored) and touch nothing else
+ *   node scripts/gen-sounds.mjs --preview --out=<dir>   ...into <dir> instead
  *
  * Deps: none (pure Node PCM synthesis). Optional: ffmpeg on PATH for Ogg encode.
  */
 /* global console, Buffer */
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -94,9 +103,16 @@ const PREVIEW_DIR = "build/sound-previews";
  * review and no test to catch it — it happened once, on the very run that
  * shipped this family.
  *
- * "felt" since 2026-07-29 — the founder listened to all four and picked it.
+ * "porcelain" since 2026-10-20 — the "Koyu Masa" refresh (sfx-refresh wave). It
+ * was picked over its two siblings on measured criteria only (nobody could
+ * listen during the wave): every cue on its LUFS target, true peak <= -1 dBTP,
+ * tail under -60 dBFS, and the most moderate top end of the three — between the
+ * dark felt (3-8 % above 3 kHz) and the bright glass family. The founder's
+ * listening pass (tmp/sfx/index.html) is the final word; switching back is one
+ * line here plus a regenerate.
  *
- * The set it replaces measured as one texture wearing nine names: pure sine, 1-4
+ * History: "felt" from 2026-07-29 — the founder listened to four and picked it.
+ * The set felt replaced measured as one texture wearing nine names: pure sine, 1-4
  * spectral peaks per frame, nothing above 3 kHz, no transient, every cue at the
  * same ~10 dB crest. Felt is the darkest of the three candidates (centroid
  * 665-1041 Hz, only 3-8% above 3 kHz), which is the whole point of picking it: a
@@ -107,20 +123,30 @@ const PREVIEW_DIR = "build/sound-previews";
  *
  * To switch: run `--family=<id>` AND change this line in the same commit.
  */
-const ACTIVE_FAMILY = "felt";
+const ACTIVE_FAMILY = "porcelain";
 
 // Note frequencies (equal temperament, A4 = 440).
 const NOTE = {
+  C4: 261.63,
+  D4: 293.66,
+  E4: 329.63,
   F4: 349.23,
   G4: 392.0,
+  Ab4: 415.3,
   A4: 440.0,
+  Bb4: 466.16,
+  B4: 493.88,
   C5: 523.25,
   D5: 587.33,
+  Eb5: 622.25,
   E5: 659.25,
   F5: 698.46,
   G5: 783.99,
   A5: 880.0,
+  B5: 987.77,
+  C6: 1046.5,
   D6: 1174.66,
+  E6: 1318.51,
 };
 
 // ---------------------------------------------------------------------------
@@ -476,207 +502,203 @@ function fadeEdges(buf, ms = 2) {
 }
 
 // ---------------------------------------------------------------------------
-// Legacy family (the previous sine design — kept so the committed assets stay
-// reproducible from this script until a new family is chosen)
+// Broadcast loudness (BS.1770 K-weighting) — the `lufs` level mode
 // ---------------------------------------------------------------------------
 
-const LEGACY_WARM = [1, 0.16, 0.06];
-const LEGACY_BRIGHT = [1, 0.28, 0.12, 0.05];
-const LEGACY_DULL = [1, 0.05];
-
 /**
- * @param {Float32Array} buf
- * @param {{ start:number, dur:number, freq:number, peak?:number, attack?:number,
- *           decay?:number, harmonics?:number[] }} spec
+ * BS.1770-4 K-weighting at 48 kHz: a high-shelf ("head") stage then the RLB
+ * high-pass. The coefficients are the standard's published 48 kHz values, so the
+ * number this file prints is the SAME number `ffmpeg -af ebur128` reports — the
+ * generator can be audited with a tool nobody here wrote.
  */
-function legacyAddTone(buf, spec) {
-  const { start, dur, freq } = spec;
-  const peak = spec.peak ?? 0.4;
-  const attack = spec.attack ?? 0.006;
-  const decay = spec.decay ?? dur * 0.5;
-  const harmonics = spec.harmonics ?? LEGACY_WARM;
+const K_STAGES = [
+  {
+    b: [1.53512485958697, -2.69169618940638, 1.19839281085285],
+    a: [-1.69065929318241, 0.73248077421585],
+  },
+  {
+    b: [1.0, -2.0, 1.0],
+    a: [-1.99004745483398, 0.99007225036621],
+  },
+];
 
-  const n0 = Math.floor(start * SR);
-  const nDur = Math.floor(dur * SR);
-  const nAttack = Math.max(1, Math.floor(attack * SR));
-  const nRelease = Math.max(1, Math.floor(0.005 * SR));
-  const tauSamples = Math.max(1, decay * SR);
-  const w = (2 * Math.PI * freq) / SR;
-  const hsum = harmonics.reduce((s, h) => s + Math.abs(h), 0) || 1;
-
-  for (let i = 0; i < nDur; i++) {
-    const idx = n0 + i;
-    if (idx >= buf.length) break;
-    let env;
-    if (i < nAttack) {
-      const x = i / nAttack;
-      env = x * x * (3 - 2 * x);
-    } else {
-      env = Math.exp(-(i - nAttack) / tauSamples);
+/** @param {Float32Array} buf @returns {Float64Array} K-weighted copy */
+function kWeight(buf) {
+  let x = Float64Array.from(buf);
+  for (const st of K_STAGES) {
+    const y = new Float64Array(x.length);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const x0 = x[i];
+      const y0 = st.b[0] * x0 + st.b[1] * x1 + st.b[2] * x2 - st.a[0] * y1 - st.a[1] * y2;
+      y[i] = y0;
+      x2 = x1; x1 = x0; y2 = y1; y1 = y0;
     }
-    if (i > nDur - nRelease) env *= (nDur - i) / nRelease;
-    let s = 0;
-    for (let h = 0; h < harmonics.length; h++) {
-      s += harmonics[h] * Math.sin((h + 1) * w * i);
-    }
-    s /= hsum;
-    buf[idx] += s * env * peak;
+    x = y;
   }
-}
-
-/** @param {Float32Array} buf @param {{ mix?:number }} [opts] */
-function legacyAddReverb(buf, opts = {}) {
-  const mix = opts.mix ?? 0.22;
-  if (mix <= 0) return;
-  const taps = [
-    [0.017, 0.5],
-    [0.029, 0.34],
-    [0.041, 0.22],
-    [0.057, 0.14],
-  ];
-  const wet = new Float32Array(buf.length);
-  for (const [delaySec, g] of taps) {
-    const d = Math.floor(delaySec * SR);
-    for (let i = d; i < buf.length; i++) wet[i] += buf[i - d] * g;
-  }
-  const alpha = 0.35;
-  let prev = 0;
-  for (let i = 0; i < wet.length; i++) {
-    prev = prev + alpha * (wet[i] - prev);
-    wet[i] = prev;
-  }
-  for (let i = 0; i < buf.length; i++) buf[i] += mix * wet[i];
-}
-
-/** @param {Float32Array} buf @param {number} targetPeak */
-function legacyNormalize(buf, targetPeak) {
-  const peak = peakOf(buf);
-  if (peak === 0) return;
-  const g = targetPeak / peak;
-  for (let i = 0; i < buf.length; i++) buf[i] *= g;
+  return x;
 }
 
 /**
- * @param {{ lengthSec?:number, lengthSamples?:number, tones:object[], mix?:number,
- *           normPeak?:number }} spec
+ * Max MOMENTARY loudness (400 ms window, 10 ms hop) in LUFS, with the cue padded
+ * by 400 ms of silence — exactly how a sub-400 ms cue reads in
+ * `ffmpeg -af apad=pad_dur=0.5,ebur128`. Integrated loudness is meaningless for a
+ * 150 ms blip (its gate swallows it, ffmpeg reports -70); max-momentary is the
+ * standard short-SFX yardstick.
+ *
+ * @param {Float32Array} buf
+ * @returns {number}
+ */
+function maxMomentaryLufs(buf) {
+  const win = Math.round(0.4 * SR);
+  const padded = new Float32Array(buf.length + win);
+  padded.set(buf, 0);
+  const k = kWeight(padded);
+  const hop = Math.round(0.01 * SR);
+  let best = 0;
+  for (let start = -win + hop; start < k.length; start += hop) {
+    let sum = 0;
+    const from = Math.max(0, start);
+    const to = Math.min(k.length, start + win);
+    for (let i = from; i < to; i++) sum += k[i] * k[i];
+    best = Math.max(best, sum / win);
+  }
+  return best > 0 ? -0.691 + 10 * Math.log10(best) : -Infinity;
+}
+
+/**
+ * Normalize to a LUFS (max-momentary) target, then pull back to the peak
+ * ceiling if needed. Pure gain both times — never a limiter, never a clip.
+ *
+ * @param {Float32Array} buf
+ * @param {number} targetLufs
+ * @param {number} ceilingDb  sample-peak ceiling in dBFS
+ */
+function normalizeLufs(buf, targetLufs, ceilingDb) {
+  const l = maxMomentaryLufs(buf);
+  if (Number.isFinite(l)) {
+    const g = fromDb(targetLufs - l);
+    for (let i = 0; i < buf.length; i++) buf[i] *= g;
+  }
+  const p = peakOf(buf);
+  const ceiling = fromDb(ceilingDb);
+  if (p > ceiling) {
+    const g = ceiling / p;
+    for (let i = 0; i < buf.length; i++) buf[i] *= g;
+  }
+}
+
+/**
+ * Apply a lookahead brick-wall limiter in-place. Reduces peaks to `ceiling`
+ * (linear) while preserving the bulk of the signal's energy.
+ *
+ * @param {Float32Array} buf
+ * @param {number} ceiling  linear amplitude ceiling
+ */
+function applyLimiter(buf, ceiling) {
+  const p = peakOf(buf);
+  if (p <= ceiling) return;
+
+  const attackSamples = Math.round(0.005 * SR);  // 5 ms lookahead
+  const releaseSamples = Math.round(0.05 * SR);   // 50 ms release
+
+  // Per-sample gain needed to bring each exceeding sample to ceiling
+  const gainEnv = new Float32Array(buf.length);
+  gainEnv.fill(1);
+  for (let i = 0; i < buf.length; i++) {
+    const abs = Math.abs(buf[i]);
+    if (abs > ceiling) gainEnv[i] = ceiling / abs;
+  }
+
+  // Backward pass: lookahead — propagate minimum gain into the upcoming window
+  const smoothed = new Float32Array(buf.length);
+  smoothed.fill(1);
+  for (let i = buf.length - 1; i >= 0; i--) {
+    const lookEnd = Math.min(buf.length, i + attackSamples);
+    let minG = 1;
+    for (let j = i; j < lookEnd; j++) {
+      if (gainEnv[j] < minG) minG = gainEnv[j];
+    }
+    smoothed[i] = minG;
+  }
+
+  // Forward pass: smooth release — gain cannot jump back to 1 instantly
+  const releaseCoeff = 1.0 / releaseSamples;
+  let currentGain = 1;
+  for (let i = 0; i < buf.length; i++) {
+    const target = smoothed[i];
+    if (target < currentGain) {
+      currentGain = target;
+    } else {
+      currentGain += releaseCoeff * (target - currentGain);
+      if (currentGain > 1) currentGain = 1;
+    }
+    buf[i] *= currentGain;
+  }
+}
+
+/**
+ * Normalize to a LUFS target with peak limiting. Iterates: scale to LUFS
+ * target, limit peaks to ceiling, re-measure; if LUFS dropped below target
+ * because the limiter ate energy, boost and re-limit (up to 8 rounds, which
+ * covers even the most transient-heavy cues where the crest factor mismatch
+ * between raw and limited is > 10 dB).
+ *
+ * This is how Discord achieves -14 to -16 LUFS on toggle clicks that peak at
+ * -6 dBTP: the peaks are compressed, not the whole signal.
+ *
+ * @param {Float32Array} buf
+ * @param {number} targetLufs
+ * @param {number} ceilingDb  true-peak ceiling in dBFS
+ */
+function normalizeLufsLimited(buf, targetLufs, ceilingDb) {
+  const ceiling = fromDb(ceilingDb);
+  const tolerance = 0.5; // accept within 0.5 LU of target
+
+  for (let iter = 0; iter < 8; iter++) {
+    // Measure current LUFS
+    const l = maxMomentaryLufs(buf);
+    if (!Number.isFinite(l)) break;
+
+    // Scale to target LUFS
+    const delta = targetLufs - l;
+    if (Math.abs(delta) < tolerance && peakOf(buf) <= ceiling * 1.01) break;
+    if (delta !== 0) {
+      const g = fromDb(delta);
+      for (let i = 0; i < buf.length; i++) buf[i] *= g;
+    }
+
+    // Limit peaks
+    applyLimiter(buf, ceiling);
+  }
+}
+
+/**
+ * Trim the inaudible tail and fade what is left, so a cue is exactly as long as
+ * it sounds (UI blips stay inside the 80-400 ms brief) and never ends on a cut.
+ *
+ * The cut point is where the |signal| last exceeds `floorDb` below the peak; a
+ * raised-cosine fade over the final `fadeMs` lands the last sample on zero.
+ * `maxSec` caps the result — the fade then shapes an early stop rather than a
+ * decay, which is why the families' decays are tuned to finish inside it.
+ *
+ * @param {Float32Array} buf
+ * @param {{ floorDb:number, fadeMs:number, maxSec:number }} opts
  * @returns {Float32Array}
  */
-function legacyBuildCue(spec) {
-  const length = spec.lengthSamples ?? Math.floor((spec.lengthSec ?? 0) * SR);
-  const buf = new Float32Array(length);
-  for (const t of spec.tones) legacyAddTone(buf, /** @type {any} */ (t));
-  legacyAddReverb(buf, { mix: spec.mix });
-  legacyNormalize(buf, spec.normPeak ?? 0.42);
-  fadeEdges(buf, 2);
-  return buf;
-}
-
-/** @returns {Record<string, Float32Array>} */
-function buildLegacySet() {
-  return {
-    "voice-join": legacyBuildCue({
-      lengthSec: 0.42,
-      normPeak: 0.42,
-      mix: 0.2,
-      tones: [
-        { start: 0.0, dur: 0.2, freq: NOTE.C5, peak: 0.4, decay: 0.14 },
-        { start: 0.1, dur: 0.26, freq: NOTE.E5, peak: 0.42, decay: 0.18 },
-      ],
-    }),
-    "voice-leave": legacyBuildCue({
-      lengthSec: 0.42,
-      normPeak: 0.42,
-      mix: 0.2,
-      tones: [
-        { start: 0.0, dur: 0.2, freq: NOTE.E5, peak: 0.4, decay: 0.14 },
-        { start: 0.1, dur: 0.26, freq: NOTE.C5, peak: 0.42, decay: 0.18 },
-      ],
-    }),
-    "peer-join": legacyBuildCue({
-      lengthSec: 0.3,
-      normPeak: 0.3,
-      mix: 0.16,
-      tones: [
-        { start: 0.0, dur: 0.12, freq: NOTE.G4, peak: 0.34, decay: 0.09 },
-        { start: 0.06, dur: 0.16, freq: NOTE.C5, peak: 0.4, decay: 0.12 },
-      ],
-    }),
-    "peer-leave": legacyBuildCue({
-      lengthSec: 0.3,
-      normPeak: 0.3,
-      mix: 0.16,
-      tones: [
-        { start: 0.0, dur: 0.12, freq: NOTE.C5, peak: 0.4, decay: 0.09 },
-        { start: 0.06, dur: 0.16, freq: NOTE.G4, peak: 0.34, decay: 0.12 },
-      ],
-    }),
-    mute: legacyBuildCue({
-      lengthSec: 0.2,
-      normPeak: 0.3,
-      mix: 0.1,
-      tones: [
-        { start: 0.0, dur: 0.13, freq: 220.0, peak: 0.4, decay: 0.07, harmonics: LEGACY_DULL },
-      ],
-    }),
-    unmute: legacyBuildCue({
-      lengthSec: 0.22,
-      normPeak: 0.4,
-      mix: 0.12,
-      tones: [
-        { start: 0.0, dur: 0.15, freq: NOTE.A4, peak: 0.42, decay: 0.1, harmonics: [1, 0.22, 0.1] },
-      ],
-    }),
-    "screen-start": legacyBuildCue({
-      lengthSec: 0.36,
-      normPeak: 0.42,
-      mix: 0.2,
-      tones: [
-        { start: 0.0, dur: 0.1, freq: NOTE.C5, peak: 0.34, decay: 0.07, harmonics: LEGACY_BRIGHT },
-        { start: 0.06, dur: 0.1, freq: NOTE.E5, peak: 0.38, decay: 0.07, harmonics: LEGACY_BRIGHT },
-        { start: 0.12, dur: 0.18, freq: NOTE.G5, peak: 0.42, decay: 0.12, harmonics: LEGACY_BRIGHT },
-      ],
-    }),
-    "screen-stop": legacyBuildCue({
-      lengthSec: 0.36,
-      normPeak: 0.42,
-      mix: 0.2,
-      tones: [
-        { start: 0.0, dur: 0.1, freq: NOTE.G5, peak: 0.42, decay: 0.07, harmonics: LEGACY_BRIGHT },
-        { start: 0.06, dur: 0.1, freq: NOTE.E5, peak: 0.38, decay: 0.07, harmonics: LEGACY_BRIGHT },
-        { start: 0.12, dur: 0.18, freq: NOTE.C5, peak: 0.34, decay: 0.12, harmonics: LEGACY_BRIGHT },
-      ],
-    }),
-    message: legacyBuildCue({
-      lengthSec: 0.2,
-      normPeak: 0.34,
-      mix: 0.14,
-      tones: [
-        { start: 0.0, dur: 0.13, freq: NOTE.D5, peak: 0.4, decay: 0.06 },
-        { start: 0.0, dur: 0.05, freq: NOTE.D6, peak: 0.1, decay: 0.03 },
-      ],
-    }),
-  };
-}
-
-/** @returns {Record<string, Float32Array>} */
-function buildLegacyRings() {
-  return {
-    "ring-incoming": legacyBuildCue({
-      lengthSamples: Math.round(2.6 * SR),
-      normPeak: 0.42,
-      mix: 0.16,
-      tones: [
-        { start: 0.0, dur: 0.34, freq: NOTE.C5, peak: 0.4, decay: 0.26 },
-        { start: 0.55, dur: 0.34, freq: NOTE.E5, peak: 0.4, decay: 0.26 },
-      ],
-    }),
-    "ring-outgoing": legacyBuildCue({
-      lengthSamples: Math.round(3.4 * SR),
-      normPeak: 0.38,
-      mix: 0.14,
-      tones: [{ start: 0.0, dur: 0.85, freq: NOTE.A4, peak: 0.4, decay: 0.55 }],
-    }),
-  };
+function trimTail(buf, opts) {
+  const thr = peakOf(buf) * fromDb(-Math.abs(opts.floorDb));
+  let last = buf.length - 1;
+  while (last > 0 && Math.abs(buf[last]) < thr) last--;
+  const fadeN = Math.round((opts.fadeMs / 1000) * SR);
+  const len = Math.min(buf.length, Math.round(opts.maxSec * SR), last + 1 + fadeN);
+  const out = buf.slice(0, len);
+  const n = Math.min(fadeN, len);
+  for (let i = 0; i < n; i++) {
+    const idx = len - n + i;
+    out[idx] *= 0.5 + 0.5 * Math.cos((Math.PI * (i + 1)) / n);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -699,10 +721,93 @@ function buildLegacyRings() {
  * @property {{ ratio:number, peak:number, decaySec:number }} body
  * @property {{ peak:number, decaySec:number, lowHz:number, highHz:number, poles:number }|null} breath
  * @property {{ mix:number, feedback:number, damp:number }} room
+ * @property {"proxy"|"lufs"} [level] normalization mode (default "proxy", see header)
+ * @property {number} [tempo]  multiplies every note onset (default 1). The ceramics
+ *           play the shared motifs a little tighter so the last tap has decayed
+ *           inside the 400 ms blip budget instead of being faded out mid-ring.
  */
 
 /** @type {Family[]} */
 const FAMILIES = [
+  // -------------------------------------------------------------------------
+  // "Koyu Masa" ceramics (2026-10-20). Brief: warm, calm, tea/glass/ceramic —
+  // a soft tap on porcelain, never a shrill tink. Shared tuning rules that make
+  // them read as the SAME table set:
+  //   - short decays (fundamental tau 42-58 ms) + a 0.8 motif tempo, so a
+  //     blip is DONE inside 400 ms by physics, not by the trim fade
+  //   - the top partials are kept low in gain and die fastest, so the cue has
+  //     "glaze" without a whistle
+  //   - the strike is a fingertip/teaspoon: band-limited, 2-4 ms, never above
+  //     ~9 kHz (the glass family's 13 kHz nail is what read as harsh)
+  // -------------------------------------------------------------------------
+  {
+    id: "porcelain",
+    label: "Porselen Fincan",
+    blurb:
+      "İnce porselen çay fincanına parmak ucu / kaşık dokunuşu: sıcak, yuvarlak, sırlı bir 'tık' — Koyu Masa'nın varsayılanı.",
+    // Thin porcelain cup: bell-like but more damped and closer-spaced than glass
+    // (the wall is thicker and the glaze absorbs) — 1 : 2.32 : 4.2 : 6.5 : 9.3.
+    partials: [
+      { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+      { ratio: 2.32, gain: 0.42, decayScale: 0.6 },
+      { ratio: 4.2, gain: 0.2, decayScale: 0.38 },
+      { ratio: 6.5, gain: 0.09, decayScale: 0.25 },
+      { ratio: 9.3, gain: 0.04, decayScale: 0.16 },
+    ],
+    decaySec: 0.05,
+    detune: 5,
+    strike: { peak: 0.14, decayMs: 2.5, lowHz: 900, highHz: 6500, poles: 2 },
+    body: { ratio: 0.5, peak: 0.12, decaySec: 0.03 },
+    breath: null,
+    room: { mix: 0.1, feedback: 0.5, damp: 0.42 },
+    level: "lufs",
+    tempo: 0.8,
+  },
+  {
+    id: "teaglass",
+    label: "İnce Belli Bardak",
+    blurb:
+      "İnce belli çay bardağına kaşık: berrak cam tınısı ama üst bandı yumuşatılmış — en 'çay' olanı, en parlak aday.",
+    // Thin tumbler glass modes (bell-ish 2.71 / 5.2), with the upper partials
+    // pulled well under the old `glass` family so it rings, not pierces.
+    partials: [
+      { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+      { ratio: 2.71, gain: 0.38, decayScale: 0.55 },
+      { ratio: 5.2, gain: 0.16, decayScale: 0.34 },
+      { ratio: 8.6, gain: 0.07, decayScale: 0.22 },
+      { ratio: 12.9, gain: 0.03, decayScale: 0.14 },
+    ],
+    decaySec: 0.058,
+    detune: 3,
+    strike: { peak: 0.12, decayMs: 1.8, lowHz: 2000, highHz: 9000, poles: 2 },
+    body: { ratio: 0.5, peak: 0.08, decaySec: 0.025 },
+    breath: null,
+    room: { mix: 0.12, feedback: 0.52, damp: 0.36 },
+    level: "lufs",
+    tempo: 0.8,
+  },
+  {
+    id: "stoneware",
+    label: "Sırlı Toprak",
+    blurb:
+      "Sırlı toprak / taş fincan: tok, kısa, koyu — seramiklerin en karanlığı, keçe setine en yakın aday.",
+    // Thick glazed earthenware: few modes, all short; a whisper of breath keeps
+    // the dark spectrum from sounding like a filtered synth.
+    partials: [
+      { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+      { ratio: 2.45, gain: 0.3, decayScale: 0.45 },
+      { ratio: 4.6, gain: 0.12, decayScale: 0.26 },
+      { ratio: 7.1, gain: 0.05, decayScale: 0.15 },
+    ],
+    decaySec: 0.042,
+    detune: 7,
+    strike: { peak: 0.17, decayMs: 4.0, lowHz: 300, highHz: 3200, poles: 2 },
+    body: { ratio: 0.5, peak: 0.2, decaySec: 0.045 },
+    breath: { peak: 0.04, decaySec: 0.03, lowHz: 600, highHz: 2600, poles: 2 },
+    room: { mix: 0.08, feedback: 0.48, damp: 0.5 },
+    level: "lufs",
+    tempo: 0.8,
+  },
   {
     id: "marimba",
     label: "Sıcak Marimba",
@@ -832,28 +937,49 @@ function addNote(buf, fam, note) {
  * the timbre. Rising = positive, falling = its counterpart; one key (C major /
  * A minor), so the whole app speaks in one musical voice.
  *
- *   voice-join    C5 -> G5  rising fifth (arrival)
- *   voice-leave   G5 -> C5  falling fifth
- *   peer-join     G4 -> C5  rising fourth, softer (someone else, not you)
- *   peer-leave    C5 -> G4  falling fourth, softer
- *   mute          F4        single, dark, damped (closed)
- *   unmute        C5        single, open, brighter (a fifth above mute)
- *   screen-start  C5-E5-A5  rising, wide (something big began)
- *   screen-stop   A5-E5-C5  falling
- *   message       D5 -> F5  rising MINOR THIRD, very soft and short
+ *   voice-join      C5 -> G5     rising fifth (arrival)
+ *   voice-leave     G5 -> C5     falling fifth
+ *   peer-join       G4 -> C5     rising fourth, softer (someone else, not you)
+ *   peer-leave      C5 -> G4     falling fourth, softer
+ *   mute            F4           single, dark, damped (closed)
+ *   unmute          C5           single, open, brighter (a fifth above mute)
+ *   deafen          C5 -> F4     the mute tap DOUBLED and falling (closed, both ways)
+ *   undeafen        F4 -> C5     the unmute tap doubled and rising
+ *   screen-start    C5-E5-A5     rising, wide (something big began)
+ *   screen-stop     A5-E5-C5     falling
+ *   message         D5 -> F5     rising MINOR THIRD, very soft and short
+ *   mention         D5-F5-A5     the message motif plus one brighter tap (it is you)
+ *   call-connected  C5-G5-C6     rising fifth + octave — a fuller voice-join
+ *   call-ended      G4 -> C4     one low falling step, soft (the line went quiet)
+ *   peer-left-call  C5-A4-F4     a falling triad, softer (the other side hung up)
+ *   error           F4 -> E4     two dull taps, a semitone down — "uh-oh", not an alarm
  *
  * @typedef {object} CueSpec
- * @property {number} lengthSec
- * @property {number} loudnessDb   loudness target (max-50ms RMS), the hierarchy
+ * @property {number} lengthSec    render buffer (the `lufs` families trim it)
+ * @property {number} loudnessDb   `proxy` target (max-50ms RMS dBFS)
+ * @property {number} lufs         `lufs` target (max-momentary LUFS, BS.1770)
  * @property {{ start:number, freq:number, gain?:number, decayScale?:number,
  *              bright?:number }[]} notes
  */
 
+/**
+ * LUFS hierarchy for the `lufs` families (max-momentary, see maxMomentaryLufs):
+ *   -16    ring-incoming      must be heard across a room
+ *   -19    ring-outgoing      your own ringback, a step under
+ *   -19    call-connected     the biggest one-shot: a call just started
+ *   -20    voice-join/-leave, screen-start/-stop     "you did something"
+ *   -21    error, call-ended, unmute, undeafen, mention
+ *   -21.5  deafen, peer-left-call
+ *   -22.5  mute
+ *   -23    peer-join/-leave   someone else did something
+ *   -23.5  message            fires most often — the quietest cue, by design
+ */
 /** @type {Record<string, CueSpec>} */
 const MOTIFS = {
   "voice-join": {
     lengthSec: 0.6,
     loudnessDb: -15,
+    lufs: -20,
     notes: [
       { start: 0.0, freq: NOTE.C5, gain: 0.9 },
       { start: 0.085, freq: NOTE.G5, gain: 1.0, decayScale: 1.25 },
@@ -862,6 +988,7 @@ const MOTIFS = {
   "voice-leave": {
     lengthSec: 0.6,
     loudnessDb: -15,
+    lufs: -20,
     notes: [
       { start: 0.0, freq: NOTE.G5, gain: 0.95 },
       { start: 0.085, freq: NOTE.C5, gain: 1.0, decayScale: 1.25 },
@@ -870,6 +997,7 @@ const MOTIFS = {
   "peer-join": {
     lengthSec: 0.45,
     loudnessDb: -18,
+    lufs: -23,
     notes: [
       { start: 0.0, freq: NOTE.G4, gain: 0.72, bright: 0.75 },
       { start: 0.07, freq: NOTE.C5, gain: 0.85, bright: 0.75, decayScale: 1.1 },
@@ -878,6 +1006,7 @@ const MOTIFS = {
   "peer-leave": {
     lengthSec: 0.45,
     loudnessDb: -18,
+    lufs: -23,
     notes: [
       { start: 0.0, freq: NOTE.C5, gain: 0.85, bright: 0.75 },
       { start: 0.07, freq: NOTE.G4, gain: 0.72, bright: 0.75, decayScale: 1.1 },
@@ -886,18 +1015,43 @@ const MOTIFS = {
   mute: {
     lengthSec: 0.3,
     loudnessDb: -17.5,
+    // -22.5, not -21.5: a damped low F4 is all crest (K-weighting discounts its
+    // body), so -21.5 is unreachable under the peak ceiling. A closing cue
+    // sitting 1.5 dB under its opening twin is the right way round anyway.
+    lufs: -22.5,
     // Damped: short decay + a dull strike. "The mic closed."
     notes: [{ start: 0.0, freq: NOTE.F4, gain: 0.85, decayScale: 0.5, bright: 0.5 }],
   },
   unmute: {
     lengthSec: 0.34,
     loudnessDb: -16.5,
+    lufs: -21,
     // Open: full decay, brighter strike, a fifth up. "The mic opened."
     notes: [{ start: 0.0, freq: NOTE.C5, gain: 0.9, decayScale: 1.0, bright: 1.15 }],
+  },
+  deafen: {
+    lengthSec: 0.36,
+    loudnessDb: -17.5,
+    lufs: -21.5,
+    // Two damped taps falling onto the mute note: "everything closed".
+    notes: [
+      { start: 0.0, freq: NOTE.C5, gain: 0.8, decayScale: 0.55, bright: 0.55 },
+      { start: 0.07, freq: NOTE.F4, gain: 0.85, decayScale: 0.5, bright: 0.5 },
+    ],
+  },
+  undeafen: {
+    lengthSec: 0.4,
+    loudnessDb: -16.5,
+    lufs: -21,
+    notes: [
+      { start: 0.0, freq: NOTE.F4, gain: 0.8, decayScale: 0.9 },
+      { start: 0.07, freq: NOTE.C5, gain: 0.9, decayScale: 1.0, bright: 1.15 },
+    ],
   },
   "screen-start": {
     lengthSec: 0.62,
     loudnessDb: -15,
+    lufs: -20,
     notes: [
       { start: 0.0, freq: NOTE.C5, gain: 0.75 },
       { start: 0.06, freq: NOTE.E5, gain: 0.85 },
@@ -907,6 +1061,7 @@ const MOTIFS = {
   "screen-stop": {
     lengthSec: 0.62,
     loudnessDb: -15,
+    lufs: -20,
     notes: [
       { start: 0.0, freq: NOTE.A5, gain: 0.9 },
       { start: 0.06, freq: NOTE.E5, gain: 0.85 },
@@ -920,17 +1075,72 @@ const MOTIFS = {
     // 7 dB under the incoming ring — the hierarchy the old peak-normalized set
     // could not express (it landed 2 dB under screen-start).
     loudnessDb: -20,
+    lufs: -23.5,
     notes: [
       { start: 0.0, freq: NOTE.D5, gain: 0.8, decayScale: 0.85 },
       { start: 0.075, freq: NOTE.F5, gain: 0.9, decayScale: 0.95 },
     ],
   },
+  mention: {
+    lengthSec: 0.5,
+    // The message motif with a third, brighter tap: same family of meaning
+    // ("someone wrote"), one step more insistent ("...to YOU").
+    loudnessDb: -18.5,
+    lufs: -21,
+    notes: [
+      { start: 0.0, freq: NOTE.D5, gain: 0.8, decayScale: 0.85 },
+      { start: 0.075, freq: NOTE.F5, gain: 0.9, decayScale: 0.95 },
+      { start: 0.15, freq: NOTE.A5, gain: 0.8, decayScale: 0.9, bright: 1.1 },
+    ],
+  },
+  "call-connected": {
+    lengthSec: 0.62,
+    loudnessDb: -14.5,
+    lufs: -19,
+    notes: [
+      { start: 0.0, freq: NOTE.C5, gain: 0.8 },
+      { start: 0.08, freq: NOTE.G5, gain: 0.9 },
+      { start: 0.16, freq: NOTE.C6, gain: 0.85, decayScale: 1.3 },
+    ],
+  },
+  "call-ended": {
+    lengthSec: 0.5,
+    loudnessDb: -16,
+    lufs: -21,
+    notes: [
+      { start: 0.0, freq: NOTE.G4, gain: 0.85, decayScale: 0.9, bright: 0.8 },
+      { start: 0.1, freq: NOTE.C4, gain: 0.95, decayScale: 1.1, bright: 0.7 },
+    ],
+  },
+  "peer-left-call": {
+    lengthSec: 0.5,
+    loudnessDb: -18,
+    lufs: -21.5,
+    notes: [
+      { start: 0.0, freq: NOTE.C5, gain: 0.8, bright: 0.75 },
+      { start: 0.07, freq: NOTE.A4, gain: 0.75, bright: 0.75 },
+      { start: 0.14, freq: NOTE.F4, gain: 0.72, decayScale: 1.1, bright: 0.7 },
+    ],
+  },
+  error: {
+    lengthSec: 0.38,
+    loudnessDb: -16,
+    lufs: -21,
+    // Dull and damped on purpose: an error cue that is sharp reads as blame.
+    notes: [
+      { start: 0.0, freq: NOTE.F4, gain: 0.85, decayScale: 0.45, bright: 0.6 },
+      { start: 0.12, freq: NOTE.E4, gain: 0.9, decayScale: 0.5, bright: 0.55 },
+    ],
+  },
 };
 
 /**
- * The two looping call ring cadences (mobile assets; desktop synthesizes its own
- * in sounds/ringtone.ts). The file length IS one full cadence period so
- * `player.loop = true` reproduces the desktop CADENCE_MS exactly.
+ * The two looping call ring cadences, shipped as files on BOTH clients (desktop
+ * `sounds/ringtone.ts` and mobile `sounds/ringtone.ts` loop them). The file
+ * length IS one full cadence period, so a looping player reproduces the cadence
+ * exactly — and both platforms ring with the same bytes:
+ *   incoming  C5+G5 double pair, 2.60 s period
+ *   outgoing  A4 ringback (two taps), 3.40 s period
  *
  * @type {Record<string, CueSpec>}
  */
@@ -938,6 +1148,7 @@ const RING_MOTIFS = {
   "ring-incoming": {
     lengthSec: 2.6,
     loudnessDb: -13,
+    lufs: -16,
     notes: [
       { start: 0.0, freq: NOTE.C5, gain: 1.0, decayScale: 1.6 },
       { start: 0.19, freq: NOTE.G5, gain: 0.95, decayScale: 1.6 },
@@ -948,6 +1159,7 @@ const RING_MOTIFS = {
   "ring-outgoing": {
     lengthSec: 3.4,
     loudnessDb: -16,
+    lufs: -19,
     notes: [
       { start: 0.0, freq: NOTE.A4, gain: 0.85, decayScale: 2.2 },
       { start: 0.42, freq: NOTE.A4, gain: 0.6, decayScale: 2.2 },
@@ -955,24 +1167,43 @@ const RING_MOTIFS = {
   },
 };
 
-/** Peak ceiling for every generated cue (headroom under 0 dBFS, never clips). */
+/** Peak ceiling for the `proxy` families (headroom under 0 dBFS, never clips). */
 const PEAK_CEILING_DB = -4.5;
+/**
+ * Sample-peak ceiling for the `lufs` families. -2 dBFS leaves room for the Ogg
+ * encoder's inter-sample overshoot: the shipped files are verified at <= -1 dBTP
+ * with `ffmpeg -af ebur128=peak=true` (see docs/product/sound-credits.md).
+ */
+const LUFS_PEAK_CEILING_DB = -2;
+/** UI blips are capped at 400 ms (brief: 80-400 ms); rings keep their period. */
+const BLIP_MAX_SEC = 0.4;
 
 /**
  * Render one cue of one family.
  * @param {Family} fam
  * @param {CueSpec} spec
  * @param {number} seedBase
+ * @param {{ loop?: boolean }} [opts]  loop = a ring period: never trimmed
  * @returns {Float32Array}
  */
-function renderCue(fam, spec, seedBase) {
-  const buf = new Float32Array(Math.round(spec.lengthSec * SR));
+function renderCue(fam, spec, seedBase, opts = {}) {
+  let buf = new Float32Array(Math.round(spec.lengthSec * SR));
+  const tempo = opts.loop ? 1 : (fam.tempo ?? 1); // a ring keeps its exact cadence
   spec.notes.forEach((note, i) => {
-    addNote(buf, fam, { ...note, seed: seedBase + i * 1013 });
+    addNote(buf, fam, { ...note, start: note.start * tempo, seed: seedBase + i * 1013 });
   });
   addRoom(buf, fam.room);
-  normalizeLoudness(buf, spec.loudnessDb, PEAK_CEILING_DB);
+  if ((fam.level ?? "proxy") === "proxy") {
+    // Byte-for-byte the path felt/marimba/glass shipped with.
+    normalizeLoudness(buf, spec.loudnessDb, PEAK_CEILING_DB);
+    fadeEdges(buf, 2);
+    return buf;
+  }
+  if (!opts.loop) {
+    buf = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: BLIP_MAX_SEC });
+  }
   fadeEdges(buf, 2);
+  normalizeLufs(buf, spec.lufs, LUFS_PEAK_CEILING_DB);
   return buf;
 }
 
@@ -992,9 +1223,10 @@ function seedFor(familyId, cueName) {
  * @returns {{ cues: Record<string, Float32Array>, rings: Record<string, Float32Array> }}
  */
 function buildFamily(familyId) {
-  if (familyId === "legacy") {
-    return { cues: buildLegacySet(), rings: buildLegacyRings() };
-  }
+  // The premium family has its own builder — it uses per-category synthesis
+  // techniques rather than the shared motif-through-a-single-timbre approach.
+  if (familyId === "premium") return buildPremiumSet();
+
   const fam = FAMILIES.find((f) => f.id === familyId);
   if (!fam) throw new Error(`unknown family "${familyId}"`);
   /** @type {Record<string, Float32Array>} */
@@ -1005,22 +1237,643 @@ function buildFamily(familyId) {
   /** @type {Record<string, Float32Array>} */
   const rings = {};
   for (const [name, spec] of Object.entries(RING_MOTIFS)) {
-    rings[name] = renderCue(fam, spec, seedFor(familyId, name));
+    rings[name] = renderCue(fam, spec, seedFor(familyId, name), { loop: true });
   }
   return { cues, rings };
 }
 
-/** Every selectable family id, in listening order. */
-const FAMILY_IDS = ["marimba", "glass", "felt", "legacy"];
+// ---------------------------------------------------------------------------
+// "Premium" family — Discord-grade UI sounds
+// ---------------------------------------------------------------------------
+// Unlike the modal families above (which share the MOTIFS catalog and differ
+// only in timbre), the premium family uses a DIFFERENT synthesis technique per
+// cue category: pure percussive noise for toggles, struck-bell modes for voice
+// events, a bright pop for messages, swept noise for screen share, and actual
+// short melodies for rings. This is what Discord gets right: each category has
+// its own material identity, so you know what happened WITHOUT looking.
+//
+// The builder bypasses the shared renderCue/addNote pipeline and builds every
+// cue from scratch, using the low-level primitives (addStrike, addModes,
+// addBody, addBreath, addRoom, normalizeLufs, trimTail, fadeEdges).
+// ---------------------------------------------------------------------------
 
-/** Founder-facing label/blurb for a family id (legacy has no Family record). */
+/**
+ * A pitch-swept sine burst: the core of the "pop" and "whoosh" sounds.
+ *
+ * @param {Float32Array} buf
+ * @param {{ start:number, startHz:number, endHz:number, peak:number,
+ *           durationSec:number, seed?:number }} spec
+ */
+function addSweepTone(buf, spec) {
+  const n0 = Math.floor(spec.start * SR);
+  const nLen = Math.min(buf.length - n0, Math.ceil(spec.durationSec * SR));
+  if (nLen <= 0) return;
+  const nAttack = Math.max(1, Math.floor(0.001 * SR));
+  const tauSamples = Math.max(1, spec.durationSec * SR * 0.35);
+  let phase = 0;
+  for (let i = 0; i < nLen; i++) {
+    const idx = n0 + i;
+    if (idx >= buf.length) break;
+    const t = i / nLen;
+    // Exponential pitch sweep between start and end frequencies
+    const hz = spec.startHz * Math.pow(spec.endHz / spec.startHz, t);
+    const env = (i < nAttack ? i / nAttack : 1) * Math.exp(-i / tauSamples);
+    phase += (2 * Math.PI * hz) / SR;
+    buf[idx] += Math.sin(phase) * env * spec.peak;
+  }
+}
+
+/**
+ * Filtered noise sweep for whoosh/screen-share sounds.
+ *
+ * @param {Float32Array} buf
+ * @param {{ start:number, durationSec:number, peak:number,
+ *           startHz:number, endHz:number, bandwidth:number,
+ *           seed:number }} spec
+ */
+function addNoiseSweep(buf, spec) {
+  const n0 = Math.floor(spec.start * SR);
+  const nLen = Math.min(buf.length - n0, Math.ceil(spec.durationSec * SR));
+  if (nLen <= 0) return;
+  const rng = makeRng(spec.seed);
+  // Generate full noise, then apply a time-varying bandpass via modulation
+  const noise = new Float32Array(nLen);
+  for (let i = 0; i < nLen; i++) noise[i] = rng() * 2 - 1;
+  // Smooth the noise to approximate bandpass
+  lowPass(noise, spec.bandwidth * 2, 2);
+  // Re-normalize
+  let p = 0;
+  for (let i = 0; i < nLen; i++) p = Math.max(p, Math.abs(noise[i]));
+  if (p === 0) return;
+  const g = 1 / p;
+  const nAttack = Math.max(1, Math.floor(0.005 * SR));
+  const nRelease = Math.max(1, Math.floor(0.02 * SR));
+  for (let i = 0; i < nLen; i++) {
+    const idx = n0 + i;
+    if (idx >= buf.length) break;
+    const t = i / nLen;
+    const hz = spec.startHz * Math.pow(spec.endHz / spec.startHz, t);
+    // Ring-modulate the noise with a sine at the sweep frequency to centre it
+    const carrier = Math.sin((2 * Math.PI * hz * i) / SR);
+    let env = 1;
+    if (i < nAttack) env = i / nAttack;
+    else if (i > nLen - nRelease) env = (nLen - i) / nRelease;
+    // Bell-shaped amplitude: louder in the middle of the sweep
+    const bell = Math.sin(Math.PI * t);
+    buf[idx] += noise[i] * g * carrier * env * bell * spec.peak;
+  }
+}
+
+/**
+ * Build the complete premium cue set. Each cue category uses distinct synthesis.
+ *
+ * ---------------------------------------------------------------------------
+ * CALIBRATION TARGET: Discord's shipped sounds (measured from actual MP3s)
+ * ---------------------------------------------------------------------------
+ * Discord uses a fixed -6 dBTP peak ceiling on every cue. Its toggles sit at
+ * -14 to -16 LUFS (our old premium was -28 — 12 dB too quiet). Durations are
+ * 450-1200 ms for one-shot cues (our old premium was 80-400 ms — too short to
+ * develop any resonance). The message sound is transient-heavy with -inf
+ * integrated LUFS, meaning nearly all energy is in a single pop.
+ *
+ * This rewrite matches Discord's measured LUFS, duration, peak ceiling, and
+ * crest factor per category while keeping the per-category synthesis identity
+ * (percussive toggles, bell joins, pop messages, sweep screens, melodic rings).
+ *
+ * @returns {{ cues: Record<string, Float32Array>, rings: Record<string, Float32Array> }}
+ */
+function buildPremiumSet() {
+  /** @type {Record<string, Float32Array>} */
+  const cues = {};
+  /** @type {Record<string, Float32Array>} */
+  const rings = {};
+
+  // Discord's universal peak ceiling: -6 dBTP on every sound.
+  const PEAK_CEIL = -6;
+
+  // Shared room constants — more reverb than before to fill the longer tails
+  const ROOM_TOGGLE = { mix: 0.08, feedback: 0.5, damp: 0.45 };
+  const ROOM_VOICE = { mix: 0.12, feedback: 0.55, damp: 0.38 };
+  const ROOM_POP = { mix: 0.06, feedback: 0.45, damp: 0.5 };
+  const ROOM_SWEEP = { mix: 0.1, feedback: 0.5, damp: 0.42 };
+  const ROOM_CALL = { mix: 0.12, feedback: 0.55, damp: 0.38 };
+  const ROOM_RING = { mix: 0.14, feedback: 0.58, damp: 0.35 };
+
+  // -----------------------------------------------------------------------
+  // TOGGLES: percussive noise burst + resonant tonal tail
+  // Discord's mute/unmute are ~460 ms with a noticeable resonant decay, not
+  // just a click. The trick: a strong noise transient at onset, then a few
+  // damped modal partials that ring out over ~300 ms.
+  // -----------------------------------------------------------------------
+
+  // Toggle partial recipe: a short-lived, slightly metallic "switch" resonance
+  const TOGGLE_PARTIALS = [
+    { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+    { ratio: 2.4, gain: 0.35, decayScale: 0.55 },
+    { ratio: 4.1, gain: 0.15, decayScale: 0.3 },
+    { ratio: 6.8, gain: 0.06, decayScale: 0.18 },
+  ];
+
+  // mute: dampened low "thock" with resonant tail — 450ms, -15.5 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.6 * SR));
+    const s = seedFor("premium", "mute");
+    // Strong low-band noise burst: the switch closing
+    addStrike(buf, {
+      start: 0.0, peak: 0.8, decayMs: 12.0,
+      lowHz: 100, highHz: 2200, poles: 3, seed: s,
+    });
+    // Resonant tail: low F4 modes that ring and die over ~300 ms
+    addModes(buf, {
+      start: 0.001, freq: NOTE.F4, peak: 0.45, decaySec: 0.18,
+      partials: TOGGLE_PARTIALS, detune: 6, seed: s + 7919,
+    });
+    // Sub-bass thump for weight
+    addBody(buf, { start: 0.0, freq: 85, peak: 0.3, decaySec: 0.06 });
+    addRoom(buf, ROOM_TOGGLE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.45 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -15.5, PEAK_CEIL);
+    cues["mute"] = trimmed;
+  }
+
+  // unmute: brighter tick with open resonant tail — 450ms, -14.2 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.6 * SR));
+    const s = seedFor("premium", "unmute");
+    addStrike(buf, {
+      start: 0.0, peak: 0.8, decayMs: 8.0,
+      lowHz: 600, highHz: 7000, poles: 2, seed: s,
+    });
+    // Open resonance: C5, brighter and longer than mute
+    addModes(buf, {
+      start: 0.001, freq: NOTE.C5, peak: 0.45, decaySec: 0.2,
+      partials: TOGGLE_PARTIALS, detune: 4, seed: s + 7919,
+    });
+    addBody(buf, { start: 0.0, freq: 260, peak: 0.2, decaySec: 0.05 });
+    addRoom(buf, ROOM_TOGGLE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.45 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -14.2, PEAK_CEIL);
+    cues["unmute"] = trimmed;
+  }
+
+  // deafen: two dampened low thocks — 730ms, -17.9 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.9 * SR));
+    const s = seedFor("premium", "deafen");
+    for (let tap = 0; tap < 2; tap++) {
+      const t = tap * 0.15;
+      addStrike(buf, {
+        start: t, peak: 0.75, decayMs: 10.0,
+        lowHz: 100, highHz: 2200, poles: 3,
+        seed: s + tap * 997,
+      });
+      // Falling pitch: C5 then F4 (closing)
+      const freq = tap === 0 ? NOTE.C5 : NOTE.F4;
+      addModes(buf, {
+        start: t + 0.001, freq, peak: 0.4, decaySec: 0.16,
+        partials: TOGGLE_PARTIALS, detune: 6, seed: s + tap * 997 + 7919,
+      });
+      addBody(buf, { start: t, freq: 85, peak: 0.25, decaySec: 0.05 });
+    }
+    addRoom(buf, ROOM_TOGGLE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.73 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.9, PEAK_CEIL);
+    cues["deafen"] = trimmed;
+  }
+
+  // undeafen: two bright ticks rising — 800ms, -16.6 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.0 * SR));
+    const s = seedFor("premium", "undeafen");
+    for (let tap = 0; tap < 2; tap++) {
+      const t = tap * 0.15;
+      addStrike(buf, {
+        start: t, peak: 0.75, decayMs: 7.0,
+        lowHz: 600, highHz: 7000, poles: 2,
+        seed: s + tap * 997,
+      });
+      // Rising pitch: F4 then C5 (opening)
+      const freq = tap === 0 ? NOTE.F4 : NOTE.C5;
+      addModes(buf, {
+        start: t + 0.001, freq, peak: 0.4, decaySec: 0.18,
+        partials: TOGGLE_PARTIALS, detune: 4, seed: s + tap * 997 + 7919,
+      });
+      addBody(buf, { start: t, freq: 260, peak: 0.18, decaySec: 0.04 });
+    }
+    addRoom(buf, ROOM_TOGGLE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.8 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -16.6, PEAK_CEIL);
+    cues["undeafen"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // VOICE PRESENCE: struck bell/chime with long luxurious decay
+  // Discord's join is 1086 ms — these bells need to ring and shimmer.
+  // Peer versions: softer attack, 3 LU quieter
+  // -----------------------------------------------------------------------
+
+  // Bell partial recipe: crystalline bell with rich overtones for long decay
+  const BELL_PARTIALS = [
+    { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+    { ratio: 2.0, gain: 0.55, decayScale: 0.72 },
+    { ratio: 3.0, gain: 0.32, decayScale: 0.52 },
+    { ratio: 4.24, gain: 0.2, decayScale: 0.38 },
+    { ratio: 5.96, gain: 0.12, decayScale: 0.26 },
+    { ratio: 8.3, gain: 0.06, decayScale: 0.18 },
+    { ratio: 11.5, gain: 0.03, decayScale: 0.12 },
+  ];
+
+  /**
+   * One bell note for the premium voice cues.
+   * @param {Float32Array} buf
+   * @param {number} start
+   * @param {number} freq
+   * @param {number} gain
+   * @param {number} decaySec
+   * @param {number} seed
+   * @param {number} [strikeBright]  1 = normal, <1 = softer attack
+   */
+  function addBellNote(buf, start, freq, gain, decaySec, seed, strikeBright = 1) {
+    // Sharp strike: a short bright click that reads as "struck metal"
+    addStrike(buf, {
+      start,
+      peak: 0.24 * gain * strikeBright,
+      decayMs: 3.0,
+      lowHz: 1200 * strikeBright,
+      highHz: 9000 * strikeBright,
+      poles: 2,
+      seed,
+    });
+    // Bell modes — longer decaySec than before for luxurious ring
+    addModes(buf, {
+      start, freq,
+      peak: 0.42 * gain,
+      decaySec,
+      partials: BELL_PARTIALS,
+      detune: 3,
+      seed: seed + 7919,
+    });
+    // Sub body for warmth
+    addBody(buf, {
+      start,
+      freq: freq * 0.5,
+      peak: 0.12 * gain,
+      decaySec: decaySec * 0.45,
+    });
+  }
+
+  // voice-join: ascending perfect 5th (C5 -> G5) — 1000ms, -17.3 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.3 * SR));
+    const s = seedFor("premium", "voice-join");
+    addBellNote(buf, 0.0, NOTE.C5, 0.85, 0.45, s);
+    addBellNote(buf, 0.12, NOTE.G5, 1.0, 0.55, s + 1013);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 40, maxSec: 1.0 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.3, PEAK_CEIL);
+    cues["voice-join"] = trimmed;
+  }
+
+  // voice-leave: descending perfect 5th (G5 -> C5) — 960ms, -17.9 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.3 * SR));
+    const s = seedFor("premium", "voice-leave");
+    addBellNote(buf, 0.0, NOTE.G5, 0.9, 0.45, s);
+    addBellNote(buf, 0.12, NOTE.C5, 1.0, 0.55, s + 1013);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 40, maxSec: 0.96 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.9, PEAK_CEIL);
+    cues["voice-leave"] = trimmed;
+  }
+
+  // peer-join: ascending 5th (G4 -> D5), softer attack — 800ms, -20.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.1 * SR));
+    const s = seedFor("premium", "peer-join");
+    addBellNote(buf, 0.0, NOTE.G4, 0.7, 0.38, s, 0.65);
+    addBellNote(buf, 0.1, NOTE.D5, 0.8, 0.45, s + 1013, 0.65);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 35, maxSec: 0.8 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -20.0, PEAK_CEIL);
+    cues["peer-join"] = trimmed;
+  }
+
+  // peer-leave: descending 5th (D5 -> G4), softer attack — 750ms, -21.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.0 * SR));
+    const s = seedFor("premium", "peer-leave");
+    addBellNote(buf, 0.0, NOTE.D5, 0.8, 0.38, s, 0.65);
+    addBellNote(buf, 0.1, NOTE.G4, 0.7, 0.45, s + 1013, 0.65);
+    addRoom(buf, ROOM_VOICE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 35, maxSec: 0.75 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -21.0, PEAK_CEIL);
+    cues["peer-leave"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // MESSAGES: transient-heavy pop with subtle body
+  // Discord's message is 364 ms with -inf integrated LUFS — nearly all energy
+  // in one sharp pop. The pop should be bright and distinctive.
+  // -----------------------------------------------------------------------
+
+  // message: a bright transient pop — 360ms, -20.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.5 * SR));
+    const s = seedFor("premium", "message");
+    // The pop: a fast pitch-drop from ~2800 Hz to ~700 Hz — wider sweep than before
+    addSweepTone(buf, {
+      start: 0.0, startHz: 2800, endHz: 700, peak: 0.5, durationSec: 0.08,
+    });
+    // Bright click at onset — the transient that makes it "pop"
+    addStrike(buf, {
+      start: 0.0, peak: 0.25, decayMs: 2.5,
+      lowHz: 1800, highHz: 10000, poles: 2, seed: s,
+    });
+    // A subtle body resonance so the pop has weight, not just a click
+    addModes(buf, {
+      start: 0.002, freq: NOTE.D5, peak: 0.15, decaySec: 0.12,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.3, gain: 0.25, decayScale: 0.4 },
+      ],
+      detune: 5, seed: s + 7919,
+    });
+    addBody(buf, { start: 0.0, freq: 150, peak: 0.12, decaySec: 0.04 });
+    addRoom(buf, ROOM_POP);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.36 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -20.0, PEAK_CEIL);
+    cues["message"] = trimmed;
+  }
+
+  // mention: the pop + a brighter sparkle hit 80ms later — 500ms, -18.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.65 * SR));
+    const s = seedFor("premium", "mention");
+    // Same base pop
+    addSweepTone(buf, {
+      start: 0.0, startHz: 2800, endHz: 700, peak: 0.5, durationSec: 0.08,
+    });
+    addStrike(buf, {
+      start: 0.0, peak: 0.25, decayMs: 2.5,
+      lowHz: 1800, highHz: 10000, poles: 2, seed: s,
+    });
+    addBody(buf, { start: 0.0, freq: 150, peak: 0.12, decaySec: 0.04 });
+    // Sparkle: higher-pitched pop 80ms later — brighter, more insistent
+    addSweepTone(buf, {
+      start: 0.08, startHz: 3800, endHz: 1200, peak: 0.35, durationSec: 0.06,
+    });
+    addStrike(buf, {
+      start: 0.08, peak: 0.15, decayMs: 2.0,
+      lowHz: 2800, highHz: 12000, poles: 2, seed: s + 2027,
+    });
+    // A bell tail so "mention" rings slightly longer than "message"
+    addModes(buf, {
+      start: 0.08, freq: NOTE.A5, peak: 0.12, decaySec: 0.15,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.0, gain: 0.3, decayScale: 0.5 },
+      ],
+      detune: 4, seed: s + 7919,
+    });
+    addRoom(buf, ROOM_POP);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.5 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -18.0, PEAK_CEIL);
+    cues["mention"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // SCREEN SHARE: filtered noise whoosh/sweep — longer, more dramatic
+  // 600ms each to match Discord's screen cue duration range
+  // -----------------------------------------------------------------------
+
+  // screen-start: rising whoosh — 600ms, -17.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.8 * SR));
+    const s = seedFor("premium", "screen-start");
+    // Longer, wider rising noise sweep: 300 Hz -> 4000 Hz
+    addNoiseSweep(buf, {
+      start: 0.0, durationSec: 0.45, peak: 0.4,
+      startHz: 300, endHz: 4000, bandwidth: 2500, seed: s,
+    });
+    // A punctuating bright click at the crest of the sweep
+    addStrike(buf, {
+      start: 0.35, peak: 0.2, decayMs: 3.0,
+      lowHz: 1500, highHz: 8000, poles: 2, seed: s + 3571,
+    });
+    // A short bell tone at the end: "it's on"
+    addModes(buf, {
+      start: 0.36, freq: NOTE.C5, peak: 0.15, decaySec: 0.12,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.0, gain: 0.3, decayScale: 0.5 },
+      ],
+      detune: 3, seed: s + 7919,
+    });
+    addRoom(buf, ROOM_SWEEP);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.6 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.0, PEAK_CEIL);
+    cues["screen-start"] = trimmed;
+  }
+
+  // screen-stop: falling whoosh — 600ms, -17.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.8 * SR));
+    const s = seedFor("premium", "screen-stop");
+    // Falling noise sweep: 4000 Hz -> 300 Hz
+    addNoiseSweep(buf, {
+      start: 0.0, durationSec: 0.45, peak: 0.4,
+      startHz: 4000, endHz: 300, bandwidth: 2500, seed: s,
+    });
+    // Click at onset
+    addStrike(buf, {
+      start: 0.0, peak: 0.18, decayMs: 3.0,
+      lowHz: 1500, highHz: 8000, poles: 2, seed: s + 3571,
+    });
+    // Low resolution tone at the end: "it's off"
+    addModes(buf, {
+      start: 0.35, freq: NOTE.G4, peak: 0.12, decaySec: 0.1,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.0, gain: 0.25, decayScale: 0.4 },
+      ],
+      detune: 3, seed: s + 7919,
+    });
+    addRoom(buf, ROOM_SWEEP);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.6 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.0, PEAK_CEIL);
+    cues["screen-stop"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // CALLS: melodic and warm, longer durations matching Discord
+  // -----------------------------------------------------------------------
+
+  // call-connected: warm chord resolve (C5 + E5 + G5) — 800ms, -17.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(1.1 * SR));
+    const s = seedFor("premium", "call-connected");
+    // A warm 3-note chord with staggered entries and long decay
+    addBellNote(buf, 0.0, NOTE.C5, 0.8, 0.4, s);
+    addBellNote(buf, 0.04, NOTE.E5, 0.75, 0.4, s + 1013);
+    addBellNote(buf, 0.08, NOTE.G5, 0.85, 0.5, s + 2026);
+    addRoom(buf, ROOM_CALL);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 35, maxSec: 0.8 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -17.0, PEAK_CEIL);
+    cues["call-connected"] = trimmed;
+  }
+
+  // call-ended: gentle descending tone — 1200ms, -18.8 LUFS (matching Discord's "deconnected")
+  {
+    const buf = new Float32Array(Math.round(1.5 * SR));
+    const s = seedFor("premium", "call-ended");
+    // Three descending notes with long fading tails
+    addBellNote(buf, 0.0, NOTE.G5, 0.75, 0.35, s, 0.7);
+    addBellNote(buf, 0.15, NOTE.E5, 0.8, 0.4, s + 1013, 0.7);
+    addBellNote(buf, 0.3, NOTE.C5, 0.85, 0.5, s + 2026, 0.65);
+    // A low body note that lingers: finality
+    addBody(buf, { start: 0.3, freq: 130, peak: 0.15, decaySec: 0.2 });
+    addRoom(buf, ROOM_CALL);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 40, maxSec: 1.2 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -18.8, PEAK_CEIL);
+    cues["call-ended"] = trimmed;
+  }
+
+  // peer-left-call: descending pop fading away — 600ms, -20.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.8 * SR));
+    const s = seedFor("premium", "peer-left-call");
+    // A descending pop: higher to lower, the other side hung up
+    addSweepTone(buf, {
+      start: 0.0, startHz: 2000, endHz: 500, peak: 0.35, durationSec: 0.1,
+    });
+    addStrike(buf, {
+      start: 0.0, peak: 0.15, decayMs: 3.0,
+      lowHz: 1000, highHz: 6000, poles: 2, seed: s,
+    });
+    // A soft descending bell tail
+    addModes(buf, {
+      start: 0.05, freq: NOTE.C5, peak: 0.12, decaySec: 0.2,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.0, gain: 0.25, decayScale: 0.5 },
+      ],
+      detune: 4, seed: s + 7919,
+    });
+    addBody(buf, { start: 0.0, freq: 120, peak: 0.1, decaySec: 0.06 });
+    addRoom(buf, ROOM_POP);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 30, maxSec: 0.6 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -20.0, PEAK_CEIL);
+    cues["peer-left-call"] = trimmed;
+  }
+
+  // error: low "bonk" with more body — 500ms, -16.0 LUFS
+  {
+    const buf = new Float32Array(Math.round(0.65 * SR));
+    const s = seedFor("premium", "error");
+    // Dull low noise thud — longer than before
+    addStrike(buf, {
+      start: 0.0, peak: 0.6, decayMs: 15.0,
+      lowHz: 80, highHz: 1400, poles: 3, seed: s,
+    });
+    // Detuned low modes: slightly inharmonic for "bonk" quality
+    addModes(buf, {
+      start: 0.0, freq: 165, peak: 0.4, decaySec: 0.18,
+      partials: [
+        { ratio: 1.0, gain: 1.0, decayScale: 1.0 },
+        { ratio: 2.3, gain: 0.3, decayScale: 0.4 },
+        { ratio: 3.7, gain: 0.12, decayScale: 0.2 },
+      ],
+      detune: 15,
+      seed: s + 7919,
+    });
+    addBody(buf, { start: 0.0, freq: 80, peak: 0.35, decaySec: 0.08 });
+    addRoom(buf, ROOM_TOGGLE);
+    const trimmed = trimTail(buf, { floorDb: 60, fadeMs: 25, maxSec: 0.5 });
+    fadeEdges(trimmed, 2);
+    normalizeLufsLimited(trimmed, -16.0, PEAK_CEIL);
+    cues["error"] = trimmed;
+  }
+
+  // -----------------------------------------------------------------------
+  // RINGS: memorable melodic patterns, matching Discord's durations
+  // incoming = 5300ms, outgoing = 2400ms
+  // -----------------------------------------------------------------------
+
+  // ring-incoming: catchy ascending+descending arpeggio — 5300ms, -18.3 LUFS
+  // Pattern: E5 - G5 - B5 - E6 (ascending), pause, E6 - B5 - G5 - E5 (descending)
+  // Then a longer silence before the loop repeats
+  {
+    const buf = new Float32Array(Math.round(5.3 * SR));
+    const s = seedFor("premium", "ring-incoming");
+    // First phrase: ascending major arpeggio — wider spacing for drama
+    addBellNote(buf, 0.0, NOTE.E5, 0.9, 0.55, s);
+    addBellNote(buf, 0.22, NOTE.G5, 0.85, 0.55, s + 1013);
+    addBellNote(buf, 0.44, NOTE.B5, 0.9, 0.55, s + 2026);
+    addBellNote(buf, 0.66, NOTE.E6, 1.0, 0.65, s + 3039);
+    // Second phrase: descending resolution after a pause
+    addBellNote(buf, 1.4, NOTE.E6, 0.85, 0.5, s + 4052);
+    addBellNote(buf, 1.62, NOTE.B5, 0.9, 0.5, s + 5065);
+    addBellNote(buf, 1.84, NOTE.G5, 0.85, 0.55, s + 6078);
+    addBellNote(buf, 2.06, NOTE.E5, 1.0, 0.7, s + 7091);
+    // Third phrase: a short "reminder" — just the top two notes
+    addBellNote(buf, 3.0, NOTE.B5, 0.8, 0.5, s + 8104);
+    addBellNote(buf, 3.22, NOTE.E6, 0.9, 0.6, s + 9117);
+    // Long silence for the rest of the period (the loop gap)
+    addRoom(buf, ROOM_RING);
+    fadeEdges(buf, 2);
+    normalizeLufsLimited(buf, -18.3, PEAK_CEIL);
+    rings["ring-incoming"] = buf;
+  }
+
+  // ring-outgoing: gentle 2-note pattern — 2400ms, -16.6 LUFS
+  {
+    const buf = new Float32Array(Math.round(2.4 * SR));
+    const s = seedFor("premium", "ring-outgoing");
+    // Gentle two-note: G5 then E5 (descending major 3rd, like a "waiting" tone)
+    addBellNote(buf, 0.0, NOTE.G5, 0.75, 0.5, s, 0.75);
+    addBellNote(buf, 0.35, NOTE.E5, 0.7, 0.55, s + 1013, 0.75);
+    // Silence, then repeat (but the period is shorter so it repeats sooner)
+    addBellNote(buf, 1.1, NOTE.G5, 0.7, 0.5, s + 2026, 0.7);
+    addBellNote(buf, 1.45, NOTE.E5, 0.65, 0.55, s + 3039, 0.7);
+    addRoom(buf, ROOM_RING);
+    fadeEdges(buf, 2);
+    normalizeLufsLimited(buf, -16.6, PEAK_CEIL);
+    rings["ring-outgoing"] = buf;
+  }
+
+  return { cues, rings };
+}
+
+/** Every selectable family id, in listening order (new candidates first). */
+const FAMILY_IDS = ["premium", "porcelain", "teaglass", "stoneware", "felt", "marimba", "glass"];
+
+/** Founder-facing label/blurb for a family id. */
 function familyInfo(id) {
+  if (id === "premium") {
+    return {
+      label: "Premium",
+      blurb:
+        "Discord-seviye: toggle'lar perkusif gürültü, ses olayları çan, mesajlar pop, ekran paylaşımı whoosh, ziller melodi — her kategori farklı tınıda.",
+    };
+  }
   const fam = FAMILIES.find((f) => f.id === id);
-  if (fam) return { label: fam.label, blurb: fam.blurb };
-  return {
-    label: "Mevcut (eski)",
-    blurb: "Şu an yayında olan sinüs tabanlı set — karşılaştırma referansı.",
-  };
+  if (!fam) throw new Error(`unknown family "${id}"`);
+  return { label: fam.label, blurb: fam.blurb };
 }
 
 // ---------------------------------------------------------------------------
@@ -1070,7 +1923,11 @@ async function wavToOgg(wavBuf, tag) {
     "ffmpeg",
     [
       "-y", "-hide_banner", "-loglevel", "error",
-      "-i", tmpWav, "-ac", "1", "-c:a", "libvorbis", "-q:a", "4", tmpOgg,
+      "-i", tmpWav, "-ac", "1", "-c:a", "libvorbis", "-q:a", "4",
+      // bitexact: fixed Ogg stream serial + no encoder tag, so a regenerate of
+      // unchanged audio produces byte-identical files (no phantom diffs).
+      "-fflags", "+bitexact", "-flags:a", "+bitexact", "-map_metadata", "-1",
+      tmpOgg,
     ],
     { stdio: "inherit" },
   );
@@ -1085,106 +1942,261 @@ async function wavToOgg(wavBuf, tag) {
 // Write
 // ---------------------------------------------------------------------------
 
-async function writeBytes(relPath, bytes) {
-  const abs = join(ROOT, relPath);
-  await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, bytes);
-  return relPath;
+/** Resolve a repo-relative path (or pass an absolute one through). */
+function resolveOut(p) {
+  return isAbsolute(p) ? p : join(ROOT, p);
 }
 
-/** One measured line per cue — the build log doubles as the evidence trail. */
+async function writeBytes(path, bytes) {
+  const abs = resolveOut(path);
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, bytes);
+  return path;
+}
+
+/**
+ * In-place iterative radix-2 FFT (re/im arrays, length a power of two). Only
+ * used for the measurement column — the synthesis never touches the frequency
+ * domain.
+ */
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [re[i], re[j]] = [re[j], re[i]];
+      [im[i], im[j]] = [im[j], im[i]];
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (-2 * Math.PI) / len;
+    const wr = Math.cos(ang);
+    const wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1;
+      let ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const a = i + k;
+        const b = a + len / 2;
+        const tr = re[b] * cr - im[b] * ci;
+        const ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr;
+        im[b] = im[a] - ti;
+        re[a] += tr;
+        im[a] += ti;
+        const ncr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr;
+        cr = ncr;
+      }
+    }
+  }
+}
+
+/**
+ * Spectral shape of the whole cue (power spectrum of the first <= 1.36 s):
+ * centroid in Hz ("how bright it reads") and the share of power above 3 kHz.
+ */
+function spectrum(buf) {
+  let n = 1;
+  while (n < Math.min(buf.length, 65536)) n <<= 1;
+  const re = new Float64Array(n);
+  const im = new Float64Array(n);
+  for (let i = 0; i < Math.min(buf.length, n); i++) re[i] = buf[i];
+  fft(re, im);
+  let tot = 0;
+  let wsum = 0;
+  let hi = 0;
+  for (let k = 1; k < n / 2; k++) {
+    const p = re[k] * re[k] + im[k] * im[k];
+    const hz = (k * SR) / n;
+    tot += p;
+    wsum += p * hz;
+    if (hz >= 3000) hi += p;
+  }
+  return tot > 0 ? { centroidHz: wsum / tot, hiPct: (100 * hi) / tot } : { centroidHz: 0, hiPct: 0 };
+}
+
+/**
+ * How far under the peak the cue already was when the tail fade began (dB). A
+ * fade that starts at <= -40 dB is shaping room tail, not cutting a note.
+ * `fadeMs` must match the trimTail fade; a loop file reports its last 30 ms.
+ */
+function residualAtFadeDb(buf, fadeMs = 30) {
+  const peak = peakOf(buf);
+  const end = buf.length - Math.round((fadeMs / 1000) * SR);
+  const from = Math.max(0, end - Math.round(0.01 * SR));
+  let m = 0;
+  for (let i = from; i < end; i++) m = Math.max(m, Math.abs(buf[i]));
+  return peak > 0 ? dbfs(m / peak) : -Infinity;
+}
+
+/**
+ * One measured row per cue — the build log doubles as the evidence trail, and
+ * the listening page prints the same numbers next to every player.
+ */
 function measure(name, buf) {
+  const peak = peakOf(buf);
+  const thr = peak * fromDb(-40);
+  let onset = 0;
+  while (onset < buf.length && Math.abs(buf[onset]) < thr) onset++;
+  const spec = spectrum(buf);
   return {
     name,
     durMs: (buf.length / SR) * 1000,
-    peakDb: dbfs(peakOf(buf)),
+    peakDb: dbfs(peak),
     loudDb: dbfs(loudness(buf)),
+    lufs: maxMomentaryLufs(buf),
+    onsetMs: (onset / SR) * 1000,
+    residualDb: residualAtFadeDb(buf),
+    centroidHz: spec.centroidHz,
+    hiPct: spec.hiPct,
   };
+}
+
+function fmt(n, d = 1) {
+  return Number.isFinite(n) ? n.toFixed(d) : "-inf";
 }
 
 function printMeasurements(rows) {
   for (const r of rows) {
     console.log(
-      `  ${r.name.padEnd(14)} ${r.durMs.toFixed(0).padStart(4)} ms   ` +
-        `peak ${r.peakDb.toFixed(1).padStart(6)} dBFS   ` +
-        `loudness ${r.loudDb.toFixed(1).padStart(6)} dBFS`,
+      `  ${r.name.padEnd(15)} ${fmt(r.durMs, 0).padStart(4)} ms  ` +
+        `LUFS-M ${fmt(r.lufs).padStart(6)}  peak ${fmt(r.peakDb).padStart(6)} dBFS  ` +
+        `onset ${fmt(r.onsetMs, 2).padStart(5)} ms  cut ${fmt(r.residualDb, 0).padStart(4)} dB  ` +
+        `centroid ${fmt(r.centroidHz, 0).padStart(5)} Hz  >3k ${fmt(r.hiPct).padStart(5)} %`,
     );
   }
 }
 
+/** Families on the listening page: the three new candidates, then the shipped one. */
+const PREVIEW_IDS = ["premium", "porcelain", "teaglass", "stoneware", "felt"];
+/** The family that is live in production before this refresh (the "old" column). */
+const PREVIOUS_FAMILY = "felt";
+
+/** Founder-facing meaning of every event, for the listening page. */
+const EVENT_INFO = {
+  "voice-join": "Sesli kanala sen katıldın",
+  "voice-leave": "Sesli kanaldan sen ayrıldın",
+  "peer-join": "Kanalına biri katıldı",
+  "peer-leave": "Kanalından biri ayrıldı",
+  mute: "Mikrofon kapandı",
+  unmute: "Mikrofon açıldı",
+  deafen: "Sağırlaştırma açıldı (YENİ)",
+  undeafen: "Sağırlaştırma kapandı (YENİ)",
+  "screen-start": "Ekran paylaşımı başladı",
+  "screen-stop": "Ekran paylaşımı bitti",
+  message: "Yeni mesaj",
+  mention: "Sana @bahsetme (YENİ)",
+  "call-connected": "Arama bağlandı (YENİ)",
+  "call-ended": "Arama bitti / reddedildi (YENİ)",
+  "peer-left-call": "Karşı taraf aramadan çıktı (YENİ)",
+  error: "Hata — mikrofon izni, cihaz, bağlantı (YENİ)",
+  "ring-incoming": "Gelen arama zili (döngü)",
+  "ring-outgoing": "Giden arama bekleme sesi (döngü)",
+};
+
+/** Events the previously shipped set did NOT have (no "old" sound to compare). */
+const NEW_EVENTS = new Set([
+  "deafen", "undeafen", "mention", "call-connected", "call-ended", "peer-left-call", "error",
+]);
+
 /**
- * Preview mode: render EVERY family into build/sound-previews/<family>/ and drop
- * a self-contained HTML player next to them. Touches no shipping asset — the
- * founder listens, then a single `--family=<id>` run (or ACTIVE_FAMILY) ships it.
+ * Preview mode: render the candidate families into `<out>/<family>/` and drop a
+ * self-contained, event-major HTML player next to them (old vs every candidate,
+ * measured stats beside each). Touches no shipping asset.
  */
-async function writePreviews(ext, ogg) {
-  const families = [];
-  for (const id of FAMILY_IDS) {
+async function writePreviews(outDir, ext, ogg) {
+  /** @type {Record<string, Record<string, ReturnType<typeof measure> & { file:string }>>} */
+  const byEvent = {};
+  for (const id of PREVIEW_IDS) {
     console.log(`\nFamily: ${id}`);
     const { cues, rings } = buildFamily(id);
     const rows = [];
-    const files = [];
     for (const [name, buf] of Object.entries(cues)) {
       const wav = encodeWav(buf);
       const bytes = ogg ? await wavToOgg(wav, `${id}-${name}`) : wav;
-      await writeBytes(`${PREVIEW_DIR}/${id}/${name}.${ext}`, bytes);
-      rows.push(measure(name, buf));
-      files.push({ name, file: `${id}/${name}.${ext}` });
+      const file = `${id}/${name}.${ext}`;
+      await writeBytes(join(outDir, file), bytes);
+      const row = measure(name, buf);
+      rows.push(row);
+      (byEvent[name] ??= {})[id] = { ...row, file };
     }
     for (const [name, buf] of Object.entries(rings)) {
-      await writeBytes(`${PREVIEW_DIR}/${id}/${name}.wav`, encodeWav(buf));
-      rows.push(measure(name, buf));
-      files.push({ name, file: `${id}/${name}.wav` });
+      const file = `${id}/${name}.wav`;
+      await writeBytes(join(outDir, file), encodeWav(buf));
+      const row = measure(name, buf);
+      rows.push(row);
+      (byEvent[name] ??= {})[id] = { ...row, file };
     }
     printMeasurements(rows);
-    families.push({ id, ...familyInfo(id), files });
   }
-
-  await writeBytes(`${PREVIEW_DIR}/index.html`, Buffer.from(previewHtml(families), "utf8"));
-  console.log(`\nPreview player: ${PREVIEW_DIR}/index.html`);
+  await writeBytes(join(outDir, "stats.json"), Buffer.from(JSON.stringify(byEvent, null, 2), "utf8"));
+  await writeBytes(join(outDir, "index.html"), Buffer.from(previewHtml(byEvent), "utf8"));
+  console.log(`\nPreview player: ${join(outDir, "index.html")}`);
 }
 
 /** Self-contained listening page (no network, no build step, dark-first). */
-function previewHtml(families) {
+function previewHtml(byEvent) {
   const esc = (s) =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const sections = families
-    .map(
-      (f) => `<section>
-  <h2>${esc(f.label)} <code>${esc(f.id)}</code></h2>
-  <p>${esc(f.blurb)}</p>
-  <div class="grid">
-${f.files
-  .map(
-    (c) => `    <div class="cue"><span>${esc(c.name)}</span><audio controls preload="none" src="${esc(c.file)}"></audio></div>`,
-  )
-  .join("\n")}
-  </div>
-</section>`,
-    )
+  const stat = (r) =>
+    `${fmt(r.durMs, 0)} ms · ${fmt(r.lufs)} LUFS · tepe ${fmt(r.peakDb)} dBFS · merkez ${fmt(r.centroidHz, 0)} Hz`;
+  const head = PREVIEW_IDS.map((id) => {
+    const { label } = familyInfo(id);
+    const tag =
+      id === ACTIVE_FAMILY ? " ★ seçilen" : id === PREVIOUS_FAMILY ? " · şu an yayında" : "";
+    return `<th>${esc(label)}<small>${esc(id)}${esc(tag)}</small></th>`;
+  }).join("");
+  const rows = Object.keys(EVENT_INFO)
+    .map((name) => {
+      const cells = PREVIEW_IDS.map((id) => {
+        const r = byEvent[name]?.[id];
+        if (!r) return "<td>—</td>";
+        let note = "";
+        if (id === PREVIOUS_FAMILY && NEW_EVENTS.has(name)) note = "eski sette yoktu — keçe tınısıyla örnek";
+        if (id === PREVIOUS_FAMILY && name.startsWith("ring-")) note = "mobilde yayında; masaüstü eskiden sinüs bip sentezliyordu";
+        return `<td class="${id === ACTIVE_FAMILY ? "pick" : ""}"><audio controls preload="none" src="${esc(r.file)}"></audio><small>${esc(stat(r))}</small>${note ? `<em>${esc(note)}</em>` : ""}</td>`;
+      }).join("");
+      return `<tr><th scope="row">${esc(EVENT_INFO[name])}<small>${esc(name)}</small></th>${cells}</tr>`;
+    })
     .join("\n");
+  const blurbs = PREVIEW_IDS.map((id) => {
+    const { label, blurb } = familyInfo(id);
+    return `<li><b>${esc(label)}</b> — ${esc(blurb)}</li>`;
+  }).join("");
   return `<!doctype html>
 <html lang="tr"><head><meta charset="utf-8">
-<title>Demli — ses aileleri</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demli — Koyu Masa sesleri</title>
 <style>
 :root{color-scheme:dark}
-body{margin:0;padding:32px;background:#0d0f12;color:#e6e8ec;
-  font:15px/1.55 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
-h1{font-size:20px;margin:0 0 4px}
-h1+p{margin:0 0 28px;color:#8b93a1;font-size:13px}
-section{margin:0 0 30px;padding:18px 20px;border:1px solid #23262d;border-radius:12px;background:#13161a}
-h2{font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
-code{font-size:12px;color:#8b93a1;background:#0d0f12;border:1px solid #23262d;padding:2px 6px;border-radius:5px}
-section>p{margin:0 0 16px;color:#8b93a1;font-size:13px}
-.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
-.cue{display:flex;flex-direction:column;gap:5px}
-.cue span{font-size:12px;color:#b6bcc7}
-audio{width:100%;height:34px}
+body{margin:0;padding:28px 16px;background:#0f0d0b;color:#ece6df;
+  font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 6px}
+p,li{color:#a59c92;font-size:13px}
+ul{margin:0 0 20px;padding-left:18px}
+.wrap{overflow-x:auto;border:1px solid #2a2520;border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:10px 12px;border-bottom:1px solid #2a2520;vertical-align:top;text-align:left}
+thead th{background:#17130f;font-weight:600}
+th small,td small{display:block;color:#8a8178;font-size:11px;font-weight:400;margin-top:3px}
+td em{display:block;color:#c79a5b;font-size:11px;font-style:normal;margin-top:2px}
+td.pick{background:#1c1712}
+audio{width:220px;height:32px}
+code{background:#1c1712;border:1px solid #2a2520;border-radius:5px;padding:1px 5px;font-size:12px}
 </style></head><body>
-<h1>Demli — bildirim/arayüz ses aileleri</h1>
-<p>Hepsi bu depoda sıfırdan sentezlendi (üçüncü-parti örnek yok). Bir aile seç; sonra
-<code>node scripts/gen-sounds.mjs --family=&lt;id&gt;</code> onu iki istemciye de yazar.</p>
-${sections}
+<h1>Demli — "Koyu Masa" ses ailesi: eski vs adaylar</h1>
+<p>Hepsi depoda sıfırdan sentezlendi (<code>scripts/gen-sounds.mjs</code>, üçüncü-parti örnek yok).
+Ses düzeyi BS.1770 max-momentary LUFS (ffmpeg ebur128 ile aynı ölçü). ★ = ölçütlerle seçilen varsayılan;
+başka bir aday için <code>ACTIVE_FAMILY</code>'yi değiştirip <code>pnpm gen:sounds</code> çalıştır.</p>
+<ul>${blurbs}</ul>
+<div class="wrap"><table>
+<thead><tr><th>Olay</th>${head}</tr></thead>
+<tbody>
+${rows}
+</tbody></table></div>
 </body></html>`;
 }
 
@@ -1192,6 +2204,7 @@ async function main() {
   const args = process.argv.slice(2);
   const preview = args.includes("--preview");
   const familyArg = args.find((a) => a.startsWith("--family="));
+  const outArg = args.find((a) => a.startsWith("--out="));
   const family = familyArg ? familyArg.slice("--family=".length) : ACTIVE_FAMILY;
 
   if (!preview && !FAMILY_IDS.includes(family)) {
@@ -1225,17 +2238,18 @@ async function main() {
       ? "ffmpeg found -> encoding one-shot cues as Ogg Vorbis"
       : "ffmpeg NOT found -> writing WAV fallback",
   );
-  if (!ogg) {
-    console.log(
-      "  NOTE: sound-manager imports expect .ogg on both clients. Install ffmpeg\n" +
-        "  and re-run, or update the imports to .wav.",
-    );
+  if (!ogg && !preview) {
+    // Both clients import .ogg; a WAV fallback would leave stale Ogg files in
+    // place that silently keep shipping. Fail loudly instead.
+    console.error("  ffmpeg is required to write the shipping assets (both clients import .ogg).");
+    process.exit(1);
   }
   const ext = ogg ? "ogg" : "wav";
 
   if (preview) {
-    console.log(`\nPREVIEW MODE — writing every family to ${PREVIEW_DIR}/ (no shipping asset touched).`);
-    await writePreviews(ext, ogg);
+    const outDir = outArg ? outArg.slice("--out=".length) : PREVIEW_DIR;
+    console.log(`\nPREVIEW MODE — writing candidates to ${outDir}/ (no shipping asset touched).`);
+    await writePreviews(outDir, ext, ogg);
     console.log("\nDone.");
     return;
   }
@@ -1243,22 +2257,26 @@ async function main() {
   console.log(`\nFamily: ${family} (${familyInfo(family).label})`);
   const { cues, rings } = buildFamily(family);
 
-  console.log("\nOne-shot cues (desktop + mobile):");
+  console.log("\nOne-shot cues (desktop + mobile, Ogg):");
   const cueRows = [];
   for (const [name, buf] of Object.entries(cues)) {
-    const wav = encodeWav(buf);
-    const bytes = ogg ? await wavToOgg(wav, name) : wav;
+    const bytes = await wavToOgg(encodeWav(buf), name);
     cueRows.push(measure(name, buf));
-    await writeBytes(`${DESKTOP_DIR}/${name}.${ext}`, bytes);
-    await writeBytes(`${MOBILE_DIR}/${name}.${ext}`, bytes);
+    await writeBytes(`${DESKTOP_DIR}/${name}.ogg`, bytes);
+    await writeBytes(`${MOBILE_DIR}/${name}.ogg`, bytes);
   }
   printMeasurements(cueRows);
 
-  console.log("\nRing cadences (mobile WAV loops):");
+  // Rings: the SAME audio on both clients. Mobile keeps WAV (decodes everywhere
+  // with expo-audio, and Metro bundles it by default); desktop gets Ogg — its
+  // renderer decodes Vorbis natively and it is ~20x smaller in the installer.
+  console.log("\nRing cadences (desktop Ogg loop + mobile WAV loop):");
   const ringRows = [];
   for (const [name, buf] of Object.entries(rings)) {
+    const wav = encodeWav(buf);
     ringRows.push(measure(name, buf));
-    await writeBytes(`${MOBILE_DIR}/${name}.wav`, encodeWav(buf));
+    await writeBytes(`${MOBILE_DIR}/${name}.wav`, wav);
+    await writeBytes(`${DESKTOP_DIR}/${name}.ogg`, await wavToOgg(wav, name));
   }
   printMeasurements(ringRows);
 

@@ -936,7 +936,9 @@ function handleMessageCreated(payload: MessageDTO): void {
       visible: visibleContext(),
     })
   ) {
-    playSound("message");
+    // A direct @mention gets its own, one-step-brighter cue (same switch, same
+    // mute rules — it IS a message notification).
+    playSound(isMention ? "mention" : "message");
   }
 
   // Toast (native OS toast on desktop / browser notification on web, with an
