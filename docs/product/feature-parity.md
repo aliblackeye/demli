@@ -1921,7 +1921,7 @@ tuşuyla davranışı.
 
 Dalga 3 tablolarındaki "⏳ / ⛔ Dalga 4" mobil hücreleri birleşen mobil dallarına (kit, kabuk,
 sohbet, ses, profil) göre tek tek KAYNAKTA doğrulandı — dalların kendi bölümlerindeki iddialara
-güvenilmedi. 38 satır ✅ oldu; yarım kalanlar ◑ ve notunda eksik ne olduğu yazıyor; yapılmayanlar
+güvenilmedi. 39 satır ✅ oldu (açılış ekranı kaynakta hazır, 2.1.0 APK ile çıkar); yarım kalanlar ◑ ve notunda eksik ne olduğu yazıyor; yapılmayanlar
 (çökme ekranı, paylaşım karosunda CANLI hapı, sunucu/rol ayarlarında kaydedilmemiş çubuğu, canlı
 doğrulama + sayaç, "başka yerden değişti") ⏳ kaldı. Bu doğrulama cihazda değil kodda yapıldı;
 yukarıdaki dalların cihaz kapıları hâlâ açık. Kişi başı ses masaüstü %100 tavanı satırı en üstteki
