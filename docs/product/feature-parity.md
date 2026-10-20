@@ -254,6 +254,15 @@ zaten gelmişti; bu dalga onun ALTINDAKİ sistemi kuruyor.
 | `content-visibility` (yalnız SANALLAŞTIRILMAMIŞ listeler) | ✅ üye/DM/pin/arama satırları | — (FlatList zaten sanal) |
 | Yeni mesaj "arrival" animasyonu | ✅ blur+translateY+opacity | ✅ opacity+scale (ters FlatList Y eksenini çevirdiği için translate yok) |
 | reduced-motion saygısı | ✅ global `@media` koruması | ✅ `useReducedMotion()` (AccessibilityInfo) |
+| Rail tile morph (daire→squircle) | ✅ 48px, hover/active border-radius transition | — (mobil rail yok) |
+| Mesaj body font boyutu 15px | ✅ `text-[15px]` | ✅ `fontSize: 15` (zaten) |
+| Typing dots bounce animasyonu | ✅ CSS `typing-bounce` keyframe | ✅ Reanimated translateY + opacity |
+| Mesaj hover toolbar translateY girişi | ✅ `translate-y-1 → 0` + opacity | — (mobilde hover yok) |
+| Mesaj listesi scrollbar her zaman görünür | ✅ `scrollbar-always` utility | — (Android platform davranışı) |
+| Glass menü opaklığı %95 | ✅ tokens.css `glass-strong` | — (mobilde glass menü yok) |
+| Voice panel geçen süre (elapsed) | ✅ mm:ss / h:mm:ss | — (mobil voice panel'de henüz yok) |
+| Ses efektleri: Discord-kalibreli premium aile | ✅ gen-sounds.mjs premium family | ✅ aynı .ogg asset'ler |
+| Yeni ses cue'ları (mention/deafen/call/error) | ✅ 7 yeni cue | ✅ 7 yeni cue |
 
 Bilinen boşluklar: mobil arrival animasyonu **cihaz/emülatör doğrulaması bekliyor** (yerel APK
 Windows MAX_PATH nedeniyle derlenmedi; mobil typecheck + 188 unit test + `expo export` temiz).
