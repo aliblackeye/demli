@@ -34,9 +34,6 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
             <strong className="text-[14px] font-medium leading-[19.6px] tracking-[-0.28px] text-[#e5e5e5] tb:text-[16px] tb:leading-[19.2px] tb:tracking-[-0.32px]">
               {data.name}
             </strong>
-            <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-secondary opacity-70 tb:text-[14px] tb:leading-[16.8px] tb:tracking-[-0.28px]">
-              {data.date}
-            </p>
           </div>
         </div>
         <div className="flex flex-col gap-2">
@@ -45,12 +42,6 @@ export function ReviewCard({ data }: { data: ReviewCardData }) {
             {data.title}
           </strong>
           <p className="text-[16px] leading-6 text-text-secondary opacity-70 tb:text-[18px] tb:leading-[25.2px]">{data.body}</p>
-        </div>
-        {/* Ölçülen (390 yerinde): kart yıldızları HER kırılımda 14px */}
-        <div className="flex items-center gap-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <MaskIcon key={i} name="star" size={14} color="#eab30a" />
-          ))}
         </div>
       </div>
     </a>

@@ -55,11 +55,6 @@ export function TrustBadge() {
           ))}
         </div>
         <div className="flex w-[76px] flex-col items-start gap-1">
-          <div className="flex items-center gap-1">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <MaskIcon key={i} name="star" size={12} color="#eab30a" />
-            ))}
-          </div>
           <p className="text-[12px] font-medium leading-[14.4px] tracking-[-0.24px] text-text-secondary tb:text-[14px] tb:leading-[16.8px] tb:tracking-[-0.28px]">
             {t("reviews.badge")}
           </p>
