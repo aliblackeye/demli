@@ -3,7 +3,7 @@
  * sounds/sound-manager.ts, rebuilt on `expo-audio` (already baked into the
  * shipped APK — no new native module, so this whole feature ships over OTA).
  *
- * Real audio files — the SAME nine cues the desktop bundles, synthesized by
+ * Real audio files — the SAME cues the desktop bundles (byte-identical Ogg), synthesized by
  * `scripts/gen-sounds.mjs` into `assets/sounds/*.ogg` and pulled in with
  * `require()` so Metro bundles them (one brand sound family across both clients).
  *
@@ -13,8 +13,9 @@
  *   hook) is used because this is a plain module, not a component.
  * - Every `playSound()` re-reads the persisted settings, so toggles apply
  *   immediately without any extra wiring.
- * - A per-sound ~100ms throttle stops the same cue from stuttering when a burst
- *   of store updates fires it repeatedly.
+ * - The shared cue gate (`createCueGate`, @demli/client-core — the SAME one
+ *   desktop runs) throttles a cue re-fired within ~100ms by a burst of store
+ *   updates, and drops a cue that would only repeat what another cue just said.
  * - Playback failures are caught and logged — a sound must never crash the app.
  *
  * Audio focus / mixing (CRITICAL — must not disturb the LiveKit VoIP session):
@@ -29,6 +30,7 @@
  */
 import { Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import { createCueGate } from "@demli/client-core";
 import { runAudioModeChange } from "./audio-mode-guard";
 import { useSoundSettings } from "./sound-settings";
 
@@ -42,7 +44,14 @@ export type UiSound =
   | "unmute"
   | "message"
   | "screen-start"
-  | "screen-stop";
+  | "screen-stop"
+  | "deafen"
+  | "undeafen"
+  | "mention"
+  | "call-connected"
+  | "call-ended"
+  | "peer-left-call"
+  | "error";
 
 // `require()` returns an asset module id (number); Metro bundles the .ogg once
 // `ogg` is in assetExts (see metro.config.js). Static keys so the bundler can
@@ -61,14 +70,22 @@ const SOUND_SOURCES: Record<UiSound, number> = {
   message: require("../../assets/sounds/message.ogg"),
   "screen-start": require("../../assets/sounds/screen-start.ogg"),
   "screen-stop": require("../../assets/sounds/screen-stop.ogg"),
+  deafen: require("../../assets/sounds/deafen.ogg"),
+  undeafen: require("../../assets/sounds/undeafen.ogg"),
+  mention: require("../../assets/sounds/mention.ogg"),
+  "call-connected": require("../../assets/sounds/call-connected.ogg"),
+  "call-ended": require("../../assets/sounds/call-ended.ogg"),
+  "peer-left-call": require("../../assets/sounds/peer-left-call.ogg"),
+  error: require("../../assets/sounds/error.ogg"),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-/** Same cue re-triggered within this window is dropped. */
-const THROTTLE_MS = 100;
+/** Cues governed by the separate "message notification" switch. */
+const MESSAGE_CUES: ReadonlySet<UiSound> = new Set<UiSound>(["message", "mention"]);
 
 const players = new Map<UiSound, AudioPlayer>();
-const lastPlayedAt = new Map<UiSound, number>();
+/** Throttle + cross-cue arbiter, shared with desktop (client-core cue-gate.ts). */
+const gate = createCueGate<UiSound>();
 
 /**
  * Global cue kill-switch, mirrored from desktop for API parity. Desktop sets it
@@ -188,12 +205,9 @@ export function playSound(name: UiSound): void {
   if (suppressed) return;
   const { enabled, volume, messageEnabled } = useSoundSettings.getState();
   if (!enabled || volume <= 0) return;
-  if (name === "message" && !messageEnabled) return;
+  if (MESSAGE_CUES.has(name) && !messageEnabled) return;
 
-  const now = Date.now();
-  const last = lastPlayedAt.get(name);
-  if (last !== undefined && now - last < THROTTLE_MS) return;
-  lastPlayedAt.set(name, now);
+  if (!gate.admit(name, Date.now())) return;
 
   void playNow(name, volume);
 }

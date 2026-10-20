@@ -1022,7 +1022,12 @@ function handleMessageCreated(payload: MessageDTO): void {
         visible: visibleContext(),
       });
     if (alertable) {
-      playSound("message");
+      // A DIRECT @mention gets its own, one-step-brighter cue (same switch).
+      // Broadcast @everyone/@here is excluded, exactly like desktop — `isMention`
+      // above includes broadcast for the unread pip, so it is not reused here.
+      const directMention =
+        isMention && contentMentionsUser(message.content, me?.id ?? "", false);
+      playSound(directMention ? "mention" : "message");
       // Foreground in-app banner (#110): sender + preview → tap opens the chat.
       // Mute-filtered inside; never fires when backgrounded (OS push covers that).
       maybeShowMessageBanner(message, isMention);

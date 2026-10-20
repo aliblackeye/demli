@@ -3,6 +3,7 @@ import { AnimatePresence, m } from "framer-motion";
 import { Phone, PhoneOff } from "lucide-react";
 import { UserAvatar } from "@demli/ui";
 import { bannerDrop, toastPop } from "@demli/app-ui";
+import { callTransitionCue } from "@demli/client-core";
 import type { CallEndedReason, CallRole, CallState, PendingInvite } from "@demli/client-core";
 import type { AppTFunction } from "../lib/i18n";
 import { useAppTranslation } from "../lib/i18n";
@@ -115,6 +116,18 @@ export function CallLayer(): JSX.Element | null {
     else stopRingtone();
   }, [state.phase, state.pending, doNotDisturb]);
   useEffect(() => () => stopRingtone(), []);
+
+  // ── call outcome cues: connected / ended / failed (shared policy) ──────────
+  // `callTransitionCue` is the SAME rule mobile applies (sounds/call-ringtone.ts),
+  // so both clients cue a call identically. The voice-room cues stay silent for
+  // dmcall rooms (voice-sounds.ts) — the caller is in the room while it rings,
+  // so only the FSM knows when the call actually connected.
+  const prevCallRef = useRef<CallState>(state);
+  useEffect(() => {
+    const cue = callTransitionCue(prevCallRef.current, state);
+    prevCallRef.current = state;
+    if (cue) playSound(cue);
+  }, [state]);
 
   // ── busy banner: a SHORT single cue for a parked 2nd invite (never the ring) ─
   const beepedRef = useRef<string | null>(null);

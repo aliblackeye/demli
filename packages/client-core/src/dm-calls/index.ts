@@ -41,6 +41,9 @@ export type {
   VoiceSnapshot,
 } from "./voice-bridge.js";
 
+export { CALL_ROOM_PREFIX, callTransitionCue, isCallRoomId } from "./call-cues.js";
+export type { CallCue } from "./call-cues.js";
+
 export { createCallController, DEFAULT_RING_TIMEOUT_MS } from "./call-controller.js";
 export type {
   CallActionName,

@@ -2,7 +2,8 @@
  * UI sound effects — playback core.
  *
  * Real audio files (no Web Audio synthesis): short cues synthesized by
- * `scripts/gen-sounds.mjs` into one coherent brand sound family, bundled by Vite
+ * `scripts/gen-sounds.mjs` into one coherent brand sound family ("Koyu Masa"
+ * porcelain since 2026-10-20), bundled by Vite
  * as assets (see `docs/product/sound-credits.md`). The mobile client bundles the
  * byte-identical set so the two clients play the same cues.
  *
@@ -11,12 +12,15 @@
  *   (never stored in React state — CLAUDE.md §27).
  * - Every `play()` re-reads the persisted settings, so toggles apply
  *   immediately without any wiring.
- * - A per-sound ~100ms throttle stops the same cue from stuttering when a
- *   burst of store updates fires it repeatedly.
+ * - The shared cue gate (`createCueGate`, @demli/client-core — the SAME one
+ *   mobile runs) throttles a cue re-fired within ~100ms by a burst of store
+ *   updates, and drops a cue that would only repeat what another cue just said
+ *   (a peer hang-up is `peer-left-call`, not that plus `call-ended`).
  * - `HTMLAudioElement.play()` rejections (autoplay policy, missing output
  *   device) are caught and logged — a sound must never crash the app.
  */
 
+import { createCueGate } from "@demli/client-core";
 import { useSoundSettings } from "./sound-settings";
 import voiceJoinUrl from "./assets/voice-join.ogg";
 import voiceLeaveUrl from "./assets/voice-leave.ogg";
@@ -27,6 +31,13 @@ import unmuteUrl from "./assets/unmute.ogg";
 import messageUrl from "./assets/message.ogg";
 import screenStartUrl from "./assets/screen-start.ogg";
 import screenStopUrl from "./assets/screen-stop.ogg";
+import deafenUrl from "./assets/deafen.ogg";
+import undeafenUrl from "./assets/undeafen.ogg";
+import mentionUrl from "./assets/mention.ogg";
+import callConnectedUrl from "./assets/call-connected.ogg";
+import callEndedUrl from "./assets/call-ended.ogg";
+import peerLeftCallUrl from "./assets/peer-left-call.ogg";
+import errorUrl from "./assets/error.ogg";
 
 /** Every UI sound cue the app can play. */
 export type UiSound =
@@ -38,7 +49,14 @@ export type UiSound =
   | "unmute"
   | "message"
   | "screen-start"
-  | "screen-stop";
+  | "screen-stop"
+  | "deafen"
+  | "undeafen"
+  | "mention"
+  | "call-connected"
+  | "call-ended"
+  | "peer-left-call"
+  | "error";
 
 const SOUND_URLS: Record<UiSound, string> = {
   "voice-join": voiceJoinUrl,
@@ -50,13 +68,21 @@ const SOUND_URLS: Record<UiSound, string> = {
   message: messageUrl,
   "screen-start": screenStartUrl,
   "screen-stop": screenStopUrl,
+  deafen: deafenUrl,
+  undeafen: undeafenUrl,
+  mention: mentionUrl,
+  "call-connected": callConnectedUrl,
+  "call-ended": callEndedUrl,
+  "peer-left-call": peerLeftCallUrl,
+  error: errorUrl,
 };
 
-/** Same cue re-triggered within this window is dropped. */
-const THROTTLE_MS = 100;
+/** Cues governed by the separate "message notification" switch. */
+const MESSAGE_CUES: ReadonlySet<UiSound> = new Set<UiSound>(["message", "mention"]);
 
 const elements = new Map<UiSound, HTMLAudioElement>();
-const lastPlayedAt = new Map<UiSound, number>();
+/** Throttle + cross-cue arbiter, shared with mobile (client-core cue-gate.ts). */
+const gate = createCueGate<UiSound>();
 
 /**
  * Global cue kill-switch. Set true while the local user shares SYSTEM AUDIO: the
@@ -94,12 +120,9 @@ export function playSound(name: UiSound): void {
   if (suppressed) return;
   const { enabled, volume, messageEnabled } = useSoundSettings.getState();
   if (!enabled || volume <= 0) return;
-  if (name === "message" && !messageEnabled) return;
+  if (MESSAGE_CUES.has(name) && !messageEnabled) return;
 
-  const now = Date.now();
-  const last = lastPlayedAt.get(name);
-  if (last !== undefined && now - last < THROTTLE_MS) return;
-  lastPlayedAt.set(name, now);
+  if (!gate.admit(name, Date.now())) return;
 
   const el = getElement(name);
   el.volume = volume;

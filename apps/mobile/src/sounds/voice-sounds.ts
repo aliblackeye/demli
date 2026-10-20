@@ -18,6 +18,16 @@
  *   across the wire; the flip is already a local action)
  * - a remote screen share we are WATCHING starts/stops : screen-start/-stop
  *
+ * - deafened flips while connected  : deafen / undeafen (the mic cue of that same
+ *   update is skipped — deafening mutes the mic in the same breath)
+ * - a NEW voice error surfaces, in any state : error
+ *
+ * DM-call rooms (`dmcall:<id>`, `isCallRoomId`) — same rule as desktop: the call
+ * FSM owns call-connected / call-ended (call-ringtone.ts, `callTransitionCue`),
+ * because the caller sits in the room while it still rings. Inside a call room:
+ * self join/leave stay silent, the first remote arriving is silent (the call
+ * connecting), a later arrival is peer-join, any remote leaving is peer-left-call.
+ *
  * Screen-share difference from desktop: desktop cues on the LOCAL user's own
  * screenShareEnabled flip. Mobile cannot publish a screen (E2 — the host shares
  * from desktop; the phone only watches), so `screenShareEnabled` is always
@@ -38,6 +48,7 @@
  * join-cue-timing.ts for the full root-cause note. Desktop keeps its immediate
  * cue (no audio-mode switch there).
  */
+import { isCallRoomId } from "@demli/client-core";
 import type { RemoteScreenShare } from "@demli/media";
 import {
   getRemoteScreenShares,
@@ -113,7 +124,7 @@ function handleStatusChange(state: VoiceSnapshot, prev: VoiceSnapshot): void {
     // Fresh join (not a reconnect recovery) arms the join cue on a short settle
     // delay (see JOIN_CUE_SETTLE_MS); either way the roster + share baselines
     // reset silently and the grace window re-arms.
-    if (prev.status === "joining") joinCue.arm();
+    if (prev.status === "joining" && !isCallRoomId(state.roomId)) joinCue.arm();
     connectedAt = Date.now();
     knownRemote = remoteIdentities(state);
     knownShares = shareIdentities(getRemoteScreenShares());
@@ -129,7 +140,8 @@ function handleStatusChange(state: VoiceSnapshot, prev: VoiceSnapshot): void {
   // Requiring `inSession(prev)` — which excludes leaving/idle — means the
   // trailing leaving → idle step never double-plays. (CLAUDE.md §11)
   if ((status === "leaving" || status === "idle") && inSession(prev.status)) {
-    playSound("voice-leave");
+    // roomId is already null once idle — the room we left is the previous one.
+    if (!isCallRoomId(prev.roomId ?? state.roomId)) playSound("voice-leave");
   }
   knownRemote = remoteIdentities(state);
 }
@@ -137,18 +149,21 @@ function handleStatusChange(state: VoiceSnapshot, prev: VoiceSnapshot): void {
 function handleRosterChange(state: VoiceSnapshot): void {
   const current = remoteIdentities(state);
   const silent = Date.now() - connectedAt < ROSTER_GRACE_MS;
+  const callRoom = isCallRoomId(state.roomId);
   if (!silent) {
     // At most one cue per direction per update, even if several people came or
     // went in the same batch — no machine-gun bursts.
     for (const id of current) {
       if (!knownRemote.has(id)) {
-        playSound("peer-join");
+        // In a call room the first remote arriving IS the call connecting —
+        // call-ringtone.ts plays call-connected for that.
+        if (!callRoom || knownRemote.size > 0) playSound("peer-join");
         break;
       }
     }
     for (const id of knownRemote) {
       if (!current.has(id)) {
-        playSound("peer-leave");
+        playSound(callRoom ? "peer-left-call" : "peer-leave");
         break;
       }
     }
@@ -166,6 +181,10 @@ useVoiceStore.subscribe((state, prev) => {
   // audio — but kept faithful to desktop and future-proof for mobile-as-host).
   setSoundsSuppressed(state.screenShareEnabled && state.screenShareHasAudio);
 
+  // A NEW error is a failure the user should hear, whatever the status did.
+  const newError = state.error !== null && state.error !== prev.error;
+  if (newError) playSound("error");
+
   if (state.status !== prev.status) {
     handleStatusChange(state, prev);
     return;
@@ -178,9 +197,13 @@ useVoiceStore.subscribe((state, prev) => {
   // Mic cue only for a real flip while in the room. Skip when the same update
   // surfaced a new error (e.g. mic acquisition failed and the engine forced
   // micEnabled off) — that is a failure, not a user action.
-  const newError = state.error !== null && state.error !== prev.error;
-  if (!newError && state.micEnabled !== prev.micEnabled) {
-    playSound(toggleCue(state.micEnabled, "unmute", "mute"));
+  if (!newError) {
+    const deafenFlipped = state.deafened !== prev.deafened;
+    if (deafenFlipped) playSound(toggleCue(state.deafened, "deafen", "undeafen"));
+    // Deafen sets micEnabled in the same update; one gesture, one cue.
+    if (!deafenFlipped && state.micEnabled !== prev.micEnabled) {
+      playSound(toggleCue(state.micEnabled, "unmute", "mute"));
+    }
   }
 });
 
