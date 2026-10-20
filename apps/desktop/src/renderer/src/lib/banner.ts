@@ -1,23 +1,35 @@
 /**
- * Profile banner helpers (M15). A user may upload a banner image (photo or GIF);
- * when they have not, the card/settings header shows a warm, per-user diagonal
- * wash derived from the SAME seed the avatar uses — so the banner and avatar never
- * drift apart (single source: {@link seedColor}). The wash mixes toward the app
- * base (#1a0806) so it always reads as "Demli" rather than a flat colour block.
+ * Profile banner helpers (M15, re-toned for Koyu Masa in M16). A user may upload
+ * a banner image (photo or GIF); when they have not, the card/settings header
+ * shows a per-user wash derived from the SAME seed the avatar uses — so the
+ * banner and the initials avatar never drift apart (single source:
+ * {@link seedColor}).
  *
- * Single source for BOTH the profile card ({@link ProfileCard}) and the unified
- * account settings panel ({@link ProfileSettings}).
+ * Koyu Masa: the wash is the user's hue sunk into the neutral base (no warm
+ * `#1a0806` floor any more — the warm ramp is retired), with ONE coral glow in
+ * the top-left corner — the design system's "single warm light on black"
+ * (demli-design-system §6), the same light the landing hero carries. Every
+ * colour here is a token or the seeded hue; no literal hex.
+ *
+ * Single source for the profile card ({@link ProfileCard}), its live preview in
+ * the account settings ({@link ProfileSettings}) and the crop editor preview.
  */
 
 import type { CSSProperties } from "react";
 import { seedColor } from "@demli/ui";
 import type { User } from "@demli/types";
 
-/** Inline style for the banner gradient fallback (no uploaded image). */
+/** Inline style for the banner fallback (no uploaded image). */
 export function bannerGradient(seed: string): CSSProperties {
   const base = seedColor(seed);
   return {
-    backgroundImage: `linear-gradient(135deg, ${base} 0%, color-mix(in oklab, ${base} 52%, #1a0806) 100%)`,
+    backgroundColor: "var(--color-app)",
+    backgroundImage: [
+      // The warm light: a soft coral glow anchored top-left.
+      "radial-gradient(120% 140% at 0% 0%, var(--color-accent-glow) 0%, transparent 55%)",
+      // The person: their seeded hue, fading into the neutral base.
+      `linear-gradient(135deg, color-mix(in oklab, ${base} 78%, var(--color-app)) 0%, color-mix(in oklab, ${base} 30%, var(--color-app)) 100%)`,
+    ].join(", "),
   };
 }
 

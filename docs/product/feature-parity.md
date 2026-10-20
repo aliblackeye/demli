@@ -110,6 +110,10 @@ Durumlar: ✅ çalışıyor · 🚧 yapım aşamasında · ⛔ yok (görev no zo
 | Görselin baytları gelmezse dürüst hata + yeniden imzalayan "Yeniden dene" | ✅ | ⛔ M16 Dalga 4 | İmzalı URL çözülüp baytlar düşerse (süresi dolmuş imza, 403/404, kopan bağlantı) karo sonsuza kadar nabız atıyordu. Artık hata karosu; yeniden deneme önbellekteki URL'yi atıp yeniden imzalatır. |
 | Kendi gönderdiğin mesaj tek satırda onaylanır (varış hareketi bir kez) | ✅ | — (mobil listenin kendi anahtarı; Dalga 4'te kontrol) | Onaylanan mesaj iyimser satırın anahtarını (`renderKey`) korur; yankı ile önbellek güncellemesi arasındaki tek karede satır kaybolmaz. |
 | Eski sayfa yüklenirken ekrandaki mesajlar yerinden oynamaz | ✅ | ⛔ M16 Dalga 4 | Sabit yükseklikli yükleme satırı eklenirken telafi edilir; sayfa gelince en üstteki mesaj satırına göre, boyamadan önce (layout effect) yeniden çapalanır. |
+| Avatar + banner KIRPMA editörü (daire / 8:3 maske, sürükle + tekerlek/pinch + kaydırıcı + klavye, sıfırla, canlı kart + mesaj önizlemesi) | ✅ (YAYINLANMADI, dal `feat/m16-ui-profile`) | ⛔ M16 Dalga 4 | Masaüstü+web tek renderer. Dışa aktarım 512² / 1200×450 WebP (küçük kaynak büyütülmez), sunucu sınırları altında; EXIF kanvas turunda düşer. Hareketli banner: "hareketli kalsın" (özgün bayt, kırpmasız) ya da "kırp, hareketsiz olsun". GIF avatar: ilk kare, editör bunu söyler. Mobil şu an kırpmasız seçiyor (`expo-image-picker`). |
+| Profil ayarları: canlı kart önizlemesi + yapışkan "kaydedilmemiş değişiklik" çubuğu (adımlı kayıt, yalnız kalanı tekrar dene, Ctrl/⌘+S) | ✅ (YAYINLANMADI) | ⛔ M16 Dalga 4 | Adım sayacı GERÇEK istek sayısıdır (avatar → banner → profil); bayt bazlı yükleme yüzdesi YOK — yükleme `client-core` `fetch` ile gidiyor, ilerleme olayı vermiyor. |
+| Avatar / banner KALDIRMA | ✅ (YAYINLANMADI) | ⛔ M16 Dalga 4 | Kaydet'e kadar taslak ("Kaldırmaktan vazgeç" aynı düğmede). `PATCH /users/me {avatarUrl / bannerUrl: null}` — API zaten kabul ediyordu. |
+| Moderasyon onayları: at / yasakla / zaman aşımı (sonuç listesi, tehlike işareti; saf onaylarda odak İptal'de) | ✅ (YAYINLANMADI) | ◑ | Zaman aşımı artık alt menüden ANINDA değil; süre + bitiş saati + isteğe bağlı sebep soran diyalogla. Mobil süreyi zaten sheet'te soruyor (`MemberActionSheet` timeout modu); sonuç listesi Dalga 4. |
 
 ## Süreç
 
@@ -1651,3 +1655,29 @@ masaüstü seçici, hata/izin yok, azaltılmış hareket, 240px kenar çubuğu (
 odağı (piksel örneği) ve 1280×800 / 940×560 seçici kiplerinde 0 konsol hatası/uyarısı — tek
 istisna azaltılmış hareket kipinde framer-motion'ın yalnız dev build'de yazdığı
 "Reduced Motion enabled" bildirimi (üretimde `NODE_ENV` ile silinir).
+
+## 2026-10-20 — M16 Dalga 3: kimlik her yerde (masaüstü + web; dal `feat/m16-ui-profile`, YAYINLANMADI)
+
+| Özellik | Masaüstü/Web | Mobil | Not |
+|---|---|---|---|
+| Avatar + banner kırpma editörü | ✅ | ⛔ Dalga 4 | `ImageCropDialog` + saf geometri (`lib/image-crop`, maske hep dolu) + dosya hattı (`lib/image-file`: bayttan tür, piksel bütçesi, hareketli GIF/WebP tespiti) |
+| Profil kartı Koyu Masa (8:3 banner, cam eylem diskleri, iç panel, iskelet + hata/tekrar dene) | ✅ | ⛔ Dalga 4 | önizlemeler kartın kendi `ProfileIdentityPreview` işaretlemesini kullanır |
+| Avatar: xl/2xl boy, foto belirme geçişi (önbellekte atlanır), durum noktası halkası `--avatar-ring` değişkenini izler, çevrilmiş durum etiketi | ✅ | — | eklemeli primitive değişikliği |
+| Avatar büyütme: imlece doğru yakınlaştırma, ok/±/0 klavye, açılış/kapanış animasyonu | ✅ | ◑ (mevcut lightbox) | |
+| Üye menüsü: "Moderasyon" bölüm etiketi, rol seçimi gerçek `menuitemcheckbox` | ✅ | — | |
+| Özel durum: üye listesi önizlemesi + kesin temizlenme saati | ✅ | ⛔ Dalga 4 | |
+| Banner yedek rengi: eski sıcak taban (`#1a0806`) kalktı, kişinin tonu + tek mercan ışık | ✅ | ⛔ Dalga 4 | |
+| Profil kartı pencereye sığar: en fazla Radix'in ölçtüğü yükseklik, orta bölüm kayar (alt kenar solar), DM kutusu / "Profili düzenle" sabit | ✅ | — (mobilde tam ekran sayfa) | 1280×800 ve 940×560'ta 8 kartın hepsi ekran içinde |
+| Tehlikeli onaylar (at/yasakla/arkadaşlıktan çıkar/engelle, hesap silme) İptal'e odaklı açılır; açılışta Enter hiçbir şey yapmaz | ✅ | — | yasaklama sebebi alanına odaklanıp tek Enter'la yasaklıyordu |
+| Hesap silme + kaydedilmemiş-değişiklik uyarısı ortak tehlike kabuğunda (ikon diski, sonuç maddeleri, darda alt sayfa) | ✅ | — | `ConfirmLayer` kaldırıldı; tek onay görünümü |
+| Kullanıcı/moderasyon diyalogları her açılışta temiz (vazgeçilen taslak, eski hata, son süre seçimi geri gelmez) | ✅ | — | özel not sorgusu yalnız diyalog açıkken çalışır |
+| Kırpma önizlemesi: async WebP (`toBlob`) — sürüklerken uzun görev yok; yüklenirken/hatada mevcut foto kalır, sütun söner | ✅ | ⛔ Dalga 4 | eski `toDataURL` 54–79 ms uzun görev üretiyordu |
+| Avatar foto geçişi yalnız gerçek ilk yüklemede; çözülmüş URL ilk karede opak (sanal mesaj listesinde kanal değişiminde yanıp sönme yok), `src` değişimi baş harfe düşmeden yer değiştirir | ✅ | — | `packages/ui` eklemeli |
+
+**Doğruluk düzeltmesi:** yasaklama metni "Yasağı sunucu ayarlarından kaldırabilirsin" diyordu;
+masaüstünde yasak listesi/kaldırma ekranı YOK (API `GET/DELETE /groups/:id/bans` var). Metin
+artık bunu vaat etmiyor; yasak kaldırma arayüzü ayrı bir iş.
+
+**Kanıt:** `apps/web/harness-profile.html` (yalnız geliştirme) gerçek bileşenleri sahte taşıma
+katmanıyla çizer; headless Chrome ile 0 konsol hatası, token/hover/odak/animasyon/azaltılmış
+hareket kontrolleri.

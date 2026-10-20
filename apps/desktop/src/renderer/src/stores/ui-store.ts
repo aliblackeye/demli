@@ -94,7 +94,9 @@ export type MemberDialog =
   /** Destructive: remove from the server. */
   | { kind: "kick"; userId: UserId; displayName: string; groupId: GroupId }
   /** Destructive: remove + permanently bar from rejoining. */
-  | { kind: "ban"; userId: UserId; displayName: string; groupId: GroupId };
+  | { kind: "ban"; userId: UserId; displayName: string; groupId: GroupId }
+  /** Moderation: silence for a chosen duration (no messages, reactions or voice). */
+  | { kind: "timeout"; userId: UserId; displayName: string; groupId: GroupId };
 
 interface UiStore {
   commandMenuOpen: boolean;

@@ -28,12 +28,17 @@ export function TimeoutBadge({ timedOutUntil, className }: TimeoutBadgeProps): J
     ? t("desktop:members.timedOutUntil", { date: until })
     : t("desktop:members.timedOut");
 
+  // `role="img"` so the label is announced as the glyph's name (an <svg> with a
+  // bare aria-label is skipped by several screen readers). The tooltip opens on
+  // hover; the same text reaches keyboard and screen-reader users through the
+  // label, so the badge stays out of the tab order of a 50-row roster.
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Clock
+          role="img"
           aria-label={label}
-          className={cn("size-3.5 shrink-0 self-center text-idle", className)}
+          className={cn("size-3.5 shrink-0 self-center text-warning", className)}
         />
       </TooltipTrigger>
       <TooltipContent side="top">{label}</TooltipContent>

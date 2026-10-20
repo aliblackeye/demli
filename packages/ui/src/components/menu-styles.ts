@@ -30,6 +30,10 @@ export const menuLabelClass =
 
 export const menuSubOpenClass = "data-[state=open]:bg-raised data-[state=open]:text-fg";
 
-/** Right-hand tick box for checkbox items. */
+/**
+ * Right-hand tick box for checkbox items. On a highlighted row the box lifts one
+ * step (raised-hover) — the row itself turns `raised`, and a raised box on a
+ * raised row would vanish exactly when the pointer is on it.
+ */
 export const menuCheckBoxClass =
-  "ml-2 grid size-4 shrink-0 place-items-center rounded-[5px] bg-raised text-on-accent group-data-[state=checked]:bg-accent";
+  "ml-2 grid size-4 shrink-0 place-items-center rounded-[5px] bg-raised text-on-accent transition-colors motion-hover group-data-[highlighted]:group-data-[state=unchecked]:bg-raised-hover group-data-[state=checked]:bg-accent";

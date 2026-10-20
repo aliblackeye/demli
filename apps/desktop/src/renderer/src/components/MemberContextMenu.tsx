@@ -3,7 +3,6 @@ import {
   AtSign,
   Ban,
   BellOff,
-  Check,
   Clock,
   Copy,
   Gavel,
@@ -22,13 +21,13 @@ import {
   UserRoundX,
 } from "lucide-react";
 import {
+  ContextMenuCheckboxItem,
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-  cn,
 } from "@demli/ui";
 import {
   ActionMenu,
@@ -47,7 +46,6 @@ import { useAppTranslation } from "../lib/i18n";
 import {
   memberMenuGroups,
   isDestructiveMemberMenuItem,
-  TIMEOUT_PRESET_MINUTES,
   type MemberMenuContext,
   type MemberMenuItem,
 } from "../lib/member-menu";
@@ -58,7 +56,6 @@ import {
   useRoles,
   useServerPermissions,
   useSetMemberRoles,
-  useTimeoutMember,
 } from "../queries/chat-queries";
 import {
   useAcceptFriendRequest,
@@ -77,7 +74,16 @@ import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
 import { useVoiceOccupancyStore } from "../stores/voice-occupancy-store";
 
-const ROLE_DOT_FALLBACK = "#95a5a6";
+/** A role with no colour of its own gets the neutral meta tone (a token, never a literal). */
+const ROLE_DOT_FALLBACK = "var(--color-fg-faint)";
+
+/** Entries that act on someone as a MODERATOR — grouped under a label, at the bottom. */
+const MODERATION_ITEMS: ReadonlySet<MemberMenuItem> = new Set([
+  "voiceDisconnect",
+  "timeout",
+  "kick",
+  "ban",
+]);
 
 /**
  * Everything the menu needs about its target that the CALLER already knows.
@@ -200,7 +206,6 @@ function MemberMenuBody({
   const openDm = useOpenDm();
   const ignoreUser = useIgnoreUser();
   const unignoreUser = useUnignoreUser();
-  const timeoutMember = useTimeoutMember(groupId);
   const removeTimeout = useRemoveMemberTimeout(groupId);
 
   // The membership row carries the SERVER nickname and the timeout instant.
@@ -548,8 +553,10 @@ function MemberMenuBody({
         );
 
       case "timeout":
-        // Already muted → one entry that LIFTS it. Offering durations while a
-        // timeout is running would hide the only action they actually want.
+        // Already timed out → one entry that LIFTS it (not destructive, so no
+        // confirmation). Otherwise the entry opens the confirmation, where the
+        // duration is chosen with the consequences in view — the same
+        // "confirmations own the mutations" rule as kick and ban.
         return targetTimedOut ? (
           <ContextMenuItem
             key={item}
@@ -559,24 +566,17 @@ function MemberMenuBody({
             {t("desktop:userMenu.timeoutRemove")}
           </ContextMenuItem>
         ) : (
-          <ContextMenuSub key={item}>
-            <ContextMenuSubTrigger className={cn(danger && "text-danger")}>
-              <Clock className="size-4" />
-              {t("desktop:userMenu.timeout", { name })}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-44">
-              {TIMEOUT_PRESET_MINUTES.map((minutes) => (
-                <ContextMenuItem
-                  key={minutes}
-                  onSelect={() =>
-                    void timeoutMember.mutate({ userId: target.userId, minutes }, { onError: fail })
-                  }
-                >
-                  {formatTimeoutDuration(minutes, t)}
-                </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          <ContextMenuItem
+            key={item}
+            danger={danger}
+            onSelect={() => {
+              if (!groupId) return;
+              setMemberDialog({ kind: "timeout", userId: target.userId, displayName: name, groupId });
+            }}
+          >
+            <Clock className="size-4" />
+            {t("desktop:userMenu.timeout", { name })}
+          </ContextMenuItem>
         );
 
       case "kick":
@@ -618,7 +618,7 @@ function MemberMenuBody({
             <Copy className="size-4" />
             <span className="min-w-0 flex-1">{t("desktop:userMenu.copyUsername")}</span>
             {/* Shows exactly what lands on the clipboard. */}
-            <span className="shrink-0 truncate rounded bg-white/[0.08] px-1 py-px text-[10px] font-medium text-fg-faint">
+            <span className="max-w-[45%] shrink-0 truncate rounded-[6px] bg-wash px-1.5 py-px text-badge font-medium text-fg-faint">
               @{handle}
             </span>
           </ContextMenuItem>
@@ -639,6 +639,12 @@ function MemberMenuBody({
       {groups.map((group, index) => (
         <Fragment key={group.join("|")}>
           {index > 0 && <ContextMenuSeparator />}
+          {/* The moderation block (disconnect / timeout / kick / ban) is named,
+              so the destructive rows read as a deliberate section rather than
+              more of the same list. */}
+          {group.some((item) => MODERATION_ITEMS.has(item)) && (
+            <ContextMenuLabel>{t("desktop:userMenu.dangerZoneLabel")}</ContextMenuLabel>
+          )}
           {group.map(renderItem)}
         </Fragment>
       ))}
@@ -706,47 +712,32 @@ function RolesSubmenu({
           (roles ?? []).map((role) => {
             const on = assigned.has(role.id);
             return (
-              <ContextMenuItem
+              <ContextMenuCheckboxItem
                 key={role.id}
-                // Keep the menu open per toggle so several roles can be flipped
-                // in one pass (preventDefault stops Radix's close-on-select).
+                checked={on}
+                // A real checkbox row (role="menuitemcheckbox" + aria-checked),
+                // kept open per toggle so several roles can be flipped in one
+                // pass (preventDefault stops Radix's close-on-select).
                 onSelect={(event) => {
                   event.preventDefault();
                   toggleRole(role.id, !on);
                 }}
               >
-                <span
-                  className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded border",
-                    on ? "border-accent bg-accent text-on-accent" : "border-stroke-strong",
-                  )}
-                >
-                  {on && <Check className="size-3" strokeWidth={3} />}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: role.color ?? ROLE_DOT_FALLBACK }}
+                  />
+                  <span className="min-w-0 truncate">{role.name}</span>
                 </span>
-                <span
-                  aria-hidden
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: role.color ?? ROLE_DOT_FALLBACK }}
-                />
-                <span className="min-w-0 truncate">{role.name}</span>
-              </ContextMenuItem>
+              </ContextMenuCheckboxItem>
             );
           })
         )}
       </ContextMenuSubContent>
     </ContextMenuSub>
   );
-}
-
-/** "60 seconds" / "5 minutes" / "1 hour" / "1 day" / "1 week", localized. */
-function formatTimeoutDuration(
-  minutes: number,
-  t: ReturnType<typeof useAppTranslation>["t"],
-): string {
-  if (minutes < 60) return t("desktop:userMenu.durationMinutes", { count: minutes });
-  if (minutes < 1440) return t("desktop:userMenu.durationHours", { count: minutes / 60 });
-  if (minutes < 10080) return t("desktop:userMenu.durationDays", { count: minutes / 1440 });
-  return t("desktop:userMenu.durationWeeks", { count: minutes / 10080 });
 }
 
 /**
