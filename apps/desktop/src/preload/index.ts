@@ -67,6 +67,11 @@ import {
   EXTERNAL_LINK_CHANNELS,
   type ExternalLinksBridge,
 } from "../main/external-link-types";
+import {
+  IMAGE_CONVERT_CHANNELS,
+  type ImageConvertBridge,
+  type HeicToJpegResult,
+} from "../main/image-convert-types";
 
 /**
  * Preload bridge — the ONLY surface the renderer gets.
@@ -374,6 +379,17 @@ const images: ImagesBridge = {
 };
 
 /**
+ * Image format conversion (HEIC/HEIF → JPEG). The renderer sends raw bytes,
+ * main decodes via the OS codec (nativeImage) and returns JPEG bytes. No
+ * filesystem path crosses the boundary. See `main/image-convert.ts`.
+ */
+const imageConvert: ImageConvertBridge = {
+  heicToJpeg(heicBytes: Uint8Array): Promise<HeicToJpegResult> {
+    return ipcRenderer.invoke(IMAGE_CONVERT_CHANNELS.heicToJpeg, heicBytes);
+  },
+};
+
+/**
  * External links. ONE verb — open an http(s) address in the OS browser — and no
  * `shell` object behind it, so `openPath` / `showItemInFolder` / `trashItem`
  * remain unreachable from the renderer.
@@ -411,6 +427,7 @@ const api = {
   systemIdle,
   notifications,
   images,
+  imageConvert,
   externalLinks,
 } as const;
 
@@ -485,3 +502,8 @@ export type {
 } from "../main/image-actions-types";
 
 export type { ExternalLinksBridge } from "../main/external-link-types";
+
+export type {
+  HeicToJpegResult,
+  ImageConvertBridge,
+} from "../main/image-convert-types";

@@ -15,6 +15,7 @@ import { initSentry } from "./sentry";
 import { registerAutoUpdater } from "./auto-update";
 import { registerNotifications } from "./notifications";
 import { registerImageActions } from "./image-actions";
+import { registerImageConvert } from "./image-convert";
 import { registerExternalLinks } from "./external-link";
 import { denyWindowOpen } from "./external-link-policy";
 import {
@@ -192,6 +193,14 @@ function createMainWindow(): BrowserWindow {
     }
   });
 
+  window.webContents.on("render-process-gone", (_event, details) => {
+    if (details.reason === "clean-exit") return;
+    setTimeout(() => {
+      if (window.isDestroyed()) return;
+      window.webContents.reload();
+    }, 300);
+  });
+
   if (process.env["ELECTRON_RENDERER_URL"]) {
     void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
@@ -256,6 +265,11 @@ app.whenReady().then(() => {
   // focus window + `activated` navigate event). No window prefs or navigation
   // are touched; see main/notifications.ts for the security posture.
   registerNotifications();
+
+  // Register HEIC/HEIF → JPEG conversion (the renderer cannot decode HEIC
+  // natively; Chromium may crash when it touches the raw bytes). The main
+  // process delegates to the OS codec via nativeImage. See main/image-convert.ts.
+  registerImageConvert();
 
   // Register "save image as…" / "copy image" for chat pictures. Both are
   // privileged (native save dialog + filesystem write, clipboard bitmap), so the

@@ -26,7 +26,18 @@ import { outputSize, type CropKind, type CropRect } from "./image-crop";
 
 /** Types the picker accepts (the input `accept` attribute + the pre-check). */
 export const CROP_INPUT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
-export const CROP_INPUT_ACCEPT = CROP_INPUT_TYPES.join(",");
+/**
+ * File picker accept string. Includes HEIC/HEIF extensions so the dialog shows
+ * them — they are converted to JPEG via the main-process IPC before the editor
+ * sees them, so they never reach the renderer's image decoder directly.
+ */
+export const CROP_INPUT_ACCEPT = [
+  ...CROP_INPUT_TYPES,
+  ".heic",
+  ".heif",
+  "image/heic",
+  "image/heif",
+].join(",");
 
 /** Largest file the editor will open to crop (it is re-encoded far smaller). */
 export const CROP_INPUT_MAX_BYTES = 20 * 1024 * 1024;
@@ -131,17 +142,63 @@ export function isAnimatedWebp(bytes: Uint8Array): boolean {
 }
 
 /**
+ * True when the raw sniff says HEIC/HEIF — a format the renderer cannot decode
+ * but the main process can convert to JPEG via `nativeImage`.
+ */
+function isHeicMime(mime: string | null): boolean {
+  return mime === "image/heic";
+}
+
+/**
+ * Ask the main process to convert HEIC bytes to JPEG. Returns the JPEG bytes,
+ * or null on failure. Only available on desktop (the bridge exists on
+ * `window.demli`).
+ */
+async function convertHeicToJpeg(heicBytes: Uint8Array): Promise<Uint8Array | null> {
+  const bridge = (globalThis as Record<string, unknown>)["demli"] as
+    | { imageConvert?: { heicToJpeg(bytes: Uint8Array): Promise<{ status: string; jpegBytes?: Uint8Array }> } }
+    | undefined;
+  if (!bridge?.imageConvert) return null;
+  const result = await bridge.imageConvert.heicToJpeg(heicBytes);
+  if (result.status === "converted" && result.jpegBytes) {
+    return result.jpegBytes;
+  }
+  return null;
+}
+
+/**
  * Validate and inspect a picked file before anything is decoded. Order is
  * cheap-first and mirrors the server: declared type → byte cap → real type
  * from the bytes → pixel budget (read from the header, not by decoding — a
  * 40 KB PNG can declare 30000² and cost gigabytes once decoded).
+ *
+ * HEIC/HEIF: detected by magic bytes, converted to JPEG via the main-process
+ * IPC (Electron nativeImage + OS codec) before the renderer's image decoder
+ * ever touches the bytes — this prevents the native Chromium crash that HEIC
+ * triggers on Windows.
  */
 export async function inspectImageFile(
   file: Blob,
 ): Promise<{ ok: true; image: InspectedImage } | { ok: false; problem: ImageFileProblem }> {
-  if (file.type !== "" && !isInputType(file.type)) return { ok: false, problem: "type" };
+  if (
+    file.type !== "" &&
+    !isInputType(file.type) &&
+    file.type !== "image/heic" &&
+    file.type !== "image/heif"
+  ) {
+    return { ok: false, problem: "type" };
+  }
   if (file.size > CROP_INPUT_MAX_BYTES) return { ok: false, problem: "size" };
-  const bytes = await readFileBytes(file);
+  let bytes = await readFileBytes(file);
+
+  const rawMime = sniffImageMime(bytes);
+
+  if (isHeicMime(rawMime)) {
+    const jpegBytes = await convertHeicToJpeg(bytes);
+    if (!jpegBytes) return { ok: false, problem: "type" };
+    bytes = jpegBytes;
+  }
+
   const mime = sniffImageType(bytes);
   if (!mime) return { ok: false, problem: "type" };
   if (!isWithinPixelBudget(bytes)) return { ok: false, problem: "pixels" };

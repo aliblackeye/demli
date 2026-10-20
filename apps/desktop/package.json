@@ -1,6 +1,6 @@
 {
   "name": "@demli/desktop",
-  "version": "0.0.82",
+  "version": "0.0.83",
   "license": "AGPL-3.0-only",
   "private": true,
   "description": "Demli desktop app (Electron + React)",

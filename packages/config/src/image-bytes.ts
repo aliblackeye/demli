@@ -85,7 +85,36 @@ export function sniffImageMime(bytes: Uint8Array): string | null {
   ) {
     return "image/webp";
   }
+  if (isHeicBytes(bytes)) {
+    return "image/heic";
+  }
   return null;
+}
+
+/**
+ * ISO Base Media File Format (HEIC/HEIF/AVIF): bytes 4–7 spell "ftyp", then
+ * bytes 8–11 carry a brand that identifies the container variant.
+ */
+function isHeicBytes(bytes: Uint8Array): boolean {
+  if (bytes.length < 12) return false;
+  if (
+    bytes[4] !== 0x66 || // f
+    bytes[5] !== 0x74 || // t
+    bytes[6] !== 0x79 || // y
+    bytes[7] !== 0x70    // p
+  ) {
+    return false;
+  }
+  const brand = String.fromCharCode(
+    bytes[8] ?? 0,
+    bytes[9] ?? 0,
+    bytes[10] ?? 0,
+    bytes[11] ?? 0,
+  );
+  return [
+    "heic", "heix", "hevc", "hevx",
+    "heim", "heis", "mif1",
+  ].includes(brand);
 }
 
 function be16(bytes: Uint8Array, at: number): number {
