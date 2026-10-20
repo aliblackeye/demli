@@ -7,7 +7,6 @@ import { AlertCircle, MessageCircle, MessageSquarePlus, PenSquare, Search, UserP
 import { useAppTranslation } from "@/lib/i18n";
 import type { Dm, Group } from "@demli/types";
 import { Avatar } from "@/components/Avatar";
-import { BrandMark } from "@/components/BrandMark";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonList } from "@/components/Skeleton";
 import { DmActionsSheet } from "@/components/home/DmActionsSheet";
@@ -191,7 +190,6 @@ export function DmListPanel() {
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, flex: 1 }}>
-          <BrandMark size="sm" />
           <Text
             variant="display"
             accessibilityRole="header"

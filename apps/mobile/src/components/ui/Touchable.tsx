@@ -15,7 +15,7 @@
  * never waits on a busy JS thread — and it honours the OS reduce-motion switch
  * through the adapters in theme/motion.ts.
  */
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   Pressable,
   type GestureResponderEvent,
@@ -58,6 +58,9 @@ export type TouchableProps = Omit<PressableProps, "style" | "children"> & {
   children?: ReactNode | ((state: { pressed: boolean }) => ReactNode);
 };
 
+/** A focus event this soon after a touch came from that touch, not a keyboard. */
+export const TOUCH_FOCUS_WINDOW_MS = 600;
+
 export function Touchable({
   tone = CLEAR,
   pressedTone = colors.wash,
@@ -79,6 +82,9 @@ export function Touchable({
   const pressed = useSharedValue(0);
   const scale = useSharedValue(1);
   const [focused, setFocused] = useState(false);
+  // The focus ring is for keyboard/D-pad focus only: a finger tap can also move
+  // focus on Android, and selection is already shown by the surface itself.
+  const lastTouchAt = useRef(0);
   // Only render-prop children need the pressed flag on the JS side.
   const [pressedJs, setPressedJs] = useState(false);
   const wantsPressedJs = typeof children === "function";
@@ -94,6 +100,8 @@ export function Touchable({
       disabled={disabled}
       accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
       onPressIn={(e: GestureResponderEvent) => {
+        lastTouchAt.current = Date.now();
+        setFocused(false);
         pressed.value = toneTo(true, reduced);
         if (pressScale) scale.value = pressTo(pressScale, reduced);
         if (wantsPressedJs) setPressedJs(true);
@@ -110,7 +118,7 @@ export function Touchable({
         onPress?.(e);
       }}
       onFocus={(e) => {
-        setFocused(true);
+        if (Date.now() - lastTouchAt.current > TOUCH_FOCUS_WINDOW_MS) setFocused(true);
         onFocus?.(e);
       }}
       onBlur={(e) => {
