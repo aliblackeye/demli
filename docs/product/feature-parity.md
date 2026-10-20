@@ -100,20 +100,20 @@ Durumlar: ✅ çalışıyor · 🚧 yapım aşamasında · ⛔ yok (görev no zo
 | Avatar FOTOĞRAFI her yüzeyde (sesli oda + çağrı dahil) | ✅ | ✅ | Founder P0: "sesli odada avatar gelmiyor". 76. satırdaki düzeltme yalnız iki bileşeni yamamıştı; tarama 35 `<UserAvatar>` çağrısının **20'sinin** `src` geçmediğini gösterdi (sesli oda satırı, sahne tile'ı, kamera tile'ları, tüm çağrı yüzeyleri, hesap değiştirici, DM listesi, pin/arama). Kök sebep tek tek unutkanlık değil, **opsiyonel prop**: geçilmeyince sessizce baş harf çiziliyor, hata hiçbir yerde görünmüyordu (aynı sınıf üçüncü kez bildirildi). `UserAvatarProps.src` artık **zorunlu** (tipi `string \| null \| undefined` kalıyor, ama `?` yok → TS varlığını şart koşuyor), yani unutmak derleme hatası. 18'i gerçek avatara bağlandı; eksik alanı olan iki DTO'ya alan eklendi (`ShellDmRow.participantAvatarUrl`, `MentionCandidate.avatarUrl` + `ComposerDirectoryUser.avatarUrl`). Kalan 2'si gerçekten avatarsız dal (`UserFooter` oturum-kapalı, `AvatarLightbox` `url==null`) ve `src={null}` gerekçesiyle `avatar-src-coverage.test.ts`'te sabitlendi. **Mobil ikizi de KAPANDI (2026-07-28, aynı yapısal düzeltme):** `Avatar.uri` de opsiyoneldi; 32 çağrının 28'i doğruydu, eksik 4'ü tam da founder'ın şikâyet ettiği yüzeylerdi — `voice/ParticipantTile.tsx` (sesli oda + çağrı ızgarası, ekran-paylaşımı filmstribi, tam ekran), `voice/VoiceParticipant.tsx` (oda satırı + paylaşım çipi), `voice/DraggableCameraPip.tsx` (aktif konuşmacı PiP), `Composer.tsx` (bahsetme listesi). `uri` artık **zorunlu** (`string \| null \| undefined`, `?` yok). Sesli yüzeylerde avatar `nameFor` ile **birebir aynı** çözümleme merdiveninden geçen yeni `avatarFor` ile bulunuyor (grup rosteri → DM peer → kullanıcı dizini), yani adı görünebilen bir katılımcının fotoğrafı da her zaman görünür; DM aramada peer çoğu kez kullanıcı dizininde OLMADIĞI için ızgara boş baş harf çiziyordu — asıl kök neden buydu. `ParticipantTileData.avatarUrl` + `PipSubject.avatarUrl` alanları eklendi (ara bileşenler prop'u açıkça geçiyor). Tek gerekçeli `uri={null}`: `member/AvatarLightbox.tsx` (fotoğrafı olmayan dal). Kalıcı koruma: `apps/mobile/src/components/avatar-uri-coverage.test.ts` (masaüstündeki `avatar-src-coverage.test.ts` deseni — mutasyon testiyle gerçekten kırmızıya döndüğü doğrulandı). |
 | Konuşma parıltısının kırpılmaması (ızgara + Watch Party filmstribi) | ✅ | — | Founder: "gradyanlı parlayan borderlar kırpılıyor". Kaydıran kap `overflow-y-auto` idi; CSS `overflow-x`'i de `auto` yapar, yani kap **dört yandan** kırpar → konuşan tile'ın turuncu halosu ızgaranın üst kenarında ve en dış sütunlarda düz kesiliyordu. Kaba padding vermek çözüm DEĞİL (padding scrollport'un içi: tile'lar kırpılmak yerine araç çubuğunun üstüne taşardı). Parıltı artık tile'ın **içine** çiziliyor (`inset` box-shadow + `ring-inset`), dolayısıyla kırpılacak bir şey kalmıyor — her tile sayısında, her kapta, her pencere genişliğinde. Dışarıda kalan tek katman siyah yükseklik gölgesi (koyu sahnede kırpılması görünmez). 4 tile: `AvatarTile`/`CameraTile`/`LocalCameraTile`/`ScreenShareTile`; koruma `tile-glow-inset.test.ts`. Playwright ile üç yerleşimde (sabit ızgara, kaydıran ızgara, filmstrip) 1400px ve 900px'te, pulse'ın en geniş karesi donduruldu: 22 tile'ın tamamında renkli katmanlar `inset`, kaydırma çalışıyor. Mobil ayrı renderer (bu CSS yok). |
 | Profil ayarlarında "kaydet'e basmadan kaydedilmez" taslak akışı | ✅ | ✅ | Founder kuralı: avatar/banner seçimi artık ANINDA yüklenmiyor; taslak olarak yerel önizlenir (`data:` URI, sıfır istek), tek "Profili kaydet" ile (görseller → ad/bio → set-once doğum tarihi, ayrı istekler) uygulanır — 409 BIRTHDATE_LOCKED ad/bio kaydını düşürmez. Kısmi başarısızlık dürüst raporlanır (başarılı adımın taslağı temizlenir, başarısız olan retry için durur). "Vazgeç" butonu + kaydedilmemiş-değişiklik uyarısı: masaüstünde Esc/backdrop/bölüm-değiştirme (ui-store `settingsDirty`/`pendingSettingsNav`), mobilde `beforeRemove` (başlık oku + Android geri tuşu + geri hareketi). Hesap silme guard'ı iki platformda da bilerek atlar. Mobilde ölü "Doğum tarihini kaydet" butonu kaldırıldı (§35). |
-| Mesaj listesinde gün ayraçları (Bugün / Dün / tarih) | ✅ | ⛔ M16 Dalga 4 (mobil sohbet taraması) | M16 Dalga 3 sohbet. Ortak `buildRows` `dateDividers` seçeneği (yerel gün; geriye düşen iyimser gönderi ikinci ayraç/çift anahtar üretmez; yok sayılan kişi katlaması gece yarısında bölünür). Etiket uygulama dilinde (`Intl`, `i18n.language`). |
+| Mesaj listesinde gün ayraçları (Bugün / Dün / tarih) | ✅ | ✅ | M16 Dalga 3 sohbet. Ortak `buildRows` `dateDividers` seçeneği (yerel gün; geriye düşen iyimser gönderi ikinci ayraç/çift anahtar üretmez; yok sayılan kişi katlaması gece yarısında bölünür). Etiket uygulama dilinde (`Intl`, `i18n.language`). |
 | Boş composer'da ↑ = son mesajını düzenle; düzenleyici kapanınca odak composer'a döner | ✅ | — (dokunmatikte ↑ yok; mobilde uzun bas → Düzenle) | Modül yayıcılarıyla (`data/edit-request.ts`), sanallaştırılmış listede satır pencere dışındaysa önce kaydırır. |
-| DM'de engellediğin kişiye composer yerine dürüst durum + "Engeli kaldır" | ✅ | ⛔ M16 Dalga 4 | Yalnız GÖRÜNENİN kendi engeli bilinir (karşı tarafın engeli asla gösterilmez). "Engeli kaldır" profil kartıyla aynı tek onay diyaloğunu açar (tek akış kuralı). DM listesi önbellekten okunur (aynı sorgu tanımıyla devre dışı bir gözlemci — `skipToken` paylaşılan sorgunun fn'ini silip her DM-listesi invalidasyonunu bozuyordu; ek istek yok); engel listesi yalnız DM açıkken çekilir. |
-| Görsel görüntüleyici: yakınlaştır/kaydır, mesajdaki görseller arasında gezin, klavye | ✅ | ⛔ M16 Dalga 4 (mobil ek görüntüleyici) | Tekerlek (imleç altında), çift tık, −/+/sığdır, + − 0 ve ok tuşları, sürükleyerek kaydırma, "2 / 3" sayacı; kaydet/kopyala düğmeleri korunur. |
-| Çoklu görsel = eşit kare ızgara (2/4 → 2 sütun, diğerleri 3) | ✅ | ⛔ M16 Dalga 4 | Hücre boyu yalnız sayıdan hesaplanır → satır yüksekliği bayt yüklenmeden kesin (§27). |
-| Composer: karakter sayacı (son 200), yükleme yüzdesi çubuğu (`progressbar`), bahsetme listesi `aria-activedescendant` | ✅ | ⛔ M16 Dalga 4 | |
-| Boş DM / grup sohbeti karşı tarafla açılır (avatar + ad, "#" yok) | ✅ | ⛔ M16 Dalga 4 | M16 Dalga 3 denetim düzeltmesi. DM ve grup sohbeti kişinin/grubun adını taşıyan gizli akış kanalı üzerinde çalıştığı için eskiden "#Can kanalına hoş geldin" yazıyordu. `ChatData.intro` (`dm` / `groupChat`); sunucu kanalı değişmedi. |
-| Görselin baytları gelmezse dürüst hata + yeniden imzalayan "Yeniden dene" | ✅ | ⛔ M16 Dalga 4 | İmzalı URL çözülüp baytlar düşerse (süresi dolmuş imza, 403/404, kopan bağlantı) karo sonsuza kadar nabız atıyordu. Artık hata karosu; yeniden deneme önbellekteki URL'yi atıp yeniden imzalatır. |
-| Kendi gönderdiğin mesaj tek satırda onaylanır (varış hareketi bir kez) | ✅ | — (mobil listenin kendi anahtarı; Dalga 4'te kontrol) | Onaylanan mesaj iyimser satırın anahtarını (`renderKey`) korur; yankı ile önbellek güncellemesi arasındaki tek karede satır kaybolmaz. |
-| Eski sayfa yüklenirken ekrandaki mesajlar yerinden oynamaz | ✅ | ⛔ M16 Dalga 4 | Sabit yükseklikli yükleme satırı eklenirken telafi edilir; sayfa gelince en üstteki mesaj satırına göre, boyamadan önce (layout effect) yeniden çapalanır. |
-| Avatar + banner KIRPMA editörü (daire / 8:3 maske, sürükle + tekerlek/pinch + kaydırıcı + klavye, sıfırla, canlı kart + mesaj önizlemesi) | ✅ (YAYINLANMADI, dal `feat/m16-ui-profile`) | ⛔ M16 Dalga 4 | Masaüstü+web tek renderer. Dışa aktarım 512² / 1200×450 WebP (küçük kaynak büyütülmez), sunucu sınırları altında; EXIF kanvas turunda düşer. Hareketli banner: "hareketli kalsın" (özgün bayt, kırpmasız) ya da "kırp, hareketsiz olsun". GIF avatar: ilk kare, editör bunu söyler. Mobil şu an kırpmasız seçiyor (`expo-image-picker`). |
-| Profil ayarları: canlı kart önizlemesi + yapışkan "kaydedilmemiş değişiklik" çubuğu (adımlı kayıt, yalnız kalanı tekrar dene, Ctrl/⌘+S) | ✅ (YAYINLANMADI) | ⛔ M16 Dalga 4 | Adım sayacı GERÇEK istek sayısıdır (avatar → banner → profil); bayt bazlı yükleme yüzdesi YOK — yükleme `client-core` `fetch` ile gidiyor, ilerleme olayı vermiyor. |
-| Avatar / banner KALDIRMA | ✅ (YAYINLANMADI) | ⛔ M16 Dalga 4 | Kaydet'e kadar taslak ("Kaldırmaktan vazgeç" aynı düğmede). `PATCH /users/me {avatarUrl / bannerUrl: null}` — API zaten kabul ediyordu. |
-| Moderasyon onayları: at / yasakla / zaman aşımı (sonuç listesi, tehlike işareti; saf onaylarda odak İptal'de) | ✅ (YAYINLANMADI) | ◑ | Zaman aşımı artık alt menüden ANINDA değil; süre + bitiş saati + isteğe bağlı sebep soran diyalogla. Mobil süreyi zaten sheet'te soruyor (`MemberActionSheet` timeout modu); sonuç listesi Dalga 4. |
+| DM'de engellediğin kişiye composer yerine dürüst durum + "Engeli kaldır" | ✅ | ✅ | Yalnız GÖRÜNENİN kendi engeli bilinir (karşı tarafın engeli asla gösterilmez). "Engeli kaldır" profil kartıyla aynı tek onay diyaloğunu açar (tek akış kuralı). DM listesi önbellekten okunur (aynı sorgu tanımıyla devre dışı bir gözlemci — `skipToken` paylaşılan sorgunun fn'ini silip her DM-listesi invalidasyonunu bozuyordu; ek istek yok); engel listesi yalnız DM açıkken çekilir. |
+| Görsel görüntüleyici: yakınlaştır/kaydır, mesajdaki görseller arasında gezin, klavye | ✅ | ✅ | Tekerlek (imleç altında), çift tık, −/+/sığdır, + − 0 ve ok tuşları, sürükleyerek kaydırma, "2 / 3" sayacı; kaydet/kopyala düğmeleri korunur. |
+| Çoklu görsel = eşit kare ızgara (2/4 → 2 sütun, diğerleri 3) | ✅ | ✅ | Hücre boyu yalnız sayıdan hesaplanır → satır yüksekliği bayt yüklenmeden kesin (§27). |
+| Composer: karakter sayacı (son 200), yükleme yüzdesi çubuğu (`progressbar`), bahsetme listesi `aria-activedescendant` | ✅ | ✅ |  |
+| Boş DM / grup sohbeti karşı tarafla açılır (avatar + ad, "#" yok) | ✅ | ◑ | M16 Dalga 3 denetim düzeltmesi. DM ve grup sohbeti kişinin/grubun adını taşıyan gizli akış kanalı üzerinde çalıştığı için eskiden "#Can kanalına hoş geldin" yazıyordu. `ChatData.intro` (`dm` / `groupChat`); sunucu kanalı değişmedi. Mobil eksik: grup sohbetinin boş durumu hâlâ genel metin. |
+| Görselin baytları gelmezse dürüst hata + yeniden imzalayan "Yeniden dene" | ✅ | ✅ | İmzalı URL çözülüp baytlar düşerse (süresi dolmuş imza, 403/404, kopan bağlantı) karo sonsuza kadar nabız atıyordu. Artık hata karosu; yeniden deneme önbellekteki URL'yi atıp yeniden imzalatır. |
+| Kendi gönderdiğin mesaj tek satırda onaylanır (varış hareketi bir kez) | ✅ | ✅ | Onaylanan mesaj iyimser satırın anahtarını (`renderKey`) korur; yankı ile önbellek güncellemesi arasındaki tek karede satır kaybolmaz. |
+| Eski sayfa yüklenirken ekrandaki mesajlar yerinden oynamaz | ✅ | ✅ | Sabit yükseklikli yükleme satırı eklenirken telafi edilir; sayfa gelince en üstteki mesaj satırına göre, boyamadan önce (layout effect) yeniden çapalanır. |
+| Avatar + banner KIRPMA editörü (daire / 8:3 maske, sürükle + tekerlek/pinch + kaydırıcı + klavye, sıfırla, canlı kart + mesaj önizlemesi) | ✅ (YAYINLANMADI, dal `feat/m16-ui-profile`) | ✅ | Masaüstü+web tek renderer. Dışa aktarım 512² / 1200×450 WebP (küçük kaynak büyütülmez), sunucu sınırları altında; EXIF kanvas turunda düşer. Hareketli banner: "hareketli kalsın" (özgün bayt, kırpmasız) ya da "kırp, hareketsiz olsun". GIF avatar: ilk kare, editör bunu söyler. Mobil şu an kırpmasız seçiyor (`expo-image-picker`). |
+| Profil ayarları: canlı kart önizlemesi + yapışkan "kaydedilmemiş değişiklik" çubuğu (adımlı kayıt, yalnız kalanı tekrar dene, Ctrl/⌘+S) | ✅ (YAYINLANMADI) | ✅ | Adım sayacı GERÇEK istek sayısıdır (avatar → banner → profil); bayt bazlı yükleme yüzdesi YOK — yükleme `client-core` `fetch` ile gidiyor, ilerleme olayı vermiyor. |
+| Avatar / banner KALDIRMA | ✅ (YAYINLANMADI) | ✅ | Kaydet'e kadar taslak ("Kaldırmaktan vazgeç" aynı düğmede). `PATCH /users/me {avatarUrl / bannerUrl: null}` — API zaten kabul ediyordu. |
+| Moderasyon onayları: at / yasakla / zaman aşımı (sonuç listesi, tehlike işareti; saf onaylarda odak İptal'de) | ✅ (YAYINLANMADI) | ◑ | Zaman aşımı artık alt menüden ANINDA değil; süre + bitiş saati + isteğe bağlı sebep soran diyalogla. Mobil süreyi zaten sheet'te soruyor (`MemberActionSheet` timeout modu); sonuç listesi Dalga 4. Mobil eksik: sonuç listesi yok; zaman aşımı hazır süresi onaysız uygulanıyor; yasaklama sebebi alanı yok. |
 
 ## Süreç
 
@@ -1572,23 +1572,23 @@ Mobil karşılıklar Dalga 4'te (aşağıdaki ⏳ satırlar takip kaydıdır).
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Ada çerçevesi: siyah sayfa, rail sayfada, kolonlar radius-24 adalar, aralar 8px siyah | ✅ | ⏳ Dalga 4 | kenar çizgisi/dış gölge yok |
-| Tek satır dili (`shellRow`): seçili = mercan yıkama + açık mercan yazı, hover = yüzey tonu 200ms, basılı = bir ton koyu, okunmamış = beyaz kenar pipi + kalın ad, sessize alınmış = %55 | ✅ kanal / DM / grup / üye / komut menüsü | ⏳ Dalga 4 | hover'da hiçbir şey kaymaz/büyümez |
-| Rail kenar hapı: seçili 36px mercan, okunmamış 8px beyaz, hover 20px — konum yayıyla büyür | ✅ | ⏳ Dalga 4 | eski radius-morph hover kaldırıldı |
-| Sayaç rozeti 18px (mention = mercan, düz = açık çip), değişince pop | ✅ | ⏳ Dalga 4 | |
-| Kanal kenar çubuğu: dönen daralt oku, açılınca satırlar belirir, iskelet (ilk yükleme), yükleme HATASI = "Kanallar yüklenemedi" bandı + Tekrar dene, boş sunucu durumu (+ kanal oluştur, yetkiye göre) yalnız başarılı boş yanıttan sonra | ✅ | ⏳ Dalga 4 | `ShellData.serverDetailsLoading/serverDetailsError/retryServerDetails` (isteğe bağlı); denetim: hata eskiden "Henüz kanal yok" diyordu |
-| Üye listesi: 48px satır, iskelet, hata bandı + Tekrar dene; yüklenmemiş/başarısız listede sahte "— 0" sayısı yok | ✅ | ⏳ Dalga 4 | |
-| Ana sayfa DM listesi: iskelet / hata bandı + Tekrar dene / satırlar / boş kart — "Henüz sohbet yok" yalnız başarılı boş yanıttan sonra; grup sohbetleri aynı bant | ✅ | ⏳ Dalga 4 | `ShellData.dmsStatus/dmsErrorMessage/retryDms`; tek kural `lib/shell-list-status.ts` |
-| Rail sayaç rozetleri karonun köşesinde (rail kenarında kırpılmıyor), sunucu sütunu yana kaymıyor | ✅ | ⏳ Dalga 4 | denetim: 4px kırpılıyordu |
-| Kullanıcı çubuğu: yüzey hapı; mikrofon kapalı / sağır = pembe tehlike düğmesi + kesik ikon; ikinci satır özel durum, kimlik bloğu ~96px (28px kontroller), üstüne gelince durumun tamamı | ✅ | ⏳ Dalga 4 | denetim: ad/durum 38px'e sıkışıyordu |
+| Ada çerçevesi: siyah sayfa, rail sayfada, kolonlar radius-24 adalar, aralar 8px siyah | ✅ | ✅ | kenar çizgisi/dış gölge yok |
+| Tek satır dili (`shellRow`): seçili = mercan yıkama + açık mercan yazı, hover = yüzey tonu 200ms, basılı = bir ton koyu, okunmamış = beyaz kenar pipi + kalın ad, sessize alınmış = %55 | ✅ kanal / DM / grup / üye / komut menüsü | ✅ | hover'da hiçbir şey kaymaz/büyümez |
+| Rail kenar hapı: seçili 36px mercan, okunmamış 8px beyaz, hover 20px — konum yayıyla büyür | ✅ | ✅ | eski radius-morph hover kaldırıldı |
+| Sayaç rozeti 18px (mention = mercan, düz = açık çip), değişince pop | ✅ | ◑ | Mobil eksik: rozet 20px (18 değil), sayı değişince pop yok. |
+| Kanal kenar çubuğu: dönen daralt oku, açılınca satırlar belirir, iskelet (ilk yükleme), yükleme HATASI = "Kanallar yüklenemedi" bandı + Tekrar dene, boş sunucu durumu (+ kanal oluştur, yetkiye göre) yalnız başarılı boş yanıttan sonra | ✅ | ✅ | `ShellData.serverDetailsLoading/serverDetailsError/retryServerDetails` (isteğe bağlı); denetim: hata eskiden "Henüz kanal yok" diyordu |
+| Üye listesi: 48px satır, iskelet, hata bandı + Tekrar dene; yüklenmemiş/başarısız listede sahte "— 0" sayısı yok | ✅ | ✅ |  |
+| Ana sayfa DM listesi: iskelet / hata bandı + Tekrar dene / satırlar / boş kart — "Henüz sohbet yok" yalnız başarılı boş yanıttan sonra; grup sohbetleri aynı bant | ✅ | ✅ | `ShellData.dmsStatus/dmsErrorMessage/retryDms`; tek kural `lib/shell-list-status.ts` |
+| Rail sayaç rozetleri karonun köşesinde (rail kenarında kırpılmıyor), sunucu sütunu yana kaymıyor | ✅ | ✅ | denetim: 4px kırpılıyordu |
+| Kullanıcı çubuğu: yüzey hapı; mikrofon kapalı / sağır = pembe tehlike düğmesi + kesik ikon; ikinci satır özel durum, kimlik bloğu ~96px (28px kontroller), üstüne gelince durumun tamamı | ✅ | — | denetim: ad/durum 38px'e sıkışıyordu Mobilde kullanıcı çubuğu yüzeyi yok (mikrofon/sağır dokta, kimlik Sen sekmesinde). |
 | Komut menüsü: cam radius-24 kart, seçili satır = kabuk seçili dili, boş durum, klavye ipucu satırı (⌘/Ctrl) | ✅ | — (mobil komut paleti M20) | |
-| Tek bildirim kartı (`NoticeToast`): üzerine gelince/odakta süre durur, Esc/✕, tehlike = alert; kök yığın üst üste binmez, yazma alanının üstünde; "hesap değiştirilemedi (çevrimdışı)" da artık yığının üyesi | ✅ 6 bildirim | ⏳ Dalga 4 | |
+| Tek bildirim kartı (`NoticeToast`): üzerine gelince/odakta süre durur, Esc/✕, tehlike = alert; kök yığın üst üste binmez, yazma alanının üstünde; "hesap değiştirilemedi (çevrimdışı)" da artık yığının üyesi | ✅ 6 bildirim | ◑ | Mobil eksik: tehlike tostu ekran okuyucuya öncelikli (assertive) duyurulmuyor; alt boşluk sabit, yazma alanını hesaba katmıyor. |
 | Yaş doğrulama + "uygulamayı indir" hapları: geniş kabukta kolon içinde (artık rail/mikrofonu örtmüyor), dar web'de üst çubuğun altında akışta tek satır (mesajları ve bildirim yığınını örtmez) | ✅ | — | denetim: telefonda bildirimlerle çakışıyordu |
 | Dar web kabuğu: ada orta kolon, 44px dokunma hedefleri, çekmece konum yayıyla açılır, kapalıyken `inert` (Tab'a girmez), odak içeri/geri, kaydırarak kapatma (dokunma olaylarıyla — tarayıcı pan'i pointer'ı iptal etse de) | ✅ web | — | denetim: pointer tabanlı kaydırma gerçek telefonda hiç kapanmıyordu; CDP dokunma testi |
-| Açılış: siyah sayfa + tek mercan ışık (BootSplash, iki `index.html`, Electron pencere rengi) | ✅ | ⏳ splash APK ister | `boot-surface.test.ts` dört kaynağı token'a kilitler |
-| Çökme ekranı: sakin kart, tek eylem | ✅ | ⏳ Dalga 4 | |
-| Giriş: ışıklı sayfa, kenarsız kart, alan-düzeyi doğrulama (hata alanın altında, `role=alert` + odak hatalı alana gider), mod geçişinde başlık geçişi + kayıt alanları açılır, kısa pencerede güvenli ortalama | ✅ | ⏳ Dalga 4 | giriş + `common.errors/validation` + güncelleme/görsel bildirim metinleri "siz/Lütfen"den "sen"e (marka kuralı; ortak katalog mobile de yansır); tek terim "parola", tek fiil "Hesap aç"; mobil `mobile:auth.*` ayrı, Dalga 4 |
-| Hesap değiştirme örtüsü opak (eski hesabın sohbeti arkadan görünmez) | ✅ | ⏳ Dalga 4 | |
+| Açılış: siyah sayfa + tek mercan ışık (BootSplash, iki `index.html`, Electron pencere rengi) | ✅ | ✅ kaynakta (2.1.0 APK ile çıkar) | `boot-surface.test.ts` dört kaynağı token'a kilitler |
+| Çökme ekranı: sakin kart, tek eylem | ✅ | ⏳ | Mobilde yok: ErrorBoundary / çökme ekranı yok. |
+| Giriş: ışıklı sayfa, kenarsız kart, alan-düzeyi doğrulama (hata alanın altında, `role=alert` + odak hatalı alana gider), mod geçişinde başlık geçişi + kayıt alanları açılır, kısa pencerede güvenli ortalama | ✅ | ◑ | giriş + `common.errors/validation` + güncelleme/görsel bildirim metinleri "siz/Lütfen"den "sen"e (marka kuralı; ortak katalog mobile de yansır); tek terim "parola", tek fiil "Hesap aç"; mobil `mobile:auth.*` ayrı, Dalga 4 Mobil eksik: hatalı alana odak taşınmıyor; metin hâlâ "Hesap oluştur" (masaüstü "Hesap aç"). |
+| Hesap değiştirme örtüsü opak (eski hesabın sohbeti arkadan görünmez) | ✅ | ✅ |  |
 | Güncelleme rozeti kenarsız yeşil; indirme çubuğu `progressbar` | ✅ masaüstü | — | |
 
 **Kanıt:** `apps/web/harness-shell.html?scene=…` gerçek bileşenleri gerçek store/query
@@ -1611,16 +1611,16 @@ Mesajlaşma yüzeyi Koyu Masa diline taşındı; yapı aynı, stil sistemden. Mo
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Baloncuksuz satır; hover = yüzey tonu (#171717, 200ms), satır yüksekliği hover'da DEĞİŞMEZ | ✅ | ◑ (mobil baloncuk; Dalga 4) | sanallaştırma sözleşmesi tarayıcıda ölçüldü |
+| Baloncuksuz satır; hover = yüzey tonu (#171717, 200ms), satır yüksekliği hover'da DEĞİŞMEZ | ✅ | ✅ | sanallaştırma sözleşmesi tarayıcıda ölçüldü |
 | Hover araç çubuğu raised tonda, opaklık+görünürlükle solarak gelir; tepki/yanıtla/düzenle(kendi)/daha fazla, ipuçlu | ✅ | — (mobilde eylem sayfası) | klavye: avatar/ada Tab ile gelince çubuk görünür |
-| Mercan yalnız "sana dair": seni anan satır (mercan iz + yıkama), senin tepkin, "YENİ" çipi | ✅ | ◑ | |
+| Mercan yalnız "sana dair": seni anan satır (mercan iz + yıkama), senin tepkin, "YENİ" çipi | ✅ | ✅ |  |
 | Tepkiler hap; seninki accent-soft, diğerleri yıkama (hover'lı satırda kaybolmaz); tepki ekle hapı hover'da | ✅ | ✅ (mevcut) | |
-| Okunmamış ayracı: mercan çizgi + dolu "YENİ" çipi | ✅ | ◑ | kalıcı kuyruktaki gönderiler ilk sayfadan önce listedeyken ayraç kayboluyordu — düzeltildi |
-| Yazıyor satırı: 3 nefes alan nokta, composer'ın alt boşluğunda (liste zıplamaz) | ✅ sunucu kanalı · ◑ DM/grup (akışta, aynı 20px) | ◑ | |
-| İskelet yükleme (liste, eski sayfa, sabitler, arama, davet kartı) | ✅ | ◑ | |
-| Hata durumları: liste yüklenemedi (başlık + ayrıntı + yeniden dene), sabitler yüklenemedi (+ yeniden dene), arama hatası, silinmiş ek, açılamayan görsel | ✅ | ◑ | |
-| Kenarsız kartlar (bağlantı + davet önizlemesi) yıkama tonunda, görsel çözülünce solarak gelir (sanal satır yeniden bağlanınca tekrar oynamaz) | ✅ | ◑ | |
-| Gün ayraçları · ↑ ile düzenle · engelli DM composer'ı · görüntüleyici yakınlaştırma · görsel ızgarası · karakter sayacı | ✅ | ⛔ M16 Dalga 4 | ayrıntı üstteki yaşayan matriste |
+| Okunmamış ayracı: mercan çizgi + dolu "YENİ" çipi | ✅ | ✅ | kalıcı kuyruktaki gönderiler ilk sayfadan önce listedeyken ayraç kayboluyordu — düzeltildi |
+| Yazıyor satırı: 3 nefes alan nokta, composer'ın alt boşluğunda (liste zıplamaz) | ✅ sunucu kanalı · ◑ DM/grup (akışta, aynı 20px) | ✅ |  |
+| İskelet yükleme (liste, eski sayfa, sabitler, arama, davet kartı) | ✅ | ◑ | Mobil eksik: sabitlenmiş mesajlar iskelet yerine dönen gösterge; davet kartı yok. |
+| Hata durumları: liste yüklenemedi (başlık + ayrıntı + yeniden dene), sabitler yüklenemedi (+ yeniden dene), arama hatası, silinmiş ek, açılamayan görsel | ✅ | ◑ | Mobil eksik: sabitlenmiş mesajlar yüklenemezse tekrar dene yok. |
+| Kenarsız kartlar (bağlantı + davet önizlemesi) yıkama tonunda, görsel çözülünce solarak gelir (sanal satır yeniden bağlanınca tekrar oynamaz) | ✅ | ◑ | Mobil eksik: davet önizleme kartı yok. |
+| Gün ayraçları · ↑ ile düzenle · engelli DM composer'ı · görüntüleyici yakınlaştırma · görsel ızgarası · karakter sayacı | ✅ | ✅ | ayrıntı üstteki yaşayan matriste |
 
 **Kanıt:** `apps/web/harness-chat.html` gerçek bileşenleri (masaüstü ChatView, ChatDataProvider,
 ortak liste/satır/composer, sabitler, arama, ekler, gömüler) sahte API ile çizer;
@@ -1635,18 +1635,18 @@ Dal `feat/m16-ui-voice`. Yalnız görünüm ve etkileşim; medya mantığı, FSM
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Tek çağrı kontrol dili (`CallControl`: nötr / açık-mercan / kapalı-pembe / ayrıl-dolu pembe / kabul-yeşil) — ses paneli, DM kutusu, arama hapı, sahne çubuğu, gelen arama aynı düğmeyi kullanır | ✅ | ⏳ Dalga 4 | renk tek başına anlam taşımaz: ikon + ad + `aria-pressed`. Denetim düzeltmesi: ses panelinin ve DM kutusunun ayrıl / kapat / iptal düğmesi "kapalı" (sessiz mikrofon) tonundaydı; artık her yüzeyde dolu pembe (`call-leave-tone.test.ts`) |
-| Ses paneli / DM kutusu: kenarsız yüzey kartı, canlı durum noktası (bekleyen durum nefes alır), durum satırı geçişli | ✅ | ⏳ | Denetim düzeltmesi: DM kutusunun durum satırı ("Görüntülü bağlantı kuruldu") ve "Başka cihazda aramadasın" başlığı gerçek 240px kenar çubuğunda kesiliyordu; artık iki satıra sarıyor (harness 240px'te TR+EN ölçüyor) |
-| Konuşma ışığı mercan: kenar çubuğu avatarında halka + yumuşak parıltı, karoda kenar içi parıltı (videonun ÜSTÜNDE) | ✅ | ⏳ (Dalga 2 avatar halkası mobilde de bekliyor) | eski yeşil halka kalktı |
+| Tek çağrı kontrol dili (`CallControl`: nötr / açık-mercan / kapalı-pembe / ayrıl-dolu pembe / kabul-yeşil) — ses paneli, DM kutusu, arama hapı, sahne çubuğu, gelen arama aynı düğmeyi kullanır | ✅ | ◑ | renk tek başına anlam taşımaz: ikon + ad + `aria-pressed`. Denetim düzeltmesi: ses panelinin ve DM kutusunun ayrıl / kapat / iptal düğmesi "kapalı" (sessiz mikrofon) tonundaydı; artık her yüzeyde dolu pembe (`call-leave-tone.test.ts`) Mobil farkı: kabul düğmesi mercan (tasarım sistemi §5.1), masaüstü yeşil. |
+| Ses paneli / DM kutusu: kenarsız yüzey kartı, canlı durum noktası (bekleyen durum nefes alır), durum satırı geçişli | ✅ | ◑ | Denetim düzeltmesi: DM kutusunun durum satırı ("Görüntülü bağlantı kuruldu") ve "Başka cihazda aramadasın" başlığı gerçek 240px kenar çubuğunda kesiliyordu; artık iki satıra sarıyor (harness 240px'te TR+EN ölçüyor) Mobil eksik: durum satırı geçişsiz değişiyor. |
+| Konuşma ışığı mercan: kenar çubuğu avatarında halka + yumuşak parıltı, karoda kenar içi parıltı (videonun ÜSTÜNDE) | ✅ | ✅ | eski yeşil halka kalktı |
 | Sahne karolarında klavye odağı görünür: beyaz kenar + siyah iç çizgi, videonun ÜSTÜNDE (konuşma ışığından farklı) | ✅ | — (mobilde klavye odağı yok) | Denetim düzeltmesi: odak halkası videonun altında boyanıyordu, kamera/paylaşım karosunda hiç görünmüyordu; harness gerçek pikselleri ölçüyor |
-| Ekran paylaşan kişinin satırında "CANLI" hapı; paylaşım karosunda ölçülen çözünürlük ("1080p" — çözülen kareden, istenen değerden değil) | ✅ | ⏳ | |
-| Sahne: saf siyah zemin + tek mercan ışık, kenarsız taban kartı; sahne çubuğu cam hap, "ayrıl" geniş dolu pembe; PiP köşeye yayla kayar | ✅ | ⏳ | VideoStage sıcak gradyanı kaldırıldı (Dalga 2 bilinen açığı) |
-| Gelen arama kartı: nefes alan mercan hale, etiketli üç daire, odak kart içine (Enter yanlışlıkla yanıtlamaz) | ✅ | ⏳ | azaltılmış harekette hale durur |
+| Ekran paylaşan kişinin satırında "CANLI" hapı; paylaşım karosunda ölçülen çözünürlük ("1080p" — çözülen kareden, istenen değerden değil) | ✅ | ⏳ | Mobilde yok: paylaşım karosunda CANLI hapı ve ölçülen çözünürlük yok. |
+| Sahne: saf siyah zemin + tek mercan ışık, kenarsız taban kartı; sahne çubuğu cam hap, "ayrıl" geniş dolu pembe; PiP köşeye yayla kayar | ✅ | ◑ | VideoStage sıcak gradyanı kaldırıldı (Dalga 2 bilinen açığı) Mobil eksik: sahne zemini #0d0d0d (saf siyah değil), ayrıl geniş hap değil disk. |
+| Gelen arama kartı: nefes alan mercan hale, etiketli üç daire, odak kart içine (Enter yanlışlıkla yanıtlamaz) | ✅ | ✅ | azaltılmış harekette hale durur |
 | Kaynak seçici: iskelet yükleme, seçili kart mercan, ses seçimi radyo satırları (ok tuşlarıyla), kalite bölmeli seçim (ok tuşlarıyla) | ✅ | — (mobilde seçici yok) | Dalga 1'in üç ses seçeneği mantığı aynen. Denetim düzeltmesi: tek sütunda ses seçimi 1280×800 varsayılan pencerede ekranın altında kalıyordu; artık iki bölme (solda kaynaklar kendi kaydırmasıyla, sağda ses + kalite sabit), açıklama yalnız seçili seçenekte görünür (diğerleri ekran okuyucuda kalır). 1280×800 ve 940×560'ta üç seçenek kaydırmadan görünür |
-| Kamera önizleme iskeletle başlar, aygıt seçimi `Select` atomu; aygıt ayarları radyo grupları | ✅ | ⏳ | |
-| Aramaya ekle: yükleniyor iskeleti, hata + tekrar dene, "eşleşen arkadaş yok" | ✅ | ⏳ | eskiden yüklenirken "eklenecek arkadaş yok" diyordu |
+| Kamera önizleme iskeletle başlar, aygıt seçimi `Select` atomu; aygıt ayarları radyo grupları | ✅ | ✅ |  |
+| Aramaya ekle: yükleniyor iskeleti, hata + tekrar dene, "eşleşen arkadaş yok" | ✅ | ✅ | eskiden yüklenirken "eklenecek arkadaş yok" diyordu |
 | Kişi başı ses + yayın sesi sürgüsü tasarım sisteminin `Slider` atomu | ✅ | ✅ (zaten kendi sürgüsü) | |
-| Birlikte izle bandı, sıra paneli ve video seçici kenarsız | ✅ | ⏳ | |
+| Birlikte izle bandı, sıra paneli ve video seçici kenarsız | ✅ | ✅ |  |
 | Dev-only harness `/harness-voice.html` + `src/harness/voice/verify.mjs` (95 kontrol, headless Chrome; `?lng=en` ya da `?lng=tr`, `?windows=N`) | ✅ web dev sunucusu | — | build'e girmez |
 
 **Kapılar:** desktop typecheck · desktop test · app-ui test · i18n parite · web
@@ -1660,18 +1660,18 @@ istisna azaltılmış hareket kipinde framer-motion'ın yalnız dev build'de yaz
 
 | Özellik | Masaüstü/Web | Mobil | Not |
 |---|---|---|---|
-| Avatar + banner kırpma editörü | ✅ | ⛔ Dalga 4 | `ImageCropDialog` + saf geometri (`lib/image-crop`, maske hep dolu) + dosya hattı (`lib/image-file`: bayttan tür, piksel bütçesi, hareketli GIF/WebP tespiti) |
-| Profil kartı Koyu Masa (8:3 banner, cam eylem diskleri, iç panel, iskelet + hata/tekrar dene) | ✅ | ⛔ Dalga 4 | önizlemeler kartın kendi `ProfileIdentityPreview` işaretlemesini kullanır |
+| Avatar + banner kırpma editörü | ✅ | ✅ | `ImageCropDialog` + saf geometri (`lib/image-crop`, maske hep dolu) + dosya hattı (`lib/image-file`: bayttan tür, piksel bütçesi, hareketli GIF/WebP tespiti) |
+| Profil kartı Koyu Masa (8:3 banner, cam eylem diskleri, iç panel, iskelet + hata/tekrar dene) | ✅ | ✅ | önizlemeler kartın kendi `ProfileIdentityPreview` işaretlemesini kullanır |
 | Avatar: xl/2xl boy, foto belirme geçişi (önbellekte atlanır), durum noktası halkası `--avatar-ring` değişkenini izler, çevrilmiş durum etiketi | ✅ | — | eklemeli primitive değişikliği |
-| Avatar büyütme: imlece doğru yakınlaştırma, ok/±/0 klavye, açılış/kapanış animasyonu | ✅ | ◑ (mevcut lightbox) | |
+| Avatar büyütme: imlece doğru yakınlaştırma, ok/±/0 klavye, açılış/kapanış animasyonu | ✅ | ✅ |  |
 | Üye menüsü: "Moderasyon" bölüm etiketi, rol seçimi gerçek `menuitemcheckbox` | ✅ | — | |
-| Özel durum: üye listesi önizlemesi + kesin temizlenme saati | ✅ | ⛔ Dalga 4 | |
-| Banner yedek rengi: eski sıcak taban (`#1a0806`) kalktı, kişinin tonu + tek mercan ışık | ✅ | ⛔ Dalga 4 | |
+| Özel durum: üye listesi önizlemesi + kesin temizlenme saati | ✅ | ◑ | Mobil eksik: kesin temizlenme saati gösterilmiyor. |
+| Banner yedek rengi: eski sıcak taban (`#1a0806`) kalktı, kişinin tonu + tek mercan ışık | ✅ | ✅ |  |
 | Profil kartı pencereye sığar: en fazla Radix'in ölçtüğü yükseklik, orta bölüm kayar (alt kenar solar), DM kutusu / "Profili düzenle" sabit | ✅ | — (mobilde tam ekran sayfa) | 1280×800 ve 940×560'ta 8 kartın hepsi ekran içinde |
 | Tehlikeli onaylar (at/yasakla/arkadaşlıktan çıkar/engelle, hesap silme) İptal'e odaklı açılır; açılışta Enter hiçbir şey yapmaz | ✅ | — | yasaklama sebebi alanına odaklanıp tek Enter'la yasaklıyordu |
 | Hesap silme + kaydedilmemiş-değişiklik uyarısı ortak tehlike kabuğunda (ikon diski, sonuç maddeleri, darda alt sayfa) | ✅ | — | `ConfirmLayer` kaldırıldı; tek onay görünümü |
 | Kullanıcı/moderasyon diyalogları her açılışta temiz (vazgeçilen taslak, eski hata, son süre seçimi geri gelmez) | ✅ | — | özel not sorgusu yalnız diyalog açıkken çalışır |
-| Kırpma önizlemesi: async WebP (`toBlob`) — sürüklerken uzun görev yok; yüklenirken/hatada mevcut foto kalır, sütun söner | ✅ | ⛔ Dalga 4 | eski `toDataURL` 54–79 ms uzun görev üretiyordu |
+| Kırpma önizlemesi: async WebP (`toBlob`) — sürüklerken uzun görev yok; yüklenirken/hatada mevcut foto kalır, sütun söner | ✅ | ✅ | eski `toDataURL` 54–79 ms uzun görev üretiyordu |
 | Avatar foto geçişi yalnız gerçek ilk yüklemede; çözülmüş URL ilk karede opak (sanal mesaj listesinde kanal değişiminde yanıp sönme yok), `src` değişimi baş harfe düşmeden yer değiştirir | ✅ | — | `packages/ui` eklemeli |
 
 **Doğruluk düzeltmesi:** yasaklama metni "Yasağı sunucu ayarlarından kaldırabilirsin" diyordu;
@@ -1695,22 +1695,22 @@ o dalganın iş listesidir).
 | Kaydedilmemiş profil taslağı yerel bölümlere geçişte de korunur | ✅ (hata düzeltmesi) | ✅ (`beforeRemove`) | Eskiden Mikrofon/Sesler/Dil gibi yerel bölüme tıklamak taslağı uyarısız siliyordu |
 | Takma ad satır-içi düzenleyicide Esc yalnız düzenlemeyi iptal eder | ✅ (hata düzeltmesi) | — | Eskiden Esc tüm ayarları kapatıyordu |
 | Ayarlar içinden açılan onaylar katmanın ÜSTÜNDE (diğer oturumları kapat, engeli kaldır) | ✅ (hata düzeltmesi) | — | Engeli kaldır onayı ayarların arkasında görünmez açılıyordu |
-| Başarısız sistem ayarı / oturum kapatma / üye atma / istek kabul hataları söylenir | ✅ | ⏳ Dalga 4 | Eskiden sessizce yutuluyordu (§26) |
+| Başarısız sistem ayarı / oturum kapatma / üye atma / istek kabul hataları söylenir | ✅ | ✅ | Eskiden sessizce yutuluyordu (§26) |
 | Web'de tepsi / açılışta başlat anahtarları gösterilmez | ✅ | — | Web köprüsü bunları hiç uygulamıyordu; anahtarlar geri sekiyordu |
-| Sunucu ayarları: kaydedilmemiş-değişiklik çubuğu (Genel + rol düzenleyici), kapatma/sekme değişimi reddedilip çubuk uyarır | ✅ | ⏳ Dalga 4 | Genel sekmesi artık kaydedince kapanmıyor; çubuk kaybolur |
-| Rol rengi: hazır renkler + özel renk (renk seçici + doğrulanan #hex) + canlı önizleme, izinler anahtar satırı | ✅ | ⏳ Dalga 4 | |
-| Üyeler sekmesinde arama, rol menüsü onay kutulu | ✅ | ⏳ Dalga 4 | 100+ üyede `useDeferredValue` + `content-visibility` |
-| Emoji yükleyici: sürükle-bırak, önizleme, canlı ad doğrulama, kullanım göstergesi | ✅ | ⏳ Dalga 4 | |
-| Diyaloglarda canlı doğrulama + karakter sayacı; davet bağlantısı yapıştırınca kod gösterimi | ✅ | ⏳ Dalga 4 | |
+| Sunucu ayarları: kaydedilmemiş-değişiklik çubuğu (Genel + rol düzenleyici), kapatma/sekme değişimi reddedilip çubuk uyarır | ✅ | ⏳ | Genel sekmesi artık kaydedince kapanmıyor; çubuk kaybolur Mobilde yok: sunucu/rol ayarlarında kaydedilmemiş-değişiklik çubuğu ve çıkış koruması yok. |
+| Rol rengi: hazır renkler + özel renk (renk seçici + doğrulanan #hex) + canlı önizleme, izinler anahtar satırı | ✅ | ◑ | Mobil eksik: özel #hex renk yok (yalnız hazır renkler). |
+| Üyeler sekmesinde arama, rol menüsü onay kutulu | ✅ | ◑ | 100+ üyede `useDeferredValue` + `content-visibility` Mobil eksik: üye araması yok. |
+| Emoji yükleyici: sürükle-bırak, önizleme, canlı ad doğrulama, kullanım göstergesi | ✅ | ✅ | Mobil: seçilen görsel önizlemesi, yazarken ad doğrulaması, kullanım çubuğu (`app/(app)/server-emoji.tsx`); sürükle-bırak yerine görsel seçici. |
+| Diyaloglarda canlı doğrulama + karakter sayacı; davet bağlantısı yapıştırınca kod gösterimi | ✅ | ⏳ | Mobilde yok: doğrulama yalnız gönderirken, karakter sayacı yok. |
 | Panoya kopyala: kopyalandı durumu + duyuru, kopyalanamazsa söylenir ve değer seçili gelir | ✅ | — (mobil paylaşım sayfası) | |
-| Arkadaşlar: sekme çubuğu, arama, durum satırı, iskelet/boş/hata | ✅ | ⏳ Dalga 4 | |
-| Grup sohbeti yükleniyor iskeleti + başlıklı hata; DM/grup başlıkları 64px | ✅ | ⏳ Dalga 4 | |
-| Rol / üye / sunucu ayarları yüklenemezse hata + yeniden dene (eskiden "henüz rol yok, oluştur" ya da sessizce salt-okunur Genel sekmesi) | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Roller yüklenmezse Üyeler sekmesi bunu söyler |
-| Sunucu taslağı başka yerden değişirse: temiz form yeni değeri izler, kirli form "başka yerden değişti" der + "Son hâlini yükle" | ✅ (denetim düzeltmesi) | ⏳ Dalga 4 | Eskiden uzak düzenleme formu sahte-kirli yapıp diyaloğu kilitliyordu |
+| Arkadaşlar: sekme çubuğu, arama, durum satırı, iskelet/boş/hata | ✅ | ◑ | Mobil eksik: arkadaş araması yok. |
+| Grup sohbeti yükleniyor iskeleti + başlıklı hata; DM/grup başlıkları 64px | ✅ | ✅ |  |
+| Rol / üye / sunucu ayarları yüklenemezse hata + yeniden dene (eskiden "henüz rol yok, oluştur" ya da sessizce salt-okunur Genel sekmesi) | ✅ (denetim düzeltmesi) | ✅ | Roller yüklenmezse Üyeler sekmesi bunu söyler Mobil: kanal ayarları / rol düzenleyici / üye rolleri zaten hata + tekrar dene gösteriyordu; sunucu ayarlarının rol listesi yüklenirken ve hatada "henüz rol yok" diyordu — `feat/m16-final-fixes`'te düzeltildi (`resolveListLoadState`, testli). |
+| Sunucu taslağı başka yerden değişirse: temiz form yeni değeri izler, kirli form "başka yerden değişti" der + "Son hâlini yükle" | ✅ (denetim düzeltmesi) | ⏳ | Eskiden uzak düzenleme formu sahte-kirli yapıp diyaloğu kilitliyordu Mobilde yok: "başka yerden değişti" durumu ele alınmıyor. |
 | Rol düzenleyici dar ekranda alt alta (sarılan rol hapları + tam genişlik düzenleyici) | ✅ (390px) | — | Konteyner sorgusu: diyalog genişliğine bakar |
 | Kaydedilmemiş-çubuk uyarısı klavye odağını korur, sebebi aynı canlı bölgede duyurur | ✅ (denetim düzeltmesi) | — | |
 | Ayarlar katmanı ve güncelleme bildirimi içindeki ipuçları (tooltip) görünür | ✅ (denetim düzeltmesi) | — | İpucu her katmanın üstünde (z-150) |
-| Tek hata bloğu: ayarlar, Arkadaşlar, Son Aramalar, grup sohbeti; oturum hataları Türkçe | ✅ | ⏳ Dalga 4 | |
+| Tek hata bloğu: ayarlar, Arkadaşlar, Son Aramalar, grup sohbeti; oturum hataları Türkçe | ✅ | ✅ |  |
 | Dar ayarlar listesinde görünür klavye odağı (mercan halka) | ✅ | — | |
 
 **Kanıt:** `apps/web/harness-settings.html` (yalnız geliştirme, build'e girmez) gerçek
@@ -1916,3 +1916,13 @@ GIF afiş iki yol, kaydet çubuğu adımları + uçak modunda kısmi hata ve tek
 kaydedilmemiş çıkış sheet'i (geri tuşu + jest), ışık kutusunda çift dokun + aşağı kaydır,
 TalkBack ile kırpma sahnesi işlemleri, ayar anahtarları, onay sheet'lerinin klavye/geri
 tuşuyla davranışı.
+
+## 2026-10-20 — M16 Dalga 4 mobil satırları kodda doğrulandı (dal `feat/m16-final-fixes`)
+
+Dalga 3 tablolarındaki "⏳ / ⛔ Dalga 4" mobil hücreleri birleşen mobil dallarına (kit, kabuk,
+sohbet, ses, profil) göre tek tek KAYNAKTA doğrulandı — dalların kendi bölümlerindeki iddialara
+güvenilmedi. 38 satır ✅ oldu; yarım kalanlar ◑ ve notunda eksik ne olduğu yazıyor; yapılmayanlar
+(çökme ekranı, paylaşım karosunda CANLI hapı, sunucu/rol ayarlarında kaydedilmemiş çubuğu, canlı
+doğrulama + sayaç, "başka yerden değişti") ⏳ kaldı. Bu doğrulama cihazda değil kodda yapıldı;
+yukarıdaki dalların cihaz kapıları hâlâ açık. Kişi başı ses masaüstü %100 tavanı satırı en üstteki
+tabloda ("Kişi başı ses / yayın sesi tavanı").
