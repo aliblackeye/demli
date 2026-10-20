@@ -575,6 +575,8 @@
     "saveStep": "{{current}} of {{total}}",
     "saveFailed": "Some changes didn't save.",
     "saveFailedHint": "What saved is kept — Try again sends only the rest.",
+    "saveFailedAll": "Your changes didn't save.",
+    "saveFailedAllHint": "None of them went through — Try again sends them all again.",
     "editAvatar": "Change avatar",
     "editBanner": "Change banner",
     "undoRemove": "Keep it"

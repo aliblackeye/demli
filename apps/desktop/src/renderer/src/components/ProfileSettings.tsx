@@ -232,8 +232,11 @@ export function ProfileSettings(): JSX.Element {
   /** The file the crop editor is open on (null = closed). */
   const [cropTarget, setCropTarget] = useState<{ kind: CropKind; file: File } | null>(null);
 
-  /** True when the last Save applied some changes but not all (§26 honesty). */
-  const [partialFailure, setPartialFailure] = useState(false);
+  /**
+   * How the last Save failed (§26 honesty): "partial" = some steps landed, so
+   * the copy may say what saved is kept; "total" = nothing landed, so it must not.
+   */
+  const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null);
   /** The step a running Save is on (null = not saving). */
   const [progress, setProgress] = useState<{ step: SaveStep; index: number; total: number } | null>(
     null,
@@ -306,7 +309,7 @@ export function ProfileSettings(): JSX.Element {
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
   };
 
   /**
@@ -330,7 +333,7 @@ export function ProfileSettings(): JSX.Element {
     setError(null);
     setAvatarError(null);
     setBannerError(null);
-    setPartialFailure(false);
+    setSaveFailure(null);
     setSaved(false);
 
     const patch: UpdateMeInput = {};
@@ -344,7 +347,7 @@ export function ProfileSettings(): JSX.Element {
     if (bannerDraft && bannerDraft !== "remove") steps.push("banner");
     if (Object.keys(patch).length > 0) steps.push("profile");
 
-    let failed = false;
+    let failed = 0;
     for (const [index, step] of steps.entries()) {
       setProgress({ step, index, total: steps.length });
       if (step === "avatar" && avatarDraft && avatarDraft !== "remove") {
@@ -353,7 +356,7 @@ export function ProfileSettings(): JSX.Element {
           setAvatarDraft(null);
         } catch (err) {
           setAvatarError(errorKey(err));
-          failed = true;
+          failed += 1;
         }
       } else if (step === "banner" && bannerDraft && bannerDraft !== "remove") {
         try {
@@ -361,7 +364,7 @@ export function ProfileSettings(): JSX.Element {
           setBannerDraft(null);
         } catch (err) {
           setBannerError(bannerErrorFrom(err));
-          failed = true;
+          failed += 1;
         }
       } else if (step === "profile") {
         try {
@@ -370,14 +373,14 @@ export function ProfileSettings(): JSX.Element {
           if (patch.bannerUrl === null) setBannerDraft(null);
         } catch (err) {
           setError(errorKey(err));
-          failed = true;
+          failed += 1;
         }
       }
     }
 
     setProgress(null);
-    setPartialFailure(failed);
-    if (!failed) setSaved(true);
+    setSaveFailure(saveFailureKind(failed, steps.length));
+    if (failed === 0) setSaved(true);
   };
 
   const onSubmit = (event: FormEvent): void => {
@@ -610,7 +613,8 @@ export function ProfileSettings(): JSX.Element {
           {(dirty || saving || saved) && (
             <SaveBar
               key="save-bar"
-              state={saving ? "saving" : partialFailure ? "failed" : dirty ? "dirty" : "saved"}
+              state={saving ? "saving" : saveFailure ? "failed" : dirty ? "dirty" : "saved"}
+              failure={saveFailure}
               progress={progress}
               onDiscard={discardDraft}
               onSave={() => void save()}
@@ -800,13 +804,23 @@ function ImageField({
  *   failed  what happened + how retry works   Discard · Try again
  *   saved   a quiet tick, then it leaves on its own
  */
+export type SaveFailure = "partial" | "total";
+
+/** "partial" only when at least one attempted step landed; otherwise nothing was kept. */
+export function saveFailureKind(failed: number, attempted: number): SaveFailure | null {
+  if (failed === 0) return null;
+  return failed < attempted ? "partial" : "total";
+}
+
 function SaveBar({
   state,
+  failure,
   progress,
   onDiscard,
   onSave,
 }: {
   state: "dirty" | "saving" | "failed" | "saved";
+  failure: SaveFailure | null;
   progress: { step: SaveStep; index: number; total: number } | null;
   onDiscard: () => void;
   onSave: () => void;
@@ -843,8 +857,8 @@ function SaveBar({
           <>
             <TriangleAlert className="size-4 shrink-0 text-danger" aria-hidden />
             <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-fg">{t("desktop:profile.saveFailed")}</span>
-              <span className="block truncate text-2xs text-fg-muted">{t("desktop:profile.saveFailedHint")}</span>
+              <span className="block truncate text-sm font-medium text-fg">{t(failure === "partial" ? "desktop:profile.saveFailed" : "desktop:profile.saveFailedAll")}</span>
+              <span className="block truncate text-2xs text-fg-muted">{t(failure === "partial" ? "desktop:profile.saveFailedHint" : "desktop:profile.saveFailedAllHint")}</span>
             </span>
           </>
         ) : state === "saved" ? (

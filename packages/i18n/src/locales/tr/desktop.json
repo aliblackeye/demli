@@ -575,6 +575,8 @@
     "saveStep": "{{current}}/{{total}}",
     "saveFailed": "Bazı değişiklikler kaydedilemedi.",
     "saveFailedHint": "Kaydedilenler yerinde; Tekrar dene yalnız kalanları gönderir.",
+    "saveFailedAll": "Değişikliklerin kaydedilemedi.",
+    "saveFailedAllHint": "Hiçbiri gitmedi; Tekrar dene hepsini yeniden gönderir.",
     "editAvatar": "Avatarı değiştir",
     "editBanner": "Banner'ı değiştir",
     "undoRemove": "Kaldırmaktan vazgeç"
