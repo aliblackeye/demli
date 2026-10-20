@@ -11,9 +11,13 @@
  * - mute-filter.ts        — notification-mute push gate (channel/server mute, mentions mode)
  * - channel-message-push.ts — "all messages" channel fan-out (#94: mention + plain, mute-gated)
  * - call-push.ts          — call ring / retraction pushes shared by the API, sweeper and gateway
+ * - message-push.ts       — DM message push builder + message/friend TTLs (REST + WS share it)
+ * - push-receipts.ts      — delayed Expo receipt check, receipt-stage dead-token pruning
  */
 
 export * from "./push.js";
+export * from "./push-receipts.js";
+export * from "./message-push.js";
 export * from "./notifications.js";
 export * from "./mention-recipients.js";
 export * from "./mute-filter.js";

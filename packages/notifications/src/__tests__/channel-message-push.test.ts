@@ -17,6 +17,7 @@ import {
   type ChannelMessagePushRepos,
 } from "../channel-message-push.js";
 import type { ActiveMuteRow, NotificationMuteStore } from "../mute-filter.js";
+import { MESSAGE_PUSH_TTL_SECONDS } from "../message-push.js";
 import type { OfflineNotifier } from "../notifications.js";
 import type { PushNotification } from "../push.js";
 
@@ -49,6 +50,7 @@ function makeRepos(opts: {
   audience: UserId[];
   visible?: Iterable<UserId>;
   groupName?: string;
+  groupKind?: "server" | "group";
   authorName?: string;
   mutes?: ActiveMuteRow[];
 }): ChannelMessagePushRepos {
@@ -72,7 +74,7 @@ function makeRepos(opts: {
     },
     groups: {
       async findById() {
-        return { name: opts.groupName ?? "Crew" } as never;
+        return { name: opts.groupName ?? "Crew", kind: opts.groupKind ?? "server" } as never;
       },
     },
     users: {
@@ -160,6 +162,38 @@ describe("dispatchChannelMessagePush", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.ids).toEqual(["fan"]);
     expect((calls[0]!.n.data as { type?: string }).type).toBe("mention");
+  });
+
+  it("every message push carries a TTL and the channel name for the header", async () => {
+    const repos = makeRepos({ audience: ["author", "tagged", "other"] });
+    const { notifier, calls } = makeNotifier();
+    await dispatchChannelMessagePush(
+      { repos, notifier },
+      { ...ARGS, content: `hey ${encodeMention("tagged")}` },
+    );
+    for (const call of calls) {
+      expect(call.n.ttlSeconds).toBe(MESSAGE_PUSH_TTL_SECONDS);
+      expect(call.n.data).toMatchObject({ name: "general", channelId: "c1", groupId: "g1" });
+    }
+  });
+
+  it("a flat group chat routes to its own screen and is titled with the chat's name", async () => {
+    const repos = makeRepos({
+      audience: ["author", "tagged", "other"],
+      groupName: "Squad",
+      groupKind: "group",
+    });
+    const { notifier, calls } = makeNotifier();
+    await dispatchChannelMessagePush(
+      { repos, notifier },
+      { ...ARGS, channelName: "stream", content: `yo ${encodeMention("tagged")}` },
+    );
+    const mention = calls.find((c) => (c.n.data as { type?: string }).type === "mention");
+    const plain = calls.find((c) => (c.n.data as { type?: string }).type === "message");
+    expect(plain?.n.title).toBe("Squad");
+    expect(plain?.n.body.startsWith("Ada: ")).toBe(true);
+    expect(plain?.n.data).toMatchObject({ groupChatId: "g1", name: "Squad", channelId: "c1" });
+    expect(mention?.n.data).toMatchObject({ groupChatId: "g1", name: "Squad" });
   });
 
   it("is a no-op with no notifier, and when the author is the only visible member", async () => {

@@ -108,6 +108,89 @@ describe("createOfflineNotifier", () => {
   });
 });
 
+describe("createOfflineNotifier — dispatch log (field report 2026-10-20)", () => {
+  function dispatchLines(log: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+    return log.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.startsWith("[push] dispatch "))
+      .map((m) => JSON.parse(m.slice("[push] dispatch ".length)) as Record<string, unknown>);
+  }
+
+  it("logs ONE line per dispatch with kind, gate counts and the push summary — no content", async () => {
+    const presence = new InMemoryPresenceReader();
+    presence.setForeground("fg-user-0000");
+    const log = vi.fn();
+    const push: PushService = {
+      async sendToUsers() {
+        return { tokens: 3, ok: 2, errors: { DeviceNotRegistered: 1 }, invalid: 0, pruned: 1, tokenIds: ["abc"] };
+      },
+    };
+    const notifier = createOfflineNotifier({ presence, push, log });
+
+    await notifier.notify(["fg-user-0000", "away-user-1111"], {
+      title: "Secret Name",
+      body: "secret body",
+      data: { type: "dm_message", dmId: "d1", messageId: "m-1" },
+    });
+
+    const lines = dispatchLines(log);
+    expect(lines).toEqual([
+      {
+        kind: "dm_message",
+        ref: "m-1",
+        gate: "away",
+        recipients: 2,
+        away: 1,
+        users: ["away-use"],
+        tokens: 3,
+        ok: 2,
+        errors: { DeviceNotRegistered: 1 },
+        pruned: 1,
+        tok: ["abc"],
+      },
+    ]);
+    const all = log.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(all).not.toContain("secret body");
+    expect(all).not.toContain("Secret Name");
+  });
+
+  it("still logs when the gate leaves nobody to push (the 'she looked online' case)", async () => {
+    const presence = new InMemoryPresenceReader();
+    presence.setForeground("u1");
+    const log = vi.fn();
+    const push = makePush();
+    await createOfflineNotifier({ presence, push, log }).notify(["u1"], {
+      ...note,
+      data: { type: "message", messageId: "m" },
+    });
+    expect(push.calls).toEqual([]);
+    expect(dispatchLines(log)).toEqual([
+      { kind: "message", ref: "m", gate: "away", recipients: 1, away: 0, users: [] },
+    ]);
+  });
+
+  it("names call pushes by what they do", async () => {
+    const log = vi.fn();
+    const notifier = createOfflineNotifier({
+      presence: new InMemoryPresenceReader(),
+      push: makePush(),
+      log,
+    });
+    await notifier.notifyAlways(["u"], { ...note, data: { type: "call_invite", callId: "c" } });
+    await notifier.notifyAlways(["u"], { ...note, data: { type: "call_ended", callId: "c" } });
+    await notifier.notifyAlways(["u"], {
+      ...note,
+      silent: true,
+      data: { type: "call_ended", callId: "c" },
+    });
+    expect(dispatchLines(log).map((l) => [l["kind"], l["gate"], l["ref"]])).toEqual([
+      ["call_ring", "always", "c"],
+      ["call_missed", "always", "c"],
+      ["call_cleared", "always", "c"],
+    ]);
+  });
+});
+
 // notifyAlways is the call-ring path (#103): it must ignore the offline gate so a
 // backgrounded-but-connected callee still gets the ring, while leaving notify()'s
 // offline gate untouched (mention/message/friend pushes must not regress).

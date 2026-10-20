@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { RealtimeMutationPublisher } from "@demli/db";
-import type { OfflineNotifier } from "@demli/notifications";
+import { FRIEND_PUSH_TTL_SECONDS, type OfflineNotifier } from "@demli/notifications";
 import { friendUsernameField, serverEvent } from "@demli/protocol";
 import type { User } from "@demli/types";
 import { ApiError, parseWith } from "../../errors.js";
@@ -110,6 +110,7 @@ async function createFriendRequest(
       title: requester.displayName,
       body: "sent you a friend request.",
       data: { type: "friend_request", userId: requester.id },
+      ttlSeconds: FRIEND_PUSH_TTL_SECONDS,
     });
   } else if (result.outcome === "auto_accepted" && result.friendship) {
     await mutationBus?.publish({
@@ -123,6 +124,7 @@ async function createFriendRequest(
       title: requester.displayName,
       body: "accepted your friend request.",
       data: { type: "friend", userId: requester.id },
+      ttlSeconds: FRIEND_PUSH_TTL_SECONDS,
     });
   }
   return result;
@@ -383,6 +385,7 @@ export async function registerFriendsModule(
         title: user.displayName,
         body: "accepted your friend request.",
         data: { type: "friend", userId: user.id },
+        ttlSeconds: FRIEND_PUSH_TTL_SECONDS,
       });
       return { friendship: result.friendship };
     },

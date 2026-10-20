@@ -47,15 +47,65 @@ export function callRingPush(input: {
   ringSeconds: number;
   /** `dmId` for a 1-1 call; `groupId` + `voiceChannelId` for an upgrade invite. */
   target: { dmId: string } | { groupId: string; voiceChannelId: string };
+  /** The caller — lets a tap on a ring that already ended open the DM with them. */
+  callerId?: string;
 }): PushNotification {
   const upgrade = "groupId" in input.target;
   return {
     title: input.callerName,
     body: upgrade ? "added you to a call." : "is calling you.",
-    data: { type: "call_invite", callId: input.callId, ...input.target },
+    data: {
+      type: "call_invite",
+      callId: input.callId,
+      ...input.target,
+      // 1-1 only: for an upgrade ring a client uses `name` as the VOICE
+      // CHANNEL's title, so the caller's name must not ride there.
+      ...(upgrade ? {} : { name: input.callerName }),
+      ...(input.callerId && !upgrade ? { userId: input.callerId } : {}),
+    },
     collapseKey: callPushTag(input.callId),
     ttlSeconds: input.ringSeconds,
   };
+}
+
+/**
+ * Where a missed-call tap should land: the DM with the caller, seen from the
+ * CALLEE's side. `channelId` is the DM stream — it travels together with `dmId`
+ * on purpose, because an older client routes any push carrying `dmId` to the
+ * DM screen and that screen needs the stream to render (without it, a tap
+ * showed "conversation unavailable").
+ */
+export interface MissedCallDmRoute {
+  dmId: string;
+  channelId: string;
+  /** The caller (the DM peer from the callee's side). */
+  userId: string;
+}
+
+/** The `dms.findById` slice {@link resolveMissedCallDm} needs. */
+export interface MissedCallDmLookup {
+  findById(
+    dmId: string,
+    viewerId: string,
+  ): Promise<{ id: string; streamId: string; participant: { id: string } } | null>;
+}
+
+/**
+ * Resolve the callee-side DM of `call` for the missed-call push. Best-effort:
+ * any failure (or a lookup the caller could not wire) yields `undefined`, and
+ * the push simply carries no route — the tap then opens the recent-calls list.
+ */
+export async function resolveMissedCallDm(
+  dms: MissedCallDmLookup | undefined,
+  call: { dmId: string; calleeId: string },
+): Promise<MissedCallDmRoute | undefined> {
+  if (!dms) return undefined;
+  try {
+    const dm = await dms.findById(call.dmId, call.calleeId);
+    return dm ? { dmId: dm.id, channelId: dm.streamId, userId: dm.participant.id } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Replace an unanswered ring with the missed-call line. */
@@ -63,11 +113,25 @@ export function callMissedPush(input: {
   callerName: string;
   callId: string;
   reason: "timeout" | "canceled";
+  /** The callee's DM with the caller, when known — the tap opens it. */
+  dm?: MissedCallDmRoute;
 }): PushNotification {
   return {
     title: input.callerName,
     body: "Missed call",
-    data: { type: "call_ended", callId: input.callId, reason: input.reason },
+    data: {
+      type: "call_ended",
+      callId: input.callId,
+      reason: input.reason,
+      ...(input.dm
+        ? {
+            dmId: input.dm.dmId,
+            channelId: input.dm.channelId,
+            userId: input.dm.userId,
+            name: input.callerName,
+          }
+        : {}),
+    },
     collapseKey: callPushTag(input.callId),
     ttlSeconds: CALL_MISSED_PUSH_TTL_SECONDS,
   };

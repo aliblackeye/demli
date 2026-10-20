@@ -42,8 +42,8 @@ import type { PresencePayload } from "@demli/protocol";
 import type { RealtimeMutation } from "@demli/db";
 import {
   dispatchChannelMessagePush,
+  dmMessagePush,
   filterMutedRecipients,
-  mentionPushBody,
   type OfflineNotifier,
 } from "@demli/notifications";
 import type { UnfurlService } from "@demli/unfurl";
@@ -2195,11 +2195,17 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
         );
         if (dmRecipients.length > 0 && !ignoring) {
           const author = await deps.repos.users.findById(senderId);
-          await deps.notifier.notify(dmRecipients, {
-            title: author?.displayName ?? "New message",
-            body: mentionPushBody(content),
-            data: { type: "dm_message", dmId: dm.id, channelId, messageId },
-          });
+          await deps.notifier.notify(
+            dmRecipients,
+            dmMessagePush({
+              authorId: senderId,
+              authorName: author?.displayName ?? "New message",
+              dmId: dm.id,
+              channelId,
+              messageId,
+              content,
+            }),
+          );
         }
       }
       return;
