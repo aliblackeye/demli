@@ -32,6 +32,7 @@ export function toAttachmentDTO(record: AttachmentRecord): AttachmentDTO {
     width: record.width,
     height: record.height,
     durationMs: record.durationMs,
+    isVoiceMessage: record.isVoiceMessage,
     createdAt: record.createdAt,
   };
 }

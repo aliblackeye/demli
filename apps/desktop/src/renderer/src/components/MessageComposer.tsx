@@ -41,6 +41,8 @@ import {
 import { AttachmentPreviewStrip } from "./AttachmentPreviewStrip";
 import { useCustomEmojiContext } from "./CustomEmojiContext";
 import { EmojiPicker } from "./EmojiPicker";
+import { VoiceRecorder } from "./VoiceRecorder";
+import { GifPicker } from "./GifPicker";
 
 /**
  * Emoji-picker slot. A component (not a plain closure) because it reads the
@@ -140,6 +142,12 @@ const composerServices: ComposerServices = {
       onRemove={onRemove}
       onRetry={onRetry}
     />
+  ),
+  renderVoiceRecorder: ({ channelId, disabled }) => (
+    <VoiceRecorder channelId={channelId} disabled={disabled} />
+  ),
+  renderGifPicker: ({ channelId, disabled }) => (
+    <GifPicker channelId={channelId} disabled={disabled} />
   ),
 };
 

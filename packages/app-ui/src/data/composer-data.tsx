@@ -162,6 +162,17 @@ export interface ComposerServices {
     onRemove: (localId: string) => void;
     onRetry: (localId: string) => void;
   }) => ReactNode;
+  /**
+   * OPTIONAL: render a voice-recorder button/UI. The slot receives the active
+   * channel id and a disabled flag; the surface decides whether recording is
+   * supported (desktop: yes via MediaRecorder, mobile: handled natively).
+   */
+  renderVoiceRecorder?: (props: { channelId: string; disabled?: boolean }) => ReactNode;
+  /**
+   * OPTIONAL: render a GIF picker button+popover. The surface decides whether
+   * GIF sending is supported (needs the Tenor proxy on the server).
+   */
+  renderGifPicker?: (props: { channelId: string; disabled?: boolean }) => ReactNode;
 }
 
 const ComposerServicesContext = createContext<ComposerServices | null>(null);

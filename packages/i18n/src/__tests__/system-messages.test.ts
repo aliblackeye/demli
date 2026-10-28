@@ -17,6 +17,8 @@ const fakeT: TranslateFn = (key, opts) => {
     "common:system.call_missed": "Missed call",
     "common:system.call_declined": "Call declined",
     "common:system.call_canceled": "Call canceled",
+    "common:system.game_started": `${opts?.name} started a game — Minesweeper Flags`,
+    "common:system.game_ended": `Game over · ${opts?.score}`,
   };
   return map[key] ?? key;
 };
@@ -38,6 +40,8 @@ describe("system message tokens", () => {
       "call_missed",
       "call_declined",
       "call_canceled",
+      "game_started",
+      "game_ended",
     ]);
   });
 });
@@ -53,6 +57,20 @@ describe("DM-call system messages (ADR 0012)", () => {
     expect(resolveSystemMessage("@sys:call_missed", "Ali", fakeT)).toBe("Missed call");
     expect(resolveSystemMessage("@sys:call_declined", "Ali", fakeT)).toBe("Call declined");
     expect(resolveSystemMessage("@sys:call_canceled", "Ali", fakeT)).toBe("Call canceled");
+  });
+});
+
+describe("Game system messages", () => {
+  it("resolves game_started as a bare token", () => {
+    expect(resolveSystemMessage("@sys:game_started", "Ali", fakeT)).toBe(
+      "Ali started a game — Minesweeper Flags",
+    );
+  });
+
+  it("resolves game_ended with score", () => {
+    expect(resolveSystemMessage("@sys:game_ended:26-18", "Ali", fakeT)).toBe(
+      "Game over · 26-18",
+    );
   });
 });
 

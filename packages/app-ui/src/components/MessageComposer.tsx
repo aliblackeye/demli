@@ -748,6 +748,8 @@ export function MessageComposer({
               )}
             />
 
+            {services.renderGifPicker?.({ channelId: channel.id, disabled: false })}
+
             {/* Inserts a unicode glyph, or a `:name:` shortcode for a group emoji
                 (the renderer resolves the shortcode back into an image, so the
                 message itself stays plain text — §28). The h-11 box wraps the whole
@@ -770,6 +772,10 @@ export function MessageComposer({
                 ),
               })}
             </div>
+
+            {value.trim().length === 0 && !hasDrafts && services.renderVoiceRecorder?.({
+              channelId: channel.id,
+            })}
           </div>
         )}
 

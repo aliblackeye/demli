@@ -31,6 +31,7 @@ const imageAttachment: Attachment = {
   width: 800,
   height: 600,
   durationMs: null,
+  isVoiceMessage: false,
   createdAt: "2026-07-08T10:00:00.000Z",
 };
 
@@ -42,6 +43,7 @@ const audioAttachment: Attachment = {
   width: null,
   height: null,
   durationMs: 30_000,
+  isVoiceMessage: false,
 };
 
 const baseMessage: MessageDTO = {

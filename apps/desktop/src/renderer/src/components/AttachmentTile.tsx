@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ImageOff, RotateCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ImageOff, Pause, Play, RotateCw } from "lucide-react";
 import { Skeleton, cn } from "@demli/ui";
 import { ActionMenu } from "@demli/app-ui";
 import type { Attachment } from "@demli/types";
@@ -126,6 +126,40 @@ export function AttachmentTile({
     }
     // `actionTarget` is derived from the same inputs; listing the URL is enough.
   }, [attachment.id, attachment.kind, resolvedUrl, bytesFailed, alt, onImageReady]);
+
+  // Voice messages render as a compact bubble with play/pause and progress.
+  if (attachment.kind === "audio" && attachment.isVoiceMessage) {
+    return (
+      <div ref={ref}>
+        {bytesFailed ? (
+          <div
+            className="flex items-center rounded-xl bg-wash px-3"
+            style={{ width: AUDIO_WIDTH, height: AUDIO_HEIGHT }}
+          >
+            <TileError onRetry={retryBytes} compact />
+          </div>
+        ) : resolvedUrl ? (
+          <VoiceMessageBubble key={attempt} url={resolvedUrl} durationMs={attachment.durationMs} onError={markFailed} />
+        ) : status === "error" && !localUrl ? (
+          <div
+            className="flex items-center rounded-xl bg-wash px-3"
+            style={{ width: AUDIO_WIDTH, height: AUDIO_HEIGHT }}
+          >
+            <TileError onRetry={retry} compact />
+          </div>
+        ) : (
+          <div
+            className="flex items-center rounded-xl bg-wash px-3"
+            style={{ width: AUDIO_WIDTH, height: AUDIO_HEIGHT }}
+          >
+            <div role="status" aria-label={t("desktop:attachments.loading")} className="w-full">
+              <Skeleton shape="line" height={8} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Audio renders as a compact player rather than a media box.
   if (attachment.kind === "audio") {
@@ -272,6 +306,101 @@ function ImageSurface({
     <ActionMenu contentClassName="w-52" menu={<ImageActionItems target={actionTarget} />}>
       {button}
     </ActionMenu>
+  );
+}
+
+function formatVoiceDuration(ms: number | null): string {
+  const totalSec = Math.max(0, Math.round((ms ?? 0) / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function VoiceMessageBubble({
+  url,
+  durationMs,
+  onError,
+}: {
+  url: string;
+  durationMs: number | null;
+  onError: () => void;
+}): JSX.Element {
+  const { t } = useAppTranslation();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(durationMs ? durationMs / 1000 : 0);
+
+  const toggle = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) {
+      el.pause();
+    } else {
+      el.play();
+    }
+  }, [playing]);
+
+  const seek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = audioRef.current;
+    if (!el || !el.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    el.currentTime = ratio * el.duration;
+  }, []);
+
+  const displayDuration = playing || currentTime > 0
+    ? formatVoiceDuration(currentTime * 1000)
+    : formatVoiceDuration(durationMs);
+
+  return (
+    <div className="flex max-w-[280px] items-center gap-2.5 rounded-2xl bg-accent/10 px-3 py-2">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onError={onError}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setProgress(0);
+          setCurrentTime(0);
+        }}
+        onLoadedMetadata={() => {
+          const el = audioRef.current;
+          if (el && el.duration && isFinite(el.duration)) setDuration(el.duration);
+        }}
+        onTimeUpdate={() => {
+          const el = audioRef.current;
+          if (!el || !el.duration) return;
+          setProgress(el.currentTime / el.duration);
+          setCurrentTime(el.currentTime);
+        }}
+      />
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={playing ? "Pause" : "Play"}
+        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent text-bg transition-colors hover:bg-accent-hover"
+      >
+        {playing ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
+      </button>
+      <div className="min-w-0 flex-1">
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+        <div
+          className="h-1.5 cursor-pointer rounded-full bg-accent/20"
+          onClick={seek}
+        >
+          <div
+            className="h-full rounded-full bg-accent transition-[width] duration-100"
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+        <p className="mt-1 text-2xs tabular-nums text-fg-muted">{displayDuration}</p>
+      </div>
+    </div>
   );
 }
 

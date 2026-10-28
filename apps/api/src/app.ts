@@ -72,6 +72,12 @@ import {
   type VoiceOccupancyReader,
 } from "./modules/voice/index.js";
 import { registerWatchModule, type YouTubeFetchJson } from "./modules/watch/index.js";
+import {
+  createGameCoordinator,
+  registerGamesModule,
+  type GameCoordinator,
+} from "./modules/games/index.js";
+import { registerGifModule } from "./modules/gif/index.js";
 
 export interface BuildAppOptions {
   repos: Repositories;
@@ -200,6 +206,7 @@ export interface BuildAppOptions {
    * not assert unfurl, so the default full test run makes no network calls.
    */
   unfurl?: UnfurlService;
+  gameCoordinator?: GameCoordinator;
   logger?: boolean;
 }
 
@@ -431,6 +438,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     log: (message) => server.log.warn(message),
   });
   await registerHooksModule(server, options.hooks);
+
+  const gameCoordinator =
+    options.gameCoordinator ?? createGameCoordinator(options.mutationBus);
+  await registerGamesModule(server, gameCoordinator, options.mutationBus);
+  server.addHook("onClose", () => gameCoordinator.close());
+  await registerGifModule(server);
 
   // Orphan-upload sweep: only in the long-running server (index.ts) and only
   // when storage is enabled. Cleared on graceful shutdown so no timer leaks.

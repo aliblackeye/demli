@@ -89,6 +89,7 @@ import {
   useVoiceOccupancyStore,
 } from "../stores/voice-occupancy-store";
 import { useWatchPartyStore, type WatchRefusal } from "../stores/watch-party-store";
+import { useGameStore } from "../stores/game-store";
 
 /** How long a typing.started entry stays visible without a refresh. */
 const TYPING_TTL_MS = 8_000;
@@ -1582,6 +1583,24 @@ function handleServerEvent(event: ServerToClientEvent): void {
     // queue state of its own to reconcile against.
     case SERVER_EVENT.watchQueueUpdated:
       useWatchPartyStore.getState().setQueue(event.payload.channelId, event.payload.queue);
+      return;
+
+    case SERVER_EVENT.gameInviteReceived:
+      useGameStore.getState().receiveInvite(event.payload);
+      return;
+    case SERVER_EVENT.gameStarted: {
+      const meId = useAuthStore.getState().user?.id;
+      if (meId) useGameStore.getState().gameStarted(event.payload, meId);
+      return;
+    }
+    case SERVER_EVENT.gameMoveResult:
+      useGameStore.getState().moveResult(event.payload);
+      return;
+    case SERVER_EVENT.gameEnded:
+      useGameStore.getState().gameEnded(event.payload);
+      return;
+    case SERVER_EVENT.gameDeclined:
+      useGameStore.getState().inviteDeclined(event.payload);
       return;
 
     default: {

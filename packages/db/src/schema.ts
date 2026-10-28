@@ -723,6 +723,8 @@ export const attachments = pgTable(
     height: integer("height"),
     /** audio/video milliseconds; null for image. */
     durationMs: integer("duration_ms"),
+    /** True for inline-recorded voice notes; false (default) for file-picked audio. */
+    isVoiceMessage: boolean("is_voice_message").notNull().default(false),
     /** Bucket-relative object key (random UUID path); never leaves the API. */
     storagePath: text("storage_path").notNull(),
     /**

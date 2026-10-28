@@ -106,6 +106,10 @@ export type ApiErrorCode =
   | "WATCH_SEARCH_DISABLED"
   | "WATCH_SEARCH_QUOTA"
   | "WATCH_SEARCH_UNAVAILABLE"
+  // M19 GIF proxy (Tenor). GIF_DISABLED: no TENOR_API_KEY on this deployment.
+  // GIF_UPSTREAM_ERROR: Tenor API returned an error.
+  | "GIF_DISABLED"
+  | "GIF_UPSTREAM_ERROR"
   // Client-identity gate (plugins/client-gate.ts): the request carries no
   // `x-demli-client` mark while the gate is armed, i.e. it came from an app built
   // by a retired build. Served with HTTP 426 and a `downloadUrl` detail —

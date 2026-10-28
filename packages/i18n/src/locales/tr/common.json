@@ -5,7 +5,9 @@
     "call_ended": "Görüşme bitti · {{duration}}",
     "call_missed": "Cevapsız arama",
     "call_declined": "Arama reddedildi",
-    "call_canceled": "Arama iptal edildi"
+    "call_canceled": "Arama iptal edildi",
+    "game_started": "{{name}} oyun başlattı — Mayın Tarlası Bayraklar",
+    "game_ended": "Oyun bitti · {{score}}"
   },
   "errors": {
     "generic": "Bir şeyler ters gitti. Tekrar dene.",
@@ -88,5 +90,36 @@
       "emojiName": "Yalnızca küçük harf, rakam ve alt çizgi kullan.",
       "hexColor": "#7c3aed gibi bir renk kodu gir."
     }
+  },
+  "games": {
+    "turn": "Sıra",
+    "toWin": "kazanmak için",
+    "bomb": "Bomba",
+    "bombUsed": "Bombanı zaten kullandın",
+    "bombOnlyWhenTrailing": "Sadece gerideyken kullanılabilir",
+    "bombHint": "5×5 alanı patlat (gerideyken 1 kez)",
+    "youWon": "Kazandın!",
+    "opponentWon": "{{name}} kazandı",
+    "gameOver": "Oyun Bitti",
+    "winner": "Kazanan",
+    "close": "Kapat",
+    "inviteFrom": "{{name}} seni oyuna davet ediyor",
+    "accept": "Kabul",
+    "minesweeperFlags": "Mayın Tarlası Bayraklar"
+  },
+  "voice": {
+    "recording": "Kaydediliyor…",
+    "recordingHint": "Bırak veya tıkla gönder",
+    "voiceMessage": "Ses mesajı",
+    "recordStart": "Ses mesajı kaydet",
+    "cancel": "İptal"
+  },
+  "gif": {
+    "title": "GIF",
+    "search": "GIF ara…",
+    "trending": "Popüler",
+    "noResults": "Sonuç bulunamadı",
+    "poweredBy": "Tenor",
+    "disabled": "GIF araması bu sunucuda kapalı"
   }
 }

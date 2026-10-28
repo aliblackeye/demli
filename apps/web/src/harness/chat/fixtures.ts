@@ -119,6 +119,7 @@ function attachment(id: string, messageId: string, width: number | null, height:
     width,
     height,
     durationMs: null,
+    isVoiceMessage: false,
     createdAt: at(1, 20, 0),
   };
 }

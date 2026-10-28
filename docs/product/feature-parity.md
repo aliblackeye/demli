@@ -115,6 +115,9 @@ Durumlar: ✅ çalışıyor · 🚧 yapım aşamasında · ⛔ yok (görev no zo
 | Profil ayarları: canlı kart önizlemesi + yapışkan "kaydedilmemiş değişiklik" çubuğu (adımlı kayıt, yalnız kalanı tekrar dene, Ctrl/⌘+S) | ✅ (YAYINLANMADI) | ✅ | Adım sayacı GERÇEK istek sayısıdır (avatar → banner → profil); bayt bazlı yükleme yüzdesi YOK — yükleme `client-core` `fetch` ile gidiyor, ilerleme olayı vermiyor. |
 | Avatar / banner KALDIRMA | ✅ (YAYINLANMADI) | ✅ | Kaydet'e kadar taslak ("Kaldırmaktan vazgeç" aynı düğmede). `PATCH /users/me {avatarUrl / bannerUrl: null}` — API zaten kabul ediyordu. |
 | Moderasyon onayları: at / yasakla / zaman aşımı (sonuç listesi, tehlike işareti; saf onaylarda odak İptal'de) | ✅ (YAYINLANMADI) | ◑ | Zaman aşımı artık alt menüden ANINDA değil; süre + bitiş saati + isteğe bağlı sebep soran diyalogla. Mobil süreyi zaten sheet'te soruyor (`MemberActionSheet` timeout modu); sonuç listesi Dalga 4. Mobil eksik: sonuç listesi yok; zaman aşımı hazır süresi onaysız uygulanıyor; yasaklama sebebi alanı yok. |
+| Ses mesajı kaydı + gönderme (YAYINLANMADI) | 🚧 | 🚧 | Composer'da mikrofon butonu (metin boşken), kayıt göstergesi + dalga formu (masaüstü AnalyserNode), süre sayacı, iptal/gönder. Masaüstü `audio/ogg;codecs=opus` MediaRecorder; mobil `expo-audio` AAC/M4A. Upload: `isVoiceMessage: true` bayrağıyla mevcut attachment akışı. Kompakt voice bubble: play/pause + ilerleme çubuğu + süre (WhatsApp tarzı). DB: migration 0025 `is_voice_message` sütunu. |
+| GIF gönderme — Tenor proxy (YAYINLANMADI) | 🚧 | 🚧 | Sunucu: `GET /gif/search` + `/gif/trending` (Tenor v2 proxy, API key sunucu tarafında, 30/dk rate limit). Masaüstü: emoji yanında GIF butonu → popover, arama + trending ızgara, seç → indir → attachment olarak yükle → gönder. Mobil: AttachmentSheet'te GIF satırı → bottom sheet picker. `TENOR_API_KEY` yoksa 503 `GIF_DISABLED`. |
+| Stereo ses (müzik modu) | ✅ | ✅ | İstemci kodu doğru: `forceStereo: true`, `channelCount: 2`, `dtx: false`, 256 kbps. Mono mikrofon donanımı dual-mono üretir (mono'dan ayırt edilemez) — bu beklenen davranış, yazılım sorunu değil. |
 
 ## Süreç
 
@@ -1960,3 +1963,25 @@ izin şeridi şart.
 
 ⚠️ Cihaz doğrulaması AÇIK (founder kuralı — emülatör/uygulama bu dalda çalıştırılmadı). Başka
 cihazda cevaplanan zilin SESSİZ `call_ended` push'unu istemcide kapatmak hâlâ yok (üstteki 🚧 satır).
+
+---
+
+## MSN Oyunları — Minesweeper Flags (Mayın Tarlası Bayraklar)
+
+MSN Messenger'daki ikonik 2-kişilik mayın tarlası oyununu Demli'ye getirme çalışması.
+
+| Özellik | Masaüstü | Mobil | Not |
+|---|---|---|---|
+| Oyun motoru (saf TS, sunucu-otoriteli) | ✅ (paylaşımlı) | ✅ (paylaşımlı) | `packages/games/src/minesweeper-flags/` — 16×16, 51 mayın, 26 bayrakla kazanma, bomba (5×5), flood-fill cascade. 12 birim testi. Mine pozisyonları ASLA istemciye gönderilmez (hile önlemi). |
+| Protocol sözleşmesi (zod + typed unions) | ✅ | ✅ | `@demli/protocol` — 4 client→server (game.invite/accept/decline/move) + 5 server→client (game.invite_received/started/move_result/ended/declined) event. Wire tipleri `@demli/games`'den bağımsız. |
+| Backend API modülü (REST) | ✅ | ✅ | `apps/api/src/modules/games/` — GameCoordinator (in-memory), invite/accept/decline/move endpoint'leri, mutation-bus ile gateway fan-out. Rate limit: invite 10/dk, move 120/dk. |
+| Client-core API metodları | ✅ | ✅ | `api.gameInvite/Accept/Decline/Move` — paylaşımlı client-core'a eklendi. |
+| Game store (Zustand) | ✅ | ✅ | `stores/game-store.ts` — server event'lerinden projeksiyon, pending invite + active game + end result. Mobil mirror aynı slice/action'lar. |
+| Realtime wiring | ✅ | ✅ | `connection.ts` — 5 game event handler'ı store dispatch'lerine bağlandı (her iki platform). |
+| Game queries (TanStack) | ✅ | ✅ | `queries/game-queries.ts` — invite/accept/decline/move mutation hook'ları. Mobil `getApi()` kullanır. |
+| Davet akışı (toast) | ✅ | ✅ | `GameInviteToast` — 60s TTL, kabul/reddet. Desktop: CSS fixed; Mobil: Glass bileşeni, absolute overlay. |
+| Oyun tahtası UI (MSN görünümü) | ✅ | ✅ | `MinesweeperBoard` — 16×16 grid, yeşil-gri hücreler, mavi/kırmızı bayraklar, skor paneli, bomba modu. Mobil: RN Pressable, ekran genişliğine uyarlanan hücre boyutu. |
+| Oyun overlay + sonu ekranı | ✅ | ✅ | `GameOverlay` — tam ekran overlay, kazanan gösterimi, kapat. Mobil: ScrollView + absolute fill. |
+| Üye menüsü oyun daveti | ✅ | ✅ | `member-menu.ts` paylaşımlı `"gameInvite"` girdisi. Desktop: ContextMenuItem; Mobil: MemberActionSheet ActionRow. |
+| Sohbet sistem mesajları | ✅ | ✅ | Oyun başladığında `@sys:game_started`, bittiğinde `@sys:game_ended:<skor>` channel'a yazılır. `resolveSystemMessage` her iki dilde çözüyor. |
+| i18n (TR + EN) | ✅ | ✅ | `games.*` + `system.game_*` key'leri her iki katalogda, parite testi geçiyor. |

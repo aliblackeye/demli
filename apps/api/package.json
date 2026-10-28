@@ -20,6 +20,7 @@
     "@fastify/rate-limit": "^10.1.1",
     "@demli/config": "workspace:*",
     "@demli/db": "workspace:*",
+    "@demli/games": "workspace:*",
     "@demli/notifications": "workspace:*",
     "@demli/protocol": "workspace:*",
     "@demli/types": "workspace:*",

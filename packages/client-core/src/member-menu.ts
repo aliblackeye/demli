@@ -42,6 +42,7 @@ export type MemberMenuItem =
   | "mention"
   | "message"
   | "call"
+  | "gameInvite"
   | "note"
   | "friendNickname"
   // group 2 — server-scoped identity + relationship
@@ -212,6 +213,8 @@ function otherMenuGroups(ctx: MemberMenuContext): MemberMenuGroup[] {
     identity.push("message");
     // Calling requires a mutual friendship (the DM-call rule, ADR 0012).
     if (ctx.friendship === "friends") identity.push("call");
+    // Game invite — available in any channel context (no friendship required).
+    if (ctx.hasTextChannel) identity.push("gameInvite");
   }
   // A note and a private nickname are yours, about them, and need no
   // relationship or permission whatsoever — they survive a block.

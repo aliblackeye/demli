@@ -36,6 +36,8 @@ export interface AttachmentRecord {
   width: number | null;
   height: number | null;
   durationMs: number | null;
+  /** True for inline-recorded voice notes; false for file-picked audio. */
+  isVoiceMessage: boolean;
   /** Server-internal object key — never expose to clients. */
   storagePath: string;
   status: AttachmentStatus;
@@ -58,6 +60,7 @@ export function toAttachmentRecord(row: AttachmentRow): AttachmentRecord {
     width: row.width,
     height: row.height,
     durationMs: row.durationMs,
+    isVoiceMessage: row.isVoiceMessage,
     storagePath: row.storagePath,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
@@ -112,6 +115,7 @@ export function attachmentsRepo(db: Db) {
       width?: number | null;
       height?: number | null;
       durationMs?: number | null;
+      isVoiceMessage?: boolean;
     }): Promise<AttachmentRecord> {
       const [row] = await db
         .insert(attachments)
@@ -125,6 +129,7 @@ export function attachmentsRepo(db: Db) {
           width: input.width ?? null,
           height: input.height ?? null,
           durationMs: input.durationMs ?? null,
+          isVoiceMessage: input.isVoiceMessage ?? false,
           status: "pending",
         })
         .returning();

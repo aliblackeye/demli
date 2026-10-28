@@ -194,6 +194,7 @@ export const attachmentDTOSchema = z.object({
   width: z.number().int().nonnegative().nullable(),
   height: z.number().int().nonnegative().nullable(),
   durationMs: z.number().int().nonnegative().nullable(),
+  isVoiceMessage: z.boolean(),
   createdAt: z.string(),
 });
 
@@ -1015,6 +1016,103 @@ export const watchQueueUpdatedPayloadSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Game schemas (Minesweeper Flags)
+// ---------------------------------------------------------------------------
+
+const gameTypeSchema = z.literal("minesweeper-flags");
+
+const msfGameActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("reveal"), row: z.number().int().min(0).max(15), col: z.number().int().min(0).max(15) }),
+  z.object({ type: z.literal("bomb"), centerRow: z.number().int().min(0).max(15), centerCol: z.number().int().min(0).max(15) }),
+]);
+
+const playerSeatSchema = z.union([z.literal(1), z.literal(2)]);
+
+const clientCellStateSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("hidden") }),
+  z.object({ kind: z.literal("revealed"), adjacentMines: z.number().int().min(0).max(8) }),
+  z.object({ kind: z.literal("flagged"), owner: playerSeatSchema }),
+]);
+
+const msfGameStateSchema = z.object({
+  id: id,
+  phase: z.enum(["waiting", "playing", "finished"]),
+  board: z.array(clientCellStateSchema),
+  scores: z.record(z.number().int()),
+  currentTurn: playerSeatSchema,
+  bombUsed: z.record(z.boolean()),
+  winner: playerSeatSchema.optional(),
+  totalMines: z.number().int(),
+  minesToWin: z.number().int(),
+});
+
+const msfMoveResultSchema = z.object({
+  action: msfGameActionSchema,
+  cellChanges: z.array(z.object({
+    row: z.number().int(),
+    col: z.number().int(),
+    state: clientCellStateSchema,
+  })),
+  foundMine: z.boolean(),
+  scores: z.record(z.number().int()),
+  currentTurn: playerSeatSchema,
+  phase: z.enum(["waiting", "playing", "finished"]),
+  winner: playerSeatSchema.optional(),
+});
+
+export const gameInvitePayloadSchema = z.object({
+  gameId: id,
+  gameType: gameTypeSchema,
+  targetUserId: id,
+  channelId: id,
+});
+
+export const gameAcceptPayloadSchema = z.object({
+  gameId: id,
+});
+
+export const gameDeclinePayloadSchema = z.object({
+  gameId: id,
+});
+
+export const gameMovePayloadSchema = z.object({
+  gameId: id,
+  action: msfGameActionSchema,
+});
+
+export const gameInviteReceivedPayloadSchema = z.object({
+  gameId: id,
+  gameType: gameTypeSchema,
+  inviterUserId: id,
+  channelId: id,
+});
+
+export const gameStartedPayloadSchema = z.object({
+  gameId: id,
+  gameType: gameTypeSchema,
+  channelId: id,
+  players: z.record(id),
+  state: msfGameStateSchema,
+});
+
+export const gameMoveResultPayloadSchema = z.object({
+  gameId: id,
+  result: msfMoveResultSchema,
+});
+
+export const gameEndedPayloadSchema = z.object({
+  gameId: id,
+  winnerUserId: id.nullable(),
+  scores: z.record(z.number().int()),
+  players: z.record(id),
+});
+
+export const gameDeclinedPayloadSchema = z.object({
+  gameId: id,
+  declinedByUserId: id,
+});
+
+// ---------------------------------------------------------------------------
 // Event schemas (discriminated unions on `type`)
 // ---------------------------------------------------------------------------
 
@@ -1045,6 +1143,10 @@ export const clientToServerEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("watch.queue_play"), payload: watchQueuePlayPayloadSchema }),
   z.object({ type: z.literal("watch.ended"), payload: watchEndedPayloadSchema }),
+  z.object({ type: z.literal("game.invite"), payload: gameInvitePayloadSchema }),
+  z.object({ type: z.literal("game.accept"), payload: gameAcceptPayloadSchema }),
+  z.object({ type: z.literal("game.decline"), payload: gameDeclinePayloadSchema }),
+  z.object({ type: z.literal("game.move"), payload: gameMovePayloadSchema }),
 ]);
 
 export const serverToClientEventSchema = z.discriminatedUnion("type", [
@@ -1145,6 +1247,11 @@ export const serverToClientEventSchema = z.discriminatedUnion("type", [
     type: z.literal("watch.queue_updated"),
     payload: watchQueueUpdatedPayloadSchema,
   }),
+  z.object({ type: z.literal("game.invite_received"), payload: gameInviteReceivedPayloadSchema }),
+  z.object({ type: z.literal("game.started"), payload: gameStartedPayloadSchema }),
+  z.object({ type: z.literal("game.move_result"), payload: gameMoveResultPayloadSchema }),
+  z.object({ type: z.literal("game.ended"), payload: gameEndedPayloadSchema }),
+  z.object({ type: z.literal("game.declined"), payload: gameDeclinedPayloadSchema }),
 ]);
 
 /** Envelope wrapping every server→client event. */

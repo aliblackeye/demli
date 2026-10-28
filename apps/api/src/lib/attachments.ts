@@ -67,6 +67,7 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "audio/mpeg": "mp3",
   "audio/ogg": "ogg",
   "audio/wav": "wav",
+  "audio/webm": "webm",
   "video/mp4": "mp4",
   "video/webm": "webm",
 };
@@ -83,7 +84,10 @@ function extensionForMime(mime: string): string {
  * an image sniffs to `video` ≠ `image` (rejected). Covers exactly the ADR 0008
  * §4 whitelist (png/jpeg/webp/gif, mp3/ogg/wav, mp4/webm).
  */
-export function sniffAttachmentKind(bytes: Uint8Array): AttachmentLimitKind | null {
+export function sniffAttachmentKind(
+  bytes: Uint8Array,
+  declaredKind?: AttachmentLimitKind,
+): AttachmentLimitKind | null {
   const startsWith = (sig: number[], offset = 0): boolean =>
     bytes.length >= offset + sig.length && sig.every((v, i) => bytes[offset + i] === v);
   const ascii = (text: string, offset = 0): boolean =>
@@ -101,9 +105,13 @@ export function sniffAttachmentKind(bytes: Uint8Array): AttachmentLimitKind | nu
   if (ascii("ID3")) return "audio"; // MP3 with an ID3v2 tag
   if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0) return "audio"; // MP3 frame sync
 
-  // Video
-  if (ascii("ftyp", 4)) return "video"; // MP4 / ISO-BMFF ("....ftyp")
-  if (startsWith([0x1a, 0x45, 0xdf, 0xa3])) return "video"; // WEBM / Matroska (EBML)
+  // Containers that may carry audio or video — the magic bytes alone cannot tell.
+  // The declared kind was already validated against the MIME whitelist, so returning
+  // either "audio" or "video" lets the caller's `sniffed === record.kind` pass for
+  // both `audio/webm` and `video/webm`. The `declaredKind` parameter disambiguates.
+  if (ascii("ftyp", 4)) return declaredKind === "audio" ? "audio" : "video";
+  if (startsWith([0x1a, 0x45, 0xdf, 0xa3]))
+    return declaredKind === "audio" ? "audio" : "video";
 
   return null;
 }
@@ -141,6 +149,7 @@ export function toAttachmentDTO(record: AttachmentRecord): AttachmentDTO {
     width: record.width,
     height: record.height,
     durationMs: record.durationMs,
+    isVoiceMessage: record.isVoiceMessage,
     createdAt: record.createdAt,
   };
 }

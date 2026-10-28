@@ -5,6 +5,7 @@ import {
   BellOff,
   Clock,
   Copy,
+  Gamepad2,
   Gavel,
   IdCard,
   LogOut,
@@ -69,6 +70,7 @@ import {
   useUnignoreUser,
   useUserNote,
 } from "../queries/social-queries";
+import { useGameInvite } from "../queries/game-queries";
 import { useAuthStore } from "../stores/auth-store";
 import { useChatStore } from "../stores/chat-store";
 import { useUiStore } from "../stores/ui-store";
@@ -207,6 +209,7 @@ function MemberMenuBody({
   const ignoreUser = useIgnoreUser();
   const unignoreUser = useUnignoreUser();
   const removeTimeout = useRemoveMemberTimeout(groupId);
+  const gameInvite = useGameInvite();
 
   // The membership row carries the SERVER nickname and the timeout instant.
   // Read off the roster query the sidebar already holds — no extra request.
@@ -349,6 +352,24 @@ function MemberMenuBody({
           >
             <PhoneCall className="size-4" />
             {t("desktop:userMenu.call")}
+          </ContextMenuItem>
+        );
+
+      case "gameInvite":
+        return (
+          <ContextMenuItem
+            key={item}
+            onSelect={() => {
+              if (!activeChannelId) return;
+              gameInvite.mutate({
+                targetUserId: target.userId,
+                channelId: activeChannelId,
+                gameType: "minesweeper-flags",
+              });
+            }}
+          >
+            <Gamepad2 className="size-4" />
+            {t("games.minesweeperFlags")}
           </ContextMenuItem>
         );
 

@@ -56,6 +56,9 @@ importers:
       '@demli/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@demli/games':
+        specifier: workspace:*
+        version: link:../../packages/games
       '@demli/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
@@ -670,6 +673,15 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.0)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/games:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@25.9.5)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.48.0)
 
   packages/i18n:
     dependencies:

@@ -28,6 +28,7 @@ import {
   BellOff,
   Clock,
   Copy,
+  Gamepad2,
   Gavel,
   IdCard,
   LogOut,
@@ -94,6 +95,7 @@ import {
   useUnignoreUser,
   useUserNote,
 } from "@/queries/member-queries";
+import { useGameInvite } from "@/queries/game-queries";
 import { getCallController } from "@/stores/call-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
@@ -250,6 +252,7 @@ function MemberMenuBody({
   const removeTimeout = useRemoveMemberTimeout(groupId);
   const kickMember = useKickMember(groupId);
   const banMember = useBanMember(groupId);
+  const gameInviteMut = useGameInvite();
 
   // The membership row carries the SERVER nickname and the timeout instant —
   // read off the roster query the screen already holds, no extra request.
@@ -473,6 +476,25 @@ function MemberMenuBody({
                   router.push({ pathname: "/call", params: { name } });
                 }),
               )
+            }
+          />
+        );
+
+      case "gameInvite":
+        return (
+          <ActionRow
+            key={item}
+            icon={<Gamepad2 size={20} color={colors.fgMuted} />}
+            label={t("games.minesweeperFlags")}
+            onPress={() =>
+              run(() => {
+                if (!channelId) return;
+                gameInviteMut.mutate({
+                  targetUserId: target.userId,
+                  channelId,
+                  gameType: "minesweeper-flags",
+                });
+              })
             }
           />
         );

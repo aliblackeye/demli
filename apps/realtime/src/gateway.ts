@@ -1186,6 +1186,18 @@ export function createGateway(deps: GatewayDeps, options: GatewayOptions): Gatew
         return;
       }
 
+      case CLIENT_EVENT.gameInvite:
+      case CLIENT_EVENT.gameAccept:
+      case CLIENT_EVENT.gameDecline:
+      case CLIENT_EVENT.gameMove: {
+        // TODO(games): wire to GameCoordinator when backend module ships
+        sendError(conn, {
+          code: "INVALID_PAYLOAD",
+          message: "Games are not available yet.",
+        });
+        return;
+      }
+
       default: {
         const _exhaustive: never = event;
         void _exhaustive;

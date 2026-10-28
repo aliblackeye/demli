@@ -268,6 +268,120 @@ function VideoTile({
  * button, the label with duration and size, and a thin progress line that
  * follows playback.
  */
+/**
+ * Compact voice-message bubble (WhatsApp-style pill): play/pause + progress
+ * bar + duration. Rendered when `attachment.isVoiceMessage` is true.
+ */
+function VoiceBubble({
+  attachment,
+  channelId,
+  entry,
+}: {
+  attachment: Attachment;
+  channelId: ChannelId;
+  entry: AttachmentUrlEntry | undefined;
+}) {
+  const { t } = useAppTranslation();
+  const maxW = useMaxTileWidth();
+  const recovery = useMediaErrorRecovery(channelId, attachment.id);
+  const url = entry?.status === "ready" ? entry.url : null;
+  const failed = recovery.broken || entry?.status === "error";
+  const player = useAudioPlayer(url ?? undefined);
+  const status = useAudioPlayerStatus(player);
+
+  const toggle = () => {
+    if (status.playing) {
+      player.pause();
+      return;
+    }
+    if (status.duration > 0 && status.currentTime >= status.duration) {
+      void player.seekTo(0);
+    }
+    player.play();
+  };
+
+  const durationMs =
+    attachment.durationMs ?? (status.duration > 0 ? Math.round(status.duration * 1000) : null);
+  const played =
+    status.duration > 0 ? Math.min(1, Math.max(0, status.currentTime / status.duration)) : 0;
+
+  return (
+    <View
+      style={{
+        width: Math.min(maxW, 260),
+        height: 48,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.sm,
+        paddingHorizontal: space.md,
+        borderRadius: radius.pill,
+        borderCurve: "continuous",
+        backgroundColor: colors.accentSurface,
+        overflow: "hidden",
+      }}
+    >
+      {failed ? (
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <TileFallback broken onRetry={recovery.reset} />
+        </View>
+      ) : (
+        <>
+          <Touchable
+            onPress={toggle}
+            disabled={url === null}
+            accessibilityRole="button"
+            accessibilityLabel={t(
+              status.playing ? "mobile:attachments.pauseAudioA11y" : "mobile:attachments.playAudioA11y",
+            )}
+            hitSlop={4}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: radius.pill,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.accent,
+            }}
+          >
+            {status.playing ? (
+              <Pause size={14} color={colors.onAccent} fill={colors.onAccent} />
+            ) : (
+              <Play
+                size={14}
+                color={url === null ? colors.fgFaint : colors.onAccent}
+                fill={url === null ? colors.fgFaint : colors.onAccent}
+                style={{ marginLeft: 1 }}
+              />
+            )}
+          </Touchable>
+          <View style={{ flex: 1, justifyContent: "center", gap: 4 }}>
+            <View style={{ height: 3, borderRadius: 1.5, backgroundColor: colors.wash }}>
+              <View
+                style={{
+                  height: 3,
+                  borderRadius: 1.5,
+                  width: `${Math.round(played * 100)}%`,
+                  backgroundColor: colors.accent,
+                }}
+              />
+            </View>
+          </View>
+          <Text
+            style={{
+              color: colors.fgMuted,
+              fontSize: 12,
+              fontVariant: ["tabular-nums"],
+              fontWeight: "500",
+            }}
+          >
+            {durationMs !== null ? formatMediaDuration(durationMs) : "0:00"}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
 function AudioTile({
   attachment,
   channelId,
@@ -462,6 +576,8 @@ export const MessageAttachments = memo(function MessageAttachments({
       {others.map((attachment) =>
         attachment.kind === "video" ? (
           <VideoTile key={attachment.id} attachment={attachment} channelId={channelId} entry={urls.get(attachment.id)} />
+        ) : attachment.kind === "audio" && attachment.isVoiceMessage ? (
+          <VoiceBubble key={attachment.id} attachment={attachment} channelId={channelId} entry={urls.get(attachment.id)} />
         ) : (
           <AudioTile key={attachment.id} attachment={attachment} channelId={channelId} entry={urls.get(attachment.id)} />
         ),

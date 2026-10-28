@@ -96,6 +96,7 @@ describe("toAttachmentDTO", () => {
       width: 10,
       height: 20,
       durationMs: null,
+      isVoiceMessage: false,
       storagePath: "c1/secret-object-key.png",
       status: "ready",
       createdAt: new Date().toISOString(),

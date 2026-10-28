@@ -338,7 +338,7 @@ export const ATTACHMENT_LIMITS = {
   },
   audio: {
     maxBytes: 20 * MB,
-    mimes: ["audio/mpeg", "audio/ogg", "audio/wav"],
+    mimes: ["audio/mpeg", "audio/ogg", "audio/wav", "audio/webm"],
   },
   video: {
     maxBytes: 100 * MB,

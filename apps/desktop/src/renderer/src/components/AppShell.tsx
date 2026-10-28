@@ -36,6 +36,8 @@ import { InAppNotificationToast } from "./InAppNotificationToast";
 import { PushToTalkListener } from "./PushToTalkListener";
 import { DesktopShellDataProvider } from "./DesktopShellDataProvider";
 import { TraySyncController } from "./TraySyncController";
+import { GameInviteToast } from "./GameInviteToast";
+import { GameOverlay } from "./GameOverlay";
 
 /** Keeps the active server group/channel selection consistent with server data. */
 function useSelectionSync(): void {
@@ -112,6 +114,8 @@ function AppShellOverlays(): JSX.Element {
           available (web without notification permission, or an engine with no
           Notification API). Renders nothing otherwise — see the component. */}
       <InAppNotificationToast />
+      <GameInviteToast />
+      <GameOverlay />
       <PushToTalkListener />
     </>
   );

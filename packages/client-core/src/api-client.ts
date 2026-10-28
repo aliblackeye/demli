@@ -23,7 +23,12 @@ import {
   CLIENT_SIGNATURE_HEADER,
   isValidClientSignature,
 } from "@demli/config";
-import type { DmCallActiveResponse } from "@demli/protocol";
+import type {
+  DmCallActiveResponse,
+  GameType,
+  WireGameAction,
+  WireGameState,
+} from "@demli/protocol";
 import type {
   Attachment,
   AttachmentId,
@@ -45,6 +50,7 @@ import type {
   FriendGroup,
   FriendGroupMember,
   Friendship,
+  GameId,
   Group,
   GroupBan,
   GroupId,
@@ -581,6 +587,25 @@ export interface RecentCallsPage {
   nextCursor: string | null;
 }
 
+/** Single GIF result from the Tenor proxy. */
+export interface GifItem {
+  id: string;
+  title: string;
+  previewUrl: string;
+  previewWidth: number;
+  previewHeight: number;
+  fullUrl: string;
+  fullWidth: number;
+  fullHeight: number;
+  fullSize: number;
+}
+
+/** Paginated GIF search response. */
+export interface GifSearchResult {
+  results: GifItem[];
+  next: string;
+}
+
 /** Response of POST /media/token — LiveKit connection grant (see apps/api media module). */
 export interface MediaTokenResponse {
   /** LiveKit websocket URL, e.g. ws://localhost:7880 — pass to the voice engine. */
@@ -966,7 +991,7 @@ export interface Api {
    */
   createAttachmentUploadUrl(
     channelId: ChannelId,
-    input: { filename?: string; mime: string; sizeBytes: number },
+    input: { filename?: string; mime: string; sizeBytes: number; isVoiceMessage?: boolean },
   ): Promise<AttachmentUploadTicket>;
   /**
    * Flip an uploaded attachment pending → ready after the bytes are PUT. The
@@ -989,6 +1014,11 @@ export interface Api {
   /** Cancel an upload before it is sent (uploader-only, unlinked-only ⇒ 409). */
   cancelAttachment(attachmentId: AttachmentId): Promise<void>;
   getMediaToken(channelId: string): Promise<MediaTokenResponse>;
+
+  /** Search Tenor for GIFs. Returns 503 when the server has no Tenor key. */
+  searchGifs(q: string, opts?: { limit?: number; pos?: string }): Promise<GifSearchResult>;
+  /** Fetch trending GIFs from Tenor. */
+  trendingGifs(opts?: { limit?: number; pos?: string }): Promise<GifSearchResult>;
 
   /**
    * Pull the AUTHORITATIVE voice occupancy snapshot (state-resync) —
@@ -1466,6 +1496,24 @@ export interface Api {
   ignoreUser(userId: UserId): Promise<{ ignore: UserIgnore }>;
   /** Stop ignoring `userId` (404 when they were not ignored). */
   unignoreUser(userId: UserId): Promise<void>;
+
+  // -- Games (MSN revival) ---------------------------------------------------
+
+  /** Send a game invite to another user in a channel. */
+  gameInvite(input: {
+    targetUserId: UserId;
+    channelId: ChannelId;
+    gameType: GameType;
+  }): Promise<{ gameId: GameId }>;
+
+  /** Accept a pending game invite. */
+  gameAccept(gameId: GameId): Promise<void>;
+
+  /** Decline a pending game invite. */
+  gameDecline(gameId: GameId): Promise<void>;
+
+  /** Submit a move in an active game. */
+  gameMove(gameId: GameId, action: WireGameAction): Promise<void>;
 }
 
 /** What {@link createApiClient} returns: the endpoints plus the token setter. */
@@ -1863,6 +1911,20 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
 
     getVoiceOccupancy() {
       return request<VoiceOccupancySnapshot>("/voice/occupancy");
+    },
+
+    // --- GIF search (Tenor proxy) ---
+    searchGifs(q, opts) {
+      const params = new URLSearchParams({ q });
+      if (opts?.limit) params.set("limit", String(opts.limit));
+      if (opts?.pos) params.set("pos", opts.pos);
+      return request<GifSearchResult>(`/gif/search?${params}`);
+    },
+    trendingGifs(opts) {
+      const params = new URLSearchParams();
+      if (opts?.limit) params.set("limit", String(opts.limit));
+      if (opts?.pos) params.set("pos", opts.pos);
+      return request<GifSearchResult>(`/gif/trending?${params}`);
     },
 
     // --- DM calls (ADR 0012) ---
@@ -2299,6 +2361,34 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     unignoreUser(userId) {
       return request<void>(`/users/me/ignores/${encodeURIComponent(userId)}`, {
         method: "DELETE",
+      });
+    },
+
+    // -- Games (MSN revival) -------------------------------------------------
+
+    gameInvite(input) {
+      return request<{ gameId: GameId }>("/games/invite", {
+        method: "POST",
+        body: input,
+      });
+    },
+
+    gameAccept(gameId) {
+      return request<void>(`/games/${encodeURIComponent(gameId)}/accept`, {
+        method: "POST",
+      });
+    },
+
+    gameDecline(gameId) {
+      return request<void>(`/games/${encodeURIComponent(gameId)}/decline`, {
+        method: "POST",
+      });
+    },
+
+    gameMove(gameId, action) {
+      return request<void>(`/games/${encodeURIComponent(gameId)}/move`, {
+        method: "POST",
+        body: { action },
       });
     },
   };

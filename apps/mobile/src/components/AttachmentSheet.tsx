@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { FileAudio, Image as ImageIcon } from "lucide-react-native";
+import { FileAudio, Image as ImageIcon, ImagePlay } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { useAppTranslation } from "@/lib/i18n";
 import { ActionRow, ActionSheet } from "./ui/ActionSheet";
@@ -35,11 +35,13 @@ export function AttachmentSheet({
   onClose,
   onPickMedia,
   onPickAudio,
+  onPickGif,
 }: {
   visible: boolean;
   onClose: () => void;
   onPickMedia: () => void;
   onPickAudio: () => void;
+  onPickGif?: () => void;
 }) {
   const { t } = useAppTranslation();
   return (
@@ -60,6 +62,16 @@ export function AttachmentSheet({
           onPickAudio();
         }}
       />
+      {onPickGif ? (
+        <ActionRow
+          icon={<SourceGlyph Icon={ImagePlay} />}
+          label={t("common:gif.title")}
+          onPress={() => {
+            onClose();
+            onPickGif();
+          }}
+        />
+      ) : null}
     </ActionSheet>
   );
 }

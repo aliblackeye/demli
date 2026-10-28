@@ -8,6 +8,8 @@ import { PipController } from "@/components/voice/PipController";
 import { VoiceMiniBar } from "@/components/voice/VoiceMiniBar";
 import { CallMiniBar } from "@/components/call/CallMiniBar";
 import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
+import { GameInviteToast } from "@/components/game/GameInviteToast";
+import { GameOverlay } from "@/components/game/GameOverlay";
 import { useAccountsStore } from "@/stores/accounts-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { noteUserActivity } from "@/realtime/connection";
@@ -166,6 +168,10 @@ export default function AppLayout() {
       {/* Foreground in-app banner (friend requests etc.) — floats over every
           authed screen; self-hides when there's nothing to show. */}
       <InAppNotificationBanner />
+      {/* MSN Games — invite toast floats over the app; the overlay covers
+          everything when a game is active. */}
+      <GameInviteToast />
+      <GameOverlay />
       {/* Global incoming-call ring — renders over EVERY authed screen the instant
           a call.invite lands. Last so it sits on top of every other overlay. */}
       <IncomingCallOverlay />

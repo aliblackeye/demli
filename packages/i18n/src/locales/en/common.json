@@ -5,7 +5,9 @@
     "call_ended": "Call ended · {{duration}}",
     "call_missed": "Missed call",
     "call_declined": "Call declined",
-    "call_canceled": "Call canceled"
+    "call_canceled": "Call canceled",
+    "game_started": "{{name}} started a game — Minesweeper Flags",
+    "game_ended": "Game over · {{score}}"
   },
   "errors": {
     "generic": "Something went wrong. Try again.",
@@ -88,5 +90,36 @@
       "emojiName": "Use lowercase letters, numbers and underscores only.",
       "hexColor": "Use a colour like #7c3aed."
     }
+  },
+  "games": {
+    "turn": "Turn",
+    "toWin": "to win",
+    "bomb": "Bomb",
+    "bombUsed": "You already used your bomb",
+    "bombOnlyWhenTrailing": "Only available when trailing",
+    "bombHint": "Blast a 5×5 area (once, when behind)",
+    "youWon": "You won!",
+    "opponentWon": "{{name}} won",
+    "gameOver": "Game Over",
+    "winner": "Winner",
+    "close": "Close",
+    "inviteFrom": "{{name}} invited you to play",
+    "accept": "Accept",
+    "minesweeperFlags": "Minesweeper Flags"
+  },
+  "voice": {
+    "recording": "Recording…",
+    "recordingHint": "Release or tap to send",
+    "voiceMessage": "Voice message",
+    "recordStart": "Record voice message",
+    "cancel": "Cancel"
+  },
+  "gif": {
+    "title": "GIF",
+    "search": "Search GIFs…",
+    "trending": "Trending",
+    "noResults": "No results found",
+    "poweredBy": "Tenor",
+    "disabled": "GIF search is not available on this server"
   }
 }

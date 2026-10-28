@@ -82,6 +82,15 @@ import type {
   WatchStopPayload,
   WatchStoppedPayload,
   WatchTransferHostPayload,
+  GameInvitePayload,
+  GameAcceptPayload,
+  GameDeclinePayload,
+  GameMovePayload,
+  GameInviteReceivedPayload,
+  GameStartedPayload,
+  GameMoveResultPayload,
+  GameEndedPayload,
+  GameDeclinedPayload,
 } from "./events.js";
 
 /**
@@ -106,6 +115,10 @@ export const CLIENT_EVENT = {
   watchQueueReorder: "watch.queue_reorder",
   watchQueuePlay: "watch.queue_play",
   watchEnded: "watch.ended",
+  gameInvite: "game.invite",
+  gameAccept: "game.accept",
+  gameDecline: "game.decline",
+  gameMove: "game.move",
 } as const satisfies Record<string, ClientEventType>;
 
 export const SERVER_EVENT = {
@@ -170,6 +183,11 @@ export const SERVER_EVENT = {
   watchHostChanged: "watch.host_changed",
   watchStopped: "watch.stopped",
   watchQueueUpdated: "watch.queue_updated",
+  gameInviteReceived: "game.invite_received",
+  gameStarted: "game.started",
+  gameMoveResult: "game.move_result",
+  gameEnded: "game.ended",
+  gameDeclined: "game.declined",
 } as const satisfies Record<string, ServerEventType>;
 
 export const clientEvent = {
@@ -245,6 +263,22 @@ export const clientEvent = {
   }),
   watchEnded: (payload: WatchEndedPayload): ClientEventOf<"watch.ended"> => ({
     type: "watch.ended",
+    payload,
+  }),
+  gameInvite: (payload: GameInvitePayload): ClientEventOf<"game.invite"> => ({
+    type: "game.invite",
+    payload,
+  }),
+  gameAccept: (payload: GameAcceptPayload): ClientEventOf<"game.accept"> => ({
+    type: "game.accept",
+    payload,
+  }),
+  gameDecline: (payload: GameDeclinePayload): ClientEventOf<"game.decline"> => ({
+    type: "game.decline",
+    payload,
+  }),
+  gameMove: (payload: GameMovePayload): ClientEventOf<"game.move"> => ({
+    type: "game.move",
     payload,
   }),
 } as const;
@@ -538,6 +572,28 @@ export const serverEvent = {
     payload: WatchQueueUpdatedPayload,
   ): ServerEventOf<"watch.queue_updated"> => ({
     type: "watch.queue_updated",
+    payload,
+  }),
+  gameInviteReceived: (
+    payload: GameInviteReceivedPayload,
+  ): ServerEventOf<"game.invite_received"> => ({
+    type: "game.invite_received",
+    payload,
+  }),
+  gameStarted: (payload: GameStartedPayload): ServerEventOf<"game.started"> => ({
+    type: "game.started",
+    payload,
+  }),
+  gameMoveResult: (payload: GameMoveResultPayload): ServerEventOf<"game.move_result"> => ({
+    type: "game.move_result",
+    payload,
+  }),
+  gameEnded: (payload: GameEndedPayload): ServerEventOf<"game.ended"> => ({
+    type: "game.ended",
+    payload,
+  }),
+  gameDeclined: (payload: GameDeclinedPayload): ServerEventOf<"game.declined"> => ({
+    type: "game.declined",
     payload,
   }),
 } as const;

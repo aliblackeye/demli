@@ -67,6 +67,8 @@ import { Avatar } from "./Avatar";
 import { AttachmentTray } from "./attachments/AttachmentTray";
 import { AttachmentSheet } from "./AttachmentSheet";
 import { EmojiPicker } from "./EmojiPicker";
+import { GifPicker } from "./GifPicker";
+import { MicButton, RecordingStrip, useVoiceRecorder } from "./VoiceRecorder";
 import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
 import { Touchable } from "./ui/Touchable";
@@ -254,6 +256,7 @@ export function Composer({
   );
   const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
   const [attachSheetVisible, setAttachSheetVisible] = useState(false);
+  const [gifPickerVisible, setGifPickerVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput>(null);
 
@@ -374,6 +377,14 @@ export function Composer({
     notifyComposerIdle(channelId);
   };
 
+  const voice = useVoiceRecorder({
+    channelId,
+    replyTo: activeReply?.preview,
+    onSent: () => {
+      if (activeReply) clearReplyDraft();
+    },
+  });
+
   const readyCount = drafts.filter((d) => d.status === "ready").length;
   const uploadsPending = drafts.some(
     (d) => d.status === "processing" || d.status === "uploading",
@@ -382,6 +393,7 @@ export function Composer({
   const canSend = isEditing
     ? text.trim().length > 0
     : (text.trim().length > 0 || readyCount > 0) && !uploadsPending;
+  const showMic = !isEditing && text.trim().length === 0 && readyCount === 0 && !uploadsPending && !voice.recording;
   const left = charsLeft(text, MESSAGE_MAX_LENGTH);
 
   const sendTone = useSharedValue(canSend ? 1 : 0);
@@ -665,144 +677,157 @@ export function Composer({
           </ScrollView>
         </Animated.View>
       ) : null}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
-        {isEditing ? null : (
-          <IconButton
-            icon={Plus}
-            label={t("mobile:attachments.addTitle")}
-            variant="secondary"
-            size="lg"
-            haptic="light"
-            onPress={onAttach}
+      {voice.recording ? (
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
+          <RecordingStrip
+            durationMs={voice.durationMs}
+            sending={voice.sending}
+            onCancel={voice.cancelRecording}
+            onSend={voice.sendRecording}
           />
-        )}
-        <Animated.View
-          layout={reduced ? undefined : LinearTransition.duration(motion.duration.fast)}
-          style={[
-            {
-              flex: 1,
-              minHeight: 48,
-              borderRadius: radius.cta,
-              borderCurve: "continuous",
-              overflow: "hidden",
-            },
-            focused ? elevation.pillInset : null,
-            fieldStyle,
-          ]}
-        >
-          {activeReply ? (
-            <ContextStrip
-              icon="reply"
-              tone="neutral"
-              title={t("mobile:composer.replyingTo", { name: replyAuthorName })}
-              // The quoted line always renders, even for a caption-less image or
-              // a deleted target — the strip must never name a person and no message.
-              detail={
-                activeReply.preview.deleted
-                  ? t("mobile:message.replyDeleted")
-                  : messagePreviewText(
-                      activeReply.preview.content,
-                      (id) => usersDir[id]?.displayName ?? usersDir[id]?.username ?? t("mobile:chat.unknownAuthor"),
-                      t("mobile:search.attachmentOnly"),
-                    )
-              }
-              closeLabel={t("mobile:composer.cancelReply")}
-              onClose={clearReplyDraft}
-            />
-          ) : null}
-          {activeEdit ? (
-            <ContextStrip
-              icon="edit"
-              tone="accent"
-              title={t("mobile:message.editing")}
-              closeLabel={t("mobile:message.cancelEdit")}
-              onClose={cancelEdit}
-            />
-          ) : null}
+        </View>
+      ) : (
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm }}>
           {isEditing ? null : (
-            <View style={{ paddingHorizontal: space.sm, paddingTop: drafts.length > 0 ? space.sm : 0 }}>
-              <AttachmentTray channelId={channelId} />
-              {uploadsPending ? (
-                <Text type="caption" tone="faint" style={{ paddingTop: space.xs, paddingHorizontal: space.xs }}>
-                  {t("mobile:attachments.uploading")}
-                </Text>
-              ) : null}
-            </View>
-          )}
-          <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-            <TextInput
-              ref={inputRef}
-              value={text}
-              onChangeText={onChange}
-              onSelectionChange={onSelectionChange}
-              onFocus={() => {
-                setFocused(true);
-                focus.value = toneTo(true, reduced);
-              }}
-              onBlur={() => {
-                setFocused(false);
-                focus.value = toneTo(false, reduced);
-              }}
-              placeholder={t("mobile:composer.placeholder")}
-              placeholderTextColor={colors.fgFaint}
-              accessibilityLabel={t("mobile:composer.placeholder")}
-              multiline
-              maxLength={MESSAGE_MAX_LENGTH}
-              style={{
-                flex: 1,
-                maxHeight: 132,
-                minHeight: 48,
-                color: colors.fg,
-                fontSize: 16,
-                lineHeight: 22,
-                paddingLeft: space.lg,
-                paddingRight: space.xs,
-                paddingTop: 13,
-                paddingBottom: 13,
-                textAlignVertical: "center",
-              }}
+            <IconButton
+              icon={Plus}
+              label={t("mobile:attachments.addTitle")}
+              variant="secondary"
+              size="lg"
+              haptic="light"
+              onPress={onAttach}
             />
-            <View style={{ paddingBottom: 6, paddingRight: 6 }}>
-              <IconButton
-                icon={Smile}
-                label={t("mobile:emojiPicker.open")}
-                size="md"
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setEmojiPickerVisible(true);
+          )}
+          <Animated.View
+            layout={reduced ? undefined : LinearTransition.duration(motion.duration.fast)}
+            style={[
+              {
+                flex: 1,
+                minHeight: 48,
+                borderRadius: radius.cta,
+                borderCurve: "continuous",
+                overflow: "hidden",
+              },
+              focused ? elevation.pillInset : null,
+              fieldStyle,
+            ]}
+          >
+            {activeReply ? (
+              <ContextStrip
+                icon="reply"
+                tone="neutral"
+                title={t("mobile:composer.replyingTo", { name: replyAuthorName })}
+                detail={
+                  activeReply.preview.deleted
+                    ? t("mobile:message.replyDeleted")
+                    : messagePreviewText(
+                        activeReply.preview.content,
+                        (id) => usersDir[id]?.displayName ?? usersDir[id]?.username ?? t("mobile:chat.unknownAuthor"),
+                        t("mobile:search.attachmentOnly"),
+                      )
+                }
+                closeLabel={t("mobile:composer.cancelReply")}
+                onClose={clearReplyDraft}
+              />
+            ) : null}
+            {activeEdit ? (
+              <ContextStrip
+                icon="edit"
+                tone="accent"
+                title={t("mobile:message.editing")}
+                closeLabel={t("mobile:message.cancelEdit")}
+                onClose={cancelEdit}
+              />
+            ) : null}
+            {isEditing ? null : (
+              <View style={{ paddingHorizontal: space.sm, paddingTop: drafts.length > 0 ? space.sm : 0 }}>
+                <AttachmentTray channelId={channelId} />
+                {uploadsPending ? (
+                  <Text type="caption" tone="faint" style={{ paddingTop: space.xs, paddingHorizontal: space.xs }}>
+                    {t("mobile:attachments.uploading")}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+            <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+              <TextInput
+                ref={inputRef}
+                value={text}
+                onChangeText={onChange}
+                onSelectionChange={onSelectionChange}
+                onFocus={() => {
+                  setFocused(true);
+                  focus.value = toneTo(true, reduced);
+                }}
+                onBlur={() => {
+                  setFocused(false);
+                  focus.value = toneTo(false, reduced);
+                }}
+                placeholder={t("mobile:composer.placeholder")}
+                placeholderTextColor={colors.fgFaint}
+                accessibilityLabel={t("mobile:composer.placeholder")}
+                multiline
+                maxLength={MESSAGE_MAX_LENGTH}
+                style={{
+                  flex: 1,
+                  maxHeight: 132,
+                  minHeight: 48,
+                  color: colors.fg,
+                  fontSize: 16,
+                  lineHeight: 22,
+                  paddingLeft: space.lg,
+                  paddingRight: space.xs,
+                  paddingTop: 13,
+                  paddingBottom: 13,
+                  textAlignVertical: "center",
                 }}
               />
+              <View style={{ paddingBottom: 6, paddingRight: 6 }}>
+                <IconButton
+                  icon={Smile}
+                  label={t("mobile:emojiPicker.open")}
+                  size="md"
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setEmojiPickerVisible(true);
+                  }}
+                />
+              </View>
             </View>
-          </View>
-        </Animated.View>
-        <Animated.View style={[{ width: 48, height: 48, borderRadius: radius.pill }, sendStyle]}>
-          <Touchable
-            onPress={onSend}
-            disabled={!canSend}
-            dimmed={false}
-            pressedTone={colors.washStrong}
-            pressScale={PRESS.scale.icon}
-            accessibilityRole="button"
-            accessibilityLabel={isEditing ? t("buttons.save") : t("mobile:composer.send")}
-            accessibilityHint={
-              !canSend && uploadsPending ? t("mobile:attachments.uploading") : undefined
-            }
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: radius.pill,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {isEditing ? (
-              <Check size={20} color={canSend ? colors.onAccent : colors.fgSubtle} strokeWidth={2.4} />
-            ) : (
-              <SendHorizontal size={20} color={canSend ? colors.onAccent : colors.fgSubtle} />
-            )}
-          </Touchable>
-        </Animated.View>
-      </View>
+          </Animated.View>
+          {showMic ? (
+            <MicButton onPress={voice.startRecording} />
+          ) : (
+            <Animated.View style={[{ width: 48, height: 48, borderRadius: radius.pill }, sendStyle]}>
+              <Touchable
+                onPress={onSend}
+                disabled={!canSend}
+                dimmed={false}
+                pressedTone={colors.washStrong}
+                pressScale={PRESS.scale.icon}
+                accessibilityRole="button"
+                accessibilityLabel={isEditing ? t("buttons.save") : t("mobile:composer.send")}
+                accessibilityHint={
+                  !canSend && uploadsPending ? t("mobile:attachments.uploading") : undefined
+                }
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: radius.pill,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {isEditing ? (
+                  <Check size={20} color={canSend ? colors.onAccent : colors.fgSubtle} strokeWidth={2.4} />
+                ) : (
+                  <SendHorizontal size={20} color={canSend ? colors.onAccent : colors.fgSubtle} />
+                )}
+              </Touchable>
+            </Animated.View>
+          )}
+        </View>
+      )}
       {left <= COUNTER_FROM ? (
         <Text
           accessibilityLiveRegion="polite"
@@ -828,6 +853,12 @@ export function Composer({
         onClose={() => setAttachSheetVisible(false)}
         onPickMedia={onPickMedia}
         onPickAudio={onPickAudio}
+        onPickGif={() => setGifPickerVisible(true)}
+      />
+      <GifPicker
+        visible={gifPickerVisible}
+        channelId={channelId}
+        onClose={() => setGifPickerVisible(false)}
       />
     </View>
   );

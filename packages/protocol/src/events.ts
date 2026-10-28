@@ -21,6 +21,7 @@ import type {
   CustomEmoji,
   CustomEmojiId,
   Dm,
+  GameId,
   DmCall,
   FriendGroup,
   FriendGroupMember,
@@ -1405,6 +1406,97 @@ export interface WatchQueueUpdatedPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Game payloads (Minesweeper Flags — MSN games revival)
+// ---------------------------------------------------------------------------
+
+export type GameType = "minesweeper-flags";
+
+export type WirePlayerSeat = 1 | 2;
+
+export type WireGameAction =
+  | { type: "reveal"; row: number; col: number }
+  | { type: "bomb"; centerRow: number; centerCol: number };
+
+export type WireClientCellState =
+  | { kind: "hidden" }
+  | { kind: "revealed"; adjacentMines: number }
+  | { kind: "flagged"; owner: WirePlayerSeat };
+
+export interface WireGameState {
+  id: string;
+  phase: "waiting" | "playing" | "finished";
+  board: WireClientCellState[];
+  scores: Record<string, number>;
+  currentTurn: WirePlayerSeat;
+  bombUsed: Record<string, boolean>;
+  winner?: WirePlayerSeat;
+  totalMines: number;
+  minesToWin: number;
+}
+
+export interface WireMoveResult {
+  action: WireGameAction;
+  cellChanges: Array<{ row: number; col: number; state: WireClientCellState }>;
+  foundMine: boolean;
+  scores: Record<string, number>;
+  currentTurn: WirePlayerSeat;
+  phase: "waiting" | "playing" | "finished";
+  winner?: WirePlayerSeat;
+}
+
+export interface GameInvitePayload {
+  gameId: GameId;
+  gameType: GameType;
+  targetUserId: UserId;
+  channelId: ChannelId;
+}
+
+export interface GameAcceptPayload {
+  gameId: GameId;
+}
+
+export interface GameDeclinePayload {
+  gameId: GameId;
+}
+
+export interface GameMovePayload {
+  gameId: GameId;
+  action: WireGameAction;
+}
+
+export interface GameInviteReceivedPayload {
+  gameId: GameId;
+  gameType: GameType;
+  inviterUserId: UserId;
+  channelId: ChannelId;
+}
+
+export interface GameStartedPayload {
+  gameId: GameId;
+  gameType: GameType;
+  channelId: ChannelId;
+  players: Record<string, UserId>;
+  state: WireGameState;
+}
+
+export interface GameMoveResultPayload {
+  gameId: GameId;
+  result: WireMoveResult;
+}
+
+export interface GameEndedPayload {
+  gameId: GameId;
+  winnerUserId: UserId | null;
+  scores: Record<string, number>;
+  players: Record<string, UserId>;
+}
+
+export interface GameDeclinedPayload {
+  gameId: GameId;
+  declinedByUserId: UserId;
+}
+
+// ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
@@ -1425,7 +1517,11 @@ export type ClientToServerEvent =
   | { type: "watch.queue_remove"; payload: WatchQueueRemovePayload }
   | { type: "watch.queue_reorder"; payload: WatchQueueReorderPayload }
   | { type: "watch.queue_play"; payload: WatchQueuePlayPayload }
-  | { type: "watch.ended"; payload: WatchEndedPayload };
+  | { type: "watch.ended"; payload: WatchEndedPayload }
+  | { type: "game.invite"; payload: GameInvitePayload }
+  | { type: "game.accept"; payload: GameAcceptPayload }
+  | { type: "game.decline"; payload: GameDeclinePayload }
+  | { type: "game.move"; payload: GameMovePayload };
 
 export type ServerToClientEvent =
   | { type: "auth.succeeded"; payload: AuthSucceededPayload }
@@ -1488,7 +1584,12 @@ export type ServerToClientEvent =
   | { type: "watch.state"; payload: WatchSessionStatePayload }
   | { type: "watch.host_changed"; payload: WatchHostChangedPayload }
   | { type: "watch.stopped"; payload: WatchStoppedPayload }
-  | { type: "watch.queue_updated"; payload: WatchQueueUpdatedPayload };
+  | { type: "watch.queue_updated"; payload: WatchQueueUpdatedPayload }
+  | { type: "game.invite_received"; payload: GameInviteReceivedPayload }
+  | { type: "game.started"; payload: GameStartedPayload }
+  | { type: "game.move_result"; payload: GameMoveResultPayload }
+  | { type: "game.ended"; payload: GameEndedPayload }
+  | { type: "game.declined"; payload: GameDeclinedPayload };
 
 export type ClientEventType = ClientToServerEvent["type"];
 export type ServerEventType = ServerToClientEvent["type"];
@@ -1520,6 +1621,7 @@ export interface RealtimeEnvelope<E> {
 export type ServerEnvelope = RealtimeEnvelope<ServerToClientEvent>;
 
 export type {
+  GameId,
   GroupId,
   ChannelId,
   UserId,

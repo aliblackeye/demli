@@ -59,6 +59,8 @@ const uploadUrlBodySchema = z.object({
   filename: z.string().min(1).max(255).optional(),
   mime: z.string().min(1).max(255),
   sizeBytes: z.number().int().positive(),
+  /** True when the upload is an inline-recorded voice note, not a file pick. */
+  isVoiceMessage: z.boolean().optional(),
 });
 
 const completeBodySchema = z.object({
@@ -155,6 +157,7 @@ export async function registerAttachmentsModule(
         mime: body.mime,
         sizeBytes: body.sizeBytes,
         storagePath,
+        isVoiceMessage: body.isVoiceMessage,
       });
 
       return reply.status(201).send({
@@ -204,7 +207,7 @@ export async function registerAttachmentsModule(
       if (probe.sizeBytes !== null) {
         assertWithinSizeCap(record.kind, probe.sizeBytes);
       }
-      const sniffed = sniffAttachmentKind(probe.head);
+      const sniffed = sniffAttachmentKind(probe.head, record.kind);
       if (sniffed !== record.kind) {
         throw new ApiError(
           400,

@@ -14,6 +14,7 @@ export type InviteId = string;
 export type RoleId = string;
 export type AttachmentId = string;
 export type CustomEmojiId = string;
+export type GameId = string;
 
 export type MemberRole = "owner" | "member" | "guest";
 
@@ -828,6 +829,8 @@ export interface Attachment {
   height: number | null;
   /** Duration in ms for audio/video; null for image. */
   durationMs: number | null;
+  /** True for inline-recorded voice notes; false (default) for file-picked audio. */
+  isVoiceMessage: boolean;
   createdAt: string;
 }
 

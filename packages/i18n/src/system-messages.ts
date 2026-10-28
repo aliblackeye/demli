@@ -25,6 +25,8 @@ export const SYSTEM_MESSAGE_TOKENS = [
   "call_missed",
   "call_declined",
   "call_canceled",
+  "game_started",
+  "game_ended",
 ] as const;
 
 export type SystemMessageToken = (typeof SYSTEM_MESSAGE_TOKENS)[number];
@@ -56,7 +58,7 @@ export function formatCallDuration(totalSeconds: number): string {
  */
 export type TranslateFn = (
   key: string,
-  options?: { name?: string; duration?: string },
+  options?: { name?: string; duration?: string; winner?: string; score?: string },
 ) => string;
 
 /**
@@ -83,6 +85,10 @@ export function resolveSystemMessage(
     const seconds = Number(colon === -1 ? NaN : raw.slice(colon + 1));
     const duration = Number.isFinite(seconds) ? formatCallDuration(seconds) : "";
     return t("common:system.call_ended", { name: displayName, duration });
+  }
+  if (token === "game_ended" && colon !== -1) {
+    const score = raw.slice(colon + 1);
+    return t("common:system.game_ended", { name: displayName, score });
   }
   return t(`common:system.${token}`, { name: displayName });
 }
